@@ -1,0 +1,164 @@
+/**
+ * voyager-open/icon: front end and editor.
+ *
+ * Colour comes from the block's text colour (stroke is currentColor). Every
+ * animation is CSS. "scroll" ties the animation to the icon entering the
+ * viewport where scroll-driven animations are supported, and plays once on
+ * load where they are not. Reduced motion turns all of it off.
+ */
+.wp-block-voyager-open-icon {
+	display: flex;
+	line-height: 0;
+
+	&.aligncenter {
+		justify-content: center;
+	}
+
+	&.alignright {
+		justify-content: flex-end;
+	}
+
+	&.alignleft,
+	&.alignright {
+		float: none;
+		margin-inline: 0;
+	}
+
+	.wp-block-voyager-open-icon__link {
+		display: inline-flex;
+		color: inherit;
+	}
+
+	.wp-block-voyager-open-icon__svg {
+		display: block;
+		max-width: 100%;
+		height: auto;
+	}
+}
+
+$animations: (
+	"bounce": voyager-open-icon-bounce 1s ease-in-out,
+	"pulse": voyager-open-icon-pulse 1.5s ease-in-out,
+	"spin": voyager-open-icon-spin 1.2s linear,
+	"float": voyager-open-icon-float 2.4s ease-in-out,
+	"wiggle": voyager-open-icon-wiggle 0.8s ease-in-out,
+	"fade-in": voyager-open-icon-fade-in 0.8s ease-out,
+	"zoom-in": voyager-open-icon-zoom-in 0.6s ease-out,
+);
+
+@each $name, $animation in $animations {
+	.wp-block-voyager-open-icon.has-animation-#{$name} {
+
+		&.is-trigger-always .wp-block-voyager-open-icon__svg {
+			animation: $animation infinite;
+		}
+
+		&.is-trigger-hover:hover .wp-block-voyager-open-icon__svg,
+		&.is-trigger-hover:focus-within .wp-block-voyager-open-icon__svg {
+			animation: $animation infinite;
+		}
+
+		&.is-trigger-scroll .wp-block-voyager-open-icon__svg {
+			animation: $animation both;
+		}
+	}
+}
+
+@supports (animation-timeline: view()) {
+
+	.wp-block-voyager-open-icon.is-trigger-scroll .wp-block-voyager-open-icon__svg {
+		animation-duration: auto;
+		animation-timeline: view();
+		animation-range: entry 0% cover 40%;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.wp-block-voyager-open-icon .wp-block-voyager-open-icon__svg {
+		animation: none !important;
+	}
+}
+
+@keyframes voyager-open-icon-bounce {
+
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(-20%);
+	}
+}
+
+@keyframes voyager-open-icon-pulse {
+
+	0%,
+	100% {
+		transform: scale(1);
+	}
+
+	50% {
+		transform: scale(1.12);
+	}
+}
+
+@keyframes voyager-open-icon-spin {
+
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes voyager-open-icon-float {
+
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(-8%);
+	}
+}
+
+@keyframes voyager-open-icon-wiggle {
+
+	0%,
+	100% {
+		transform: rotate(0);
+	}
+
+	25% {
+		transform: rotate(-10deg);
+	}
+
+	75% {
+		transform: rotate(10deg);
+	}
+}
+
+@keyframes voyager-open-icon-fade-in {
+
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes voyager-open-icon-zoom-in {
+
+	from {
+		opacity: 0;
+		transform: scale(0.6);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}

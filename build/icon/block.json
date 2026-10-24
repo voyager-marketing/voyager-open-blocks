@@ -1,0 +1,126 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "voyager-open/icon",
+  "version": "0.1.0",
+  "title": "Icon",
+  "category": "design",
+  "icon": "star-filled",
+  "description": "An outline SVG icon from a fixed set, with an optional link and a CSS-only animation.",
+  "keywords": [
+    "icon",
+    "svg",
+    "symbol",
+    "heroicons"
+  ],
+  "textdomain": "voyager-open-blocks",
+  "attributes": {
+    "icon": {
+      "type": "string",
+      "enum": [
+        "arrow-down",
+        "arrow-left",
+        "arrow-right",
+        "arrow-up",
+        "bolt",
+        "building-office",
+        "chart-bar",
+        "chat-bubble",
+        "check-circle",
+        "chevron-down",
+        "chevron-right",
+        "clock",
+        "cog",
+        "cursor-arrow-click",
+        "document",
+        "envelope",
+        "exclamation-triangle",
+        "globe",
+        "heart",
+        "home",
+        "information-circle",
+        "light-bulb",
+        "link",
+        "map-pin",
+        "phone",
+        "photo",
+        "play-circle",
+        "rocket-launch",
+        "shield-check",
+        "sparkles",
+        "star",
+        "users",
+        "video-camera",
+        "wrench",
+        "x-circle"
+      ],
+      "default": "star"
+    },
+    "size": {
+      "type": "number",
+      "default": 48
+    },
+    "label": {
+      "type": "string",
+      "default": ""
+    },
+    "linkUrl": {
+      "type": "string",
+      "default": ""
+    },
+    "linkTarget": {
+      "type": "boolean",
+      "default": false
+    },
+    "animation": {
+      "type": "string",
+      "enum": [
+        "",
+        "bounce",
+        "pulse",
+        "spin",
+        "float",
+        "wiggle",
+        "fade-in",
+        "zoom-in"
+      ],
+      "default": ""
+    },
+    "animationTrigger": {
+      "type": "string",
+      "enum": [
+        "hover",
+        "scroll",
+        "always"
+      ],
+      "default": "hover"
+    }
+  },
+  "supports": {
+    "html": false,
+    "anchor": true,
+    "align": [
+      "left",
+      "center",
+      "right"
+    ],
+    "color": {
+      "text": true,
+      "background": true
+    },
+    "spacing": {
+      "margin": true,
+      "padding": true
+    }
+  },
+  "example": {
+    "attributes": {
+      "icon": "rocket-launch",
+      "size": 64
+    }
+  },
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./index.css",
+  "style": "file:./style-index.css",
+  "render": "file:./render.php"
+}
