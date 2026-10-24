@@ -17,6 +17,10 @@ Start an agent at [skills/voyager-open-blocks](skills/voyager-open-blocks/SKILL.
 
 Requires WordPress 6.9+ and PHP 8.1+. Patterns use core blocks and the active theme's presets only, so the theme decides how they look.
 
+## Install
+
+Download `voyager-open-blocks.zip` from the [latest release](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest). Upload it under Plugins > Add New Plugin > Upload Plugin, or run `wp plugin install voyager-open-blocks.zip --activate`. The zip holds one `voyager-open-blocks/` folder with the blocks already built.
+
 ## Abilities
 
 Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure` and `bind`. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML. See the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
@@ -67,6 +71,10 @@ With the site served, `npm run e2e -- --context site.context.json` runs the abil
 `npm run context` fails if Wesper's manifest is missing any block, binding source or pattern in this repo, or carries a warning that names one. Other warnings are printed. WordPress 7.1.3 itself produces three (`core/navigation` and `core/query` provide context from attributes they no longer register), with or without this plugin.
 
 Two setup details that matter: the SQLite journal mode is set to `DELETE`, because Playground's WebAssembly PHP cannot share WAL's index with host PHP. And the site lives outside the checkout, because the checkout is linked into it.
+
+### Releases
+
+`npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`.
 
 ## License
 

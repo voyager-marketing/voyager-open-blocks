@@ -4,3 +4,4 @@ node_modules/
 *.log
 .claude/worktrees/
 site.context.json
+/voyager-open-blocks.zip

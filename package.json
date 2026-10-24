@@ -29,6 +29,7 @@
 	"scripts": {
 		"build": "wp-scripts build --blocks-manifest",
 		"start": "wp-scripts start --blocks-manifest",
+		"zip": "wp-scripts plugin-zip",
 		"lint:js": "wp-scripts lint-js src scripts assets",
 		"lint:css": "wp-scripts lint-style \"src/**/*.scss\"",
 		"patterns:build": "node scripts/build-patterns.mjs",

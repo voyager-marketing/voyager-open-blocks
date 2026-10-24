@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    name: Attach plugin zip
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run zip
+
+      # v1.2.0 and v1.2.0-rc.1 both need "Version: 1.2.0" in the plugin header.
+      - name: Check the tag matches the plugin version
+        run: |
+          version="${TAG#v}"
+          version="${version%%-*}"
+          grep -qE "^ \* Version: +${version//./\\.}$" voyager-open-blocks.php || {
+            echo "::error::$TAG does not match the Version header in voyager-open-blocks.php"
+            exit 1
+          }
+
+      - name: Check the zip
+        run: |
+          list="$RUNNER_TEMP/zip.txt"
+          unzip -Z1 voyager-open-blocks.zip > "$list"
+          test "$(cut -d/ -f1 "$list" | sort -u)" = voyager-open-blocks
+          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ playground/ LICENSE README.md voyager-open-blocks.php; do
+            grep -q "^voyager-open-blocks/$path" "$list" || { echo "::error::zip is missing $path"; exit 1; }
+          done
+          test "$(grep -c -E '/node_modules/|/scripts/|/tests/|/src/' "$list")" -eq 0
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            prerelease=""
+            case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes $prerelease
+          fi
+          gh release upload "$TAG" voyager-open-blocks.zip --clobber
