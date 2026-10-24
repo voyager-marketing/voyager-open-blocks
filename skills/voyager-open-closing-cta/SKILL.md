@@ -45,6 +45,16 @@ If the site email is not set, the button keeps its authored `/contact/` link.
 2. **Author.** Insert by reference, or assemble an edited intent.
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
 
+## Abilities
+
+With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+
+- **insert**: `{"post_id": 123, "item": "voyager-open/closing-cta"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **bind**: it arrives with the email button bound. To make that button call instead, bind its `url` to `{"key": "phone_link"}` on `voyager/site-data`, using the path labelled "Email button".
+- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+
+`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+
 ## Try it
 
 `blueprints/closing-cta.json`.

@@ -73,6 +73,29 @@ Rules:
 - Copy `args` verbatim. For post meta, the manifest's `contentModel.postTypes[].fields[]` gives them ready to use. For `voyager/site-data`, the keys are fixed and listed in its skill. Wesper reports that source but not its keys, because custom sources expose no field list on the server.
 - Leave the authored text in place. An empty value resolves to nothing, and WordPress then keeps the authored text, so placeholder copy shows until the site has real data.
 
+## Abilities
+
+The plugin registers five WordPress abilities in the `voyager-open-blocks` category. They are visible at `/wp-json/wp-abilities/v1/abilities` and, through the WordPress MCP adapter, as MCP tools. They let an agent do steps 2 and 3 on a live site without writing markup.
+
+| Ability | Method | Use it to |
+|---|---|---|
+| `voyager-open-blocks/get-catalog` | GET | List the pack's block (attribute schema, bindable attributes), patterns (named blocks, bindings) and every bindable field with its exact `args`, including the `voyager/site-data` keys Wesper cannot see. |
+| `voyager-open-blocks/get-post-blocks` | GET | Read a post's blocks with their paths, labels and bindings. |
+| `voyager-open-blocks/insert` | POST | Place a pattern (copy, or a `core/pattern` reference) or the icon block at a top-level position. Returns the inserted `markup` and each block's `path`. `dry_run` previews without saving. |
+| `voyager-open-blocks/configure` | POST | Set attributes on a block that saves no HTML (the icon), validated against block.json. |
+| `voyager-open-blocks/bind` | POST | Write `metadata.bindings`. The attribute must be bindable for that block, and `args` must match a listed field exactly. |
+
+A typical run:
+
+1. `get-catalog` (and, for anything outside the pack, the Wesper manifest).
+2. `insert` the pattern into the page.
+3. `bind` or `configure` by the paths `insert` returned.
+4. Pipe every returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+
+WordPress checks what it can from PHP: block types are registered, comment attributes match their schema, and the markup round-trips. Saved HTML can only be checked by `block-runner validate`, so step 4 is not optional. Errors use `voyager_open_blocks_invalid_<field>` codes (`post_id`, `path`, `item`, `attributes`, `attribute`, `source`, `args`). Fix the input and retry.
+
+`scripts/e2e.mjs` in the repo runs this whole flow over REST and is the worked example.
+
 ## Hard rules
 
 - Do not invent credentials, testimonials, statistics or client names to fill a pattern. Use facts the site owner gave you, or leave the shipped placeholder and say it still needs replacing.

@@ -50,6 +50,16 @@ The intent tree is `patterns/intents/cta-band.json` (`intent` key). The markup i
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
 4. **Bind.** Already bound. If Settings > Site Data has no phone, the button keeps its placeholder. Say so instead of inventing a number.
 
+## Abilities
+
+With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+
+- **insert**: `{"post_id": 123, "item": "voyager-open/cta-band"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **bind**: it arrives bound. To re-point the call button, take its path from the insert response (label "Click to call") and pass args copied from `get-catalog`, for example `{"attribute": "url", "source": "voyager/site-data", "args": {"key": "phone_link"}}`.
+- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+
+`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+
 ## Try it
 
 `blueprints/cta-band.json`.

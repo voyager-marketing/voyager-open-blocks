@@ -49,6 +49,16 @@ To do this, give the list `children` of `core/list-item` nodes instead of the `i
 2. **Author.** Assemble with the owner's facts.
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
 
+## Abilities
+
+With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+
+- **insert**: `{"post_id": 123, "item": "voyager-open/proof-strip"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **bind**: optional. Bind a list item's `content` to an allowlisted post meta field by its path and the field's args from `get-catalog`.
+- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+
+`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+
 ## Try it
 
 `blueprints/proof-strip.json`.

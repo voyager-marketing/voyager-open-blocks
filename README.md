@@ -17,6 +17,10 @@ Start an agent at [skills/voyager-open-blocks](skills/voyager-open-blocks/SKILL.
 
 Requires WordPress 6.9+ and PHP 8.1+. Patterns use core blocks and the active theme's presets only, so the theme decides how they look.
 
+## Abilities
+
+Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure` and `bind`. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML. See the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
+
 ## Try it
 
 [WordPress Playground](https://playground.wordpress.net/) blueprints load the pack with demo content: [`blueprint.json`](blueprint.json) for everything, or one per item in [`blueprints/`](blueprints/). They install the plugin from this repository's `main` branch.
@@ -57,6 +61,8 @@ npm run playground -- serve --site ../voyager-open-blocks-site   # serve it with
 npm run context -- --site ../voyager-open-blocks-site            # wesper collect, then check every item is listed
 npm run playground -- blueprint cta-band                         # boot blueprints/cta-band.json with this checkout mounted
 ```
+
+With the site served, `npm run e2e -- --context site.context.json` runs the abilities end to end over REST, the way an agent would. It creates a page, inserts the CTA band, then inserts, configures and binds an icon. It checks that bad input is refused, runs `block-runner validate --strict` on every markup returned and on the saved page, and checks the bound values render. It reads an application password from `VOYAGER_OPEN_APP_PASSWORD` (`wp user application-password create admin e2e --porcelain`). `setup` sets `WP_ENVIRONMENT_TYPE` to `local` so application passwords work over plain HTTP.
 
 `npm run context` fails if Wesper's manifest is missing any block, binding source or pattern in this repo, or carries a warning that names one. Other warnings are printed. WordPress 7.1.3 itself produces three (`core/navigation` and `core/query` provide context from attributes they no longer register), with or without this plugin.
 

@@ -58,6 +58,18 @@ Wesper cannot tell you which registered fields are allowlisted for this source. 
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
 4. **Check.** Open the rendered page. If the placeholder still shows, the field is empty or not allowlisted.
 
+## Abilities
+
+**bind** writes this source into a block's `metadata.bindings`:
+
+```json
+{ "post_id": 123, "path": "2", "attribute": "content", "source": "voyager/post-meta-text", "args": { "key": "demo_stats.0.value" } }
+```
+
+The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type. Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
+
+A dot path is accepted when the part before the first dot is a listed field.
+
 ## Try it
 
 `blueprints/post-meta-text.json` has a page bound to its own demo fields, including a JSON dot path.

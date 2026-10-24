@@ -35,7 +35,8 @@
 		"patterns:validate": "block-runner validate \"patterns/*.html\" --strict --json",
 		"playground": "node scripts/playground.mjs",
 		"context": "node scripts/context.mjs",
-		"check": "node scripts/check.mjs"
+		"check": "node scripts/check.mjs",
+		"e2e": "node scripts/e2e.mjs"
 	},
 	"devDependencies": {
 		"@wordpress/scripts": "37.0.0",

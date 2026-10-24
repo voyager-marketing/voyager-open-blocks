@@ -115,6 +115,9 @@ async function setup() {
 		// share WAL's memory-mapped index with host PHP, and every request after
 		// the first fails with "database is locked". Rollback journal works in both.
 		wp( site, [ 'config', 'set', 'SQLITE_JOURNAL_MODE', 'DELETE' ], env );
+		// Local environment type lets application passwords work over plain
+		// HTTP, which is how scripts/e2e.mjs calls the abilities like an agent.
+		wp( site, [ 'config', 'set', 'WP_ENVIRONMENT_TYPE', 'local' ], env );
 		wp(
 			site,
 			[
