@@ -1,0 +1,72 @@
+{
+	"title": "Proof strip",
+	"description": "One ruled row of three to six checkmarked credentials, usually right under a hero. Uses the core/list Ticks style.",
+	"categories": [
+		"voyager-open",
+		"about"
+	],
+	"keywords": [
+		"proof",
+		"credentials",
+		"trust",
+		"license",
+		"strip",
+		"checkmarks"
+	],
+	"viewportWidth": 1280,
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Proof strip"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|40",
+								"bottom": "var:preset|spacing|40",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						},
+						"border": {
+							"top": {
+								"width": "1px",
+								"style": "solid"
+							},
+							"bottom": {
+								"width": "1px",
+								"style": "solid"
+							}
+						}
+					},
+					"layout": {
+						"type": "constrained",
+						"contentSize": "var(--wp--style--global--wide-size, 1200px)"
+					}
+				},
+				"children": [
+					{
+						"block": "core/list",
+						"attrs": {
+							"className": "is-style-voyager-open-ticks",
+							"metadata": {
+								"name": "Credentials"
+							}
+						},
+						"items": [
+							"Licensed and insured",
+							"Locally owned",
+							"Written quotes before work begins",
+							"Same-week scheduling"
+						]
+					}
+				]
+			}
+		]
+	}
+}
