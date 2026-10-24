@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "briefs": [
+    {
+      "id": "ridgeline-roofing",
+      "split": "derive",
+      "business": "Ridgeline Roofing",
+      "industry": "home services",
+      "phone": "(555) 555-0100",
+      "new_phone": "(555) 555-0150",
+      "email": "hello@ridgeline-roofing.example.com",
+      "address": "100 Main Street",
+      "address_city": "Harbor City",
+      "address_state": "VA",
+      "address_zip": "23001",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Licensed and insured",
+        "GAF certified installer",
+        "Written estimates",
+        "10-year workmanship warranty"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "brightpath-hvac",
+      "split": "derive",
+      "business": "Brightpath Heating & Air",
+      "industry": "home services",
+      "phone": "(555) 555-0101",
+      "new_phone": "(555) 555-0151",
+      "email": "hello@brightpath-hvac.example.com",
+      "address": "107 Main Street",
+      "address_city": "Millbrook",
+      "address_state": "NC",
+      "address_zip": "27501",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "NATE-certified technicians",
+        "24/7 emergency service",
+        "Upfront pricing",
+        "Financing available"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    }
+  ]
+}

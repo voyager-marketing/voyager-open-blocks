@@ -1,0 +1,486 @@
+{
+  "version": 1,
+  "note": "Fake businesses only. Phones use 555-01xx, emails use example.com subdomains.",
+  "briefs": [
+    {
+      "id": "ridgeline-roofing",
+      "split": "derive",
+      "business": "Ridgeline Roofing",
+      "industry": "home services",
+      "phone": "(555) 555-0100",
+      "new_phone": "(555) 555-0150",
+      "email": "hello@ridgeline-roofing.example.com",
+      "address": "100 Main Street",
+      "address_city": "Harbor City",
+      "address_state": "VA",
+      "address_zip": "23001",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Licensed and insured",
+        "GAF certified installer",
+        "Written estimates",
+        "10-year workmanship warranty"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "brightpath-hvac",
+      "split": "derive",
+      "business": "Brightpath Heating & Air",
+      "industry": "home services",
+      "phone": "(555) 555-0101",
+      "new_phone": "(555) 555-0151",
+      "email": "hello@brightpath-hvac.example.com",
+      "address": "107 Main Street",
+      "address_city": "Millbrook",
+      "address_state": "NC",
+      "address_zip": "27501",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "NATE-certified technicians",
+        "24/7 emergency service",
+        "Upfront pricing",
+        "Financing available"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "copperline-plumbing",
+      "split": "derive",
+      "business": "Copperline Plumbing",
+      "industry": "home services",
+      "phone": "(555) 555-0102",
+      "new_phone": "(555) 555-0152",
+      "email": "hello@copperline-plumbing.example.com",
+      "address": "114 Main Street",
+      "address_city": "Westfall",
+      "address_state": "MD",
+      "address_zip": "20601",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Master plumber on every job",
+        "Same-day service",
+        "No overtime charges",
+        "Satisfaction guarantee"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "fernhill-landscaping",
+      "split": "derive",
+      "business": "Fernhill Landscaping",
+      "industry": "home services",
+      "phone": "(555) 555-0103",
+      "new_phone": "(555) 555-0153",
+      "email": "hello@fernhill-landscaping.example.com",
+      "address": "121 Main Street",
+      "address_city": "Oak Bluff",
+      "address_state": "VA",
+      "address_zip": "23002",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Certified arborist on staff",
+        "Free design consult",
+        "Weekly maintenance plans",
+        "Locally owned"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "cardinal-family-law",
+      "split": "derive",
+      "business": "Cardinal Family Law",
+      "industry": "legal",
+      "phone": "(555) 555-0104",
+      "new_phone": "(555) 555-0154",
+      "email": "hello@cardinal-family-law.example.com",
+      "address": "128 Main Street",
+      "address_city": "Riverside",
+      "address_state": "VA",
+      "address_zip": "23003",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Free 30-minute consultation",
+        "Collaborative divorce trained",
+        "Flat-fee options",
+        "Evening appointments"
+      ],
+      "primary_cta": {
+        "label": "Schedule a consultation",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "hollis-estate-planning",
+      "split": "derive",
+      "business": "Hollis Estate Planning",
+      "industry": "legal",
+      "phone": "(555) 555-0105",
+      "new_phone": "(555) 555-0155",
+      "email": "hello@hollis-estate-planning.example.com",
+      "address": "135 Main Street",
+      "address_city": "Cedar Point",
+      "address_state": "NC",
+      "address_zip": "27502",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Board-certified estate planner",
+        "Flat-fee wills and trusts",
+        "Home and hospital visits",
+        "Plain-language documents"
+      ],
+      "primary_cta": {
+        "label": "Schedule a consultation",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "lakeshore-dental",
+      "split": "derive",
+      "business": "Lakeshore Family Dental",
+      "industry": "healthcare",
+      "phone": "(555) 555-0106",
+      "new_phone": "(555) 555-0156",
+      "email": "hello@lakeshore-dental.example.com",
+      "address": "142 Main Street",
+      "address_city": "Lakeshore",
+      "address_state": "MD",
+      "address_zip": "20602",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "New patients welcome",
+        "Most insurance accepted",
+        "Same-day emergency visits",
+        "Sedation options"
+      ],
+      "primary_cta": {
+        "label": "Book an appointment",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "aligned-chiropractic",
+      "split": "derive",
+      "business": "Aligned Chiropractic",
+      "industry": "healthcare",
+      "phone": "(555) 555-0107",
+      "new_phone": "(555) 555-0157",
+      "email": "hello@aligned-chiropractic.example.com",
+      "address": "149 Main Street",
+      "address_city": "Pine Ridge",
+      "address_state": "VA",
+      "address_zip": "23004",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Doctor of Chiropractic",
+        "Walk-ins welcome",
+        "Massage therapy on site",
+        "Insurance billing"
+      ],
+      "primary_cta": {
+        "label": "Book an appointment",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "second-harvest-pantry",
+      "split": "derive",
+      "business": "Second Harvest Pantry",
+      "industry": "nonprofit",
+      "phone": "(555) 555-0108",
+      "new_phone": "(555) 555-0158",
+      "email": "hello@second-harvest-pantry.example.com",
+      "address": "156 Main Street",
+      "address_city": "Millbrook",
+      "address_state": "NC",
+      "address_zip": "27503",
+      "hours": "Tuesday and Thursday, 4pm to 7pm",
+      "credentials": [
+        "501(c)(3) nonprofit",
+        "Volunteer-run since 2009",
+        "Weekly food distribution",
+        "No sign-up required"
+      ],
+      "primary_cta": {
+        "label": "Get involved",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "tally-accounting",
+      "split": "derive",
+      "business": "Tally Accounting Group",
+      "industry": "professional services",
+      "phone": "(555) 555-0109",
+      "new_phone": "(555) 555-0159",
+      "email": "hello@tally-accounting.example.com",
+      "address": "163 Main Street",
+      "address_city": "Harbor City",
+      "address_state": "VA",
+      "address_zip": "23005",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "CPA-led team",
+        "Monthly bookkeeping",
+        "Tax planning year-round",
+        "Fixed monthly fees"
+      ],
+      "primary_cta": {
+        "label": "Schedule a consultation",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "summit-pest",
+      "split": "held-out",
+      "business": "Summit Pest Control",
+      "industry": "home services",
+      "phone": "(555) 555-0110",
+      "new_phone": "(555) 555-0160",
+      "email": "hello@summit-pest.example.com",
+      "address": "170 Main Street",
+      "address_city": "Glenwood",
+      "address_state": "MD",
+      "address_zip": "20603",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Licensed applicators",
+        "Pet-safe treatments",
+        "Quarterly plans",
+        "Free re-treatment"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "bluewave-pressure",
+      "split": "held-out",
+      "business": "Bluewave Pressure Washing",
+      "industry": "home services",
+      "phone": "(555) 555-0111",
+      "new_phone": "(555) 555-0161",
+      "email": "hello@bluewave-pressure.example.com",
+      "address": "177 Main Street",
+      "address_city": "Oak Bluff",
+      "address_state": "VA",
+      "address_zip": "23006",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Fully insured",
+        "Soft-wash for roofs",
+        "Free quotes in 24 hours",
+        "Eco-friendly cleaners"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "everett-injury-law",
+      "split": "held-out",
+      "business": "Everett Injury Law",
+      "industry": "legal",
+      "phone": "(555) 555-0112",
+      "new_phone": "(555) 555-0162",
+      "email": "hello@everett-injury-law.example.com",
+      "address": "184 Main Street",
+      "address_city": "Westfall",
+      "address_state": "MD",
+      "address_zip": "20604",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "No fee unless we win",
+        "Free case review",
+        "Available 24/7",
+        "Spanish spoken"
+      ],
+      "primary_cta": {
+        "label": "Schedule a consultation",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "willow-vet",
+      "split": "held-out",
+      "business": "Willow Creek Veterinary",
+      "industry": "healthcare",
+      "phone": "(555) 555-0113",
+      "new_phone": "(555) 555-0163",
+      "email": "hello@willow-vet.example.com",
+      "address": "191 Main Street",
+      "address_city": "Cedar Point",
+      "address_state": "NC",
+      "address_zip": "27504",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "AAHA-accredited hospital",
+        "Fear Free certified staff",
+        "Same-day sick visits",
+        "In-house lab"
+      ],
+      "primary_cta": {
+        "label": "Book an appointment",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "glow-med-spa",
+      "split": "held-out",
+      "business": "Glow Med Spa",
+      "industry": "healthcare",
+      "phone": "(555) 555-0114",
+      "new_phone": "(555) 555-0164",
+      "email": "hello@glow-med-spa.example.com",
+      "address": "198 Main Street",
+      "address_city": "Riverside",
+      "address_state": "VA",
+      "address_zip": "23007",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Medical director on site",
+        "Licensed injectors",
+        "Free consultations",
+        "Membership plans"
+      ],
+      "primary_cta": {
+        "label": "Book an appointment",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "paws-rescue",
+      "split": "held-out",
+      "business": "Paws & Hearts Rescue",
+      "industry": "nonprofit",
+      "phone": "(555) 555-0115",
+      "new_phone": "(555) 555-0165",
+      "email": "hello@paws-rescue.example.com",
+      "address": "205 Main Street",
+      "address_city": "Pine Ridge",
+      "address_state": "VA",
+      "address_zip": "23008",
+      "hours": "Tuesday and Thursday, 4pm to 7pm",
+      "credentials": [
+        "501(c)(3) nonprofit",
+        "Foster-based rescue",
+        "All pets vetted and microchipped",
+        "Adoption events monthly"
+      ],
+      "primary_cta": {
+        "label": "Get involved",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "youth-arts-collective",
+      "split": "held-out",
+      "business": "Youth Arts Collective",
+      "industry": "nonprofit",
+      "phone": "(555) 555-0116",
+      "new_phone": "(555) 555-0166",
+      "email": "hello@youth-arts-collective.example.com",
+      "address": "212 Main Street",
+      "address_city": "Lakeshore",
+      "address_state": "MD",
+      "address_zip": "20605",
+      "hours": "Tuesday and Thursday, 4pm to 7pm",
+      "credentials": [
+        "Free after-school programs",
+        "Teaching artists",
+        "Ages 8 to 18",
+        "Scholarships available"
+      ],
+      "primary_cta": {
+        "label": "Get involved",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "anchor-insurance",
+      "split": "held-out",
+      "business": "Anchor Insurance Agency",
+      "industry": "professional services",
+      "phone": "(555) 555-0117",
+      "new_phone": "(555) 555-0167",
+      "email": "hello@anchor-insurance.example.com",
+      "address": "219 Main Street",
+      "address_city": "Glenwood",
+      "address_state": "MD",
+      "address_zip": "20606",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Independent agency",
+        "Home, auto and business",
+        "Annual policy reviews",
+        "Claims help"
+      ],
+      "primary_cta": {
+        "label": "Schedule a consultation",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "northgate-it",
+      "split": "held-out",
+      "business": "Northgate IT Services",
+      "industry": "professional services",
+      "phone": "(555) 555-0118",
+      "new_phone": "(555) 555-0168",
+      "email": "hello@northgate-it.example.com",
+      "address": "226 Main Street",
+      "address_city": "Millbrook",
+      "address_state": "NC",
+      "address_zip": "27505",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Managed IT for small offices",
+        "Same-day remote support",
+        "Fixed monthly pricing",
+        "Security monitoring"
+      ],
+      "primary_cta": {
+        "label": "Schedule a consultation",
+        "url": "/contact/"
+      }
+    },
+    {
+      "id": "stonebridge-masonry",
+      "split": "held-out",
+      "business": "Stonebridge Masonry",
+      "industry": "home services",
+      "phone": "(555) 555-0119",
+      "new_phone": "(555) 555-0169",
+      "email": "hello@stonebridge-masonry.example.com",
+      "address": "233 Main Street",
+      "address_city": "Harbor City",
+      "address_state": "VA",
+      "address_zip": "23009",
+      "hours": "Monday to Friday, 8am to 5pm",
+      "credentials": [
+        "Third-generation masons",
+        "Licensed and insured",
+        "Free estimates",
+        "Historic restoration"
+      ],
+      "primary_cta": {
+        "label": "Request a quote",
+        "url": "/contact/"
+      }
+    }
+  ]
+}
