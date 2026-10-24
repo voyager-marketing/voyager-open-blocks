@@ -57,6 +57,14 @@ A click-to-call icon:
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. With the manifest, Block Runner knows the block is registered and checks everything around it. It does not check the icon's attribute values, so take them from the enum.
 4. **Bind.** Only `label` and `linkUrl`, with the args shown in the source's skill.
 
+## Abilities
+
+- **insert**: `{"post_id": 123, "item": "voyager-open/icon", "attributes": {"icon": "phone", "size": 32, "label": "Call us"}}`. The attributes are validated against block.json, so an icon outside the enum is refused.
+- **configure**: `{"post_id": 123, "path": "4", "attributes": {"animation": "pulse", "animationTrigger": "always"}}`. A `null` value resets an attribute. This works because the icon saves no HTML. `configure` refuses blocks that do.
+- **bind**: `{"post_id": 123, "path": "4", "attribute": "linkUrl", "source": "voyager/site-data", "args": {"key": "phone_link"}}`. Only `label` and `linkUrl` are bindable, and args must match a field from `get-catalog` exactly.
+
+Paths come from the insert response or `get-post-blocks`.
+
 ## Try it
 
 `blueprints/icon.json` opens a Playground page with decorative, animated, linked and bound icons.

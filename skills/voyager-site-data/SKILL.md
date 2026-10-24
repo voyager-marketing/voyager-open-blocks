@@ -71,6 +71,18 @@ Those are Block Runner intent nodes. `npx block-runner assemble` turns them into
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
 4. **Check the data.** If a value is empty, the placeholder shows. Tell the user which settings to fill in rather than inventing a phone number or address.
 
+## Abilities
+
+**bind** writes this source into a block's `metadata.bindings`:
+
+```json
+{ "post_id": 123, "path": "0/0/1/0/1", "attribute": "url", "source": "voyager/site-data", "args": { "key": "phone_link" } }
+```
+
+The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type. Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
+
+`get-catalog` also lists every key of this source with its args. Use it where the Wesper manifest cannot.
+
 ## Try it
 
 `blueprints/site-data.json`.

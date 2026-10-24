@@ -65,6 +65,16 @@ Then `npx block-runner assemble intent.json --json`. A third-party form block ca
 3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
 4. **Check the data.** List any empty Site Data settings for the owner instead of filling them with guesses.
 
+## Abilities
+
+With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+
+- **insert**: `{"post_id": 123, "item": "voyager-open/contact-section"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **bind**: every detail line arrives bound. Add or change one with its path and args from `get-catalog`. The form plugin's block goes in by hand or through that plugin's own tools. This pack does not insert third-party blocks.
+- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+
+`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+
 ## Try it
 
 `blueprints/contact-section.json`.
