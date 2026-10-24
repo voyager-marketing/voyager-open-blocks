@@ -29,7 +29,7 @@
 					{
 						"block": "core/heading",
 						"level": 2,
-						"text": "Ready when you are, really.",
+						"text": "Ready when you are.",
 						"attrs": { "style": { "typography": { "textAlign": "center" } } }
 					},
 					{
