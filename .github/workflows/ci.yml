@@ -1,0 +1,70 @@
+name: CI
+
+# VOY-1781. Runs what `npm run check` and the linters do on a laptop, on Linux,
+# so a stale build/, a stale pattern or a broken PHP file can't merge unnoticed.
+# Block Check (pattern markup) stays in its own workflow.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Build, check and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # build/ is committed. A rebuild that changes it means src/ moved on
+      # without a rebuild.
+      - name: Build, and fail if the committed build/ is stale
+        run: |
+          npm run build
+          git diff --exit-code --stat -- build/
+
+      # Pattern intents vs generated .html, block-runner validate --strict,
+      # the invalid fixtures, and block-runner plugin inspect (skipped on Windows,
+      # so this is the only place it runs).
+      - name: npm run check
+        run: npm run check
+
+      - name: Lint JS
+        run: npm run lint:js
+
+      - name: Lint CSS
+        run: npm run lint:css
+
+  php:
+    name: PHP syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: none
+          coverage: none
+
+      - name: php -l on every PHP file
+        run: |
+          find . -name '*.php' -not -path './node_modules/*' -print0 \
+            | xargs -0 -n1 -P4 php -l \
+            | grep -v '^No syntax errors' || true
+          find . -name '*.php' -not -path './node_modules/*' -print0 \
+            | xargs -0 -n1 php -l > /dev/null
