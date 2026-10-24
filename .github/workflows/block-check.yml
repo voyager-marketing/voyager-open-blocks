@@ -1,0 +1,20 @@
+name: Block Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  blocks:
+    name: Validate pattern markup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: voyager-marketing/voyager-block-check@v1
+        with:
+          paths: patterns/*.html patterns/**/*.html
