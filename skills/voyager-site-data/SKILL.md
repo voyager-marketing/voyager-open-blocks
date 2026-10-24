@@ -62,7 +62,8 @@ Those are Block Runner intent nodes. `npx block-runner assemble` turns them into
 - An unknown key or an empty value resolves to nothing, and WordPress keeps the authored text. Always author sensible placeholder text.
 - Values come back raw. WordPress escapes them where they land (`wp_kses_post` for rich text, the HTML API for attributes).
 - `voyager_site_data_value` filters every resolved value.
-- The voyager-blocks plugin registers the same source with the same option names. When it is active, it owns the source and this pack stands aside. `phone_link` and `email_link` exist only in this pack.
+- The voyager-blocks plugin registers the same source with the same option names. When it is active, it owns the source and this pack stands aside. voyager-blocks has `phone_link` and `email_link` from 2.28.6; an older one lacks them.
+- `get-catalog` lists the fields of whichever plugin owns the source, read from that plugin's `voyager_binding_sources` definition, with the owner's labels and args. On a voyager-blocks site that is its key list, not the table above, so check the catalog before binding a key. When the owner does not describe its fields, `fields` is `null` and `bind` refuses the source.
 
 ## The loop
 

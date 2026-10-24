@@ -49,7 +49,7 @@ Wesper cannot tell you which registered fields are allowlisted for this source. 
 - An empty value, a missing JSON path or a non-scalar resolves to nothing. WordPress then keeps the authored text.
 - Password-protected posts resolve nothing for visitors who cannot edit them.
 - In the editor, a field without a dot path is editable in place: typing in the bound block writes to the post's meta. Dot paths are read-only.
-- voyager-blocks registers a source with the same name and its own allowlist. When it is active, it owns the source, and fields registered here do not resolve through it.
+- voyager-blocks registers a source with the same name and its own allowlist. When it is active, it owns the source, and fields registered here do not resolve through it. `get-catalog` then lists the owner's allowlist, as that plugin describes it, and `bind` accepts only those args.
 
 ## The loop
 

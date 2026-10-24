@@ -88,12 +88,14 @@ function patterns(): array {
 /**
  * Bindable fields of a source for a post type, as `{ label, args }`.
  *
- * Null when the source's fields cannot be listed on the server (an unknown
- * source, or one another plugin owns).
+ * When another plugin owns one of the pack's sources, the fields are that
+ * plugin's own list (see owner_fields()). Null when the fields cannot be
+ * listed on the server: an unknown source, or an owner that does not describe
+ * its fields.
  *
  * @param string $source    Source name.
  * @param string $post_type Post type.
- * @return array<int, array{label: string, args: array<string, string>}>|null
+ * @return array<int, array{label: string, args: array<string, mixed>}>|null
  */
 function fields( string $source, string $post_type ): ?array {
 	$out = [];
@@ -101,7 +103,7 @@ function fields( string $source, string $post_type ): ?array {
 	switch ( $source ) {
 		case SiteData\SOURCE:
 			if ( ! SiteData\owned() ) {
-				return null;
+				return owner_fields( $source, $post_type );
 			}
 			foreach ( SiteData\fields() as $key => $field ) {
 				$out[] = [
@@ -113,7 +115,7 @@ function fields( string $source, string $post_type ): ?array {
 
 		case PostMetaText\SOURCE:
 			if ( ! PostMetaText\owned() ) {
-				return null;
+				return owner_fields( $source, $post_type );
 			}
 			foreach ( PostMetaText\fields_for( $post_type ) as $key => $label ) {
 				$out[] = [
@@ -141,6 +143,69 @@ function fields( string $source, string $post_type ): ?array {
 }
 
 /**
+ * Fields of a source another plugin registered, from that plugin's own list.
+ *
+ * voyager-blocks (and any plugin built on its registry) describes each source
+ * it contributes through the `voyager_binding_sources` filter: a
+ * `get_fields_list` callable or a static `fields` map of key => `{ label,
+ * args?, post_types? }`. The owner's list is used as it is, so for
+ * voyager/post-meta-text that is the owner's allowlist, not this plugin's.
+ * A field's own `args` are used verbatim; without them the args are
+ * `{ "key": "<field key>" }`, which is what the owner's resolver reads.
+ *
+ * Fields restricted to other post types (the field's `post_types`, else the
+ * definition's) are left out.
+ *
+ * @param string $source    Source name.
+ * @param string $post_type Post type.
+ * @return array<int, array{label: string, args: array<string, mixed>}>|null Null when the source is not registered or no definition describes it.
+ */
+function owner_fields( string $source, string $post_type ): ?array {
+	if ( null === get_block_bindings_source( $source ) ) {
+		return null;
+	}
+
+	$definition = null;
+	foreach ( (array) apply_filters( 'voyager_binding_sources', [] ) as $entry ) {
+		if ( is_array( $entry ) && ( $entry['name'] ?? null ) === $source ) {
+			$definition = $entry;
+			break;
+		}
+	}
+
+	if ( null === $definition ) {
+		return null;
+	}
+
+	$raw = is_array( $definition['fields'] ?? null ) ? $definition['fields'] : [];
+	if ( isset( $definition['get_fields_list'] ) && is_callable( $definition['get_fields_list'] ) ) {
+		$listed = call_user_func( $definition['get_fields_list'] );
+		if ( is_array( $listed ) ) {
+			$raw = $listed;
+		}
+	}
+
+	$out = [];
+	foreach ( $raw as $key => $field ) {
+		if ( ! is_array( $field ) ) {
+			continue;
+		}
+
+		$types = (array) ( $field['post_types'] ?? $definition['post_types'] ?? [ '*' ] );
+		if ( ! in_array( '*', $types, true ) && ! in_array( $post_type, $types, true ) ) {
+			continue;
+		}
+
+		$out[] = [
+			'label' => (string) ( $field['label'] ?? $key ),
+			'args'  => is_array( $field['args'] ?? null ) && [] !== $field['args'] ? $field['args'] : [ 'key' => (string) $key ],
+		];
+	}
+
+	return $out;
+}
+
+/**
  * Every source with its fields for one post type.
  *
  * @param string $post_type Post type the fields are for.
@@ -160,7 +225,7 @@ function sources( string $post_type ): array {
 			'name'   => $name,
 			'label'  => (string) $source->label,
 			'fields' => $fields,
-			'note'   => null === $fields ? 'Another plugin registered this source; its fields cannot be listed here.' : null,
+			'note'   => null === $fields ? 'Another plugin registered this source without describing its fields, so they cannot be listed here.' : null,
 		];
 	}
 
