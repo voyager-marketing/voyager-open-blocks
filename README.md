@@ -35,7 +35,7 @@ Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/
 - **Patterns** start as Block Runner intent trees in `patterns/intents/<name>.json`, with the pattern's title, description and categories beside the tree. `npm run patterns:build` assembles each one into `patterns/<name>.html` and fails on any invalid block or dropped attribute. Do not edit the `.html` files by hand.
 - **Binding sources** are in `inc/site-data.php` and `inc/post-meta-text.php`. Their editor half (field lists, live values, in-place editing of post meta) is `assets/bindings-editor.js`.
 
-The two binding sources keep the names they have in the voyager-blocks plugin, so content written for either resolves on both. When voyager-blocks is active it registers them first, and this plugin stands aside.
+The two binding sources keep the names they have in the voyager-blocks plugin, so content written for either resolves on both. When voyager-blocks is active it registers them first, and this plugin stands aside. `get-catalog` and `bind` then use the owning plugin's fields, read from its `voyager_binding_sources` definition. `node scripts/foreign-owner-check.mjs --site <dir>` checks that against a local site, with `tests/fixtures/foreign-site-data.php` standing in for the owner.
 
 ## Development
 
