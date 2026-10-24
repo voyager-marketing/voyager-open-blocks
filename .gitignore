@@ -1,0 +1,5 @@
+node_modules/
+.wp-playground/
+.env*
+*.log
+.claude/worktrees/
