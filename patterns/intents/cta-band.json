@@ -1,0 +1,90 @@
+{
+	"title": "CTA band",
+	"description": "A full-width band: eyebrow, heading and one line of copy beside a primary button and a click-to-call button bound to voyager/site-data.",
+	"categories": [ "voyager-open", "call-to-action" ],
+	"keywords": [ "cta", "call to action", "band", "phone", "contact" ],
+	"viewportWidth": 1280,
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": { "name": "CTA band" },
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						}
+					},
+					"layout": { "type": "constrained" }
+				},
+				"children": [
+					{
+						"block": "core/columns",
+						"attrs": {
+							"align": "wide",
+							"verticalAlignment": "center",
+							"style": { "spacing": { "blockGap": { "top": "var:preset|spacing|40", "left": "var:preset|spacing|60" } } }
+						},
+						"children": [
+							{
+								"block": "core/column",
+								"attrs": { "width": "60%", "verticalAlignment": "center" },
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Next step",
+										"attrs": {
+											"metadata": { "name": "Eyebrow" },
+											"fontSize": "small",
+											"style": { "typography": { "textTransform": "uppercase", "letterSpacing": "0.08em" } }
+										}
+									},
+									{ "block": "core/heading", "level": 2, "text": "Ready to get started?" },
+									{
+										"block": "core/paragraph",
+										"text": "Tell us what you need and we will get back to you with a plan and a price."
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": { "width": "40%", "verticalAlignment": "center" },
+								"children": [
+									{
+										"block": "core/buttons",
+										"attrs": { "layout": { "type": "flex", "justifyContent": "right" } },
+										"children": [
+											{ "block": "core/button", "text": "Contact us", "url": "/contact/" },
+											{
+												"block": "core/button",
+												"text": "Call us",
+												"url": "/contact/",
+												"attrs": {
+													"className": "is-style-outline",
+													"metadata": {
+														"name": "Click to call",
+														"bindings": {
+															"text": { "source": "voyager/site-data", "args": { "key": "phone" } },
+															"url": { "source": "voyager/site-data", "args": { "key": "phone_link" } }
+														}
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

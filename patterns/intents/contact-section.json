@@ -1,0 +1,278 @@
+{
+	"title": "Contact section",
+	"description": "Contact details bound to voyager/site-data (phone, email, address, hours) beside a form slot. The slot holds an email fallback until a form plugin's block replaces it.",
+	"categories": [
+		"voyager-open",
+		"contact"
+	],
+	"keywords": [
+		"contact",
+		"form",
+		"phone",
+		"email",
+		"address",
+		"hours"
+	],
+	"viewportWidth": 1280,
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Contact section"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/columns",
+						"attrs": {
+							"align": "wide",
+							"style": {
+								"spacing": {
+									"blockGap": {
+										"top": "var:preset|spacing|50",
+										"left": "var:preset|spacing|60"
+									}
+								}
+							}
+						},
+						"children": [
+							{
+								"block": "core/column",
+								"attrs": {
+									"width": "40%",
+									"metadata": {
+										"name": "Contact details"
+									}
+								},
+								"children": [
+									{
+										"block": "core/heading",
+										"level": 2,
+										"text": "Get in touch"
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Call, email or stop by during business hours."
+									},
+									{
+										"block": "core/group",
+										"attrs": {
+											"metadata": {
+												"name": "Details"
+											},
+											"style": {
+												"spacing": {
+													"blockGap": "var:preset|spacing|20"
+												}
+											},
+											"layout": {
+												"type": "default"
+											}
+										},
+										"children": [
+											{
+												"block": "core/paragraph",
+												"text": "(555) 010-0100",
+												"attrs": {
+													"metadata": {
+														"name": "Phone",
+														"bindings": {
+															"content": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "phone"
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "hello@example.com",
+												"attrs": {
+													"metadata": {
+														"name": "Email",
+														"bindings": {
+															"content": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "email"
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "100 Main Street",
+												"attrs": {
+													"metadata": {
+														"name": "Street address",
+														"bindings": {
+															"content": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "address"
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "Springfield, ST 00000",
+												"attrs": {
+													"metadata": {
+														"name": "City, state, postal code",
+														"bindings": {
+															"content": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "address_locality"
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "Monday to Friday, 9am to 5pm",
+												"attrs": {
+													"metadata": {
+														"name": "Hours",
+														"bindings": {
+															"content": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "hours"
+																}
+															}
+														}
+													}
+												}
+											}
+										]
+									},
+									{
+										"block": "core/buttons",
+										"children": [
+											{
+												"block": "core/button",
+												"text": "Call us",
+												"url": "/contact/",
+												"attrs": {
+													"metadata": {
+														"name": "Click to call",
+														"bindings": {
+															"url": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "phone_link"
+																}
+															}
+														}
+													}
+												}
+											}
+										]
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"width": "60%",
+									"metadata": {
+										"name": "Form slot"
+									}
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": {
+											"metadata": {
+												"name": "Form"
+											},
+											"style": {
+												"border": {
+													"width": "1px",
+													"style": "solid"
+												},
+												"spacing": {
+													"padding": {
+														"top": "var:preset|spacing|50",
+														"bottom": "var:preset|spacing|50",
+														"left": "var:preset|spacing|50",
+														"right": "var:preset|spacing|50"
+													}
+												}
+											},
+											"layout": {
+												"type": "constrained"
+											}
+										},
+										"children": [
+											{
+												"block": "core/heading",
+												"level": 3,
+												"text": "Send us a note"
+											},
+											{
+												"block": "core/paragraph",
+												"text": "Tell us a little about what you need and the best way to reach you."
+											},
+											{
+												"block": "core/buttons",
+												"children": [
+													{
+														"block": "core/button",
+														"text": "Email us",
+														"url": "/contact/",
+														"attrs": {
+															"metadata": {
+																"name": "Email button",
+																"bindings": {
+																	"url": {
+																		"source": "voyager/site-data",
+																		"args": {
+																			"key": "email_link"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												]
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

@@ -1,0 +1,36 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Post meta text binding source",
+		"description": "voyager/post-meta-text reading a page's own fields, including a JSON dot path.",
+		"author": "voyager-marketing",
+		"categories": [
+			"Blocks"
+		]
+	},
+	"landingPage": "/voyager-open/post-meta-text/",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "git:directory",
+				"url": "https://github.com/voyager-marketing/voyager-open-blocks",
+				"ref": "main",
+				"refType": "branch"
+			},
+			"options": {
+				"activate": true,
+				"targetFolderName": "voyager-open-blocks"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; require WP_PLUGIN_DIR . '/voyager-open-blocks/playground/seed.php';"
+		}
+	]
+}

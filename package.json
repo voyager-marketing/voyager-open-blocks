@@ -1,0 +1,46 @@
+{
+	"name": "voyager-open-blocks",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Agent-ready WordPress blocks, binding sources and patterns, each with a SKILL.md, built on the Wesper to Block Runner loop.",
+	"license": "GPL-2.0-or-later",
+	"author": "Voyager Marketing",
+	"homepage": "https://github.com/voyager-marketing/voyager-open-blocks",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/voyager-marketing/voyager-open-blocks.git"
+	},
+	"engines": {
+		"node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+	},
+	"files": [
+		"build",
+		"inc",
+		"assets",
+		"patterns",
+		"skills",
+		"playground",
+		"blueprints",
+		"blueprint.json",
+		"voyager-open-blocks.php",
+		"LICENSE",
+		"README.md"
+	],
+	"scripts": {
+		"build": "wp-scripts build --blocks-manifest",
+		"start": "wp-scripts start --blocks-manifest",
+		"lint:js": "wp-scripts lint-js src scripts assets",
+		"lint:css": "wp-scripts lint-style \"src/**/*.scss\"",
+		"patterns:build": "node scripts/build-patterns.mjs",
+		"patterns:validate": "block-runner validate \"patterns/*.html\" --strict --json",
+		"playground": "node scripts/playground.mjs",
+		"context": "node scripts/context.mjs",
+		"check": "node scripts/check.mjs"
+	},
+	"devDependencies": {
+		"@wordpress/scripts": "37.0.0",
+		"@wp-playground/cli": "3.1.60",
+		"block-runner": "1.0.0",
+		"wesper": "0.5.0"
+	}
+}

@@ -1,0 +1,65 @@
+{
+	"title": "Closing CTA",
+	"description": "A centered closing band at the end of a page: heading, one line of copy, a primary button and an email button bound to voyager/site-data.",
+	"categories": [ "voyager-open", "call-to-action" ],
+	"keywords": [ "cta", "closing", "final", "contact", "email" ],
+	"viewportWidth": 1280,
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": { "name": "Closing CTA" },
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|70",
+								"bottom": "var:preset|spacing|70",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|40"
+						}
+					},
+					"layout": { "type": "constrained", "contentSize": "720px" }
+				},
+				"children": [
+					{
+						"block": "core/heading",
+						"level": 2,
+						"text": "Ready when you are.",
+						"attrs": { "style": { "typography": { "textAlign": "center" } } }
+					},
+					{
+						"block": "core/paragraph",
+						"text": "Book a call or send a message, and we will take it from there.",
+						"attrs": { "style": { "typography": { "textAlign": "center" } } }
+					},
+					{
+						"block": "core/buttons",
+						"attrs": { "layout": { "type": "flex", "justifyContent": "center" } },
+						"children": [
+							{ "block": "core/button", "text": "Get in touch", "url": "/contact/" },
+							{
+								"block": "core/button",
+								"text": "Email us",
+								"url": "/contact/",
+								"attrs": {
+									"className": "is-style-outline",
+									"metadata": {
+										"name": "Email button",
+										"bindings": {
+											"url": { "source": "voyager/site-data", "args": { "key": "email_link" } }
+										}
+									}
+								}
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}
