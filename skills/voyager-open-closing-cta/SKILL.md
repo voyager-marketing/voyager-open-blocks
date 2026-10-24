@@ -1,0 +1,50 @@
+---
+name: voyager-open-closing-cta
+description: Insert or customize the voyager-open/closing-cta pattern, a centered band at the end of a page with a heading, one line of copy, a primary button and an email button bound to voyager/site-data. Use as the last section before the footer.
+license: GPL-2.0-or-later
+---
+
+# Closing CTA (`voyager-open/closing-cta`)
+
+## When to use
+
+- As the last section of a page, right before the footer.
+- Once per page. For a call to action mid-page, use `voyager-open/cta-band`.
+
+## Structure
+
+```
+core/group (section, full width, constrained 720px)   "Closing CTA"
+  core/heading h2, centered
+  core/paragraph, centered
+  core/buttons (centered)
+    core/button  "Get in touch" -> /contact/
+    core/button  outline, "Email us"                  "Email button"
+        url <- voyager/site-data { key: email_link }
+```
+
+The intent tree is `patterns/intents/closing-cta.json`. The markup is `patterns/closing-cta.html`.
+
+## Customizing
+
+Change the heading, the line and the primary button. Keep the heading short, one sentence that reads as an invitation. Then `npx block-runner assemble intent.json --json`.
+
+To call instead of email, bind the second button's `url` to `phone_link`, and its `text` to `phone` or a label like "Call us".
+
+## Bindings
+
+| Block | Attribute | Source | Args |
+|---|---|---|---|
+| Email button | `url` | `voyager/site-data` | `{ "key": "email_link" }` |
+
+If the site email is not set, the button keeps its authored `/contact/` link.
+
+## The loop
+
+1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/closing-cta` is in `patterns.items`.
+2. **Author.** Insert by reference, or assemble an edited intent.
+3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
+
+## Try it
+
+`blueprints/closing-cta.json`.
