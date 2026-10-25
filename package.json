@@ -19,12 +19,12 @@
 		"assets",
 		"patterns",
 		"skills",
-		"playground",
 		"blueprints",
 		"blueprint.json",
 		"voyager-open-blocks.php",
 		"LICENSE",
-		"README.md"
+		"README.md",
+		"readme.txt"
 	],
 	"scripts": {
 		"build": "wp-scripts build --blocks-manifest",

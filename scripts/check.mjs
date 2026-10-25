@@ -8,11 +8,13 @@
  * 2. `block-runner validate --strict` passes on every pattern.
  * 3. The same command fails on tests/invalid/, so the gate is shown to bite.
  * 4. `block-runner plugin inspect` recognizes the plugin as a wp-scripts host.
+ * 5. readme.txt's `Stable tag` matches the plugin's `Version` header.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
  */
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -105,5 +107,22 @@ if ( windowsPathBug ) {
 		profile.profile || profile.reason || `exit ${ inspect.code }`
 	);
 }
+
+// WordPress.org serves the version the readme's Stable tag names, so a tag
+// left behind after a Version bump ships the old release.
+function header( file, pattern ) {
+	const match = readFileSync( join( root, file ), 'utf8' ).match( pattern );
+	return match ? match[ 1 ] : '';
+}
+const version = header(
+	'voyager-open-blocks.php',
+	/^ \* Version:\s*(\S+)\s*$/m
+);
+const stableTag = header( 'readme.txt', /^Stable tag:\s*(\S+)\s*$/im );
+report(
+	'readme.txt Stable tag matches the plugin Version',
+	version !== '' && stableTag === version,
+	`Stable tag ${ stableTag || 'missing' }, Version ${ version || 'missing' }`
+);
 
 process.exit( failed ? 1 : 0 );
