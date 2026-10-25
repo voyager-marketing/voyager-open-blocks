@@ -6,9 +6,11 @@
  *
  * Against a running site (npm run playground -- serve), it:
  *   1. lists the pack's abilities and reads the catalog,
- *   2. creates a page and inserts the CTA band (bound to voyager/site-data),
+ *   2. creates a page and inserts the CTA band (bound to voyager/site-data), then
+ *      inserts it again with copy for its heading, body and bound call button,
  *   3. inserts an icon, configures it and binds its link,
- *   4. checks bad input is refused (unknown icon, invented args, unbindable attribute),
+ *   4. checks bad input is refused (unknown icon, invented args, unbindable attribute,
+ *      copy for an unknown label, a block that is not text, or a reference),
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
  *      and on the saved page,
  *   6. fetches the page and checks the bound values rendered.
@@ -253,6 +255,39 @@ step(
 );
 validate( 'cta-band insert', cta.data.markup || '' );
 
+// The CTA band again, with copy. The heading and body carry characters that
+// must arrive escaped, and the bound call button gets new fallback text.
+const withCopy = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/cta-band',
+	copy: {
+		Heading: 'Leaks fixed today & done right',
+		Body: "Call before noon and we're there by 5pm, <b>guaranteed</b>.",
+		'Click to call': 'Call now',
+	},
+} );
+const copied = withCopy.data.markup || '';
+const copiedCall = ( withCopy.data.blocks || [] ).find(
+	( b ) => b.label === 'Click to call'
+);
+step(
+	'insert cta-band with copy',
+	withCopy.status === 200 &&
+		withCopy.data.saved === true &&
+		withCopy.data.validation?.round_trip === true &&
+		copied.includes( '>Leaks fixed today &amp; done right</h2>' ) &&
+		copied.includes(
+			">Call before noon and we're there by 5pm, &lt;b&gt;guaranteed&lt;/b&gt;.</p>"
+		) &&
+		copied.includes( '>Call now</a>' ) &&
+		! copied.includes( 'Ready to get started?' ) &&
+		copiedCall?.bindings?.text?.args?.key === 'phone' &&
+		copiedCall?.bindings?.url?.args?.key === 'phone_link',
+	withCopy.data.code ||
+		`index ${ withCopy.data.index }, call button still bound at ${ copiedCall?.path }`
+);
+validate( 'cta-band with copy', copied );
+
 // 3. Icon: insert, configure, bind.
 const icon = await run( `${ ns }/insert`, {
 	post_id: postId,
@@ -347,6 +382,31 @@ step(
 		staticConfigure.data.code === 'voyager_open_blocks_invalid_item',
 	staticConfigure.data.code
 );
+
+for ( const [ label, input ] of [
+	[ 'insert refuses copy for an unknown label', { copy: { Headline: 'x' } } ],
+	[
+		'insert refuses copy for a block that is not text',
+		{ copy: { 'CTA band': 'x' } },
+	],
+	[
+		'insert refuses copy on a reference',
+		{ copy: { Heading: 'x' }, mode: 'reference' },
+	],
+] ) {
+	const refused = await run( `${ ns }/insert`, {
+		post_id: postId,
+		item: 'voyager-open/cta-band',
+		dry_run: true,
+		...input,
+	} );
+	step(
+		label,
+		refused.status === 400 &&
+			refused.data.code === 'voyager_open_blocks_invalid_copy',
+		refused.data.message || refused.data.code
+	);
+}
 
 // 5. The saved page as a whole.
 const saved = await api( `/wp/v2/pages/${ postId }`, {

@@ -15,10 +15,10 @@ license: GPL-2.0-or-later
 
 ```
 core/group (section, full width, constrained 720px)   "Closing CTA"
-  core/heading h2, centered
-  core/paragraph, centered
+  core/heading h2, centered                          "Heading"
+  core/paragraph, centered                           "Body"
   core/buttons (centered)
-    core/button  "Get in touch" -> /contact/
+    core/button  "Get in touch" -> /contact/         "Primary button"
     core/button  outline, "Email us"                  "Email button"
         url <- voyager/site-data { key: email_link }
 ```
@@ -50,6 +50,7 @@ If the site email is not set, the button keeps its authored `/contact/` link.
 With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
 
 - **insert**: `{"post_id": 123, "item": "voyager-open/closing-cta"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/closing-cta", "copy": {"Heading": "Ready when you are.", "Body": "Book a free estimate this week.", "Primary button": "Book an estimate", "Email button": "Email the office"}}` replaces the text of those named blocks. Labels: Heading, Body, Primary button, Email button. The email button keeps its `url` binding. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
 - **bind**: it arrives with the email button bound. To make that button call instead, bind its `url` to `{"key": "phone_link"}` on `voyager/site-data`, using the path labelled "Email button".
 - Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
 

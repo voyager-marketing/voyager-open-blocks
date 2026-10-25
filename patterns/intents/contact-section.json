@@ -65,11 +65,21 @@
 									{
 										"block": "core/heading",
 										"level": 2,
-										"text": "Get in touch"
+										"text": "Get in touch",
+										"attrs": {
+											"metadata": {
+												"name": "Heading"
+											}
+										}
 									},
 									{
 										"block": "core/paragraph",
-										"text": "Call, email or stop by during business hours."
+										"text": "Call, email or stop by during business hours.",
+										"attrs": {
+											"metadata": {
+												"name": "Body"
+											}
+										}
 									},
 									{
 										"block": "core/group",
@@ -236,11 +246,21 @@
 											{
 												"block": "core/heading",
 												"level": 3,
-												"text": "Send us a note"
+												"text": "Send us a note",
+												"attrs": {
+													"metadata": {
+														"name": "Form heading"
+													}
+												}
 											},
 											{
 												"block": "core/paragraph",
-												"text": "Tell us a little about what you need and the best way to reach you."
+												"text": "Tell us a little about what you need and the best way to reach you.",
+												"attrs": {
+													"metadata": {
+														"name": "Form body"
+													}
+												}
 											},
 											{
 												"block": "core/buttons",

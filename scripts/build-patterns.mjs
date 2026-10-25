@@ -9,6 +9,9 @@
  * hold). The only report item it tolerates is the noop media resolver note:
  * pattern images are placeholders with no attachment ID by design.
  *
+ * Also fails when two blocks in one pattern share a `metadata.name`: the
+ * insert ability's `copy` input finds blocks by that label.
+ *
  *   npm run patterns:build            write every pattern
  *   npm run patterns:build -- --check fail if any written file is stale
  */
@@ -32,6 +35,28 @@ const check = process.argv.includes( '--check' );
 const tolerated = ( item ) =>
 	/noop resolver does not resolve media IDs/.test( item.reason || '' );
 
+/**
+ * Labels (`metadata.name`) used more than once in an intent tree.
+ *
+ * @param {Object[]} nodes Intent nodes.
+ * @return {string[]} Repeated labels.
+ */
+function repeatedLabels( nodes ) {
+	const seen = new Set();
+	const repeated = new Set();
+	const walk = ( list ) => {
+		for ( const node of list || [] ) {
+			const label = node.attrs?.metadata?.name;
+			if ( label ) {
+				( seen.has( label ) ? repeated : seen ).add( label );
+			}
+			walk( node.children );
+		}
+	};
+	walk( nodes );
+	return [ ...repeated ];
+}
+
 const scratch = mkdtempSync( join( tmpdir(), 'voyager-open-patterns-' ) );
 let failed = 0;
 
@@ -40,6 +65,14 @@ for ( const file of readdirSync( intents )
 	.sort() ) {
 	const name = basename( file, '.json' );
 	const meta = JSON.parse( readFileSync( join( intents, file ), 'utf8' ) );
+	const repeated = repeatedLabels( meta.intent.blocks );
+	if ( repeated.length ) {
+		failed++;
+		console.error(
+			`x ${ name }: more than one block named ${ repeated.join( ', ' ) }`
+		);
+		continue;
+	}
 	const input = join( scratch, `${ name }.json` );
 	writeFileSync( input, JSON.stringify( meta.intent ) );
 

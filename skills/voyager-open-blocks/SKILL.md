@@ -79,20 +79,20 @@ The plugin registers five WordPress abilities in the `voyager-open-blocks` categ
 
 | Ability | Method | Use it to |
 |---|---|---|
-| `voyager-open-blocks/get-catalog` | GET | List the pack's block (attribute schema, bindable attributes), patterns (named blocks, bindings) and every bindable field with its exact `args`, including the `voyager/site-data` keys Wesper cannot see. |
+| `voyager-open-blocks/get-catalog` | GET | List the pack's block (attribute schema, bindable attributes), patterns (named blocks, bindings, `copy: true` on the ones `insert` can rewrite) and every bindable field with its exact `args`, including the `voyager/site-data` keys Wesper cannot see. |
 | `voyager-open-blocks/get-post-blocks` | GET | Read a post's blocks with their paths, labels and bindings. |
-| `voyager-open-blocks/insert` | POST | Place a pattern (copy, or a `core/pattern` reference) or the icon block at a top-level position. Returns the inserted `markup` and each block's `path`. `dry_run` previews without saving. |
+| `voyager-open-blocks/insert` | POST | Place a pattern (copy, or a `core/pattern` reference) or the icon block at a top-level position. A copy takes `copy`, plain text by label for its named headings, paragraphs, buttons and list items, such as `{"Heading": "Need a plumber today?"}`. Returns the inserted `markup` and each block's `path`. `dry_run` previews without saving. |
 | `voyager-open-blocks/configure` | POST | Set attributes on a block that saves no HTML (the icon), validated against block.json. |
 | `voyager-open-blocks/bind` | POST | Write `metadata.bindings`. The attribute must be bindable for that block, and `args` must match a listed field exactly. |
 
 A typical run:
 
 1. `get-catalog` (and, for anything outside the pack, the Wesper manifest).
-2. `insert` the pattern into the page.
+2. `insert` the pattern into the page, with `copy` for the brief's headings and lines.
 3. `bind` or `configure` by the paths `insert` returned.
 4. Pipe every returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
 
-WordPress checks what it can from PHP: block types are registered, comment attributes match their schema, and the markup round-trips. Saved HTML can only be checked by `block-runner validate`, so step 4 is not optional. Errors use `voyager_open_blocks_invalid_<field>` codes (`post_id`, `path`, `item`, `attributes`, `attribute`, `source`, `args`). Fix the input and retry.
+WordPress checks what it can from PHP: block types are registered, comment attributes match their schema, and the markup round-trips. Saved HTML can only be checked by `block-runner validate`, so step 4 is not optional. Errors use `voyager_open_blocks_invalid_<field>` codes (`post_id`, `path`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`). Fix the input and retry.
 
 `scripts/e2e.mjs` in the repo runs this whole flow over REST and is the worked example.
 
