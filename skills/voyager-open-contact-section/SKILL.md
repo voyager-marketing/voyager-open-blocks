@@ -19,8 +19,8 @@ The pack ships no form engine. WordPress core has no stable form block, so the r
 core/group (section, full width, constrained)      "Contact section"
   core/columns (wide)
     core/column 40%                                "Contact details"
-      core/heading h2
-      core/paragraph
+      core/heading h2                              "Heading"
+      core/paragraph                               "Body"
       core/group (tight gap)                       "Details"
         core/paragraph  content <- phone           "Phone"
         core/paragraph  content <- email           "Email"
@@ -31,7 +31,8 @@ core/group (section, full width, constrained)      "Contact section"
         core/button "Call us"  url <- phone_link   "Click to call"
     core/column 60%                                "Form slot"
       core/group (bordered)                        "Form"
-        core/heading h3, core/paragraph
+        core/heading h3                            "Form heading"
+        core/paragraph                             "Form body"
         core/buttons
           core/button "Email us"  url <- email_link "Email button"
 ```
@@ -70,6 +71,7 @@ Then `npx block-runner assemble intent.json --json`. A third-party form block ca
 With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
 
 - **insert**: `{"post_id": 123, "item": "voyager-open/contact-section"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/contact-section", "copy": {"Heading": "Visit or call", "Body": "We answer the phone during business hours.", "Form heading": "Ask a question"}}` replaces the text of those named blocks. Labels: Heading, Body, Phone, Email, Street address, "City, state, postal code", Hours, Click to call, Form heading, Form body, Email button. The detail lines and both buttons stay bound, so text given for them is only the fallback shown while that Site Data setting is empty. Set the business details in Site Data rather than typing them here. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
 - **bind**: every detail line arrives bound. Add or change one with its path and args from `get-catalog`. The form plugin's block goes in by hand or through that plugin's own tools. This pack does not insert third-party blocks.
 - Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
 

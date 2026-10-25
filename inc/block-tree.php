@@ -23,6 +23,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Blocks whose saved text set_copy() can replace, with the attribute that holds it.
+ */
+const TEXT_ATTRIBUTES = [
+	'core/heading'   => 'content',
+	'core/paragraph' => 'content',
+	'core/button'    => 'text',
+	'core/list-item' => 'content',
+];
+
+/**
  * Parse markup into blocks, dropping whitespace-only freeform blocks at the top level.
  *
  * @param string $markup Block markup.
@@ -218,4 +228,168 @@ function check( array $blocks ): array {
 		'valid'  => [] === $errors,
 		'errors' => $errors,
 	];
+}
+
+/**
+ * Labels (metadata.name) of the blocks whose text set_copy() can replace.
+ *
+ * @param array<int, array<string, mixed>> $blocks Blocks.
+ * @return string[]
+ */
+function copy_labels( array $blocks ): array {
+	$labels = [];
+
+	foreach ( describe( $blocks ) as $row ) {
+		if ( isset( $row['label'], TEXT_ATTRIBUTES[ $row['block'] ] ) ) {
+			$labels[] = $row['label'];
+		}
+	}
+
+	return array_values( array_unique( $labels ) );
+}
+
+/**
+ * Replace the saved text of named blocks with plain text.
+ *
+ * Each key of $copy is a label (metadata.name), and every block carrying it
+ * must be a heading, paragraph, button or list item. Attributes and bindings
+ * are left alone, so a bound block keeps its binding and the new text becomes
+ * its fallback.
+ *
+ * @param array<int, array<string, mixed>> $blocks Blocks, by reference. Unchanged on error.
+ * @param array<string, string>            $copy   Label => plain text.
+ * @return true|WP_Error
+ */
+function set_copy( array &$blocks, array $copy ) {
+	$rows    = describe( $blocks );
+	$labels  = copy_labels( $blocks );
+	$targets = [];
+
+	foreach ( $copy as $label => $text ) {
+		$label   = (string) $label;
+		$matches = array_filter( $rows, static fn ( array $row ): bool => ( $row['label'] ?? null ) === $label );
+
+		if ( [] === $matches ) {
+			return invalid_copy( sprintf( 'No block is named "%s".', $label ), $labels );
+		}
+
+		foreach ( $matches as $row ) {
+			if ( ! isset( TEXT_ATTRIBUTES[ $row['block'] ] ) ) {
+				return invalid_copy( sprintf( '"%s" is a %s. copy replaces the text of a heading, paragraph, button or list item.', $label, $row['block'] ), $labels );
+			}
+			$targets[] = [ $row['path'], (string) $text ];
+		}
+	}
+
+	$changed = $blocks;
+	foreach ( $targets as [ $path, $text ] ) {
+		$block  = &find( $changed, (array) parse_path( $path ) );
+		$result = replace_text( $block, $text );
+		unset( $block );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+	}
+
+	$blocks = $changed;
+
+	return true;
+}
+
+/**
+ * The error for copy that cannot be applied, listing the labels that can.
+ *
+ * @param string   $message What is wrong.
+ * @param string[] $labels  Valid labels.
+ */
+function invalid_copy( string $message, array $labels ): WP_Error {
+	return new WP_Error(
+		'voyager_open_blocks_invalid_copy',
+		sprintf( '%s Valid labels: %s.', $message, $labels ? implode( ', ', array_map( 'wp_json_encode', $labels ) ) : 'none' ),
+		[
+			'status' => 400,
+			'labels' => $labels,
+		]
+	);
+}
+
+/**
+ * Replace one text block's saved text, escaped.
+ *
+ * The element is found with the block type's own selector for its text
+ * attribute (h1-h6, p, a or button, li), as core does when it renders a
+ * binding. Everything between the element's tags is replaced, so inline
+ * formatting goes too. A list item's own text sits before its nested list,
+ * so only the first chunk of its inner content is touched.
+ *
+ * @param array<string, mixed> $block Block, by reference.
+ * @param string               $text  Plain text.
+ * @return true|WP_Error
+ */
+function replace_text( array &$block, string $text ) {
+	$name     = (string) $block['blockName'];
+	$type     = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+	$selector = $type ? (string) ( $type->attributes[ TEXT_ATTRIBUTES[ $name ] ]['selector'] ?? '' ) : '';
+	$content  = (array) ( $block['innerContent'] ?? [] );
+	$range    = null;
+
+	if ( '' !== $selector && isset( $content[0] ) && is_string( $content[0] ) ) {
+		$tags      = array_map( static fn ( string $tag ): string => strtoupper( trim( $tag ) ), explode( ',', $selector ) );
+		$processor = new class( $content[0] ) extends \WP_HTML_Tag_Processor {
+			/**
+			 * Byte range between the first matching element's opener and its closer.
+			 *
+			 * @param string[] $tags       Upper-case tag names.
+			 * @param bool     $open_ended An inner block follows, so the closer may be in a later chunk.
+			 * @return array{0: int, 1: int}|null
+			 */
+			public function inner_range( array $tags, bool $open_ended ): ?array {
+				do {
+					if ( ! $this->next_tag() ) {
+						return null;
+					}
+				} while ( ! in_array( $this->get_tag(), $tags, true ) );
+
+				$tag = $this->get_tag();
+				$this->set_bookmark( 'copy' );
+				$start = $this->bookmarks['copy']->start + $this->bookmarks['copy']->length;
+				$depth = 0;
+
+				while ( $this->next_token() ) {
+					if ( '#tag' !== $this->get_token_type() || $tag !== $this->get_tag() ) {
+						continue;
+					}
+					if ( ! $this->is_tag_closer() ) {
+						++$depth;
+						continue;
+					}
+					if ( $depth-- > 0 ) {
+						continue;
+					}
+					$this->set_bookmark( 'copy' );
+					return [ $start, $this->bookmarks['copy']->start ];
+				}
+
+				return $open_ended ? [ $start, strlen( $this->html ) ] : null;
+			}
+		};
+		$range     = $processor->inner_range( $tags, count( $content ) > 1 );
+	}
+
+	if ( null === $range ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_copy',
+			sprintf( 'The saved HTML of %s%s has no element to hold text.', $name, isset( $block['attrs']['metadata']['name'] ) ? sprintf( ' "%s"', $block['attrs']['metadata']['name'] ) : '' ),
+			[ 'status' => 400 ]
+		);
+	}
+
+	[ $start, $end ]          = $range;
+	$block['innerContent'][0] = substr( $content[0], 0, $start )
+		. htmlspecialchars( $text, ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8' )
+		. substr( $content[0], $end );
+	$block['innerHTML']       = implode( '', array_filter( $block['innerContent'], 'is_string' ) );
+
+	return true;
 }

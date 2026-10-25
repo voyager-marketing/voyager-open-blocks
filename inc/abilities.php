@@ -110,7 +110,7 @@ function register(): void {
 		CATEGORY . '/get-catalog',
 		[
 			'label'               => __( 'Get the Voyager Open Blocks catalog', 'voyager-open-blocks' ),
-			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks and their bindings) and the binding fields available for a post type, each with the exact args to bind it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite) and the binding fields available for a post type, each with the exact args to bind it.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -167,7 +167,7 @@ function register(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks. A pattern inserted as a copy takes copy: plain text for its named headings, paragraphs, buttons and list items.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -194,6 +194,15 @@ function register(): void {
 						'type'        => 'object',
 						'default'     => [],
 						'description' => 'Blocks only. Attributes, validated against the block\'s block.json.',
+					],
+					'copy'       => [
+						'type'                 => 'object',
+						'default'              => [],
+						'additionalProperties' => [
+							'type'      => 'string',
+							'minLength' => 1,
+						],
+						'description'          => 'Patterns in copy mode only. Plain text by label (a block\'s metadata.name, listed by get-catalog with copy: true), such as {"Heading": "...", "Body": "..."}. Replaces the text of headings, paragraphs, button labels and list items, escaped. Bindings stay: on a bound block the text becomes its fallback.',
 					],
 					'dry_run'    => [
 						'type'        => 'boolean',
@@ -403,6 +412,7 @@ function insert( array $input ) {
 	$position   = isset( $input['position'] ) ? (int) $input['position'] : -1;
 	$mode       = isset( $input['mode'] ) ? (string) $input['mode'] : 'copy';
 	$attributes = isset( $input['attributes'] ) && is_array( $input['attributes'] ) ? $input['attributes'] : [];
+	$copy       = isset( $input['copy'] ) && is_array( $input['copy'] ) ? $input['copy'] : [];
 	$dry_run    = ! empty( $input['dry_run'] );
 
 	$blocks = BlockTree\load( $post_id );
@@ -411,6 +421,14 @@ function insert( array $input ) {
 	}
 
 	$pattern = \WP_Block_Patterns_Registry::get_instance()->get_registered( $item );
+
+	if ( $copy && ( ! $pattern || 'reference' === $mode ) ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_copy',
+			'copy works only on a pattern inserted with mode "copy". A reference renders the pattern as shipped.',
+			[ 'status' => 400 ]
+		);
+	}
 
 	if ( $pattern ) {
 		$new = 'reference' === $mode
@@ -424,6 +442,13 @@ function insert( array $input ) {
 				],
 			]
 			: BlockTree\parse( (string) $pattern['content'] );
+
+		if ( $copy ) {
+			$copied = BlockTree\set_copy( $new, $copy );
+			if ( is_wp_error( $copied ) ) {
+				return $copied;
+			}
+		}
 	} else {
 		$attributes = check_attributes( $item, $attributes );
 		if ( is_wp_error( $attributes ) ) {

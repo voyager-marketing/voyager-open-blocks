@@ -46,10 +46,11 @@
 											"style": { "typography": { "textTransform": "uppercase", "letterSpacing": "0.08em" } }
 										}
 									},
-									{ "block": "core/heading", "level": 2, "text": "Ready to get started?" },
+									{ "block": "core/heading", "level": 2, "text": "Ready to get started?", "attrs": { "metadata": { "name": "Heading" } } },
 									{
 										"block": "core/paragraph",
-										"text": "Tell us what you need and we will get back to you with a plan and a price."
+										"text": "Tell us what you need and we will get back to you with a plan and a price.",
+										"attrs": { "metadata": { "name": "Body" } }
 									}
 								]
 							},
@@ -61,7 +62,7 @@
 										"block": "core/buttons",
 										"attrs": { "layout": { "type": "flex", "justifyContent": "right" } },
 										"children": [
-											{ "block": "core/button", "text": "Contact us", "url": "/contact/" },
+											{ "block": "core/button", "text": "Contact us", "url": "/contact/", "attrs": { "metadata": { "name": "Primary button" } } },
 											{
 												"block": "core/button",
 												"text": "Call us",

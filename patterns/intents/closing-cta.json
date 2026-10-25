@@ -30,18 +30,18 @@
 						"block": "core/heading",
 						"level": 2,
 						"text": "Ready when you are.",
-						"attrs": { "style": { "typography": { "textAlign": "center" } } }
+						"attrs": { "metadata": { "name": "Heading" }, "style": { "typography": { "textAlign": "center" } } }
 					},
 					{
 						"block": "core/paragraph",
 						"text": "Book a call or send a message, and we will take it from there.",
-						"attrs": { "style": { "typography": { "textAlign": "center" } } }
+						"attrs": { "metadata": { "name": "Body" }, "style": { "typography": { "textAlign": "center" } } }
 					},
 					{
 						"block": "core/buttons",
 						"attrs": { "layout": { "type": "flex", "justifyContent": "center" } },
 						"children": [
-							{ "block": "core/button", "text": "Get in touch", "url": "/contact/" },
+							{ "block": "core/button", "text": "Get in touch", "url": "/contact/", "attrs": { "metadata": { "name": "Primary button" } } },
 							{
 								"block": "core/button",
 								"text": "Email us",

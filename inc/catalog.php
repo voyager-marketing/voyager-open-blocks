@@ -58,6 +58,8 @@ function blocks(): array {
 /**
  * The pack's patterns, each with its named blocks and their bindings.
  *
+ * A named block whose text insert's `copy` input can replace carries `copy: true`.
+ *
  * @return array<int, array<string, mixed>>
  */
 function patterns(): array {
@@ -74,9 +76,17 @@ function patterns(): array {
 			'description' => $pattern['description'] ?? '',
 			'categories'  => $pattern['categories'] ?? [],
 			'blocks'      => array_values(
-				array_filter(
-					BlockTree\describe( BlockTree\parse( (string) $pattern['content'] ) ),
-					static fn ( array $row ): bool => isset( $row['label'] ) || isset( $row['bindings'] )
+				array_map(
+					static function ( array $row ): array {
+						if ( isset( $row['label'], BlockTree\TEXT_ATTRIBUTES[ $row['block'] ] ) ) {
+							$row['copy'] = true;
+						}
+						return $row;
+					},
+					array_filter(
+						BlockTree\describe( BlockTree\parse( (string) $pattern['content'] ) ),
+						static fn ( array $row ): bool => isset( $row['label'] ) || isset( $row['bindings'] )
+					)
 				)
 			),
 		];

@@ -58,11 +58,43 @@
 								"name": "Credentials"
 							}
 						},
-						"items": [
-							"Licensed and insured",
-							"Locally owned",
-							"Written quotes before work begins",
-							"Same-week scheduling"
+						"children": [
+							{
+								"block": "core/list-item",
+								"text": "Licensed and insured",
+								"attrs": {
+									"metadata": {
+										"name": "Credential 1"
+									}
+								}
+							},
+							{
+								"block": "core/list-item",
+								"text": "Locally owned",
+								"attrs": {
+									"metadata": {
+										"name": "Credential 2"
+									}
+								}
+							},
+							{
+								"block": "core/list-item",
+								"text": "Written quotes before work begins",
+								"attrs": {
+									"metadata": {
+										"name": "Credential 3"
+									}
+								}
+							},
+							{
+								"block": "core/list-item",
+								"text": "Same-week scheduling",
+								"attrs": {
+									"metadata": {
+										"name": "Credential 4"
+									}
+								}
+							}
 						]
 					}
 				]

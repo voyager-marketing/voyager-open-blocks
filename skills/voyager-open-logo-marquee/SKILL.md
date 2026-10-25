@@ -54,6 +54,7 @@ None. Logos are media, not site data.
 With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
 
 - **insert**: `{"post_id": 123, "item": "voyager-open/logo-marquee"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow, the only text in this pattern. Images are not copy. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
 - Replacing the placeholder logos is media work. Upload the images, then edit the inserted blocks in the editor, or re-author the section with `block-runner assemble`. `configure` only changes blocks that save no HTML, and `core/image` saves HTML.
 - Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
 
