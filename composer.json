@@ -1,0 +1,15 @@
+{
+	"name": "voyager-marketing/voyager-open-blocks",
+	"description": "Agent-ready WordPress blocks, patterns and binding sources, with abilities an AI agent can call to place, configure and bind them.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"homepage": "https://github.com/voyager-marketing/voyager-open-blocks",
+	"support": {
+		"issues": "https://github.com/voyager-marketing/voyager-open-blocks/issues",
+		"source": "https://github.com/voyager-marketing/voyager-open-blocks",
+		"security": "https://github.com/voyager-marketing/voyager-open-blocks/security/policy"
+	},
+	"require": {
+		"php": ">=8.1"
+	}
+}
