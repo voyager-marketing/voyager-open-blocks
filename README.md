@@ -66,7 +66,7 @@ npm run check              # every offline gate, below
 1. every `patterns/*.html` matches its intent,
 2. `block-runner validate --strict` passes on all pattern markup,
 3. the same validator rejects `tests/invalid/`, so the gate is shown to bite,
-4. `block-runner plugin inspect` recognizes the plugin as a `@wordpress/scripts` host. On Windows this step is skipped: Block Runner 1.0.0 compares `__DIR__ . '/build'` with a native path and never matches a backslash path,
+4. `block-runner plugin inspect` recognizes the plugin as a `@wordpress/scripts` host. On Windows this step is skipped: Block Runner 1.0.0 compares `__DIR__ . '/build'` with a native path and never matches a backslash path.
 5. `Stable tag` in `readme.txt` matches `Version` in `voyager-open-blocks.php`.
 
 ### Local site
