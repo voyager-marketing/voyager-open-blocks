@@ -76,6 +76,10 @@ Two setup details that matter: the SQLite journal mode is set to `DELETE`, becau
 
 `npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`.
 
+## Support
+
+Issues are answered within two business days. Support hours are Monday to Friday, 9am to 5pm US Eastern time, outside US public holidays. Releases ship in batches every two weeks. Questions go to [Discussions](https://github.com/voyager-marketing/voyager-open-blocks/discussions), bugs and feature requests to [issues](https://github.com/voyager-marketing/voyager-open-blocks/issues/new/choose), and security problems to private reporting ([SECURITY.md](SECURITY.md)). How to contribute is in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
-GPL-2.0-or-later. Icons are from [Heroicons](https://heroicons.com) (MIT, `assets/LICENSE-heroicons.txt`).
+GPL-2.0-or-later. "Voyager" and "Voyager Open Blocks" are Voyager Marketing’s names; the license covers the code, not the names. Icons are from [Heroicons](https://heroicons.com) (MIT, `assets/LICENSE-heroicons.txt`).

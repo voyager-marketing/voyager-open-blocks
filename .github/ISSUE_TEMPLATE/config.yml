@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/voyager-marketing/voyager-open-blocks/discussions
+    about: Ask how to use the pack or float an idea before it becomes an issue.
+  - name: Report a security problem
+    url: https://github.com/voyager-marketing/voyager-open-blocks/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue. See SECURITY.md.

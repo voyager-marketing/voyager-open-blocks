@@ -1,0 +1,66 @@
+name: Bug report
+description: A block, pattern, binding or ability does something wrong or breaks.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems go through private reporting instead (see SECURITY.md).
+        Please leave out anything private: client names, URLs you can't share, credentials and option values.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest way to see it, ideally on the local site from the README or a Playground blueprint.
+      placeholder: |
+        1. Insert the CTA band pattern ...
+        2. Call voyager-open-blocks/bind with ...
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - A block in the editor
+        - A pattern
+        - A binding source (site data or post meta)
+        - An ability (REST or MCP)
+        - A Playground blueprint
+        - A skill (SKILL.md)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: The block markup, ability response or Block Runner message that is wrong. Trim it to what matters.
+      render: text
+  - type: input
+    id: pack-version
+    attributes:
+      label: Voyager Open Blocks version
+    validations:
+      required: true
+  - type: input
+    id: wordpress-version
+    attributes:
+      label: WordPress and PHP versions
+      placeholder: WordPress 7.1.3, PHP 8.3
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Theme and relevant plugins
+      description: The active theme, and any plugin that registers the same binding sources (voyager-blocks does).
