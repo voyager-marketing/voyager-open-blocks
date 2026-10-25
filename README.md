@@ -21,6 +21,19 @@ Requires WordPress 6.9+ and PHP 8.1+. Patterns use core blocks and the active th
 
 Download `voyager-open-blocks.zip` from the [latest release](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest). Upload it under Plugins > Add New Plugin > Upload Plugin, or run `wp plugin install voyager-open-blocks.zip --activate`. The zip holds one `voyager-open-blocks/` folder with the blocks already built.
 
+With Composer, add this repository and require the package (`build/` is committed, so no build step is needed):
+
+```bash
+composer config repositories.voyager-open-blocks vcs https://github.com/voyager-marketing/voyager-open-blocks
+composer require voyager-marketing/voyager-open-blocks
+```
+
+To give a coding agent the pack's skills (the read, check, bind loop and one skill per item):
+
+```bash
+npx skills add voyager-marketing/voyager-open-blocks
+```
+
 ## Abilities
 
 Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure` and `bind`. `insert` takes `copy` for a pattern's named headings, paragraphs, buttons and list items. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML. See the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
