@@ -67,6 +67,7 @@ npm run check              # every offline gate, below
 2. `block-runner validate --strict` passes on all pattern markup,
 3. the same validator rejects `tests/invalid/`, so the gate is shown to bite,
 4. `block-runner plugin inspect` recognizes the plugin as a `@wordpress/scripts` host. On Windows this step is skipped: Block Runner 1.0.0 compares `__DIR__ . '/build'` with a native path and never matches a backslash path.
+5. `Stable tag` in `readme.txt` matches `Version` in `voyager-open-blocks.php`.
 
 ### Local site
 
@@ -87,7 +88,9 @@ Two setup details that matter: the SQLite journal mode is set to `DELETE`, becau
 
 ### Releases
 
-`npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`.
+`npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`, and a version bump moves `Stable tag` in `readme.txt` with it.
+
+`readme.txt` is the WordPress.org listing. The zip ships it, and Plugin Check (`wp plugin install plugin-check --activate`, then `wp plugin check voyager-open-blocks`) should report no errors on the plugin installed from the zip. Run against this checkout linked into a site, it also reports files the zip leaves out (`.git`, dotfiles, `playground/`).
 
 ## Support
 
