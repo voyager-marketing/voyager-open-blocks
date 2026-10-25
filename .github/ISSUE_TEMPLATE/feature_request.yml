@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a block, pattern, binding or ability change.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The pack stays small on purpose: items an AI agent can place, configure and bind without hand-writing markup.
+        Read CONTRIBUTING.md first. A new custom block needs a reason a pattern of core blocks can't meet.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you or an agent build today? Give a concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like
+      description: The block, pattern, binding field or ability change, and how an agent would use it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now
+      description: How you build this today, and what it costs you.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This contains no client names or client content.
+          required: true
+        - label: I'd like to work on this myself.
