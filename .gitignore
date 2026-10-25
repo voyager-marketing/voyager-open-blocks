@@ -6,3 +6,4 @@ node_modules/
 site.context.json
 /voyager-open-blocks.zip
 .claude/session-summary.md
+.claude/settings.local.json
