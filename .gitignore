@@ -5,3 +5,4 @@ node_modules/
 .claude/worktrees/
 site.context.json
 /voyager-open-blocks.zip
+.claude/session-summary.md

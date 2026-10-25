@@ -1,0 +1,41 @@
+{
+  "$comment": [
+    "Mission tool grants, from voyager-skills templates/claude-settings-permissions.json (VOY-1790).",
+    "Check with: node scripts/mission-preflight.mjs --grants --repo <path> (in voyager-skills)."
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Linear__get_team",
+      "mcp__claude_ai_Linear__list_issues",
+      "mcp__claude_ai_Linear__get_issue",
+      "mcp__claude_ai_Linear__save_issue",
+      "mcp__claude_ai_Linear__list_comments",
+      "mcp__claude_ai_Linear__save_comment",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-update-page",
+      "mcp__claude_ai_Notion__notion-create-pages",
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-ai-search",
+      "mcp__claude_ai_Slack__slack_send_message",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "mcp__context7__query-docs",
+      "Write",
+      "Edit",
+      "Skill",
+      "Read(~/.claude/plugins/**)",
+      "Bash(node scripts/*)",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(git add *)",
+      "Bash(git commit -m *)",
+      "Bash(git push *)",
+      "Bash(git status *)",
+      "Bash(git fetch *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(gh pr *)",
+      "Bash(gh api *)"
+    ]
+  }
+}
