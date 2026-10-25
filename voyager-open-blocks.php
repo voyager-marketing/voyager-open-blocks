@@ -3,7 +3,7 @@
  * Plugin Name:       Voyager Open Blocks
  * Plugin URI:        https://github.com/voyager-marketing/voyager-open-blocks
  * Description:       Agent-ready blocks, binding sources and patterns. Every item ships a SKILL.md so an AI agent can read the site, author native blocks and bind them to real data.
- * Version:           0.2.0
+ * Version:           0.3.0
  * Requires at least: 6.9
  * Requires PHP:      8.1
  * Author:            Voyager Marketing
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'VOYAGER_OPEN_BLOCKS_VERSION', '0.2.0' );
+define( 'VOYAGER_OPEN_BLOCKS_VERSION', '0.3.0' );
 define( 'VOYAGER_OPEN_BLOCKS_FILE', __FILE__ );
 define( 'VOYAGER_OPEN_BLOCKS_DIR', __DIR__ );
 
