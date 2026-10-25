@@ -3,7 +3,7 @@ name: voyager-open-blocks
 description: Entry point for the Voyager Open Blocks pack on a WordPress site. Use when an agent needs to place, configure or bind any voyager-open/* block or pattern, or the voyager/site-data and voyager/post-meta-text binding sources. Teaches the read (Wesper), author (Block Runner), bind loop and routes to the per-item skills.
 license: GPL-2.0-or-later
 metadata:
-  pack-version: "0.1.0"
+  pack-version: "0.3.0"
   requires: "WordPress 6.9+, PHP 8.1+, wesper 0.5.0, block-runner 1.0.0"
 ---
 
@@ -34,6 +34,8 @@ npx wesper summarize site.context.json
 ```
 
 Use `--ssh <target>` for a remote install over WP-CLI. The REST collector (`--rest`) cannot see binding sources or registered meta, so it is not enough for binding work.
+
+Wesper tells you what the site accepts. When the task also needs to know how the site is built and where each thing is edited (which template renders a page, which settings screen holds a value), and the site runs [Voyager Wayfinder](https://github.com/voyager-marketing/voyager-wayfinder), read its map too: the Wayfinder page in wp-admin, its REST routes under `wayfinder/v1`, or its abilities. Wayfinder is pre-1.0 and read-only.
 
 Confirm the pack is active before using it:
 
