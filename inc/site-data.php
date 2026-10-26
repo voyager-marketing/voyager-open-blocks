@@ -18,6 +18,8 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\SiteData;
 
+use VoyagerOpenBlocks\PostMetaText;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -248,6 +250,116 @@ function register_settings(): void {
 			]
 		);
 	}
+
+	if ( PostMetaText\owned() ) {
+		add_settings_section(
+			'voyager_open_blocks_bindable_meta',
+			__( 'Bindable post meta', 'voyager-open-blocks' ),
+			__NAMESPACE__ . '\render_bindable_meta',
+			'voyager-site-data'
+		);
+	}
+}
+
+/**
+ * The Bindable post meta section: a row per field stored in the
+ * voyager_open_blocks_bindable_meta option, an empty row to add one, and the
+ * fields registered in code, read-only. Saved with the rest of the form.
+ */
+function render_bindable_meta(): void {
+	$rows  = PostMetaText\stored_rows();
+	$code  = PostMetaText\code_fields();
+	$types = [];
+
+	foreach ( get_post_types( [ 'public' => true ], 'objects' ) as $type ) {
+		$types[ $type->name ] = $type->labels->singular_name;
+	}
+
+	echo '<p>' . esc_html__( 'Post meta listed here can be bound to blocks with the voyager/post-meta-text source and edited in place in the block editor. Text fields only. Keys must not start with an underscore or contain a dot.', 'voyager-open-blocks' ) . '</p>';
+	echo '<table class="widefat striped"><thead><tr><th scope="col">' . esc_html__( 'Post type', 'voyager-open-blocks' ) . '</th><th scope="col">' . esc_html__( 'Meta key', 'voyager-open-blocks' ) . '</th><th scope="col">' . esc_html__( 'Label', 'voyager-open-blocks' ) . '</th><th scope="col">' . esc_html__( 'Remove', 'voyager-open-blocks' ) . '</th></tr></thead><tbody>';
+
+	foreach ( $rows as $index => $row ) {
+		$note = PostMetaText\in_fields( $row['post_type'], $row['key'], $code ) ? __( 'Registered in code, which applies. This row is dropped on save.', 'voyager-open-blocks' ) : '';
+		render_meta_row( $index, $row, $types, $note );
+	}
+
+	render_meta_row( count( $rows ), null, $types, '' );
+
+	foreach ( $code as $post_type => $keys ) {
+		foreach ( $keys as $key => $label ) {
+			printf(
+				'<tr><td>%1$s</td><td><code>%2$s</code><p class="description"><code>%3$s</code></p></td><td>%4$s</td><td>%5$s</td></tr>',
+				esc_html( '*' === $post_type ? __( 'All post types', 'voyager-open-blocks' ) : ( $types[ $post_type ] ?? $post_type ) ),
+				esc_html( (string) $key ),
+				esc_html( binding_json( (string) $key ) ),
+				esc_html( $label ),
+				esc_html__( 'Registered in code', 'voyager-open-blocks' )
+			);
+		}
+	}
+
+	echo '</tbody></table>';
+}
+
+/**
+ * One editable row of the Bindable post meta table.
+ *
+ * @param int                                                     $index Row index in the posted array.
+ * @param array{post_type: string, key: string, label: string}|null $row   Stored row, or null for the empty add row.
+ * @param array<string, string>                                   $types Public post types: name => label.
+ * @param string                                                  $note  Shown under the row's remove box.
+ */
+function render_meta_row( int $index, ?array $row, array $types, string $note ): void {
+	$name = static fn ( string $part ): string => PostMetaText\OPTION . "[{$index}][{$part}]";
+	$type = $row['post_type'] ?? '';
+
+	if ( '' !== $type && ! isset( $types[ $type ] ) ) {
+		$types[ $type ] = $type;
+	}
+
+	echo '<tr><td><select name="' . esc_attr( $name( 'post_type' ) ) . '" aria-label="' . esc_attr__( 'Post type', 'voyager-open-blocks' ) . '">';
+	foreach ( $types as $value => $label ) {
+		printf( '<option value="%1$s"%2$s>%3$s</option>', esc_attr( $value ), selected( $type, $value, false ), esc_html( $label ) );
+	}
+	echo '</select></td>';
+
+	printf(
+		'<td><input type="text" name="%1$s" value="%2$s" class="regular-text" aria-label="%3$s" placeholder="%4$s" />%5$s</td>',
+		esc_attr( $name( 'key' ) ),
+		esc_attr( $row['key'] ?? '' ),
+		esc_attr__( 'Meta key', 'voyager-open-blocks' ),
+		null === $row ? esc_attr__( 'Add a meta key', 'voyager-open-blocks' ) : '',
+		null === $row ? '' : '<p class="description"><code>' . esc_html( binding_json( $row['key'] ) ) . '</code></p>'
+	);
+
+	printf(
+		'<td><input type="text" name="%1$s" value="%2$s" class="regular-text" aria-label="%3$s" /></td>',
+		esc_attr( $name( 'label' ) ),
+		esc_attr( $row['label'] ?? '' ),
+		esc_attr__( 'Label', 'voyager-open-blocks' )
+	);
+
+	if ( null === $row ) {
+		echo '<td></td></tr>';
+		return;
+	}
+
+	printf(
+		'<td><input type="checkbox" name="%1$s" value="1" aria-label="%2$s" />%3$s</td></tr>',
+		esc_attr( $name( 'remove' ) ),
+		/* translators: %s: meta key. */
+		esc_attr( sprintf( __( 'Remove %s', 'voyager-open-blocks' ), $row['key'] ) ),
+		'' === $note ? '' : '<p class="description">' . esc_html( $note ) . '</p>'
+	);
+}
+
+/**
+ * The binding a meta key gives, as shown under each row.
+ *
+ * @param string $key Meta key.
+ */
+function binding_json( string $key ): string {
+	return (string) wp_json_encode( [ 'source' => PostMetaText\SOURCE, 'args' => [ 'key' => $key ] ], JSON_UNESCAPED_SLASHES );
 }
 
 /**

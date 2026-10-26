@@ -39,6 +39,7 @@
 		"check": "node scripts/check.mjs",
 		"check:site-data": "node scripts/site-data-fixture-check.mjs",
 		"check:resolution": "node scripts/binding-resolution-check.mjs",
+		"check:bindable-meta": "node scripts/bindable-meta-check.mjs",
 		"e2e": "node scripts/e2e.mjs"
 	},
 	"devDependencies": {

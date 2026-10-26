@@ -4,9 +4,14 @@
  *
  * Reads an allowlisted post meta field for the post being rendered, with
  * dot-path access into JSON values (`stats.0.value`). Only fields that were
- * registered through voyager_open_blocks_register_bindable_meta() or the
- * `voyager_post_meta_text_fields` filter resolve; any other key returns null,
- * so a binding cannot be used to read arbitrary meta.
+ * added under Settings > Site Data, or registered through
+ * voyager_open_blocks_register_bindable_meta() or the
+ * `voyager_post_meta_text_fields` filter, resolve; any other key returns
+ * null, so a binding cannot be used to read arbitrary meta.
+ *
+ * Fields added on the screen are rows in the `voyager_open_blocks_bindable_meta`
+ * option. Each row goes through register_field() on init:15, so it behaves
+ * exactly like a helper call. A key registered in PHP wins over a row.
  *
  * Fields registered with the helper are also registered as REST-visible post
  * meta. That is what lets the editor read and write them in place, and what
@@ -28,6 +33,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 const SOURCE = 'voyager/post-meta-text';
 
+const OPTION = 'voyager_open_blocks_bindable_meta';
+
 /**
  * Fields registered through the helper: post type ('*' for all) => key => label.
  *
@@ -45,6 +52,32 @@ function registered( ?array $add = null ): array {
 }
 
 /**
+ * Fields registered from the option rows, in the same shape as registered().
+ *
+ * @param array<string, array<string, string>>|null $add Fields to merge in.
+ * @return array<string, array<string, string>>
+ */
+function from_option( ?array $add = null ): array {
+	static $fields = [];
+
+	if ( null !== $add ) {
+		$fields = array_replace_recursive( $fields, $add );
+	}
+
+	return $fields;
+}
+
+/**
+ * Whether a meta key may be made bindable: non-empty, no leading underscore
+ * (protected meta) and no dot (the dot starts a JSON path).
+ *
+ * @param string $key Meta key.
+ */
+function valid_key( string $key ): bool {
+	return '' !== $key && ! str_starts_with( $key, '_' ) && ! str_contains( $key, '.' );
+}
+
+/**
  * Make a post meta field bindable.
  *
  * Call on init. Registers the meta as a single REST-visible string that
@@ -55,7 +88,7 @@ function registered( ?array $add = null ): array {
  * @param string $label     Human label shown in the editor's binding picker.
  */
 function register_field( string $post_type, string $key, string $label ): bool {
-	if ( '' === $key || str_starts_with( $key, '_' ) || str_contains( $key, '.' ) ) {
+	if ( ! valid_key( $key ) ) {
 		_doing_it_wrong( __FUNCTION__, esc_html__( 'Bindable meta keys must be non-empty, unprotected (no leading underscore) and contain no dot.', 'voyager-open-blocks' ), '0.1.0' );
 		return false;
 	}
@@ -111,6 +144,164 @@ function fields_for( string $post_type ): array {
 	$all = allowed_fields();
 
 	return array_merge( $all['*'] ?? [], $all[ $post_type ] ?? [] );
+}
+
+/**
+ * Fields registered in PHP (the helper or the filter), without the option rows.
+ *
+ * @return array<string, array<string, string>>
+ */
+function code_fields(): array {
+	$fields = allowed_fields();
+
+	foreach ( from_option() as $post_type => $keys ) {
+		foreach ( array_keys( $keys ) as $key ) {
+			unset( $fields[ $post_type ][ $key ] );
+		}
+	}
+
+	return array_filter( $fields );
+}
+
+/**
+ * Whether a key is already allowlisted for a post type, directly or through '*'.
+ *
+ * @param string                               $post_type Post type.
+ * @param string                               $key       Meta key.
+ * @param array<string, array<string, string>> $fields    Allowlist to look in.
+ */
+function in_fields( string $post_type, string $key, array $fields ): bool {
+	return isset( $fields['*'][ $key ] ) || isset( $fields[ $post_type ][ $key ] );
+}
+
+/**
+ * Rows saved on Settings > Site Data.
+ *
+ * @return list<array{post_type: string, key: string, label: string}>
+ */
+function stored_rows(): array {
+	$rows = [];
+
+	foreach ( (array) get_option( OPTION, [] ) as $row ) {
+		if ( ! is_array( $row ) || ! is_string( $row['post_type'] ?? null ) || ! is_string( $row['key'] ?? null ) ) {
+			continue;
+		}
+
+		$label  = is_string( $row['label'] ?? null ) ? $row['label'] : '';
+		$rows[] = [
+			'post_type' => $row['post_type'],
+			'key'       => $row['key'],
+			'label'     => '' === $label ? $row['key'] : $label,
+		];
+	}
+
+	return $rows;
+}
+
+/**
+ * Register the stored rows, before the source registers at init:20.
+ *
+ * Skipped when another plugin already owns the source (voyager-blocks
+ * registers it at init:5), because its own allowlist applies there. A row
+ * whose key PHP already registered for that post type is skipped too: the
+ * code is the developer's intent. A row that breaks the key rules is skipped
+ * quietly, since the screen refused it when it was saved.
+ */
+function register_stored(): void {
+	if ( null !== get_block_bindings_source( SOURCE ) ) {
+		return;
+	}
+
+	$code = allowed_fields();
+
+	foreach ( stored_rows() as $row ) {
+		if ( ! valid_key( $row['key'] ) || in_fields( $row['post_type'], $row['key'], $code ) ) {
+			continue;
+		}
+
+		if ( register_field( $row['post_type'], $row['key'], $row['label'] ) ) {
+			from_option( [ $row['post_type'] => [ $row['key'] => $row['label'] ] ] );
+		}
+	}
+}
+add_action( 'init', __NAMESPACE__ . '\register_stored', 15 );
+
+/**
+ * Sanitize the rows posted from Settings > Site Data.
+ *
+ * Applies register_field()'s key rules and requires a registered post type.
+ * A refused row is left out and reported as a settings error. A row with its
+ * Remove box ticked, or with key and label both blank (the empty add row), is
+ * dropped without a message.
+ *
+ * @param mixed $input Posted rows.
+ * @return list<array{post_type: string, key: string, label: string}>
+ */
+function sanitize_rows( $input ): array {
+	$text = static fn ( $value ): string => is_string( $value ) ? sanitize_text_field( $value ) : '';
+	$code = code_fields();
+	$rows = [];
+	$seen = [];
+
+	foreach ( is_array( $input ) ? $input : [] as $row ) {
+		if ( ! is_array( $row ) || ! empty( $row['remove'] ) ) {
+			continue;
+		}
+
+		$post_type = sanitize_key( $text( $row['post_type'] ?? '' ) );
+		$key       = $text( $row['key'] ?? '' );
+		$label     = $text( $row['label'] ?? '' );
+
+		if ( '' === $key && '' === $label ) {
+			continue;
+		}
+
+		if ( ! valid_key( $key ) ) {
+			/* translators: %s: meta key. */
+			refuse( 'invalid_key', sprintf( __( 'The meta key "%s" was not saved. A bindable meta key must not be empty, start with an underscore or contain a dot.', 'voyager-open-blocks' ), $key ) );
+			continue;
+		}
+
+		if ( ! post_type_exists( $post_type ) ) {
+			/* translators: 1: meta key, 2: post type. */
+			refuse( 'invalid_post_type', sprintf( __( 'The meta key "%1$s" was not saved. "%2$s" is not a registered post type.', 'voyager-open-blocks' ), $key, $post_type ) );
+			continue;
+		}
+
+		if ( in_fields( $post_type, $key, $code ) ) {
+			/* translators: %s: meta key. */
+			refuse( 'registered_in_code', sprintf( __( 'The meta key "%s" was not saved. It is already registered in code for that post type, and the code registration applies.', 'voyager-open-blocks' ), $key ) );
+			continue;
+		}
+
+		if ( isset( $seen[ "$post_type/$key" ] ) ) {
+			continue;
+		}
+
+		$seen[ "$post_type/$key" ] = true;
+		$rows[]                    = [
+			'post_type' => $post_type,
+			'key'       => $key,
+			'label'     => '' === $label ? $key : $label,
+		];
+	}
+
+	return $rows;
+}
+
+/**
+ * Report a refused row on the settings screen.
+ *
+ * add_settings_error() is admin-only, so a write from WP-CLI or a front-end
+ * request drops the row without a message.
+ *
+ * @param string $code    Error code.
+ * @param string $message Message shown above the form.
+ */
+function refuse( string $code, string $message ): void {
+	if ( function_exists( 'add_settings_error' ) ) {
+		add_settings_error( OPTION, $code, $message );
+	}
 }
 
 /**
@@ -211,5 +402,18 @@ function register_source(): void {
 	);
 
 	owned( true );
+
+	// The rows behind Settings > Site Data's Bindable post meta section. Only
+	// registered when this plugin owns the source, where the rows take effect.
+	register_setting(
+		'voyager_site_data',
+		OPTION,
+		[
+			'type'              => 'array',
+			'default'           => [],
+			'sanitize_callback' => __NAMESPACE__ . '\sanitize_rows',
+			'show_in_rest'      => false,
+		]
+	);
 }
 add_action( 'init', __NAMESPACE__ . '\register_source', 20 );
