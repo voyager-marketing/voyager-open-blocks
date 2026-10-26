@@ -421,6 +421,18 @@ step(
 	`${ ( tree.data.blocks || [] ).length } blocks`
 );
 
+const treeCall = ( tree.data.blocks || [] ).find(
+	( b ) => b.label === 'Click to call'
+);
+const treeResolution = treeCall?.bindings?.url?.resolution;
+step(
+	'get-post-blocks reports the CTA band phone_link binding as resolved',
+	treeResolution?.status === 'resolved' &&
+		treeResolution.reason === null &&
+		( treeResolution.value_preview || '' ).startsWith( 'tel:' ),
+	JSON.stringify( treeResolution ?? null )
+);
+
 // 6. Rendered output.
 const html = ( await request( saved.data.link ) ).text;
 const telLinks = html.match( /href="tel:[^"]+"/g ) || [];
