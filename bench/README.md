@@ -1,6 +1,6 @@
 # With/without benchmark
 
-Does an agent build a correct, editable WordPress page more often with this pack's loop than without it? This folder holds the briefs, the run protocol and the scorer. No results are in yet.
+Does an agent build a correct, editable WordPress page more often with this pack's loop than without it? This folder holds the briefs, the run protocol and the scorer. The result is published on the tracking issue below, not here.
 
 Tracking issue: VOY-1774.
 
