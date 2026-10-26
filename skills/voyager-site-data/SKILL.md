@@ -84,6 +84,14 @@ The attribute must be bindable for that block, and `args` must exactly match a f
 
 `get-catalog` also lists every key of this source with its args. Use it where the Wesper manifest cannot.
 
+**get-post-blocks** says whether each binding returns a value now. Every entry in a block's `bindings` carries `resolution`:
+
+```json
+{ "source": "voyager/site-data", "args": { "key": "phone" }, "resolution": { "status": "resolved", "reason": null, "value_preview": "555-0142" } }
+```
+
+`status` is `resolved` when the source returned a value, or `fell_back` when it returned nothing and the block keeps its authored text. `reason` is `null` when resolved, else `source_unregistered` (no plugin registers the source), `unknown_key` (the key is not a listed field) or `empty_value` (a real key with nothing set; tell the user which setting to fill in). `value_preview` is the first 80 characters of the value. Read it after `bind` to prove the binding works instead of assuming it.
+
 ## Try it
 
 `blueprints/site-data.json`.

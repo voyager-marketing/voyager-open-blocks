@@ -36,7 +36,7 @@ npx skills add voyager-marketing/voyager-open-blocks
 
 ## Abilities
 
-Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure` and `bind`. `insert` takes `copy` for a pattern's named headings, paragraphs, buttons and list items. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML. See the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
+Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure` and `bind`. `insert` takes `copy` for a pattern's named headings, paragraphs, buttons and list items. `get-post-blocks` reports `resolution` for every binding (`resolved` or `fell_back`, with a reason and a value preview), so a bound value can be proved without rendering the page; `node scripts/binding-resolution-check.mjs --site <dir>` (`npm run check:resolution`) checks it against a local site. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML. See the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
 
 ## Try it
 

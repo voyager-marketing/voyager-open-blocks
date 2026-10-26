@@ -143,11 +143,15 @@ function &find( array &$blocks, array $path ): ?array {
 /**
  * Describe a block tree: one row per block with its path, name and bindings.
  *
- * @param array<int, array<string, mixed>> $blocks Blocks.
- * @param string                           $prefix Path of the parent, '' at the top.
+ * With a post, each binding also carries `resolution`: whether its source
+ * returned a value now, or the block would fall back to its authored text.
+ *
+ * @param array<int, array<string, mixed>> $blocks  Blocks.
+ * @param string                           $prefix  Path of the parent, '' at the top.
+ * @param int|null                         $post_id Post the blocks belong to. Null skips resolution.
  * @return array<int, array<string, mixed>>
  */
-function describe( array $blocks, string $prefix = '' ): array {
+function describe( array $blocks, string $prefix = '', ?int $post_id = null ): array {
 	$rows = [];
 
 	foreach ( $blocks as $index => $block ) {
@@ -161,7 +165,9 @@ function describe( array $blocks, string $prefix = '' ): array {
 			$row['label'] = (string) $block['attrs']['metadata']['name'];
 		}
 		if ( ! empty( $block['attrs']['metadata']['bindings'] ) ) {
-			$row['bindings'] = $block['attrs']['metadata']['bindings'];
+			$row['bindings'] = null === $post_id
+				? $block['attrs']['metadata']['bindings']
+				: with_resolution( $block, $post_id );
 		}
 		if ( 'core/pattern' === ( $block['blockName'] ?? '' ) && ! empty( $block['attrs']['slug'] ) ) {
 			$row['pattern'] = (string) $block['attrs']['slug'];
@@ -170,11 +176,69 @@ function describe( array $blocks, string $prefix = '' ): array {
 		$rows[] = $row;
 
 		if ( ! empty( $block['innerBlocks'] ) ) {
-			array_push( $rows, ...describe( $block['innerBlocks'], $path ) );
+			array_push( $rows, ...describe( $block['innerBlocks'], $path, $post_id ) );
 		}
 	}
 
 	return $rows;
+}
+
+/**
+ * A block's declared bindings, each with how it resolves now.
+ *
+ * The value comes from the source's own registered callback, called with a
+ * WP_Block built from the parsed block, as core does when it renders. Null or
+ * an empty string is a fall back: core then keeps the attribute as authored.
+ *
+ * `reason` says why, when it can be known:
+ * - `source_unregistered`: no plugin registers the source on this site.
+ * - `unknown_key`: the source's fields are listed (see Catalog\fields()) and
+ *   none has these args.
+ * - `empty_value`: anything else, including a source whose fields cannot be listed.
+ *
+ * @param array<string, mixed> $block   Parsed block with metadata.bindings.
+ * @param int                  $post_id Post the block belongs to.
+ * @return array<string, array<string, mixed>>
+ */
+function with_resolution( array $block, int $post_id ): array {
+	$post_type = (string) get_post_type( $post_id );
+	$instance  = new \WP_Block( $block, [ 'postId' => $post_id, 'postType' => $post_type ] );
+	$out       = [];
+
+	foreach ( (array) $block['attrs']['metadata']['bindings'] as $attribute => $binding ) {
+		$binding = (array) $binding;
+		$name    = isset( $binding['source'] ) && is_string( $binding['source'] ) ? $binding['source'] : '';
+		$args    = isset( $binding['args'] ) && is_array( $binding['args'] ) ? $binding['args'] : [];
+		$source  = '' === $name ? null : get_block_bindings_source( $name );
+		$status  = 'fell_back';
+		$reason  = null;
+		$preview = null;
+
+		if ( null === $source ) {
+			$reason = 'source_unregistered';
+		} else {
+			$value = $source->get_value( $args, $instance, (string) $attribute );
+			$text  = null === $value ? '' : ( is_scalar( $value ) ? (string) $value : (string) wp_json_encode( $value ) );
+
+			if ( '' !== $text ) {
+				$status  = 'resolved';
+				$preview = mb_substr( $text, 0, 80 );
+			} else {
+				$match  = \VoyagerOpenBlocks\Catalog\match_args( $name, $post_type, $args );
+				$reason = is_wp_error( $match ) && 'voyager_open_blocks_invalid_args' === $match->get_error_code() ? 'unknown_key' : 'empty_value';
+			}
+		}
+
+		$out[ $attribute ] = $binding + [
+			'resolution' => [
+				'status'        => $status,
+				'reason'        => $reason,
+				'value_preview' => $preview,
+			],
+		];
+	}
+
+	return $out;
 }
 
 /**
