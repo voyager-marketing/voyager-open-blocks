@@ -62,9 +62,11 @@ function registered( ?array $add = null ): array {
  * @return array<string, array<string, string>>
  */
 function from_option( ?array $add = null ): array {
+	/** @var array<string, array<string, string>> $fields */
 	static $fields = [];
 
 	if ( null !== $add ) {
+		/** @var array<string, array<string, string>> $fields */
 		$fields = array_replace_recursive( $fields, $add );
 	}
 

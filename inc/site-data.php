@@ -274,7 +274,7 @@ function render_bindable_meta(): void {
 	$types = [];
 
 	foreach ( get_post_types( [ 'public' => true ], 'objects' ) as $type ) {
-		$types[ $type->name ] = $type->labels->singular_name;
+		$types[ $type->name ] = Cast\to_string( $type->labels->singular_name, $type->name );
 	}
 
 	echo '<p>' . esc_html__( 'Post meta listed here can be bound to blocks with the voyager/post-meta-text source and edited in place in the block editor. Text fields only. Keys must not start with an underscore or contain a dot.', 'voyager-open-blocks' ) . '</p>';
