@@ -1,6 +1,12 @@
 # Voyager Open Blocks
 
+[![CI](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/ci.yml/badge.svg)](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/ci.yml)
+[![Block Check](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/block-check.yml/badge.svg)](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/block-check.yml)
+[![Latest release](https://img.shields.io/github/v/release/voyager-marketing/voyager-open-blocks)](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest)
+
 WordPress blocks, binding sources and patterns that an AI agent can use correctly. Each one has a `SKILL.md` that teaches one loop: read the site with [Wesper](https://github.com/humanmade/wesper), author native blocks with [Block Runner](https://github.com/humanmade/block-runner), then bind them to real data.
+
+Try it in [WordPress Playground](https://playground.wordpress.net/) first. The blueprints load the pack with demo content in the browser, with nothing to install. See [Try it](#try-it).
 
 | Item | Kind | Skill |
 |---|---|---|
@@ -16,6 +22,8 @@ WordPress blocks, binding sources and patterns that an AI agent can use correctl
 Start an agent at [skills/voyager-open-blocks](skills/voyager-open-blocks/SKILL.md). The skills follow the open Agent Skills layout (`skills/<name>/SKILL.md`), so any harness that reads that layout can load them.
 
 Requires WordPress 6.9+ and PHP 8.1+. Patterns use core blocks and the active theme's presets only, so the theme decides how they look.
+
+**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the two binding sources, Settings > Site Data and five abilities. Wesper and Block Runner only add the agent loop that reads the site and checks the markup it writes.
 
 ## Install
 
