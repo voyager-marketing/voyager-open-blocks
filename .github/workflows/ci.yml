@@ -58,7 +58,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          tools: none
+          tools: composer
           coverage: none
 
       - name: php -l on every PHP file
@@ -68,3 +68,14 @@ jobs:
             | grep -v '^No syntax errors' || true
           find . -name '*.php' -not -path './node_modules/*' -print0 \
             | xargs -0 -n1 php -l > /dev/null
+
+      - name: Install dev dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # Level max over the plugin file, inc/ and src/, no baseline.
+      - name: PHPStan
+        run: composer phpstan
+
+      # No WordPress is loaded: tests/wp-stubs.php stands in for core.
+      - name: PHPUnit
+        run: composer test
