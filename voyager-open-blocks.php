@@ -25,6 +25,7 @@ define( 'VOYAGER_OPEN_BLOCKS_VERSION', '0.3.0' );
 define( 'VOYAGER_OPEN_BLOCKS_FILE', __FILE__ );
 define( 'VOYAGER_OPEN_BLOCKS_DIR', __DIR__ );
 
+require_once __DIR__ . '/inc/cast.php';
 require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/site-data.php';
 require_once __DIR__ . '/inc/post-meta-text.php';
@@ -52,6 +53,7 @@ function voyager_open_blocks_register_blocks(): void {
 	wp_register_block_metadata_collection( __DIR__ . '/build', __DIR__ . '/build/blocks-manifest.php' );
 
 	$build    = __DIR__ . '/build/';
+	/** @var array<string, mixed> $manifest */
 	$manifest = require __DIR__ . '/build/blocks-manifest.php';
 	foreach ( array_keys( $manifest ) as $block_type ) {
 		register_block_type( $build . $block_type );

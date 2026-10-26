@@ -11,3 +11,9 @@ parameters:
 		- voyager-open-blocks.php
 		- inc
 		- src
+
+	typeAliases:
+		# A block as parse_blocks() returns it.
+		Block: 'array{blockName: string|null, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>}'
+		# One row of BlockTree\describe().
+		Row: 'array{path: string, block: string, label?: string, bindings?: array<mixed>, pattern?: string, copy?: bool}'
