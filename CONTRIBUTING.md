@@ -46,10 +46,15 @@ npm run playground -- serve --site ../voyager-open-blocks-site
 npm run check              every offline gate: build drift, patterns, Block Runner, plugin inspect
 npm run lint:js
 npm run lint:css
+composer install           once, for the two PHP checks below
+composer phpstan           PHPStan at level max over the plugin file, inc/ and src/, no baseline
+composer test              PHPUnit unit suite, no WordPress needed
 npm run e2e -- --context site.context.json     the abilities over REST, against the served local site
 ```
 
-CI runs the build-drift check, `npm run check`, both linters, PHP lint and Block Check on every pull request, and a pull request needs them green to merge.
+CI runs the build-drift check, `npm run check`, both linters, PHP lint, `composer phpstan`, `composer test` and Block Check on every pull request, and a pull request needs them green to merge.
+
+`composer phpstan` takes PHP 8.1 or later. Fix what it reports; don't add a baseline. The unit tests stub the few core functions the modules call in `tests/wp-stubs.php`, so a test that needs a real WordPress belongs in the e2e script.
 
 ## Send a change
 

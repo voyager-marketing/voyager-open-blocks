@@ -22,6 +22,7 @@ declare(strict_types=1);
 namespace VoyagerOpenBlocks\Abilities;
 
 use VoyagerOpenBlocks\BlockTree;
+use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
 use WP_Error;
 
@@ -72,9 +73,25 @@ function meta( bool $readonly, bool $idempotent ): array {
  * @param array<string, mixed>|null $input Ability input.
  */
 function can_edit_post( $input = null ): bool {
-	$post_id = is_array( $input ) && isset( $input['post_id'] ) ? (int) $input['post_id'] : 0;
+	$post_id = is_array( $input ) && isset( $input['post_id'] ) ? Cast\to_int( $input['post_id'] ) : 0;
 
 	return $post_id > 0 && current_user_can( 'edit_post', $post_id );
+}
+
+/**
+ * A value as an array with string keys, [] when it is not an array.
+ *
+ * @param mixed $value Value.
+ * @return array<string, mixed>
+ */
+function assoc( mixed $value ): array {
+	$out = [];
+
+	foreach ( is_array( $value ) ? $value : [] as $key => $item ) {
+		$out[ (string) $key ] = $item;
+	}
+
+	return $out;
 }
 
 /**
@@ -88,7 +105,15 @@ function items(): array {
 		array_column( \WP_Block_Patterns_Registry::get_instance()->get_all_registered(), 'name' )
 	);
 
-	return array_values( array_filter( $names, static fn ( string $name ): bool => str_starts_with( $name, Catalog\PREFIX ) ) );
+	$items = [];
+
+	foreach ( $names as $name ) {
+		if ( is_string( $name ) && str_starts_with( $name, Catalog\PREFIX ) ) {
+			$items[] = $name;
+		}
+	}
+
+	return $items;
 }
 
 /**
@@ -352,7 +377,7 @@ add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\register' );
  * @return array<string, mixed>
  */
 function get_catalog( $input = null ): array {
-	$post_type = is_array( $input ) && ! empty( $input['post_type'] ) ? (string) $input['post_type'] : 'page';
+	$post_type = is_array( $input ) && ! empty( $input['post_type'] ) ? Cast\to_string( $input['post_type'] ) : 'page';
 
 	return [
 		'blocks'   => Catalog\blocks(),
@@ -368,7 +393,7 @@ function get_catalog( $input = null ): array {
  * @return array<string, mixed>|WP_Error
  */
 function get_post_blocks( array $input ) {
-	$post_id = (int) $input['post_id'];
+	$post_id = Cast\to_int( $input['post_id'] );
 	$blocks  = BlockTree\load( $post_id );
 
 	if ( is_wp_error( $blocks ) ) {
@@ -388,16 +413,16 @@ function get_post_blocks( array $input ) {
  * enough: core/heading has one, yet its saved <h2> must still match `level`,
  * so changing the comment alone would make the block invalid.
  *
- * @param string                    $name       Block name.
- * @param array<string, mixed>      $attributes Attributes; null resets one.
- * @param array<string, mixed>|null $block      The existing block, or null when inserting a pack block.
+ * @param string               $name       Block name.
+ * @param array<string, mixed> $attributes Attributes; null resets one.
+ * @param Block|null           $block      The existing block, or null when inserting a pack block.
  * @return array<string, mixed>|WP_Error The attributes to apply.
  */
 function check_attributes( string $name, array $attributes, ?array $block = null ) {
 	$type      = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
 	$saves_any = null === $block
 		? ! str_starts_with( $name, Catalog\PREFIX )
-		: '' !== trim( (string) ( $block['innerHTML'] ?? '' ) ) || ! empty( $block['innerBlocks'] );
+		: '' !== trim( $block['innerHTML'] ) || ! empty( $block['innerBlocks'] );
 
 	if ( ! $type || ! $type->is_dynamic() || $saves_any ) {
 		return new WP_Error(
@@ -437,9 +462,9 @@ function check_attributes( string $name, array $attributes, ?array $block = null
 /**
  * Validation report for markup that is about to be written.
  *
- * @param array<int, array<string, mixed>> $blocks Blocks.
- * @param string                           $markup Their markup.
- * @return array<string, mixed>
+ * @param array<int, Block> $blocks Blocks.
+ * @param string            $markup Their markup.
+ * @return array{registered_and_attributes: bool, errors: string[], round_trip: bool, save_output: string}
  */
 function validation( array $blocks, string $markup ): array {
 	$check = BlockTree\check( $blocks );
@@ -459,12 +484,12 @@ function validation( array $blocks, string $markup ): array {
  * @return array<string, mixed>|WP_Error
  */
 function insert( array $input ) {
-	$post_id    = (int) $input['post_id'];
-	$item       = (string) $input['item'];
-	$position   = isset( $input['position'] ) ? (int) $input['position'] : -1;
-	$mode       = isset( $input['mode'] ) ? (string) $input['mode'] : 'copy';
-	$attributes = isset( $input['attributes'] ) && is_array( $input['attributes'] ) ? $input['attributes'] : [];
-	$copy       = isset( $input['copy'] ) && is_array( $input['copy'] ) ? $input['copy'] : [];
+	$post_id    = Cast\to_int( $input['post_id'] );
+	$item       = Cast\to_string( $input['item'] );
+	$position   = isset( $input['position'] ) ? Cast\to_int( $input['position'] ) : -1;
+	$mode       = isset( $input['mode'] ) ? Cast\to_string( $input['mode'] ) : 'copy';
+	$attributes = assoc( $input['attributes'] ?? null );
+	$copy       = array_map( static fn ( mixed $text ): string => Cast\to_string( $text ), assoc( $input['copy'] ?? null ) );
 	$dry_run    = ! empty( $input['dry_run'] );
 
 	$blocks = BlockTree\load( $post_id );
@@ -493,7 +518,7 @@ function insert( array $input ) {
 					'innerContent' => [],
 				],
 			]
-			: BlockTree\parse( (string) $pattern['content'] );
+			: BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) );
 
 		if ( $copy ) {
 			$copied = BlockTree\set_copy( $new, $copy );
@@ -559,24 +584,34 @@ function insert( array $input ) {
  * Load a post and the block at a path.
  *
  * @param array<string, mixed> $input Input with post_id and path.
- * @return array{0: array<int, array<string, mixed>>, 1: int[]}|WP_Error Blocks and parsed path.
+ * @return array{0: array<int, Block>, 1: int[]}|WP_Error Blocks and parsed path.
  */
 function locate( array $input ) {
-	$blocks = BlockTree\load( (int) $input['post_id'] );
+	$blocks = BlockTree\load( Cast\to_int( $input['post_id'] ) );
 	if ( is_wp_error( $blocks ) ) {
 		return $blocks;
 	}
 
-	$path = BlockTree\parse_path( $input['path'] ?? '' );
+	$raw  = $input['path'] ?? '';
+	$path = BlockTree\parse_path( is_string( $raw ) || is_array( $raw ) ? $raw : '' );
 	if ( is_wp_error( $path ) ) {
 		return $path;
 	}
 
 	if ( null === BlockTree\find( $blocks, $path ) ) {
-		return new WP_Error( 'voyager_open_blocks_invalid_path', sprintf( 'No block at path %s. Read paths with get-post-blocks.', implode( '/', $path ) ), [ 'status' => 400 ] );
+		return no_block_at( $path );
 	}
 
 	return [ $blocks, $path ];
+}
+
+/**
+ * The error for a path with no block behind it.
+ *
+ * @param int[] $path Parsed path.
+ */
+function no_block_at( array $path ): WP_Error {
+	return new WP_Error( 'voyager_open_blocks_invalid_path', sprintf( 'No block at path %s. Read paths with get-post-blocks.', implode( '/', $path ) ), [ 'status' => 400 ] );
 }
 
 /**
@@ -592,8 +627,12 @@ function configure( array $input ) {
 	}
 	[ $blocks, $path ] = $located;
 
-	$block      = &BlockTree\find( $blocks, $path );
-	$attributes = check_attributes( (string) $block['blockName'], (array) $input['attributes'], $block );
+	$block = &BlockTree\find( $blocks, $path );
+	if ( null === $block ) {
+		return no_block_at( $path );
+	}
+
+	$attributes = check_attributes( (string) $block['blockName'], assoc( $input['attributes'] ?? null ), $block );
 	if ( is_wp_error( $attributes ) ) {
 		return $attributes;
 	}
@@ -606,7 +645,7 @@ function configure( array $input ) {
 		}
 	}
 
-	return finish( (int) $input['post_id'], $blocks, $block, implode( '/', $path ) );
+	return finish( Cast\to_int( $input['post_id'] ), $blocks, $block, implode( '/', $path ) );
 }
 
 /**
@@ -622,12 +661,16 @@ function bind( array $input ) {
 	}
 	[ $blocks, $path ] = $located;
 
-	$block     = &BlockTree\find( $blocks, $path );
+	$block = &BlockTree\find( $blocks, $path );
+	if ( null === $block ) {
+		return no_block_at( $path );
+	}
+
 	$name      = (string) $block['blockName'];
-	$attribute = (string) $input['attribute'];
-	$source    = (string) $input['source'];
-	$args      = (array) $input['args'];
-	$bindable  = get_block_bindings_supported_attributes( $name );
+	$attribute = Cast\to_string( $input['attribute'] ?? '' );
+	$source    = Cast\to_string( $input['source'] ?? '' );
+	$args      = (array) ( $input['args'] ?? [] );
+	$bindable  = array_values( array_filter( get_block_bindings_supported_attributes( $name ), 'is_string' ) );
 
 	if ( ! in_array( $attribute, $bindable, true ) ) {
 		return new WP_Error(
@@ -641,26 +684,32 @@ function bind( array $input ) {
 		return new WP_Error( 'voyager_open_blocks_invalid_source', sprintf( 'The binding source %s is not registered on this site.', $source ), [ 'status' => 400 ] );
 	}
 
-	$matched = Catalog\match_args( $source, (string) get_post_type( (int) $input['post_id'] ), $args );
+	$post_id = Cast\to_int( $input['post_id'] );
+	$matched = Catalog\match_args( $source, (string) get_post_type( $post_id ), $args );
 	if ( is_wp_error( $matched ) ) {
 		return $matched;
 	}
 
-	$block['attrs']['metadata']['bindings'][ $attribute ] = [
+	$metadata = BlockTree\metadata( $block );
+	$bindings = isset( $metadata['bindings'] ) && is_array( $metadata['bindings'] ) ? $metadata['bindings'] : [];
+
+	$bindings[ $attribute ]     = [
 		'source' => $source,
 		'args'   => $args,
 	];
+	$metadata['bindings']       = $bindings;
+	$block['attrs']['metadata'] = $metadata;
 
-	return finish( (int) $input['post_id'], $blocks, $block, implode( '/', $path ) );
+	return finish( $post_id, $blocks, $block, implode( '/', $path ) );
 }
 
 /**
  * Validate, save and report a changed block.
  *
- * @param int                              $post_id Post ID.
- * @param array<int, array<string, mixed>> $blocks  All blocks, already changed.
- * @param array<string, mixed>             $block   The changed block.
- * @param string                           $path    Its path.
+ * @param int               $post_id Post ID.
+ * @param array<int, Block> $blocks  All blocks, already changed.
+ * @param Block             $block   The changed block.
+ * @param string            $path    Its path.
  * @return array<string, mixed>|WP_Error
  */
 function finish( int $post_id, array $blocks, array $block, string $path ) {

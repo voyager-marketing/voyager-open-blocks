@@ -22,6 +22,8 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\PostMetaText;
 
+use VoyagerOpenBlocks\Cast;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -35,9 +37,11 @@ const SOURCE = 'voyager/post-meta-text';
  * @return array<string, array<string, string>>
  */
 function registered( ?array $add = null ): array {
+	/** @var array<string, array<string, string>> $fields */
 	static $fields = [];
 
 	if ( null !== $add ) {
+		/** @var array<string, array<string, string>> $fields */
 		$fields = array_replace_recursive( $fields, $add );
 	}
 
@@ -70,7 +74,7 @@ function register_field( string $post_type, string $key, string $label ): bool {
 			'label'             => $label,
 			'show_in_rest'      => true,
 			'sanitize_callback' => 'sanitize_textarea_field',
-			'auth_callback'     => static fn ( $allowed, $meta_key, $post_id ): bool => current_user_can( 'edit_post', (int) $post_id ),
+			'auth_callback'     => static fn ( $allowed, $meta_key, $post_id ): bool => current_user_can( 'edit_post', Cast\to_int( $post_id ) ),
 		]
 	);
 
@@ -96,9 +100,15 @@ function allowed_fields(): array {
 	 *
 	 * @param array<string, array<string, string>> $fields Post type ('*' for all) => meta key => label.
 	 */
+	/** @var mixed $fields A callback may return anything. */
 	$fields = apply_filters( 'voyager_post_meta_text_fields', registered() );
 
-	return is_array( $fields ) ? $fields : [];
+	if ( ! is_array( $fields ) ) {
+		return [];
+	}
+
+	/** @var array<string, array<string, string>> $fields */
+	return $fields;
 }
 
 /**
@@ -163,7 +173,7 @@ function get_binding_value( array $source_args, $block_instance, string $attribu
 		return null;
 	}
 
-	$post_id = (int) ( $block_instance->context['postId'] ?? 0 );
+	$post_id = Cast\to_int( $block_instance->context['postId'] ?? 0 );
 
 	if ( ! $post_id ) {
 		$post_id = (int) get_the_ID();
@@ -184,6 +194,7 @@ function get_binding_value( array $source_args, $block_instance, string $attribu
  * @param bool $set Mark the source as registered here.
  */
 function owned( bool $set = false ): bool {
+	/** @var bool $owned */
 	static $owned = false;
 
 	if ( $set ) {

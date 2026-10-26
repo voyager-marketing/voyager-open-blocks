@@ -1,4 +1,6 @@
 node_modules/
+vendor/
+.phpunit.cache/
 .wp-playground/
 .env*
 *.log

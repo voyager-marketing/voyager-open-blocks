@@ -7,9 +7,9 @@
  *
  * @package VoyagerOpenBlocks
  *
- * @var array<string, mixed> $attributes Block attributes (bindings already applied).
- * @var string               $content    Saved inner content (empty).
- * @var WP_Block             $block      Block instance.
+ * @var array{icon?: string, size?: int|float, linkUrl?: string, linkTarget?: bool, label?: string, animation?: string, animationTrigger?: string} $attributes Block attributes (bindings already applied), typed by block.json.
+ * @var string                                                                                                                                      $content    Saved inner content (empty).
+ * @var WP_Block                                                                                                                                    $block      Block instance.
  */
 
 declare(strict_types=1);
