@@ -55,4 +55,14 @@ CI runs the build-drift check, `npm run check`, both linters, PHP lint and Block
 
 1. Fork, branch from `main`, and keep the change to one thing.
 2. Run the gates above. Add or update the pattern intent, skill or e2e step your change touches.
-3. Open a pull request that says what changed and why, and how you checked it.
+3. Open a pull request that says what changed and why, and how you checked it. Give it a conventional commit title (`feat: add the icon block`). Merges are squashes, so the title becomes the commit that release-please reads, and CI fails a title that is not one. Types: feat, fix, docs, style, refactor, perf, test, chore, revert. Keep the header to 72 characters.
+
+## How a release happens
+
+You don't tag by hand. release-please keeps one open release PR on `main` that bumps the version in `voyager-open-blocks.php` (the header and `VOYAGER_OPEN_BLOCKS_VERSION`), the `readme.txt` Stable tag and `package.json`, and writes `CHANGELOG.md` from the commit titles. Feat bumps the minor version and fix the patch. A breaking change (`feat!:` or a `BREAKING CHANGE:` footer) bumps the major.
+
+To release, add one line for the version under `== Changelog ==` in `readme.txt` on the release PR (WordPress.org shows that section), then merge the PR. Merging creates the tag and the GitHub Release, and the same run builds `voyager-open-blocks.zip` and attaches it. Nothing else to do.
+
+If the zip fails to attach, run the Release workflow by hand from the Actions tab with the tag (for example `v0.4.0`). It rebuilds the zip and uploads it.
+
+A release PR that release-please opens runs no CI of its own. GitHub does not start workflows for events caused by the built-in token. Close and reopen the PR to start the checks.
