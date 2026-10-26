@@ -1,0 +1,38 @@
+{
+	"version": 1,
+	"options": {
+		"blogname": "  Example Plumbing  ",
+		"blogdescription": "  Fast, fair, local  ",
+		"voyager_site_phone": "  +1 (555) 010-0123  ",
+		"voyager_site_email": "  hello@example.com  ",
+		"voyager_site_address": "  100 Example Street, Suite 4  ",
+		"voyager_site_address_city": "  Springfield  ",
+		"voyager_site_address_state": "  IL  ",
+		"voyager_site_address_zip": "  62701  ",
+		"voyager_site_hours": "  Mon-Fri 8am-5pm  ",
+		"voyager_site_social_facebook": "  https://facebook.com/example plumbing  ",
+		"voyager_site_social_instagram": "  https://instagram.com/example  ",
+		"voyager_site_social_linkedin": "  https://linkedin.com/company/example  ",
+		"voyager_site_social_x": "  https://x.com/example  "
+	},
+	"expected": {
+		"company": "  Example Plumbing  ",
+		"tagline": "  Fast, fair, local  ",
+		"phone": "+1 (555) 010-0123",
+		"phone_link": "tel:+15550100123",
+		"email": "hello@example.com",
+		"email_link": "mailto:hello@example.com",
+		"address": "100 Example Street, Suite 4",
+		"address_city": "Springfield",
+		"address_state": "IL",
+		"address_zip": "62701",
+		"address_locality": "Springfield, IL 62701",
+		"hours": "Mon-Fri 8am-5pm",
+		"year": "{{year}}",
+		"copyright": "© {{year}}   Example Plumbing  ",
+		"social_facebook": "https://facebook.com/example%20plumbing",
+		"social_instagram": "https://instagram.com/example",
+		"social_linkedin": "https://linkedin.com/company/example",
+		"social_x": "https://x.com/example"
+	}
+}

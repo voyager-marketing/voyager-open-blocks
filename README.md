@@ -68,6 +68,7 @@ npm run check              # every offline gate, below
 3. the same validator rejects `tests/invalid/`, so the gate is shown to bite,
 4. `block-runner plugin inspect` recognizes the plugin as a `@wordpress/scripts` host. On Windows this step is skipped: Block Runner 1.0.0 compares `__DIR__ . '/build'` with a native path and never matches a backslash path.
 5. `Stable tag` in `readme.txt` matches `Version` in `voyager-open-blocks.php`.
+6. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
 
 ### Local site
 
@@ -83,6 +84,8 @@ npm run playground -- blueprint cta-band                         # boot blueprin
 With the site served, `npm run e2e -- --context site.context.json` runs the abilities end to end over REST, the way an agent would. It creates a page, inserts the CTA band twice (as shipped, then with copy), then inserts, configures and binds an icon. It checks that bad input is refused, runs `block-runner validate --strict` on every markup returned and on the saved page, and checks the bound values render. It reads an application password from `VOYAGER_OPEN_APP_PASSWORD` (`wp user application-password create admin e2e --porcelain`). `setup` sets `WP_ENVIRONMENT_TYPE` to `local` so application passwords work over plain HTTP.
 
 `npm run context` fails if Wesper's manifest is missing any block, binding source or pattern in this repo, or carries a warning that names one. Other warnings are printed. WordPress 7.1.3 itself produces three (`core/navigation` and `core/query` provide context from attributes they no longer register), with or without this plugin.
+
+`npm run check:site-data -- --site ../voyager-open-blocks-site` writes the untidy options in `tests/fixtures/site-data-keys.json` to the site, runs `values()` through `wp eval-file`, compares all 18 `voyager/site-data` keys to the fixture's `expected` values and prints `ok: 18 site-data keys match the fixture`. It puts the previous option values back, pass or fail, and exits non-zero on the first mismatch. `{{year}}` in `expected` stands for the current UTC year. The `voyager_site_*` options are written with their sanitize filters removed, so the check pins `values()` and not the settings page.
 
 Two setup details that matter: the SQLite journal mode is set to `DELETE`, because Playground's WebAssembly PHP cannot share WAL's index with host PHP. And the site lives outside the checkout, because the checkout is linked into it.
 
