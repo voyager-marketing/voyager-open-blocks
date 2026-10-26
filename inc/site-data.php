@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\SiteData;
 
+use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\PostMetaText;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -66,7 +67,7 @@ function fields(): array {
  * @return array<string, string>
  */
 function values(): array {
-	$opt = static fn ( string $name ): string => trim( (string) get_option( $name, '' ) );
+	$opt = static fn ( string $name ): string => trim( Cast\to_string( get_option( $name, '' ) ) );
 
 	$company = (string) get_bloginfo( 'name' );
 	$phone   = $opt( 'voyager_site_phone' );
@@ -156,6 +157,7 @@ function get_binding_value( array $source_args, $block_instance, string $attribu
  * @param bool $set Mark the source as registered here.
  */
 function owned( bool $set = false ): bool {
+	/** @var bool $owned */
 	static $owned = false;
 
 	if ( $set ) {
@@ -372,7 +374,7 @@ function render_field( array $args ): void {
 		'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text" /><p class="description"><code>%4$s</code></p>',
 		esc_attr( $args['type'] ),
 		esc_attr( $args['label_for'] ),
-		esc_attr( (string) get_option( $args['label_for'], '' ) ),
+		esc_attr( Cast\to_string( get_option( $args['label_for'], '' ) ) ),
 		esc_html( '{"source":"voyager/site-data","args":{"key":"' . $args['key'] . '"}}' )
 	);
 }

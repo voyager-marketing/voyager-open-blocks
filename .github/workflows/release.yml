@@ -1,8 +1,16 @@
 name: Release
 
+# The manual re-attach path (VOY-1829). release-please.yml builds and attaches
+# the zip when it creates a release. Run this by hand to rebuild the zip for a
+# tag that already exists, for instance after a failed upload.
+
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild the zip for, for example v0.4.0
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,9 +20,11 @@ jobs:
     name: Attach plugin zip
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc

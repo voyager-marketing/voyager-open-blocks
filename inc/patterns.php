@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Patterns;
 
+use VoyagerOpenBlocks\Cast;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -25,6 +27,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  * registration so the pack works from any plugin directory.
  */
 const ASSETS_TOKEN = '/voyager-open-blocks-assets/';
+
+/**
+ * The string entries of an intent field, as a list.
+ *
+ * @param mixed $value A string or a list of strings from the intent file.
+ * @return string[]
+ */
+function strings( mixed $value ): array {
+	return array_values( array_filter( (array) $value, 'is_string' ) );
+}
 
 /**
  * Register the pattern category and every pattern.
@@ -52,13 +64,13 @@ function register(): void {
 		register_block_pattern(
 			'voyager-open/' . $name,
 			[
-				'title'         => (string) $meta['title'],
-				'description'   => (string) ( $meta['description'] ?? '' ),
+				'title'         => Cast\to_string( $meta['title'] ),
+				'description'   => Cast\to_string( $meta['description'] ?? '' ),
 				'content'       => str_replace( ASSETS_TOKEN, $assets, (string) file_get_contents( $markup ) ),
-				'categories'    => array_values( (array) ( $meta['categories'] ?? [ 'voyager-open' ] ) ),
-				'keywords'      => array_values( (array) ( $meta['keywords'] ?? [] ) ),
-				'blockTypes'    => array_values( (array) ( $meta['blockTypes'] ?? [] ) ),
-				'viewportWidth' => (int) ( $meta['viewportWidth'] ?? 1280 ),
+				'categories'    => strings( $meta['categories'] ?? [ 'voyager-open' ] ),
+				'keywords'      => strings( $meta['keywords'] ?? [] ),
+				'blockTypes'    => strings( $meta['blockTypes'] ?? [] ),
+				'viewportWidth' => Cast\to_int( $meta['viewportWidth'] ?? 1280 ),
 			]
 		);
 	}

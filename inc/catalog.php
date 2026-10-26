@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace VoyagerOpenBlocks\Catalog;
 
 use VoyagerOpenBlocks\BlockTree;
+use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\PostMetaText;
 use VoyagerOpenBlocks\SiteData;
 use WP_Error;
@@ -66,17 +67,23 @@ function patterns(): array {
 	$out = [];
 
 	foreach ( \WP_Block_Patterns_Registry::get_instance()->get_all_registered() as $pattern ) {
-		if ( ! str_starts_with( (string) $pattern['name'], PREFIX ) ) {
+		$name = Cast\to_string( $pattern['name'] ?? '' );
+
+		if ( ! str_starts_with( $name, PREFIX ) ) {
 			continue;
 		}
 
 		$out[] = [
-			'name'        => $pattern['name'],
-			'title'       => $pattern['title'],
+			'name'        => $name,
+			'title'       => $pattern['title'] ?? '',
 			'description' => $pattern['description'] ?? '',
 			'categories'  => $pattern['categories'] ?? [],
 			'blocks'      => array_values(
 				array_map(
+					/**
+					 * @param Row $row A named or bound block.
+					 * @return Row
+					 */
 					static function ( array $row ): array {
 						if ( isset( $row['label'], BlockTree\TEXT_ATTRIBUTES[ $row['block'] ] ) ) {
 							$row['copy'] = true;
@@ -84,7 +91,7 @@ function patterns(): array {
 						return $row;
 					},
 					array_filter(
-						BlockTree\describe( BlockTree\parse( (string) $pattern['content'] ) ),
+						BlockTree\describe( BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) ) ),
 						static fn ( array $row ): bool => isset( $row['label'] ) || isset( $row['bindings'] )
 					)
 				)
@@ -105,7 +112,7 @@ function patterns(): array {
  *
  * @param string $source    Source name.
  * @param string $post_type Post type.
- * @return array<int, array{label: string, args: array<string, mixed>}>|null
+ * @return array<int, array{label: string, args: array<mixed>}>|null
  */
 function fields( string $source, string $post_type ): ?array {
 	$out = [];
@@ -142,7 +149,7 @@ function fields( string $source, string $post_type ): ?array {
 					continue;
 				}
 				$out[] = [
-					'label' => (string) ( $args['label'] ?? $key ),
+					'label' => Cast\to_string( $args['label'] ?? $key ),
 					'args'  => [ 'key' => (string) $key ],
 				];
 			}
@@ -168,7 +175,7 @@ function fields( string $source, string $post_type ): ?array {
  *
  * @param string $source    Source name.
  * @param string $post_type Post type.
- * @return array<int, array{label: string, args: array<string, mixed>}>|null Null when the source is not registered or no definition describes it.
+ * @return array<int, array{label: string, args: array<mixed>}>|null Null when the source is not registered or no definition describes it.
  */
 function owner_fields( string $source, string $post_type ): ?array {
 	if ( null === get_block_bindings_source( $source ) ) {
@@ -207,7 +214,7 @@ function owner_fields( string $source, string $post_type ): ?array {
 		}
 
 		$out[] = [
-			'label' => (string) ( $field['label'] ?? $key ),
+			'label' => Cast\to_string( $field['label'] ?? $key ),
 			'args'  => is_array( $field['args'] ?? null ) && [] !== $field['args'] ? $field['args'] : [ 'key' => (string) $key ],
 		];
 	}
@@ -248,9 +255,9 @@ function sources( string $post_type ): array {
  * voyager/post-meta-text also takes a dot path into a listed field
  * (`stats.0.value`); the part before the first dot must match.
  *
- * @param string               $source    Source name.
- * @param string               $post_type Post type of the post being edited.
- * @param array<string, mixed> $args      Args as given.
+ * @param string       $source    Source name.
+ * @param string       $post_type Post type of the post being edited.
+ * @param array<mixed> $args      Args as given.
  * @return true|WP_Error
  */
 function match_args( string $source, string $post_type, array $args ) {

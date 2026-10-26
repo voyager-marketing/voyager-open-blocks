@@ -6,6 +6,8 @@ name: CI
 
 on:
   pull_request:
+    # edited: a title fix re-runs the title lint without a new push.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -27,6 +29,15 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # VOY-1829. Squash merges use the PR title as the commit subject, and
+      # release-please reads it, so the title has to be a conventional commit.
+      # Lives in this required job so the ruleset needs no edit.
+      - name: Lint the PR title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx --yes -p @commitlint/cli@19.8.1 commitlint --config commitlint.config.cjs
 
       - run: npm ci --no-audit --no-fund
 
@@ -58,7 +69,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          tools: none
+          tools: composer
           coverage: none
 
       - name: php -l on every PHP file
@@ -68,3 +79,14 @@ jobs:
             | grep -v '^No syntax errors' || true
           find . -name '*.php' -not -path './node_modules/*' -print0 \
             | xargs -0 -n1 php -l > /dev/null
+
+      - name: Install dev dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # Level max over the plugin file, inc/ and src/, no baseline.
+      - name: PHPStan
+        run: composer phpstan
+
+      # No WordPress is loaded: tests/wp-stubs.php stands in for core.
+      - name: PHPUnit
+        run: composer test

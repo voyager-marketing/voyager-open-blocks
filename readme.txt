@@ -4,7 +4,9 @@ Tags: ai, mcp, blocks, patterns, block bindings
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.1
+Release marker: x-release-please-start-version
 Stable tag: 0.3.0
+Release marker: x-release-please-end
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 

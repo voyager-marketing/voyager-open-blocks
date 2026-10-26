@@ -1,0 +1,65 @@
+name: Release Please
+
+# VOY-1829. release-please opens the release PR (version bump in
+# voyager-open-blocks.php, readme.txt, package.json and CHANGELOG.md). Merging
+# that PR creates the tag and the GitHub Release. A release created with
+# GITHUB_TOKEN fires no downstream workflow, so the plugin zip is built and
+# attached in this same run. No PAT.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release PR and plugin zip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - uses: actions/checkout@v4
+        if: steps.release.outputs.release_created == 'true'
+        with:
+          ref: ${{ steps.release.outputs.tag_name }}
+
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.release_created == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build the zip
+        if: steps.release.outputs.release_created == 'true'
+        run: |
+          npm ci
+          npm run build
+          npm run zip
+
+      # Same list as release.yml, the manual re-attach path.
+      - name: Check the zip
+        if: steps.release.outputs.release_created == 'true'
+        run: |
+          list="$RUNNER_TEMP/zip.txt"
+          unzip -Z1 voyager-open-blocks.zip > "$list"
+          test "$(cut -d/ -f1 "$list" | sort -u)" = voyager-open-blocks
+          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ LICENSE README.md readme.txt voyager-open-blocks.php; do
+            grep -q "^voyager-open-blocks/$path" "$list" || { echo "::error::zip is missing $path"; exit 1; }
+          done
+          # playground/ is demo seeding for blueprints, which install from Git.
+          test "$(grep -c -E '/node_modules/|/scripts/|/tests/|/src/|/playground/' "$list")" -eq 0
+
+      - name: Attach the zip to the release
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh release upload "$TAG" voyager-open-blocks.zip --clobber

@@ -23,11 +23,19 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return array<string, string>
  */
 function all(): array {
+	/** @var array<string, string>|null $icons */
 	static $icons = null;
 
 	if ( null === $icons ) {
 		$json  = json_decode( (string) file_get_contents( VOYAGER_OPEN_BLOCKS_DIR . '/assets/icons.json' ), true );
-		$icons = is_array( $json['icons'] ?? null ) ? $json['icons'] : [];
+		$list  = is_array( $json ) ? ( $json['icons'] ?? null ) : null;
+		$icons = [];
+
+		foreach ( is_array( $list ) ? $list : [] as $name => $path ) {
+			if ( is_string( $path ) ) {
+				$icons[ (string) $name ] = $path;
+			}
+		}
 	}
 
 	return $icons;
