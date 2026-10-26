@@ -9,11 +9,13 @@
  * 3. The same command fails on tests/invalid/, so the gate is shown to bite.
  * 4. `block-runner plugin inspect` recognizes the plugin as a wp-scripts host.
  * 5. readme.txt's `Stable tag` matches the plugin's `Version` header.
+ * 6. tests/fixtures/site-data-keys.json matches its sha256 pin.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
  */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -123,6 +125,24 @@ report(
 	'readme.txt Stable tag matches the plugin Version',
 	version !== '' && stableTag === version,
 	`Stable tag ${ stableTag || 'missing' }, Version ${ version || 'missing' }`
+);
+
+// voyager-blocks carries a byte-identical copy of the site-data fixture and
+// compares it to the same hash, so a change here moves the pin with it.
+const fixtureBytes = readFileSync(
+	join( root, 'tests', 'fixtures', 'site-data-keys.json' )
+);
+const pinned = readFileSync(
+	join( root, 'tests', 'fixtures', 'site-data-keys.sha256' ),
+	'utf8'
+).match( /^([0-9a-f]{64})\b/ );
+const fixtureHash = createHash( 'sha256' )
+	.update( fixtureBytes )
+	.digest( 'hex' );
+report(
+	'site-data fixture matches its sha256 pin',
+	pinned !== null && pinned[ 1 ] === fixtureHash,
+	`pinned ${ pinned ? pinned[ 1 ].slice( 0, 12 ) : 'missing' }, fixture ${ fixtureHash.slice( 0, 12 ) }`
 );
 
 process.exit( failed ? 1 : 0 );

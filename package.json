@@ -37,8 +37,9 @@
 		"playground": "node scripts/playground.mjs",
 		"context": "node scripts/context.mjs",
 		"check": "node scripts/check.mjs",
-		"e2e": "node scripts/e2e.mjs",
-		"check:resolution": "node scripts/binding-resolution-check.mjs"
+		"check:site-data": "node scripts/site-data-fixture-check.mjs",
+		"check:resolution": "node scripts/binding-resolution-check.mjs",
+		"e2e": "node scripts/e2e.mjs"
 	},
 	"devDependencies": {
 		"@wordpress/scripts": "37.0.0",
