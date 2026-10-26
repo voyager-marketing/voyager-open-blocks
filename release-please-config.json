@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "package-name": "voyager-open-blocks",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "voyager-open-blocks.php",
+          "glob": false
+        },
+        {
+          "type": "generic",
+          "path": "readme.txt",
+          "glob": false
+        }
+      ]
+    }
+  },
+  "changelog-sections": [
+    {"type": "feat", "section": "Features", "hidden": false},
+    {"type": "fix", "section": "Bug Fixes", "hidden": false},
+    {"type": "chore", "section": "Maintenance", "hidden": false},
+    {"type": "docs", "section": "Documentation", "hidden": false},
+    {"type": "refactor", "section": "Code Refactoring", "hidden": false},
+    {"type": "perf", "section": "Performance", "hidden": false}
+  ]
+}
