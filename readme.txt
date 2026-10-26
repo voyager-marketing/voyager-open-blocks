@@ -18,7 +18,7 @@ Voyager Open Blocks is a small pack of WordPress blocks, block binding sources a
 
 * **Icon** (`voyager-open/icon`): a dynamic block with 35 outline icons, an optional link and CSS-only animation.
 * **Site data** (`voyager/site-data`): a binding source for the company name, phone, email, address, hours and social links. The values are set under Settings > Site Data.
-* **Post meta text** (`voyager/post-meta-text`): a binding source for allowlisted post meta, with JSON dot paths.
+* **Post meta text** (`voyager/post-meta-text`): a binding source for allowlisted post meta, with JSON dot paths. Fields are added under Settings > Site Data.
 * **Five patterns:** CTA band, proof strip, logo marquee, closing CTA and contact section. They use core blocks and the active theme's presets only, so the theme decides how they look.
 
 = The read, check and bind loop =
