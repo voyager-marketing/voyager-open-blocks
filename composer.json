@@ -11,5 +11,30 @@
 	},
 	"require": {
 		"php": ">=8.1"
+	},
+	"require-dev": {
+		"php-stubs/wordpress-stubs": "^7.1",
+		"phpstan/phpstan": "^2.1",
+		"phpunit/phpunit": "^10.5",
+		"szepeviktor/phpstan-wordpress": "^2.0"
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"VoyagerOpenBlocks\\Tests\\": "tests/"
+		}
+	},
+	"scripts": {
+		"phpstan": "phpstan analyse --memory-limit=2G",
+		"test": "phpunit --testsuite Unit"
+	},
+	"scripts-descriptions": {
+		"phpstan": "PHPStan at level max over the plugin file, inc/ and the render files. No baseline.",
+		"test": "PHPUnit unit suite. No WordPress is loaded."
+	},
+	"config": {
+		"sort-packages": true,
+		"platform": {
+			"php": "8.1.0"
+		}
 	}
 }
