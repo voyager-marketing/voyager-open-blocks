@@ -1,6 +1,6 @@
 ---
 name: voyager-post-meta-text
-description: Bind block attributes to an allowlisted post meta field of the post being rendered, including a dot path into a JSON value, through the voyager/post-meta-text block bindings source. Use when per-page data (an eyebrow, a summary, one stat out of a JSON list) should drive a block, and the field was made bindable with voyager_open_blocks_register_bindable_meta().
+description: Bind block attributes to an allowlisted post meta field of the post being rendered, including a dot path into a JSON value, through the voyager/post-meta-text block bindings source. Use when per-page data (an eyebrow, a summary, one stat out of a JSON list) should drive a block, and the field was made bindable under Settings > Site Data or with voyager_open_blocks_register_bindable_meta().
 license: GPL-2.0-or-later
 ---
 
@@ -17,13 +17,23 @@ For a plain registered field without a JSON path, `core/post-meta` works too, wi
 
 ## Making a field bindable
 
-A developer does this in PHP, on `init`:
+On the site, under **Settings > Site Data > Bindable post meta**: pick a public post type, enter the meta key and a label, and save. Remove a field with its Remove box. No code is needed. The rows are stored in the `voyager_open_blocks_bindable_meta` option, which an agent with WP-CLI can also write:
+
+```bash
+echo '[{"post_type":"page","key":"service_eyebrow","label":"Service eyebrow"}]' | wp option update voyager_open_blocks_bindable_meta --format=json
+```
+
+Each row registers single, string, REST-visible meta that only users who can edit the post may change, and adds it to the allowlist. Keys may not start with `_` or contain a dot, and the post type must exist. The screen refuses any other row with a message, and a write from WP-CLI drops it silently, so read the option back.
+
+A theme or plugin can do the same in PHP, on `init`:
 
 ```php
 voyager_open_blocks_register_bindable_meta( 'page', 'service_eyebrow', 'Service eyebrow' );
 ```
 
-That registers single, string, REST-visible meta that only users who can edit the post may change, and adds it to the allowlist. `''` as the post type means every type. Keys may not start with `_` or contain a dot. The `voyager_post_meta_text_fields` filter can allowlist more fields, as `post type => [ key => label ]`.
+`''` as the post type means every type. The `voyager_post_meta_text_fields` filter can allowlist more fields, as `post type => [ key => label ]`. A key registered in PHP wins over a screen row for the same post type: the screen shows it read-only and will not save a row for it.
+
+The screen exists only where this plugin owns the source. When voyager-blocks owns it, rows are not registered and that plugin's own allowlist applies.
 
 ## Finding fields
 
@@ -33,7 +43,7 @@ Registered fields appear in the Wesper manifest under `contentModel.postTypes[].
 { "source": "voyager/post-meta-text", "args": { "key": "demo_stats.0.value" } }
 ```
 
-Wesper cannot tell you which registered fields are allowlisted for this source. A field registered through the helper always is. If you are unsure, bind it and check the rendered page.
+Wesper cannot tell you which registered fields are allowlisted for this source. A field added on the screen or through the helper always is. `get-catalog` lists exactly the allowlisted ones for a post type.
 
 ## Binding example
 
