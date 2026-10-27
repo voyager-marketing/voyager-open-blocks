@@ -70,4 +70,4 @@ To release, add one line for the version under `== Changelog ==` in `readme.txt`
 
 If the zip fails to attach, run the Release workflow by hand from the Actions tab with the tag (for example `v0.4.0`). It rebuilds the zip and uploads it.
 
-A release PR that release-please opens runs no CI of its own. GitHub does not start workflows for events caused by the built-in token. Close and reopen the PR to start the checks.
+A release PR that release-please opens or updates starts no CI of its own, because GitHub does not start workflows for events caused by the built-in token. So the Release Please workflow dispatches CI and Block Check on the release branch itself, and the required checks report on the PR's head commit. Nobody needs to close and reopen it. If the checks are still missing, look for a failed "Run the required checks on the release PR" step in the Release Please run.
