@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.1...v0.4.2) (2026-10-27)
+
+
+### Maintenance
+
+* **ci:** dispatch the required checks on release-please PRs ([#26](https://github.com/voyager-marketing/voyager-open-blocks/issues/26)) ([03d3aff](https://github.com/voyager-marketing/voyager-open-blocks/commit/03d3affc21fd0e3246644f70757f8530e6dda12f))
+
 ## [0.4.1](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.0...v0.4.1) (2026-10-27)
 
 
