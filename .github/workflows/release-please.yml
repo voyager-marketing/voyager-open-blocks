@@ -13,6 +13,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # VOY-1855. To dispatch CI on the release branch.
+  actions: write
 
 jobs:
   release-please:
@@ -25,6 +27,24 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # VOY-1855. A PR this token opens or pushes to starts no pull_request
+      # workflows, so the ruleset's required checks never report and the PR
+      # sits blocked. workflow_dispatch is the one event the token may start,
+      # and check runs attach to the commit, so CI dispatched on the release
+      # branch reports them on the PR's head commit. prs is empty when the PR
+      # was left unchanged, and then its checks from the last push still hold.
+      - name: Run the required checks on the release PR
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PRS: ${{ steps.release.outputs.prs }}
+        run: |
+          for branch in $(jq -r '.[].headBranchName' <<< "$PRS"); do
+            gh workflow run ci.yml --ref "$branch"
+            gh workflow run block-check.yml --ref "$branch"
+          done
 
       - uses: actions/checkout@v4
         if: steps.release.outputs.release_created == 'true'
