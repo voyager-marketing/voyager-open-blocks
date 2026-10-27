@@ -1,6 +1,6 @@
 {
 	"name": "voyager-open-blocks",
-	"version": "0.4.2",
+	"version": "0.4.3",
 	"private": true,
 	"description": "Agent-ready WordPress blocks, binding sources and patterns, each with a SKILL.md, built on the Wesper to Block Runner loop.",
 	"license": "GPL-2.0-or-later",

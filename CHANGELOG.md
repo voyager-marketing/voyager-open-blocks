@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.2...v0.4.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* **ci:** approve the release PR's held checks instead of dispatching ([#28](https://github.com/voyager-marketing/voyager-open-blocks/issues/28)) ([99f8033](https://github.com/voyager-marketing/voyager-open-blocks/commit/99f80339fcf8f203131528a57d2c3bb71d5cd622))
+
 ## [0.4.2](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.1...v0.4.2) (2026-10-27)
 
 
