@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.0...v0.4.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* pattern structure for wrapping, centring and accessible names ([#24](https://github.com/voyager-marketing/voyager-open-blocks/issues/24)) ([987fcfa](https://github.com/voyager-marketing/voyager-open-blocks/commit/987fcfac3de1b880fcc741d325bd54a1c1b22298))
+
 ## [0.4.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.3.0...v0.4.0) (2026-10-27)
 
 
