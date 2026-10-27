@@ -13,7 +13,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  # VOY-1855. To dispatch CI on the release branch.
+  # VOY-1855. To approve the release PR's held pull_request runs.
   actions: write
 
 jobs:
@@ -27,24 +27,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-
-      # VOY-1855. A PR this token opens or pushes to starts no pull_request
-      # workflows, so the ruleset's required checks never report and the PR
-      # sits blocked. workflow_dispatch is the one event the token may start,
-      # and check runs attach to the commit, so CI dispatched on the release
-      # branch reports them on the PR's head commit. prs is empty when the PR
-      # was left unchanged, and then its checks from the last push still hold.
-      - name: Run the required checks on the release PR
-        if: steps.release.outputs.prs_created == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PRS: ${{ steps.release.outputs.prs }}
-        run: |
-          for branch in $(jq -r '.[].headBranchName' <<< "$PRS"); do
-            gh workflow run ci.yml --ref "$branch"
-            gh workflow run block-check.yml --ref "$branch"
-          done
 
       - uses: actions/checkout@v4
         if: steps.release.outputs.release_created == 'true'
@@ -83,3 +65,33 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag_name }}
         run: gh release upload "$TAG" voyager-open-blocks.zip --clobber
+
+      # VOY-1855. GitHub creates the pull_request runs for a PR this token
+      # opens or pushes to, but holds them as action_required until someone
+      # approves them, and the PR's check rollup only counts those runs. So
+      # approve them here. They appear a few seconds after the PR event, and
+      # two workflows run on pull_request (CI and Block Check), so wait up to
+      # three minutes for both. prs is empty when the PR was left unchanged.
+      # Last in the job, so a failed approval cannot cost a release its zip.
+      - name: Approve the release PR's held checks
+        if: ${{ !cancelled() && steps.release.outputs.prs_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PRS: ${{ steps.release.outputs.prs }}
+        run: |
+          for pr in $(jq -r '.[].number' <<< "$PRS"); do
+            sha=$(gh api "repos/$GH_REPO/pulls/$pr" --jq .head.sha)
+            approved=0
+            for try in $(seq 1 18); do
+              held=$(gh api "repos/$GH_REPO/actions/runs?head_sha=$sha&event=pull_request&status=action_required" --jq '.workflow_runs[].id')
+              for id in $held; do
+                gh api -X POST "repos/$GH_REPO/actions/runs/$id/approve" --silent
+                echo "Approved run $id on #$pr ($sha)"
+                approved=$((approved + 1))
+              done
+              [ "$approved" -ge 2 ] && break
+              sleep 10
+            done
+            [ "$approved" -ge 2 ] || echo "::warning::#$pr: approved $approved of 2 held runs on $sha"
+          done

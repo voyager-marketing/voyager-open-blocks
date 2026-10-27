@@ -10,9 +10,6 @@ on:
     types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
-  # VOY-1855. release-please.yml dispatches this on its release branch, since
-  # a PR the built-in token opens starts no pull_request run.
-  workflow_dispatch:
 
 permissions:
   contents: read
