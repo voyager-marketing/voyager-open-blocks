@@ -15,11 +15,14 @@ license: GPL-2.0-or-later
 
 ```
 core/group (section, full width, ruled top and bottom)   "Proof strip"
-  core/list  className is-style-voyager-open-ticks       "Credentials"
-    core/list-item x4                                    "Credential 1" to "Credential 4"
+  core/group (flex, wrap, centered)                      "Row"
+    core/list  className is-style-voyager-open-ticks     "Credentials"
+      core/list-item x4                                  "Credential 1" to "Credential 4"
 ```
 
 `is-style-voyager-open-ticks` is a `core/list` block style registered by the pack. It draws a checkmark in the text colour and lays the items out as one wrapping row. On WordPress 7.1, core also ships a "Checkmark" list style (`is-style-checkmark-list`). This pack's style also gives the single-row layout and works from 6.9.
+
+The Row group centres a short list in the strip; a long one fills the row and wraps. A flex group holding a Ticks list is also a size container (`voyager-open-ticks`), so when the Row is narrower than 32em the ticks stack as one column. That follows the strip's width, not the screen's. Keep the list inside the Row group: on its own the list keeps the wrapping row at every width.
 
 The intent tree is `patterns/intents/proof-strip.json`. The markup is `patterns/proof-strip.html`.
 

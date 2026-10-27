@@ -51,49 +51,64 @@
 				},
 				"children": [
 					{
-						"block": "core/list",
+						"block": "core/group",
 						"attrs": {
-							"className": "is-style-voyager-open-ticks",
 							"metadata": {
-								"name": "Credentials"
+								"name": "Row"
+							},
+							"layout": {
+								"type": "flex",
+								"flexWrap": "wrap",
+								"justifyContent": "center"
 							}
 						},
 						"children": [
 							{
-								"block": "core/list-item",
-								"text": "Licensed and insured",
+								"block": "core/list",
 								"attrs": {
+									"className": "is-style-voyager-open-ticks",
 									"metadata": {
-										"name": "Credential 1"
+										"name": "Credentials"
 									}
-								}
-							},
-							{
-								"block": "core/list-item",
-								"text": "Locally owned",
-								"attrs": {
-									"metadata": {
-										"name": "Credential 2"
+								},
+								"children": [
+									{
+										"block": "core/list-item",
+										"text": "Licensed and insured",
+										"attrs": {
+											"metadata": {
+												"name": "Credential 1"
+											}
+										}
+									},
+									{
+										"block": "core/list-item",
+										"text": "Locally owned",
+										"attrs": {
+											"metadata": {
+												"name": "Credential 2"
+											}
+										}
+									},
+									{
+										"block": "core/list-item",
+										"text": "Written quotes before work begins",
+										"attrs": {
+											"metadata": {
+												"name": "Credential 3"
+											}
+										}
+									},
+									{
+										"block": "core/list-item",
+										"text": "Same-week scheduling",
+										"attrs": {
+											"metadata": {
+												"name": "Credential 4"
+											}
+										}
 									}
-								}
-							},
-							{
-								"block": "core/list-item",
-								"text": "Written quotes before work begins",
-								"attrs": {
-									"metadata": {
-										"name": "Credential 3"
-									}
-								}
-							},
-							{
-								"block": "core/list-item",
-								"text": "Same-week scheduling",
-								"attrs": {
-									"metadata": {
-										"name": "Credential 4"
-									}
-								}
+								]
 							}
 						]
 					}

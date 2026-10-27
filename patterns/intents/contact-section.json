@@ -132,38 +132,56 @@
 												}
 											},
 											{
-												"block": "core/paragraph",
-												"text": "100 Main Street",
+												"block": "core/group",
 												"attrs": {
 													"metadata": {
-														"name": "Street address",
-														"bindings": {
-															"content": {
-																"source": "voyager/site-data",
-																"args": {
-																	"key": "address"
+														"name": "Address"
+													},
+													"style": {
+														"spacing": {
+															"blockGap": "0px"
+														}
+													},
+													"layout": {
+														"type": "default"
+													}
+												},
+												"children": [
+													{
+														"block": "core/paragraph",
+														"text": "100 Main Street",
+														"attrs": {
+															"metadata": {
+																"name": "Street address",
+																"bindings": {
+																	"content": {
+																		"source": "voyager/site-data",
+																		"args": {
+																			"key": "address"
+																		}
+																	}
+																}
+															}
+														}
+													},
+													{
+														"block": "core/paragraph",
+														"text": "Springfield, ST 00000",
+														"attrs": {
+															"metadata": {
+																"name": "City, state, postal code",
+																"bindings": {
+																	"content": {
+																		"source": "voyager/site-data",
+																		"args": {
+																			"key": "address_locality"
+																		}
+																	}
 																}
 															}
 														}
 													}
-												}
-											},
-											{
-												"block": "core/paragraph",
-												"text": "Springfield, ST 00000",
-												"attrs": {
-													"metadata": {
-														"name": "City, state, postal code",
-														"bindings": {
-															"content": {
-																"source": "voyager/site-data",
-																"args": {
-																	"key": "address_locality"
-																}
-															}
-														}
-													}
-												}
+												]
 											},
 											{
 												"block": "core/paragraph",
@@ -192,6 +210,7 @@
 												"text": "Call us",
 												"url": "/contact/",
 												"attrs": {
+													"className": "is-style-outline",
 													"metadata": {
 														"name": "Click to call",
 														"bindings": {
@@ -236,6 +255,9 @@
 														"left": "var:preset|spacing|50",
 														"right": "var:preset|spacing|50"
 													}
+												},
+												"dimensions": {
+													"minHeight": "100%"
 												}
 											},
 											"layout": {

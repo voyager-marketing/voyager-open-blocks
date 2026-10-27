@@ -26,16 +26,17 @@
 				},
 				"children": [
 					{
-						"block": "core/columns",
+						"block": "core/group",
 						"attrs": {
 							"align": "wide",
-							"verticalAlignment": "center",
-							"style": { "spacing": { "blockGap": { "top": "var:preset|spacing|40", "left": "var:preset|spacing|60" } } }
+							"metadata": { "name": "Row" },
+							"style": { "spacing": { "blockGap": "var:preset|spacing|40" } },
+							"layout": { "type": "flex", "flexWrap": "wrap", "justifyContent": "space-between", "verticalAlignment": "center" }
 						},
 						"children": [
 							{
-								"block": "core/column",
-								"attrs": { "width": "60%", "verticalAlignment": "center" },
+								"block": "core/group",
+								"attrs": { "metadata": { "name": "Text" }, "layout": { "type": "default" } },
 								"children": [
 									{
 										"block": "core/paragraph",
@@ -55,30 +56,23 @@
 								]
 							},
 							{
-								"block": "core/column",
-								"attrs": { "width": "40%", "verticalAlignment": "center" },
+								"block": "core/buttons",
 								"children": [
+									{ "block": "core/button", "text": "Contact us", "url": "/contact/", "attrs": { "metadata": { "name": "Primary button" } } },
 									{
-										"block": "core/buttons",
-										"attrs": { "layout": { "type": "flex", "justifyContent": "right" } },
-										"children": [
-											{ "block": "core/button", "text": "Contact us", "url": "/contact/", "attrs": { "metadata": { "name": "Primary button" } } },
-											{
-												"block": "core/button",
-												"text": "Call us",
-												"url": "/contact/",
-												"attrs": {
-													"className": "is-style-outline",
-													"metadata": {
-														"name": "Click to call",
-														"bindings": {
-															"text": { "source": "voyager/site-data", "args": { "key": "phone" } },
-															"url": { "source": "voyager/site-data", "args": { "key": "phone_link" } }
-														}
-													}
+										"block": "core/button",
+										"text": "Call us",
+										"url": "/contact/",
+										"attrs": {
+											"className": "is-style-outline",
+											"metadata": {
+												"name": "Click to call",
+												"bindings": {
+													"text": { "source": "voyager/site-data", "args": { "key": "phone" } },
+													"url": { "source": "voyager/site-data", "args": { "key": "phone_link" } }
 												}
 											}
-										]
+										}
 									}
 								]
 							}

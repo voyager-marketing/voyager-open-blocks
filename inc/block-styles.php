@@ -3,6 +3,8 @@
  * Block styles the patterns use, registered in PHP so theme.json can style them.
  *
  * - core/list "Ticks": a wrapping row of checkmarked items (proof strip).
+ *   In a flex group, the group becomes a size container, and the ticks
+ *   stack as a column when it is narrower than 32em.
  * - core/group "Marquee": its first inner group drifts sideways when it is
  *   wider than the screen. Still under reduced motion, and paused on hover
  *   and focus.
@@ -34,7 +36,9 @@ function register(): void {
 			'inline_style' => '.wp-block-list.is-style-voyager-open-ticks{list-style:none;padding-inline-start:0;display:flex;flex-wrap:wrap;gap:.75em 2em}'
 				. '.wp-block-list.is-style-voyager-open-ticks>li{position:relative;margin:0;padding-inline-start:1.6em}'
 				. '.wp-block-list.is-style-voyager-open-ticks>li::before{content:"";position:absolute;inset-inline-start:0;top:.2em;width:1.1em;height:1.1em;background:currentColor;'
-				. '-webkit-mask:url("data:image/svg+xml,' . $tick . '") center/contain no-repeat;mask:url("data:image/svg+xml,' . $tick . '") center/contain no-repeat}',
+				. '-webkit-mask:url("data:image/svg+xml,' . $tick . '") center/contain no-repeat;mask:url("data:image/svg+xml,' . $tick . '") center/contain no-repeat}'
+				. '.wp-block-group.is-layout-flex:has(>.wp-block-list.is-style-voyager-open-ticks){container:voyager-open-ticks/inline-size}'
+				. '@container voyager-open-ticks (max-width:32em){.wp-block-list.is-style-voyager-open-ticks{flex-direction:column;width:100%}}',
 		]
 	);
 
