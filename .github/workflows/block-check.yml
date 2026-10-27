@@ -4,9 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # VOY-1855. Dispatched by release-please.yml on its release branch. The
-  # action's PR comment step only runs on pull_request, so a dispatch skips it.
-  workflow_dispatch:
 
 permissions:
   contents: read
