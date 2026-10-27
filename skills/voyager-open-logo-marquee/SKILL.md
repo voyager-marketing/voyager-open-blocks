@@ -15,15 +15,17 @@ license: GPL-2.0-or-later
 
 ```
 core/group (section, full width, constrained)          "Logo marquee"
-  core/paragraph  small, uppercase, centered           "Eyebrow"
+  core/heading h2  small, uppercase, centered          "Eyebrow"
   core/group  className is-style-voyager-open-marquee  "Marquee"
     core/group  flex, nowrap                           "Logos"
-      core/image x6  height 40px, contain
+      core/image x6  height 40px, contain, empty alt
 ```
+
+The eyebrow is a level 2 heading at the small font size, so heading navigation reaches the section. Keep it a heading when you change its text.
 
 `is-style-voyager-open-marquee` is a `core/group` block style registered by the pack. When the inner row is wider than the screen, it drifts to the end and back. It is CSS only, with no script. It pauses on hover and on keyboard focus. Under reduced motion it stops and wraps. The speed is the `--voyager-open-marquee-duration` custom property (default `24s`).
 
-The shipped images are grey placeholder SVGs in the plugin's `assets/placeholders/`. In `patterns/logo-marquee.html` their URLs begin with `/voyager-open-blocks-assets/`, a token the plugin swaps for its real assets URL at registration.
+The shipped images are grey placeholder SVGs in the plugin's `assets/placeholders/`. In `patterns/logo-marquee.html` their URLs begin with `/voyager-open-blocks-assets/`, a token the plugin swaps for its real assets URL at registration. They carry an empty `alt`, so a screen reader skips them instead of reading the same phrase six times.
 
 ## Customizing
 
@@ -33,7 +35,7 @@ Replace each `core/image` with the site's own media. Upload first, then use the 
 { "block": "core/image", "url": "https://example.com/wp-content/uploads/acme.svg", "alt": "Acme Corp", "attrs": { "id": 123, "height": "40px", "scale": "contain" } }
 ```
 
-- `alt` is the company name. Do not use "logo" on its own.
+- When a real logo goes in, set its `alt` to the company's name. Only a placeholder keeps the empty `alt`. Do not use "logo" on its own.
 - Keep every image the same height so the row reads evenly.
 - Five to ten logos. With fewer, the row fits the screen and does not move. That is fine.
 
@@ -54,8 +56,8 @@ None. Logos are media, not site data.
 With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
 
 - **insert**: `{"post_id": 123, "item": "voyager-open/logo-marquee"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
-- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow, the only text in this pattern. Images are not copy. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
-- Replacing the placeholder logos is media work. Upload the images, then edit the inserted blocks in the editor, or re-author the section with `block-runner assemble`. `configure` only changes blocks that save no HTML, and `core/image` saves HTML.
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow heading, the only text in this pattern. Images are not copy. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
+- Replacing the placeholder logos is media work. Upload the images, then edit the inserted blocks in the editor, or re-author the section with `block-runner assemble`, setting each image's `alt` to the company's name. `configure` only changes blocks that save no HTML, and `core/image` saves HTML.
 - Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
 
 `get-catalog` lists this pattern's named blocks and their bindings before you insert it.

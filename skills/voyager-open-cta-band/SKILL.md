@@ -15,18 +15,19 @@ license: GPL-2.0-or-later
 
 ```
 core/group (section, full width, constrained)          "CTA band"
-  core/columns (wide, centered)
-    core/column 60%
+  core/group (wide, flex, wrap, space-between, centered) "Row"
+    core/group                                         "Text"
       core/paragraph  small, uppercase                 "Eyebrow"
       core/heading h2                                  "Heading"
       core/paragraph                                   "Body"
-    core/column 40%
-      core/buttons (right)
-        core/button  "Contact us" -> /contact/         "Primary button"
-        core/button  outline                           "Click to call"
-            text <- voyager/site-data { key: phone }
-            url  <- voyager/site-data { key: phone_link }
+    core/buttons
+      core/button  "Contact us" -> /contact/           "Primary button"
+      core/button  outline                             "Click to call"
+          text <- voyager/site-data { key: phone }
+          url  <- voyager/site-data { key: phone_link }
 ```
+
+When the text and the buttons fit on one row, the buttons sit at the right. When they do not, the row wraps and the buttons start at the left edge under the text. That follows the content, not a breakpoint, so it holds on any theme. Do not give the Buttons a `justifyContent`: it applies at every width, so wrapped buttons would stay pushed right.
 
 The intent tree is `patterns/intents/cta-band.json` (`intent` key). The markup is `patterns/cta-band.html`.
 

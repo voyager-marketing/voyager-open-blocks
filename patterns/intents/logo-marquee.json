@@ -27,7 +27,8 @@
 				},
 				"children": [
 					{
-						"block": "core/paragraph",
+						"block": "core/heading",
+						"level": 2,
 						"text": "Some of the teams we work with",
 						"attrs": {
 							"metadata": { "name": "Eyebrow" },
@@ -52,12 +53,12 @@
 									"layout": { "type": "flex", "flexWrap": "nowrap", "verticalAlignment": "center", "justifyContent": "center" }
 								},
 								"children": [
-									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-1.svg", "alt": "Placeholder logo", "attrs": { "height": "40px", "scale": "contain" } },
-									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-2.svg", "alt": "Placeholder logo", "attrs": { "height": "40px", "scale": "contain" } },
-									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-3.svg", "alt": "Placeholder logo", "attrs": { "height": "40px", "scale": "contain" } },
-									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-4.svg", "alt": "Placeholder logo", "attrs": { "height": "40px", "scale": "contain" } },
-									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-5.svg", "alt": "Placeholder logo", "attrs": { "height": "40px", "scale": "contain" } },
-									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-6.svg", "alt": "Placeholder logo", "attrs": { "height": "40px", "scale": "contain" } }
+									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-1.svg", "alt": "", "attrs": { "height": "40px", "scale": "contain" } },
+									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-2.svg", "alt": "", "attrs": { "height": "40px", "scale": "contain" } },
+									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-3.svg", "alt": "", "attrs": { "height": "40px", "scale": "contain" } },
+									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-4.svg", "alt": "", "attrs": { "height": "40px", "scale": "contain" } },
+									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-5.svg", "alt": "", "attrs": { "height": "40px", "scale": "contain" } },
+									{ "block": "core/image", "url": "/voyager-open-blocks-assets/placeholders/logo-6.svg", "alt": "", "attrs": { "height": "40px", "scale": "contain" } }
 								]
 							}
 						]

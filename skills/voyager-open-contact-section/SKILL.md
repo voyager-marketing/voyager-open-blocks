@@ -24,25 +24,29 @@ core/group (section, full width, constrained)      "Contact section"
       core/group (tight gap)                       "Details"
         core/paragraph  content <- phone           "Phone"
         core/paragraph  content <- email           "Email"
-        core/paragraph  content <- address         "Street address"
-        core/paragraph  content <- address_locality "City, state, postal code"
+        core/group (no gap)                        "Address"
+          core/paragraph  content <- address       "Street address"
+          core/paragraph  content <- address_locality "City, state, postal code"
         core/paragraph  content <- hours           "Hours"
       core/buttons
-        core/button "Call us"  url <- phone_link   "Click to call"
+        core/button outline "Call us"  url <- phone_link "Click to call"
     core/column 60%                                "Form slot"
-      core/group (bordered)                        "Form"
+      core/group (bordered, min-height 100%)       "Form"
         core/heading h3                            "Form heading"
         core/paragraph                             "Form body"
         core/buttons
           core/button "Email us"  url <- email_link "Email button"
 ```
 
+"Call us" is an outline button, so the form card's "Email us" is the section's one primary action. The Form group has a min-height of 100%, so the card fills its column and both halves end together. The street and city lines sit in the Address group with no gap, so the address reads as one unit.
+
 Every binding uses the `voyager/site-data` source. The intent tree is `patterns/intents/contact-section.json`. The markup is `patterns/contact-section.html`.
 
 ## Customizing
 
 - **Add the site's form.** Replace the contents of the group named "Form" with the form plugin's block. Read the block's name and attributes from the manifest's `blocks.types`. Do not guess them. Keep the heading if it still fits.
-- **Hide a line.** Remove a detail paragraph the business does not want shown, for example the street address of a home business.
+- **Hide a line.** Remove a detail paragraph the business does not want shown, or the whole Address group of a home business.
+- **Keep one primary action.** If the form plugin's block brings its own submit button, leave "Call us" as an outline button.
 - The authored text in each detail paragraph is a placeholder (example.com, a 555 number). It shows only while that setting is empty.
 
 Then `npx block-runner assemble intent.json --json`. A third-party form block cannot be assembled, so insert it into the markup after assembly, the same way as `voyager-open/icon` (see `voyager-open-icon`).
