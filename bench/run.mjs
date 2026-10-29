@@ -284,14 +284,16 @@ function versionOf( pkg ) {
 	).version;
 }
 
-function get( url, auth ) {
+function get( url, auth, post = null, timeout = 30000 ) {
 	return new Promise( ( done ) => {
-		const req = http.get(
+		const headers = auth ? { Authorization: `Basic ${ auth }` } : {};
+		if ( post !== null ) {
+			headers[ 'Content-Type' ] = 'application/json';
+			headers.Accept = 'application/json, text/event-stream';
+		}
+		const req = http.request(
 			url,
-			{
-				agent: false,
-				headers: auth ? { Authorization: `Basic ${ auth }` } : {},
-			},
+			{ method: post === null ? 'GET' : 'POST', agent: false, headers },
 			( res ) => {
 				let body = '';
 				res.on( 'data', ( c ) => ( body += c ) );
@@ -299,8 +301,60 @@ function get( url, auth ) {
 			}
 		);
 		req.on( 'error', ( e ) => done( { status: 0, body: e.message } ) );
-		req.setTimeout( 30000, () => req.destroy( new Error( 'timeout' ) ) );
+		req.setTimeout( timeout, () => req.destroy( new Error( 'timeout' ) ) );
+		req.end( post === null ? undefined : JSON.stringify( post ) );
 	} );
+}
+
+/**
+ * Get three MCP initialize answers in a row from the site before an agent
+ * step connects.
+ *
+ * Without this the agent sometimes started with the WordPress MCP server
+ * "failed" and no WordPress tools at all. Three in a row reach both
+ * Playground workers. Resolves with each attempt's status and time, and
+ * throws when the site has not answered three times running in two minutes.
+ * @param url
+ * @param auth
+ */
+async function warm( url, auth ) {
+	const tries = [];
+	const deadline = Date.now() + 120000;
+	let streak = 0;
+	while ( streak < 3 ) {
+		if ( Date.now() > deadline ) {
+			throw new Error(
+				`MCP warm-up failed: ${ JSON.stringify( tries.slice( -3 ) ) }`
+			);
+		}
+		const started = Date.now();
+		const res = await get(
+			url,
+			auth,
+			{
+				jsonrpc: '2.0',
+				id: tries.length + 1,
+				method: 'initialize',
+				params: {
+					protocolVersion: '2025-06-18',
+					capabilities: {},
+					clientInfo: { name: 'bench-warmup', version: '1' },
+				},
+			},
+			60000
+		);
+		const ok = res.status === 200;
+		tries.push( {
+			status: res.status,
+			ms: Date.now() - started,
+			...( ok ? {} : { body: res.body.slice( 0, 300 ) } ),
+		} );
+		streak = ok ? streak + 1 : 0;
+		if ( ! ok ) {
+			await new Promise( ( r ) => setTimeout( r, 2000 ) );
+		}
+	}
+	return tries;
 }
 
 // Playground can die at boot with a V8 fatal error, so a failed boot is
@@ -396,9 +450,11 @@ async function stop( child ) {
 function agent( { cwd, args, transcript, useLogin } ) {
 	// This Node first, so the agent's npx runs Block Runner on a version it
 	// accepts.
+	// MCP_TIMEOUT gives a slow site a minute to answer the MCP handshake.
 	const env = {
 		...process.env,
 		PATH: `${ dirname( process.execPath ) }${ delimiter }${ process.env.PATH }`,
+		MCP_TIMEOUT: '60000',
 	};
 	if ( useLogin ) {
 		delete env.ANTHROPIC_API_KEY;
@@ -558,6 +614,10 @@ async function runOne( arm, brief, port, text, useLogin ) {
 		}
 
 		mkdirSync( desk, { recursive: true } );
+		// Claude Code's debug logs, kept out of the repo: they can carry the
+		// site's application password.
+		const debug = join( work, 'debug' );
+		mkdirSync( debug, { recursive: true } );
 		const auth = Buffer.from( `admin:${ template.password }` ).toString(
 			'base64'
 		);
@@ -662,6 +722,8 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			port,
 			join( work, `server-${ port }.log` )
 		);
+		const mcpUrl = `${ url }/wp-json/mcp/mcp-adapter-default-server`;
+		record.mcp_warmup = { build: await warm( mcpUrl, auth ) };
 
 		const session = randomUUID();
 		record.session_id = session;
@@ -672,6 +734,8 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				record.prompts.build,
 				'--session-id',
 				session,
+				'--debug-file',
+				join( debug, `${ arm }-${ brief.id }-build.log` ),
 				...common,
 				...toolArgs,
 			],
@@ -679,6 +743,11 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			useLogin,
 		} );
 		save();
+		if ( ! connected( record.steps.build ) ) {
+			throw new Error(
+				'build: the WordPress MCP server did not connect'
+			);
+		}
 
 		const pages = JSON.parse(
 			cli( [
@@ -720,6 +789,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				env
 			).replace( /\r?\n$/, '' );
 		writeFileSync( join( out, 'page.html' ), content() );
+		record.mcp_warmup.edit = await warm( mcpUrl, auth );
 		save();
 
 		record.steps.edit = await agent( {
@@ -729,12 +799,17 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				record.prompts.edit,
 				'--resume',
 				session,
+				'--debug-file',
+				join( debug, `${ arm }-${ brief.id }-edit.log` ),
 				...common,
 				...toolArgs,
 			],
 			transcript: join( out, 'transcript-edit.jsonl' ),
 			useLogin,
 		} );
+		if ( ! connected( record.steps.edit ) ) {
+			throw new Error( 'edit: the WordPress MCP server did not connect' );
+		}
 		writeFileSync( join( out, 'after-edit.html' ), content() );
 		const after = {};
 		for ( const [ option ] of Object.entries( businessOptions( brief ) ) ) {
@@ -819,8 +894,21 @@ async function run() {
 }
 
 /**
- * A run is complete when its run.json finished with no harness failure. A
- * failure the agent caused is a result, so it is kept.
+ * Did the step's session start with the WordPress MCP server connected?
+ * @param step
+ */
+function connected( step ) {
+	return Boolean(
+		step?.init?.mcp_servers?.some(
+			( s ) => s.name === 'wordpress' && s.status === 'connected'
+		)
+	);
+}
+
+/**
+ * A run is complete when its run.json finished with no harness failure and
+ * every step it ran had the site's MCP server. A failure the agent caused is
+ * a result, so it is kept.
  * @param arm
  * @param brief
  */
@@ -832,7 +920,11 @@ function complete( arm, brief ) {
 				'utf8'
 			)
 		);
-		return Boolean( r.finished ) && ! /^harness:/.test( r.failure ?? '' );
+		return (
+			Boolean( r.finished ) &&
+			! /^harness:/.test( r.failure ?? '' ) &&
+			Object.values( r.steps ).every( connected )
+		);
 	} catch {
 		return false;
 	}
