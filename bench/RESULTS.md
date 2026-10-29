@@ -29,7 +29,7 @@ What it says, plainly:
 |---|---|
 | Model | `claude-sonnet-5`, every turn of all 40 sessions (checked in each transcript) |
 | Agent | Claude Code 2.1.280, headless (`claude -p`), build and edit in one session |
-| Pack | voyager-open-blocks 0.4.3, commit 2e0898f. The runs record 3319419, the bench commit the sites were built from; its pack files are identical to 2e0898f. |
+| Pack | voyager-open-blocks 0.4.3, commit 2e0898f. The runs record 3319419, the commit on PR #30's branch the sites were built from; its pack files are identical to 2e0898f. |
 | Block Runner | 1.0.0 (scoring, and the loop agent's own checks) |
 | Wesper | 0.5.0 (the loop arm's site manifest) |
 | Site | WordPress 7.1.4 on SQLite, Twenty Twenty-Five 1.5, WordPress MCP Adapter 0.7.1, served by Playground CLI 3.1.60 |
@@ -80,7 +80,7 @@ Costs are Claude Code's list-price figures from each transcript. The runs used a
 
 ## How the run was kept fair
 
-The first full pass was thrown away. The cached WordPress download was 7.1.3, 7.1.4 had shipped, and cron ran WordPress's background updater on every fresh site while the agent worked. During the update every request answered "Briefly unavailable for scheduled maintenance" (503). All 7 loop builds in that pass met it mid-session, 13 times in all (`grep -c "scheduled maintenance"` per transcript: 2, 2, 1, 2, 2, 2, 2). None of the 7 baseline builds did, since they finish sooner, so the noise fell on the loop arm. The sites are now frozen (`AUTOMATIC_UPDATER_DISABLED`, `DISABLE_WP_CRON`, `WP_HTTP_BLOCK_EXTERNAL`), and a run whose WordPress version changes is a harness failure. All 40 runs here kept 7.1.4 from start to finish, and none of their files contain the maintenance message. The discarded runs are in the git history (removed in 3319419).
+The first full pass was thrown away. The cached WordPress download was 7.1.3, 7.1.4 had shipped, and cron ran WordPress's background updater on every fresh site while the agent worked. During the update every request answered "Briefly unavailable for scheduled maintenance" (503). All 7 loop builds in that pass met it mid-session, 13 times in all (`grep -c "scheduled maintenance"` per transcript: 2, 2, 1, 2, 2, 2, 2). None of the 7 baseline builds did, since they finish sooner, so the noise fell on the loop arm. The sites are now frozen (`AUTOMATIC_UPDATER_DISABLED`, `DISABLE_WP_CRON`, `WP_HTTP_BLOCK_EXTERNAL`), and a run whose WordPress version changes is a harness failure. All 40 runs here kept 7.1.4 from start to finish, and none of their files contain the maintenance message. The discarded runs stay in PR #30's commits (removed in 3319419).
 
 The runner also refuses to score a step whose session started without the site's MCP server, gets three MCP answers in a row from the site before each step, and runs one site at a time: four Playground sites booting at once crashed the machine.
 
