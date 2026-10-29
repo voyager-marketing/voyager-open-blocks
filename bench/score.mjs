@@ -22,7 +22,9 @@ const args = parseArgs( process.argv.slice( 2 ) );
 const runsDir = resolve( args.runs ?? join( here, 'runs' ) );
 const briefsPath = resolve( args.briefs ?? join( here, 'briefs.json' ) );
 const outDir = resolve( args.out ?? join( here, 'results' ) );
-const blockRunner = resolve( here, '..', 'node_modules', '.bin', 'block-runner' );
+// The CLI's JS entry, run with this Node: the .bin shim is a shell script that
+// spawnSync cannot start on Windows, so every page scored invalid there.
+const blockRunner = resolve( here, '..', 'node_modules', 'block-runner', 'dist', 'cli.js' );
 
 const { briefs } = JSON.parse( readFileSync( briefsPath, 'utf8' ) );
 const arms = existsSync( runsDir )
@@ -113,7 +115,7 @@ function scoreOne( arm, brief ) {
 }
 
 function validate( file ) {
-	const res = spawnSync( blockRunner, [ 'validate', file, '--strict', '--json' ], { encoding: 'utf8' } );
+	const res = spawnSync( process.execPath, [ blockRunner, 'validate', file, '--strict', '--json' ], { encoding: 'utf8' } );
 	try {
 		const out = JSON.parse( res.stdout );
 		return { blocks: out.summary?.blocks ?? 0, invalid: out.summary?.invalid ?? 0, warnings: out.summary?.warnings ?? 0 };
