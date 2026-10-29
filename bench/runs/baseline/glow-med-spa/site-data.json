@@ -1,0 +1,10 @@
+{
+  "company": "Glow Med Spa",
+  "phone": "(555) 555-0164",
+  "email": "hello@glow-med-spa.example.com",
+  "address": "198 Main Street",
+  "address_city": "Riverside",
+  "address_state": "VA",
+  "address_zip": "23007",
+  "hours": "Monday to Friday, 8am to 5pm"
+}
