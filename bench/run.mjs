@@ -178,6 +178,17 @@ async function prepare() {
 		cli( [ 'rewrite', 'structure', '/%postname%/' ] );
 		cli( [ 'option', 'update', 'blog_public', '0' ] );
 		cli( [ 'plugin', 'activate', 'mcp-adapter' ] );
+		// Freeze the site. Otherwise cron runs WordPress's background updater
+		// mid-run: it upgraded core under every agent in the first full pass,
+		// and while it works every request answers "Briefly unavailable for
+		// scheduled maintenance" (503).
+		for ( const constant of [
+			'AUTOMATIC_UPDATER_DISABLED',
+			'DISABLE_WP_CRON',
+			'WP_HTTP_BLOCK_EXTERNAL',
+		] ) {
+			cli( [ 'config', 'set', constant, 'true', '--raw' ] );
+		}
 
 		if ( arm === 'loop' ) {
 			const pack = join( plugins, 'voyager-open-blocks' );
@@ -825,6 +836,13 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			join( out, 'site-data.json' ),
 			JSON.stringify( after, null, 2 ) + '\n'
 		);
+		// Proof the site did not change version under the agent.
+		record.wordpress_after = cli( [ 'core', 'version' ] );
+		if ( record.wordpress_after !== template.wordpress ) {
+			throw new Error(
+				`WordPress went from ${ template.wordpress } to ${ record.wordpress_after } during the run`
+			);
+		}
 		const editError = record.steps.edit.is_error
 			? `edit: ${ record.steps.edit.subtype || 'error' }`
 			: null;
