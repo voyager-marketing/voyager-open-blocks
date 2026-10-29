@@ -1,0 +1,10 @@
+{
+  "company": "Tally Accounting Group",
+  "phone": "(555) 555-0159",
+  "email": "hello@tally-accounting.example.com",
+  "address": "163 Main Street",
+  "address_city": "Harbor City",
+  "address_state": "VA",
+  "address_zip": "23005",
+  "hours": "Monday to Friday, 8am to 5pm"
+}
