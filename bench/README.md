@@ -1,6 +1,6 @@
 # With/without benchmark
 
-Does an agent build a correct, editable WordPress page more often with this pack's loop than without it? This folder holds the briefs, the run protocol and the scorer. The result is published on the tracking issue below, not here.
+Does an agent build a correct, editable WordPress page more often with this pack's loop than without it? This folder holds the briefs, the run protocol, the runner and the scorer. The result is in [RESULTS.md](RESULTS.md) and on the tracking issue below.
 
 Tracking issue: VOY-1774.
 
@@ -44,6 +44,8 @@ Save `post_content` again as `after-edit.html`. Save the site's business details
 4. **Design quality (optional, costs money).** A pairwise judge preference using the UIG harness and its known-answer controls. It is not in this scorer. Cap: $30.
 
 `node bench/test-score.mjs` checks the scorer against known answers in `fixtures/`. Run it after any change to `score.mjs`.
+
+`node bench/run.mjs` builds the two site templates and runs the briefs, one site at a time. Its header lists the options and what each run saves.
 
 ## Reading the result
 
