@@ -1,0 +1,10 @@
+{
+  "company": "Willow Creek Veterinary",
+  "phone": "(555) 555-0163",
+  "email": "hello@willow-vet.example.com",
+  "address": "191 Main Street",
+  "address_city": "Cedar Point",
+  "address_state": "NC",
+  "address_zip": "27504",
+  "hours": "Monday to Friday, 8am to 5pm"
+}
