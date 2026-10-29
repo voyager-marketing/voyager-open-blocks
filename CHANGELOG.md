@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.3...v0.5.0) (2026-10-29)
+
+
+### Features
+
+* **bench:** run the with/without benchmark and publish the results ([#30](https://github.com/voyager-marketing/voyager-open-blocks/issues/30)) ([76c886e](https://github.com/voyager-marketing/voyager-open-blocks/commit/76c886e558c6c29a307ef3ba2bcba0e787c3543e))
+
 ## [0.4.3](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.2...v0.4.3) (2026-10-27)
 
 
