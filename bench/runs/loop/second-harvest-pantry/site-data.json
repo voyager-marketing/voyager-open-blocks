@@ -1,0 +1,10 @@
+{
+  "company": "Second Harvest Pantry",
+  "phone": "(555) 555-0158",
+  "email": "hello@second-harvest-pantry.example.com",
+  "address": "156 Main Street",
+  "address_city": "Millbrook",
+  "address_state": "NC",
+  "address_zip": "27503",
+  "hours": "Tuesday and Thursday, 4pm to 7pm"
+}
