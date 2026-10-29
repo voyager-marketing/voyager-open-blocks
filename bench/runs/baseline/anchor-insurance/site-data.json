@@ -1,0 +1,10 @@
+{
+  "company": "Anchor Insurance Agency",
+  "phone": "(555) 555-0167",
+  "email": "hello@anchor-insurance.example.com",
+  "address": "219 Main Street",
+  "address_city": "Glenwood",
+  "address_state": "MD",
+  "address_zip": "20606",
+  "hours": "Monday to Friday, 8am to 5pm"
+}
