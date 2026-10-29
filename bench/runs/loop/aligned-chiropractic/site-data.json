@@ -1,0 +1,10 @@
+{
+  "company": "Aligned Chiropractic",
+  "phone": "(555) 555-0157",
+  "email": "hello@aligned-chiropractic.example.com",
+  "address": "149 Main Street",
+  "address_city": "Pine Ridge",
+  "address_state": "VA",
+  "address_zip": "23004",
+  "hours": "Monday to Friday, 8am to 5pm"
+}

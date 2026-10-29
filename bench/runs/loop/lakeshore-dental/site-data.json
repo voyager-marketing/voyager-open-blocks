@@ -1,0 +1,10 @@
+{
+  "company": "Lakeshore Family Dental",
+  "phone": "(555) 555-0156",
+  "email": "hello@lakeshore-dental.example.com",
+  "address": "142 Main Street",
+  "address_city": "Lakeshore",
+  "address_state": "MD",
+  "address_zip": "20602",
+  "hours": "Monday to Friday, 8am to 5pm"
+}

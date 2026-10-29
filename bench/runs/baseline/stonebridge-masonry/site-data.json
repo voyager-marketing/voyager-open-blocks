@@ -1,0 +1,10 @@
+{
+  "company": "Stonebridge Masonry",
+  "phone": "(555) 555-0169",
+  "email": "hello@stonebridge-masonry.example.com",
+  "address": "233 Main Street",
+  "address_city": "Harbor City",
+  "address_state": "VA",
+  "address_zip": "23009",
+  "hours": "Monday to Friday, 8am to 5pm"
+}

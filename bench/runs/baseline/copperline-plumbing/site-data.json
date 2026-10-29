@@ -1,0 +1,10 @@
+{
+  "company": "Copperline Plumbing",
+  "phone": "(555) 555-0152",
+  "email": "hello@copperline-plumbing.example.com",
+  "address": "114 Main Street",
+  "address_city": "Westfall",
+  "address_state": "MD",
+  "address_zip": "20601",
+  "hours": "Monday to Friday, 8am to 5pm"
+}

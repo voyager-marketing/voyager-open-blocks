@@ -1,0 +1,190 @@
+{
+  "arm": "baseline",
+  "brief": "paws-rescue",
+  "split": "held-out",
+  "model": "claude-sonnet-5",
+  "port": 9471,
+  "started": "2026-10-29T03:13:36.990Z",
+  "wordpress": "7.1.4",
+  "theme": "twentytwentyfive 1.5",
+  "plugins": [
+    {
+      "name": "mcp-adapter",
+      "version": "0.7.1"
+    }
+  ],
+  "pack_commit": null,
+  "block_runner": "1.0.0",
+  "wesper": null,
+  "playground_cli": "3.1.60",
+  "prompts": {
+    "build": "Build the home page for Paws & Hearts Rescue, a nonprofit business in Pine Ridge, VA. It needs a call to action (\"Get involved\" linking to /contact/) with a click-to-call button, a row with these credentials: 501(c)(3) nonprofit, Foster-based rescue, All pets vetted and microchipped, Adoption events monthly, the contact details (phone, email, address, hours), and a closing call to action. Use the site's existing business details. Save it as a published page.",
+    "edit": "The business phone number is now (555) 555-0165. Update the site so every place that shows or dials the phone uses the new number."
+  },
+  "steps": {
+    "build": {
+      "exit": 0,
+      "seconds": 40,
+      "init": {
+        "model": "claude-sonnet-5",
+        "tools": [
+          "mcp__wordpress__mcp-adapter-discover-abilities",
+          "mcp__wordpress__mcp-adapter-execute-ability",
+          "mcp__wordpress__mcp-adapter-get-ability-info"
+        ],
+        "mcp_servers": [
+          {
+            "name": "wordpress",
+            "status": "connected",
+            "source": "dynamic"
+          }
+        ],
+        "skills": [
+          "deep-research",
+          "design",
+          "design-sync",
+          "dataviz",
+          "update-config",
+          "verify",
+          "debug",
+          "code-review",
+          "simplify",
+          "batch",
+          "fewer-permission-prompts",
+          "doctor",
+          "loop",
+          "schedule",
+          "claude-api",
+          "workflow-authoring",
+          "run",
+          "run-skill-generator"
+        ],
+        "plugins": [
+          "agents-md",
+          "telemetry"
+        ],
+        "claude_code_version": "2.1.280"
+      },
+      "models": [
+        "claude-sonnet-5"
+      ],
+      "is_error": false,
+      "subtype": "success",
+      "turns": 7,
+      "cost_usd": 0.0846992,
+      "result": "Published the Home page at http://127.0.0.1:9471/home/ with:\n\n- Hero section with \"Get involved\" button (→ /contact/) and a click-to-call button (tel:+15555550115)\n- Credentials row: 501(c)(3) nonprofit, Foster-based rescue, All pets vetted and microchipped, Adoption events monthly\n- Contact details pulled from the site's business record: phone, email, address (205 Main Street, Pine Ridge, VA 23008), and hours (Tue/Thu 4–7pm)\n- Closing CTA with another \"Get involved\" button",
+      "tool_calls": {
+        "mcp__wordpress__mcp-adapter-discover-abilities": 1,
+        "ability:site/get-business-details": 1,
+        "ability:core/get-site-info": 1,
+        "ability:site/list-pages": 1,
+        "mcp__wordpress__mcp-adapter-get-ability-info": 1,
+        "ability:site/create-page": 1
+      },
+      "stderr": ""
+    },
+    "edit": {
+      "exit": 0,
+      "seconds": 30,
+      "init": {
+        "model": "claude-sonnet-5",
+        "tools": [
+          "mcp__wordpress__mcp-adapter-discover-abilities",
+          "mcp__wordpress__mcp-adapter-execute-ability",
+          "mcp__wordpress__mcp-adapter-get-ability-info"
+        ],
+        "mcp_servers": [
+          {
+            "name": "wordpress",
+            "status": "connected",
+            "source": "dynamic"
+          }
+        ],
+        "skills": [
+          "deep-research",
+          "design",
+          "design-sync",
+          "dataviz",
+          "update-config",
+          "verify",
+          "debug",
+          "code-review",
+          "simplify",
+          "batch",
+          "fewer-permission-prompts",
+          "doctor",
+          "loop",
+          "schedule",
+          "claude-api",
+          "workflow-authoring",
+          "run",
+          "run-skill-generator"
+        ],
+        "plugins": [
+          "agents-md",
+          "telemetry"
+        ],
+        "claude_code_version": "2.1.280"
+      },
+      "models": [
+        "claude-sonnet-5"
+      ],
+      "is_error": false,
+      "subtype": "success",
+      "turns": 4,
+      "cost_usd": 0.1687314,
+      "result": "Updated the phone number to (555) 555-0165 everywhere: the site's business details record, the hero click-to-call button (now `tel:+15555550165`), and the Contact Us phone entry on the Home page.",
+      "tool_calls": {
+        "ability:site/update-business-details": 1,
+        "ability:site/get-page": 1,
+        "ability:site/update-page": 1
+      },
+      "stderr": ""
+    }
+  },
+  "page_id": 4,
+  "failure": null,
+  "free_gb_at_boot": 19,
+  "mcp_warmup": {
+    "build": [
+      {
+        "status": 200,
+        "ms": 1012
+      },
+      {
+        "status": 200,
+        "ms": 714
+      },
+      {
+        "status": 200,
+        "ms": 701
+      }
+    ],
+    "edit": [
+      {
+        "status": 200,
+        "ms": 714
+      },
+      {
+        "status": 200,
+        "ms": 707
+      },
+      {
+        "status": 200,
+        "ms": 698
+      }
+    ]
+  },
+  "session_id": "90f67074-be91-4e48-b116-01de4cb53151",
+  "new_pages": [
+    {
+      "ID": 4,
+      "post_title": "Home",
+      "post_status": "publish",
+      "post_modified_gmt": "2026-10-29 03:14:32"
+    }
+  ],
+  "page_status": "publish",
+  "wordpress_after": "7.1.4",
+  "finished": "2026-10-29T03:15:15.870Z"
+}

@@ -1,0 +1,10 @@
+{
+  "company": "Northgate IT Services",
+  "phone": "(555) 555-0168",
+  "email": "hello@northgate-it.example.com",
+  "address": "226 Main Street",
+  "address_city": "Millbrook",
+  "address_state": "NC",
+  "address_zip": "27505",
+  "hours": "Monday to Friday, 8am to 5pm"
+}

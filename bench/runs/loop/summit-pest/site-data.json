@@ -1,0 +1,10 @@
+{
+  "company": "Summit Pest Control",
+  "phone": "(555) 555-0160",
+  "email": "hello@summit-pest.example.com",
+  "address": "170 Main Street",
+  "address_city": "Glenwood",
+  "address_state": "MD",
+  "address_zip": "20603",
+  "hours": "Monday to Friday, 8am to 5pm"
+}
