@@ -614,15 +614,17 @@ async function runOne( arm, brief, port, text, useLogin ) {
 		}
 
 		mkdirSync( desk, { recursive: true } );
-		// Claude Code's debug logs, kept out of the repo: they can carry the
-		// site's application password.
+		// The MCP config and Claude Code's debug logs carry the site's
+		// application password, so they live outside the agent's working
+		// directory, where its file tools cannot read them into a transcript.
 		const debug = join( work, 'debug' );
 		mkdirSync( debug, { recursive: true } );
+		const mcpConfig = join( debug, `${ arm }-${ brief.id }.mcp.json` );
 		const auth = Buffer.from( `admin:${ template.password }` ).toString(
 			'base64'
 		);
 		writeFileSync(
-			join( desk, '.mcp-bench.json' ),
+			mcpConfig,
 			JSON.stringify( {
 				mcpServers: {
 					wordpress: {
@@ -640,7 +642,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			'--restricted',
 			'--strict-mcp-config',
 			'--mcp-config',
-			join( desk, '.mcp-bench.json' ),
+			mcpConfig,
 			'--permission-mode',
 			'dontAsk',
 			'--output-format',
