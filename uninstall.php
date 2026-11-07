@@ -22,22 +22,24 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
  * Remove the onboarding state from the current site.
  */
 function voyager_open_blocks_uninstall_site(): void {
-	global $wpdb;
-
 	delete_option( 'voyager_open_blocks_site_data_started' );
 
 	// The dismissal is a user option, stored per site under the site's table prefix.
-	delete_metadata( 'user', 0, $wpdb->get_blog_prefix() . 'voyager_open_blocks_site_data_notice_dismissed', '', true );
+	$db = $GLOBALS['wpdb'] ?? null;
+	if ( $db instanceof wpdb ) {
+		delete_metadata( 'user', 0, $db->get_blog_prefix() . 'voyager_open_blocks_site_data_notice_dismissed', '', true );
+	}
 }
 
 if ( is_multisite() ) {
+	// With 'fields' => 'ids', get_sites() returns the site IDs as integers.
 	foreach ( get_sites(
 		[
 			'fields' => 'ids',
 			'number' => 0,
 		]
 	) as $voyager_open_blocks_site_id ) {
-		switch_to_blog( (int) $voyager_open_blocks_site_id );
+		switch_to_blog( $voyager_open_blocks_site_id );
 		voyager_open_blocks_uninstall_site();
 		restore_current_blog();
 	}
