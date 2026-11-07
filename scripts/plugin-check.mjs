@@ -580,7 +580,9 @@ function reportFindings( findings, about ) {
 
 	const heading = `Plugin Check ${ about.pluginCheck } on ${ SLUG } ${ about.pack } (WordPress ${ about.wp }, PHP ${ about.php }${
 		about.runtime ? '' : ', static checks only'
-	}): ${ errors } errors, ${ warnings } warnings.`;
+	}): ${ errors } ${ errors === 1 ? 'error' : 'errors' }, ${ warnings } ${
+		warnings === 1 ? 'warning' : 'warnings'
+	}.`;
 	annotate(
 		errors ? 'error' : 'notice',
 		[
