@@ -264,7 +264,7 @@ function register(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks. A pattern inserted as a copy takes copy: plain text for its named headings, paragraphs, buttons and list items.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items, and omit, the labels of blocks to leave out.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -300,6 +300,15 @@ function register(): void {
 							'minLength' => 1,
 						],
 						'description'          => 'Patterns in copy mode only. Plain text by label (a block\'s metadata.name, listed by get-catalog with copy: true), such as {"Heading": "...", "Body": "..."}. Replaces the text of headings, paragraphs, button labels and list items, escaped. Bindings stay: on a bound block the text becomes its fallback.',
+					],
+					'omit'       => [
+						'type'        => 'array',
+						'default'     => [],
+						'items'       => [
+							'type'      => 'string',
+							'minLength' => 1,
+						],
+						'description' => 'Patterns in copy mode only. Labels of blocks to leave out, with everything inside them, such as ["Credential 4"] for a proof strip with three facts or ["Hours"] in the contact section. Not the label of the whole pattern.',
 					],
 					'dry_run'    => [
 						'type'        => 'boolean',
@@ -595,6 +604,7 @@ function insert( array $input ) {
 	$mode       = isset( $input['mode'] ) ? Cast\to_string( $input['mode'] ) : 'copy';
 	$attributes = assoc( $input['attributes'] ?? null );
 	$copy       = array_map( static fn ( mixed $text ): string => Cast\to_string( $text ), assoc( $input['copy'] ?? null ) );
+	$omit       = array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), (array) ( $input['omit'] ?? [] ) ) ) );
 	$dry_run    = ! empty( $input['dry_run'] );
 
 	$blocks = BlockTree\load( $post_id );
@@ -612,6 +622,14 @@ function insert( array $input ) {
 		);
 	}
 
+	if ( $omit && ( ! $pattern || 'reference' === $mode ) ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_omit',
+			'omit works only on a pattern inserted with mode "copy". A reference renders the pattern as shipped.',
+			[ 'status' => 400 ]
+		);
+	}
+
 	if ( $pattern ) {
 		$new = 'reference' === $mode
 			? [
@@ -624,6 +642,13 @@ function insert( array $input ) {
 				],
 			]
 			: BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) );
+
+		if ( $omit ) {
+			$omitted = BlockTree\omit( $new, $omit );
+			if ( is_wp_error( $omitted ) ) {
+				return $omitted;
+			}
+		}
 
 		if ( $copy ) {
 			$copied = BlockTree\set_copy( $new, $copy );

@@ -8,6 +8,7 @@
  *   1. lists the pack's abilities and reads the catalog,
  *   2. creates a page and inserts the CTA band (bound to voyager/site-data), then
  *      inserts it again with copy for its heading, body and bound call button,
+ *      and inserts the proof strip with three facts and its fourth item omitted,
  *   3. inserts an icon, configures it and binds its link,
  *   4. checks bad input is refused (unknown icon, invented args, unbindable attribute,
  *      copy for an unknown label, a block that is not text, or a reference),
@@ -293,6 +294,34 @@ step(
 );
 validate( 'cta-band with copy', copied );
 
+// The proof strip with three facts: copy fills three items, omit drops the fourth.
+const strip = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/proof-strip',
+	copy: {
+		'Credential 1': 'Licensed in three states',
+		'Credential 2': 'Family owned since 1998',
+		'Credential 3': 'Written quotes',
+	},
+	omit: [ 'Credential 4' ],
+} );
+const stripMarkup = strip.data.markup || '';
+step(
+	'insert proof-strip with copy and omit',
+	strip.status === 200 &&
+		strip.data.saved === true &&
+		strip.data.validation?.round_trip === true &&
+		( stripMarkup.match( /<li>/g ) || [] ).length === 3 &&
+		stripMarkup.includes( '>Family owned since 1998</li>' ) &&
+		! stripMarkup.includes( 'Same-week scheduling' ) &&
+		! ( strip.data.blocks || [] ).some(
+			( b ) => b.label === 'Credential 4'
+		),
+	strip.data.code ||
+		`${ ( stripMarkup.match( /<li>/g ) || [] ).length } items`
+);
+validate( 'proof-strip with omit', stripMarkup );
+
 // 3. Icon: insert, configure, bind.
 const icon = await run( `${ ns }/insert`, {
 	post_id: postId,
@@ -388,7 +417,7 @@ step(
 	staticConfigure.data.code
 );
 
-for ( const [ label, input ] of [
+for ( const [ label, input, code ] of [
 	[ 'insert refuses copy for an unknown label', { copy: { Headline: 'x' } } ],
 	[
 		'insert refuses copy for a block that is not text',
@@ -397,6 +426,21 @@ for ( const [ label, input ] of [
 	[
 		'insert refuses copy on a reference',
 		{ copy: { Heading: 'x' }, mode: 'reference' },
+	],
+	[
+		'insert refuses omit for the whole section',
+		{ omit: [ 'CTA band' ] },
+		'voyager_open_blocks_invalid_omit',
+	],
+	[
+		'insert refuses omit for an unknown label',
+		{ omit: [ 'Headline' ] },
+		'voyager_open_blocks_invalid_omit',
+	],
+	[
+		'insert refuses omit on a reference',
+		{ omit: [ 'Eyebrow' ], mode: 'reference' },
+		'voyager_open_blocks_invalid_omit',
 	],
 ] ) {
 	const refused = await run( `${ ns }/insert`, {
@@ -408,7 +452,8 @@ for ( const [ label, input ] of [
 	step(
 		label,
 		refused.status === 400 &&
-			refused.data.code === 'voyager_open_blocks_invalid_copy',
+			refused.data.code ===
+				( code || 'voyager_open_blocks_invalid_copy' ),
 		refused.data.message || refused.data.code
 	);
 }

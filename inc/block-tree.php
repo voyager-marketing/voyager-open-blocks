@@ -638,6 +638,158 @@ function set_copy( array &$blocks, array $copy ) {
 }
 
 /**
+ * Remove named blocks, such as the fourth credential of a proof strip.
+ *
+ * Each label is a metadata.name inside the blocks, never a top-level block:
+ * leaving out a whole section is leaving out the pattern. Every block with the
+ * label goes, with the whitespace that separated it from a sibling, so its
+ * parent reads as if the block had never been there. The parent's own HTML is
+ * kept. Core containers (group, list, buttons, columns) save their inner
+ * blocks in one slot, so their HTML does not depend on how many they hold.
+ *
+ * @param array<int, Block> $blocks Blocks, by reference. Unchanged on error.
+ * @param string[]          $labels Labels of the blocks to remove.
+ * @return true|WP_Error
+ */
+function omit( array &$blocks, array $labels ) {
+	$rows      = describe( $blocks );
+	$removable = array_values(
+		array_unique(
+			array_map(
+				static fn ( array $row ): string => $row['label'] ?? '',
+				array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) && str_contains( $row['path'], '/' ) )
+			)
+		)
+	);
+	$paths     = [];
+
+	foreach ( $labels as $label ) {
+		$matches = array_filter( $rows, static fn ( array $row ): bool => ( $row['label'] ?? null ) === $label );
+
+		if ( [] === $matches ) {
+			return invalid_omit( sprintf( 'No block is named "%s".', $label ), $removable );
+		}
+
+		foreach ( $matches as $row ) {
+			if ( ! str_contains( $row['path'], '/' ) ) {
+				return invalid_omit( sprintf( '"%s" is the whole section. Leave the pattern out instead.', $label ), $removable );
+			}
+			$paths[] = $row['path'];
+		}
+	}
+
+	// A block inside another removed block goes with it.
+	$paths = array_filter(
+		array_unique( $paths ),
+		static function ( string $path ) use ( $paths ): bool {
+			foreach ( $paths as $other ) {
+				if ( str_starts_with( $path, $other . '/' ) ) {
+					return false;
+				}
+			}
+			return true;
+		}
+	);
+
+	// Last in document order first, so a removal never moves a path still to come.
+	usort( $paths, static fn ( string $a, string $b ): int => compare_paths( $b, $a ) );
+
+	$changed = $blocks;
+	foreach ( $paths as $path ) {
+		$indices = parse_path( $path );
+		if ( is_wp_error( $indices ) ) {
+			return $indices;
+		}
+
+		$index  = (int) array_pop( $indices );
+		$parent = &find( $changed, $indices );
+		if ( null === $parent || ! remove_inner( $parent, $index ) ) {
+			return invalid_omit( sprintf( 'No block at path %s.', $path ), $removable );
+		}
+		unset( $parent );
+	}
+
+	$blocks = $changed;
+
+	return true;
+}
+
+/**
+ * Compare two block paths in document order.
+ *
+ * @param string $a Path such as "0/1".
+ * @param string $b Path such as "0/0/5".
+ * @return int Negative when $a comes first, positive when $b does, 0 when equal.
+ */
+function compare_paths( string $a, string $b ): int {
+	$left  = array_map( 'intval', explode( '/', $a ) );
+	$right = array_map( 'intval', explode( '/', $b ) );
+
+	foreach ( $left as $depth => $index ) {
+		if ( ! isset( $right[ $depth ] ) ) {
+			return 1;
+		}
+		if ( $index !== $right[ $depth ] ) {
+			return $index <=> $right[ $depth ];
+		}
+	}
+
+	return count( $left ) <=> count( $right );
+}
+
+/**
+ * Remove one inner block and the whitespace that separated it from a sibling.
+ *
+ * @param Block $parent Parent block, by reference.
+ * @param int   $index  Index of the inner block.
+ * @return bool False when there is no inner block at that index.
+ */
+function remove_inner( array &$parent, int $index ): bool {
+	$content = array_values( $parent['innerContent'] );
+	$slots   = array_keys( $content, null, true );
+	$at      = $slots[ $index ] ?? null;
+
+	if ( null === $at || ! isset( $parent['innerBlocks'][ $index ] ) ) {
+		return false;
+	}
+
+	$gap = static fn ( int $key ): bool => isset( $content[ $key ] ) && is_string( $content[ $key ] ) && '' === trim( $content[ $key ] );
+
+	unset( $content[ $at ] );
+	if ( $index > 0 && $gap( $at - 1 ) ) {
+		unset( $content[ $at - 1 ] );
+	} elseif ( isset( $slots[ $index + 1 ] ) && $gap( $at + 1 ) ) {
+		unset( $content[ $at + 1 ] );
+	}
+
+	$inner = $parent['innerBlocks'];
+	array_splice( $inner, $index, 1 );
+
+	$parent['innerBlocks']  = $inner;
+	$parent['innerContent'] = array_values( $content );
+	$parent['innerHTML']    = implode( '', array_filter( $parent['innerContent'], 'is_string' ) );
+
+	return true;
+}
+
+/**
+ * The error for omit that cannot be applied, listing the labels that can go.
+ *
+ * @param string   $message What is wrong.
+ * @param string[] $labels  Labels that can be omitted.
+ */
+function invalid_omit( string $message, array $labels ): WP_Error {
+	return new WP_Error(
+		'voyager_open_blocks_invalid_omit',
+		sprintf( '%s Labels you can omit: %s.', $message, $labels ? implode( ', ', array_map( 'wp_json_encode', $labels ) ) : 'none' ),
+		[
+			'status' => 400,
+			'labels' => $labels,
+		]
+	);
+}
+
+/**
  * The error for copy that cannot be applied, listing the labels that can.
  *
  * @param string   $message What is wrong.
