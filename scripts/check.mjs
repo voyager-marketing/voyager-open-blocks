@@ -11,6 +11,7 @@
  * 5. readme.txt's `Stable tag` matches the plugin's `Version` header.
  * 6. The entry skill's `pack-version` matches the plugin's `Version` header.
  * 7. tests/fixtures/site-data-keys.json matches its sha256 pin.
+ * 8. readme.txt says where the source of the built files is.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -161,6 +162,27 @@ report(
 	'site-data fixture matches its sha256 pin',
 	pinned !== null && pinned[ 1 ] === fixtureHash,
 	`pinned ${ pinned ? pinned[ 1 ].slice( 0, 12 ) : 'missing' }, fixture ${ fixtureHash.slice( 0, 12 ) }`
+);
+
+// The plugin directory asks a plugin that ships built code to say where its
+// source is. Plugin Check does not test for it, so this does.
+const readme = readFileSync( join( root, 'readme.txt' ), 'utf8' );
+const sourceSection =
+	readme.match( /^= Source code =\r?\n([\s\S]*?)(?=^=)/m )?.[ 1 ] ?? '';
+const sourceNamed =
+	sourceSection.includes(
+		'https://github.com/voyager-marketing/voyager-open-blocks'
+	) && sourceSection.includes( 'npm run build' );
+let sourceDetail = 'no "= Source code =" section';
+if ( sourceNamed ) {
+	sourceDetail = 'GitHub link and build command';
+} else if ( sourceSection ) {
+	sourceDetail = 'the section needs the GitHub link and npm run build';
+}
+report(
+	'readme.txt says where the source of build/ is',
+	sourceNamed,
+	sourceDetail
 );
 
 process.exit( failed ? 1 : 0 );
