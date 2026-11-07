@@ -42,6 +42,7 @@ npm run check              # every offline gate, below
 5. `Stable tag` in `readme.txt` matches `Version` in `voyager-open-blocks.php`.
 6. the entry skill's `pack-version` (`skills/voyager-open-blocks/SKILL.md`) matches `Version` in `voyager-open-blocks.php`.
 7. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
+8. `readme.txt` has a `= Source code =` section with the GitHub link and `npm run build`. The plugin directory asks a plugin that ships built files to say where their source is, and Plugin Check does not test for it.
 
 The rest of what CI runs:
 

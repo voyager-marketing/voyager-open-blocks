@@ -63,6 +63,10 @@ They are served over REST at `wp-abilities/v1`, and to MCP clients through the W
 
 Recipes and the full API reference are in [docs/use-in-your-theme.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/use-in-your-theme.md) on GitHub.
 
+= Source code =
+
+The files in `build/` are generated from [`src/`](https://github.com/voyager-marketing/voyager-open-blocks/tree/main/src) with `@wordpress/scripts`: the icon block's minified script and styles, and the blocks manifest. No other file in the plugin is minified. The full source is on [GitHub](https://github.com/voyager-marketing/voyager-open-blocks). To rebuild `build/`, run `npm ci`, then `npm run build`.
+
 = Credits =
 
 The loop is built on two open tools from Human Made: [Wesper](https://github.com/humanmade/wesper), which reads a WordPress site into a manifest, and [Block Runner](https://github.com/humanmade/block-runner), which assembles and validates block markup. Icons are from [Heroicons](https://heroicons.com) (MIT).
