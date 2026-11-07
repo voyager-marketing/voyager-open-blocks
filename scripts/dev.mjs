@@ -244,6 +244,23 @@ export async function phpLog( site ) {
 }
 
 /**
+ * Whether WordPress writes PHP notices to wp-content/debug.log.
+ *
+ * @param {{playground: Object}} site From boot().
+ * @return {Promise<boolean>} True when WP_DEBUG and WP_DEBUG_LOG are on.
+ */
+async function debugLogOn( site ) {
+	try {
+		const result = await site.playground.run( {
+			code: "<?php echo json_encode( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG );",
+		} );
+		return result.text.trim() === 'true';
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Report PHP errors from the log. Fatal errors fail; notices, warnings and
  * deprecations from this plugin's files are annotated.
  *
@@ -386,6 +403,13 @@ async function check( opts ) {
 		}
 		const log = await phpLog( site );
 		const fatal = reportPhpLog( log );
+		if ( ! ( await debugLogOn( site ) ) ) {
+			annotate(
+				'warning',
+				'WP_DEBUG_LOG is off in the dev site, so PHP notices were not checked.',
+				'npm run dev -- --check'
+			);
+		}
 		code = failed.length || fatal ? 1 : 0;
 		if ( code ) {
 			await explain( site, log );
