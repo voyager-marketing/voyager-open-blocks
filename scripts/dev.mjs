@@ -45,6 +45,9 @@ the demo pages and Site Data (blueprints/dev.json), and logs you in as admin.
   --wp <version>   WordPress version, such as 6.9. Default latest.
   --php <version>  PHP version, such as 8.1. Default 8.3.
   --no-open        Do not open the demo index in your browser.
+  --no-login       Do not log a new browser in as admin. For a site that only
+                   scripts use, such as one started with --ready-file: a REST
+                   client without a cookie jar loops on the login redirect.
   --check          Boot, request the demo pages and Settings > Site Data, then stop.
                    Exits 0 when every one of them answers 200.
   --ready-file <path>
@@ -62,6 +65,7 @@ const KNOWN = [
 	'wp',
 	'php',
 	'no-open',
+	'no-login',
 	'check',
 	'ready-file',
 	'debug',
@@ -76,9 +80,21 @@ const KNOWN = [
  * @param {string}  [options.wp]    WordPress version.
  * @param {string}  [options.php]   PHP version.
  * @param {boolean} [options.debug] Playground's debug output.
+ * @param {boolean} [options.login] Log a new browser in as admin on its first
+ *                                  request, as blueprints/dev.json asks. Pass
+ *                                  false for a site that only scripts use:
+ *                                  the login redirect sets a cookie that a
+ *                                  client without a cookie jar never sends
+ *                                  back, so it redirects again and again.
  * @return {Promise<{url: string, playground: Object, stop: () => Promise<void>}>} The running site. Call stop() to shut it down.
  */
-export async function boot( { port, wp, php, debug = false } = {} ) {
+export async function boot( {
+	port,
+	wp,
+	php,
+	debug = false,
+	login = true,
+} = {} ) {
 	let cli;
 	try {
 		cli = await import( '@wp-playground/cli' );
@@ -101,6 +117,9 @@ export async function boot( { port, wp, php, debug = false } = {} ) {
 		...( wp ? { wp: String( wp ) } : {} ),
 		...( php ? { php: String( php ) } : {} ),
 	};
+	if ( ! login ) {
+		blueprint.login = false;
+	}
 
 	let server;
 	try {
@@ -465,7 +484,7 @@ async function check( opts ) {
 	try {
 		group( 'Boot WordPress Playground with this checkout as the plugin' );
 		try {
-			site = await boot( opts );
+			site = await boot( { ...opts, login: ! opts[ 'no-login' ] } );
 		} finally {
 			endGroup();
 		}
@@ -527,7 +546,7 @@ async function check( opts ) {
  * @param {Object} opts Parsed flags.
  */
 async function serve( opts ) {
-	const site = await boot( opts );
+	const site = await boot( { ...opts, login: ! opts[ 'no-login' ] } );
 	const at = ( path ) => `${ site.url }${ path }`;
 
 	if ( opts[ 'ready-file' ] ) {
@@ -545,7 +564,11 @@ async function serve( opts ) {
 
 	console.log( `
 Voyager Open Blocks is running at ${ site.url }
-You are logged in as admin (password: password).
+${
+	opts[ 'no-login' ]
+		? 'Log in as admin with the password: password.'
+		: 'You are logged in as admin (password: password).'
+}
 
 Try this first:
   1. Open the demo index, one page per block, binding source and pattern:

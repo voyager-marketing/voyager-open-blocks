@@ -8,10 +8,8 @@
  *   value, and a warning when the value is empty, because visitors then see
  *   the text saved in the block instead.
  * - A "Placeholder content" panel for the pack's placeholder content: an
- *   image whose URL ends in assets/placeholders/<one of the pack's files>
- *   (the logo marquee's logos), on any host and under any plugin folder, so
- *   content copied from another site still counts, and the contact section's
- *   form slot fallback (a group named "Form" in a
+ *   image whose URL is one of assets/placeholders/ (the logo marquee's logos),
+ *   and the contact section's form slot fallback (a group named "Form" in a
  *   column named "Form slot", the names patterns/intents/contact-section.json
  *   gives them). Both are found from data, never from the text on screen.
  * - A "Still to fill in" panel on a selected section that holds any of the
@@ -104,7 +102,7 @@
 	}
 
 	/**
-	 * Path of a URL, without its scheme, host or query.
+	 * Path of a URL, so a site served over another scheme or host still matches.
 	 *
 	 * @param {unknown} url URL to read.
 	 * @return {string} Its path, or '' when it is not a URL.
@@ -120,33 +118,8 @@
 		}
 	}
 
-	/**
-	 * The part of a URL that names one of the pack's placeholder images,
-	 * whatever host, site path or plugin folder it was saved under:
-	 * `placeholders/<file>` below a folder called `assets`, or below the
-	 * `voyager-open-blocks-assets` token that raw pattern markup carries
-	 * (inc/patterns.php swaps it for the plugin's assets URL).
-	 *
-	 * @param {unknown} url URL to read.
-	 * @return {string} `placeholders/<file>`, or '' for any other URL.
-	 */
-	function placeholderName( url ) {
-		const segments = pathOf( url ).split( '/' );
-		if ( segments.length < 3 ) {
-			return '';
-		}
-		const [ folder, placeholders, file ] = segments.slice( -3 );
-		return placeholders === 'placeholders' &&
-			file !== '' &&
-			( folder === 'assets' || folder === 'voyager-open-blocks-assets' )
-			? `${ placeholders }/${ file }`
-			: '';
-	}
-
-	const placeholderNames = new Set(
-		( hints.placeholderImages || [] )
-			.map( placeholderName )
-			.filter( Boolean )
+	const placeholderPaths = new Set(
+		( hints.placeholderImages || [] ).map( pathOf ).filter( Boolean )
 	);
 
 	/**
@@ -199,11 +172,10 @@
 	 * @return {boolean} Whether the block is one of the pack's placeholder images.
 	 */
 	function isPlaceholderImage( name, attributes ) {
-		if ( name !== 'core/image' ) {
-			return false;
-		}
-		const placeholder = placeholderName( attributes?.url );
-		return placeholder !== '' && placeholderNames.has( placeholder );
+		return (
+			name === 'core/image' &&
+			placeholderPaths.has( pathOf( attributes?.url ) )
+		);
 	}
 
 	/**

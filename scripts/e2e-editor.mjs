@@ -67,9 +67,11 @@ const PHONE = '(555) 010-0123';
 const ICON_CARD =
 	'<!-- wp:voyager-open/icon {"icon":"phone","metadata":{"bindings":{"linkUrl":{"source":"voyager/site-data","args":{"key":"phone_link"}}}}} /-->';
 
-/** Where the logo marquee's images point in the copy from another site. */
+/** Where the logo marquee's images point in copies made on other sites. */
 const OTHER_HOST =
 	'https://demo.example.com/wp-content/plugins/voyager-open-blocks/assets/';
+const OTHER_FOLDER =
+	'https://demo.example.com/blog/wp-content/plugins/voyager-open-blocks-main/assets/';
 
 /** Strings only the editor may carry: hint classes, panel text and scripts. */
 const EDITOR_ONLY = [
@@ -845,15 +847,21 @@ async function checkPlaceholders() {
 	const marquee = pattern( 'voyager-open/logo-marquee' );
 	const images = ( marquee.content.match( /<!-- wp:image\b/g ) || [] ).length;
 	const local = /src="[^"]*\/assets\/(placeholders\/[^"/]+)"/g;
-	const moved = marquee.content.replace( local, `src="${ OTHER_HOST }$1"` );
-	const movedCount =
-		moved.split( `src="${ OTHER_HOST }placeholders/` ).length - 1;
-	if ( ! images || movedCount !== images ) {
-		throw new Error(
-			`Expected the logo marquee's ${ images } images to point at assets/placeholders/, but ${ movedCount } did.`
-		);
-	}
+	const copy = ( base ) => {
+		const content = marquee.content.replace( local, `src="${ base }$1"` );
+		const count = content.split( `src="${ base }placeholders/` ).length - 1;
+		if ( ! images || count !== images ) {
+			throw new Error(
+				`Expected the logo marquee's ${ images } images to point at assets/placeholders/, but ${ count } did.`
+			);
+		}
+		return content;
+	};
 
+	// Two copies besides this site's own: the same path on another host, and
+	// a site in a subfolder with the plugin in a renamed folder (a GitHub zip
+	// unpacks to voyager-open-blocks-main), where only the end of the path is
+	// the same.
 	const copies = [
 		[
 			'this site',
@@ -861,7 +869,17 @@ async function checkPlaceholders() {
 		],
 		[
 			'another host',
-			await createPage( 'E2E editor: logo marquee copied', moved ),
+			await createPage(
+				'E2E editor: logo marquee copied',
+				copy( OTHER_HOST )
+			),
+		],
+		[
+			'another host, subfolder and plugin folder',
+			await createPage(
+				'E2E editor: logo marquee copied to a subfolder',
+				copy( OTHER_FOLDER )
+			),
 		],
 	];
 

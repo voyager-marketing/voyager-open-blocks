@@ -43,10 +43,12 @@ jobs:
       # blueprints/dev.json seeds the demo Site Data and sets
       # WP_ENVIRONMENT_TYPE to local, so an application password works over
       # plain HTTP. The ready file appears once the site is up, with its URL
-      # and a fresh application password for admin.
+      # and a fresh application password for admin. --no-login, because
+      # Wesper's REST collector uses fetch(), which has no cookie jar and
+      # follows Playground's login redirect until it gives up.
       - name: Boot the dev site in the background
         run: |
-          nohup node scripts/dev.mjs --no-open --port 9400 --ready-file "$RUNNER_TEMP/site.json" > "$RUNNER_TEMP/dev.log" 2>&1 &
+          nohup node scripts/dev.mjs --no-open --no-login --port 9400 --ready-file "$RUNNER_TEMP/site.json" > "$RUNNER_TEMP/dev.log" 2>&1 &
           pid=$!
           for _ in $(seq 1 300); do
             [ -s "$RUNNER_TEMP/site.json" ] && break
