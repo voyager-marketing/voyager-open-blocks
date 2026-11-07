@@ -19,23 +19,47 @@ function escape( text ) {
 }
 
 /**
+ * Escape a workflow command property, such as a title or a file path.
+ *
+ * @param {string|number} value
+ * @return {string} Text safe to put in `::error title=...::`.
+ */
+function escapeProperty( value ) {
+	return escape( value ).replace( /,/g, '%2C' ).replace( /:/g, '%3A' );
+}
+
+/**
  * Print a line, as an annotation in GitHub Actions.
  *
- * @param {'error'|'warning'|'notice'} level
- * @param {string}                     message
- * @param {string}                     [title] Annotation title in Actions.
+ * @param {'error'|'warning'|'notice'}                   level
+ * @param {string}                                       message
+ * @param {string}                                       [title] Annotation title in Actions.
+ * @param {{file?: string, line?: number, col?: number}} [where] Repo-relative file, line and column the annotation points at.
  */
-export function annotate( level, message, title ) {
+export function annotate( level, message, title, where = {} ) {
 	if ( inActions ) {
-		const props = title
-			? ` title=${ escape( title ).replace( /,/g, '%2C' ).replace( /:/g, '%3A' ) }`
-			: '';
-		console.log( `::${ level }${ props }::${ escape( message ) }` );
+		const props = Object.entries( {
+			file: where.file,
+			line: where.line,
+			col: where.col,
+			title,
+		} )
+			.filter( ( [ , value ] ) => value !== undefined && value !== '' )
+			.map(
+				( [ key, value ] ) => `${ key }=${ escapeProperty( value ) }`
+			)
+			.join( ',' );
+		console.log(
+			`::${ level }${ props ? ` ${ props }` : '' }::${ escape( message ) }`
+		);
 		return;
 	}
 	const prefix = { error: 'FAIL', warning: 'warn', notice: 'ok  ' }[ level ];
+	const at = where.file
+		? `${ where.file }${ where.line ? `:${ where.line }` : '' } `
+		: '';
 	( level === 'error' ? console.error : console.log )(
-		`${ prefix } ${ message }`
+		`${ prefix } ${ at }${ message }`
 	);
 }
 

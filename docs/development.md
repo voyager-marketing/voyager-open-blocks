@@ -51,6 +51,7 @@ npm run lint:css
 composer install           # once, for the two PHP checks below
 composer phpstan           # PHPStan at level max over the plugin file, inc/ and src/, no baseline
 composer test              # PHPUnit unit suite, no WordPress needed
+npm run plugin-check       # Plugin Check, activation and uninstall on the zip in a fresh WordPress (needs wordpress.org)
 ```
 
 ## Local site
@@ -103,4 +104,4 @@ release-please opens the release pull request and writes `CHANGELOG.md`. You don
 
 `npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](../.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`, and a version bump moves `Stable tag` in `readme.txt` with it.
 
-`readme.txt` is the WordPress.org listing. The zip ships it, and Plugin Check (`wp plugin install plugin-check --activate`, then `wp plugin check voyager-open-blocks`) should report no errors on the plugin installed from the zip. Run against this checkout linked into a site, it also reports files the zip leaves out (`.git`, dotfiles, `playground/`).
+`readme.txt` is the WordPress.org listing. The zip ships it, and Plugin Check must report no errors on the plugin installed from the zip: `npm run plugin-check` runs it, and CI runs it on every pull request. Run against this checkout linked into a site, Plugin Check also reports files the zip leaves out (`.git`, dotfiles, `playground/`).

@@ -103,6 +103,19 @@ if ( ! function_exists( 'esc_url_raw' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_strip_all_tags' ) ) {
+	/**
+	 * As core: drops script and style elements with their contents, then every tag, then trims.
+	 */
+	function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string {
+		$text = strip_tags( (string) preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', $text ) );
+		if ( $remove_breaks ) {
+			$text = (string) preg_replace( '/[\r\n\t ]+/', ' ', $text );
+		}
+		return trim( $text );
+	}
+}
+
 if ( ! function_exists( '_doing_it_wrong' ) ) {
 	function _doing_it_wrong( string $function_name, string $message, string $version ): void {
 		$GLOBALS['voyager_test_doing_it_wrong'][] = $function_name;

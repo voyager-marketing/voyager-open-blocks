@@ -208,7 +208,7 @@ function in_range( string $path, string $parent, int $first, int $last ): bool {
  */
 function own_text( array $block ): string {
 	$html = implode( ' ', array_filter( $block['innerContent'], 'is_string' ) );
-	$text = html_entity_decode( strip_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$text = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 
 	return mb_substr( trim( (string) preg_replace( '/\s+/u', ' ', $text ) ), 0, 80 );
 }
