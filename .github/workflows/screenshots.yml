@@ -1,0 +1,66 @@
+name: Screenshots
+
+# The seven WordPress.org screenshots, from the demo pages, in the order
+# readme.txt describes them. Uploaded as the "screenshots" artifact of the run,
+# never committed. Runs by hand, and on pull requests that can change how a
+# block, pattern or the settings screen looks.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'patterns/**'
+      - 'src/**'
+      - 'inc/**'
+      - 'assets/**'
+      - 'playground/**'
+      - 'blueprints/dev.json'
+      - 'scripts/screenshots.mjs'
+      - 'scripts/dev.mjs'
+      - 'scripts/lib/**'
+      - '.github/workflows/screenshots.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: npm run screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # ubuntu-latest ships Google Chrome; the script finds it on PATH.
+      - name: Boot the dev site and capture the seven screenshots
+        run: npm run screenshots
+
+      - name: Check all seven were written
+        run: |
+          count=$(ls .wordpress-org/screenshot-*.png 2>/dev/null | wc -l)
+          if [ "$count" -ne 7 ]; then
+            echo "::error title=Screenshots::Expected 7 screenshots in .wordpress-org, found $count."
+            exit 1
+          fi
+          echo "::notice title=Screenshots::7 screenshots written. Download the screenshots artifact from this run."
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: screenshots
+          path: .wordpress-org/*.png
+          # .wordpress-org is a dot directory, which upload-artifact skips by default.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

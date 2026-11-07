@@ -1,0 +1,34 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Voyager Open Blocks, local development",
+		"description": "Used by npm run dev and npm run screenshots, which mount this checkout as the plugin. Activates it, then runs playground/seed.php: demo Site Data and one page per item under /voyager-open/, the same seeding blueprint.json does. Not for playground.wordpress.net, because it installs nothing.",
+		"author": "voyager-marketing",
+		"categories": [
+			"Blocks"
+		]
+	},
+	"landingPage": "/voyager-open/",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "defineWpConfigConsts",
+			"consts": {
+				"WP_ENVIRONMENT_TYPE": "local"
+			},
+			"method": "rewrite-wp-config"
+		},
+		{
+			"step": "activatePlugin",
+			"pluginPath": "voyager-open-blocks/voyager-open-blocks.php"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; require WP_PLUGIN_DIR . '/voyager-open-blocks/playground/seed.php';"
+		}
+	]
+}
