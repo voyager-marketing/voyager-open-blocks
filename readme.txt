@@ -145,6 +145,10 @@ In the plugin's `skills/` folder, one `SKILL.md` per item in the open Agent Skil
 
 == Changelog ==
 
+= 0.6.1 =
+* WordPress.org's Plugin Check reports no errors on the plugin: the abilities read a block's text with `wp_strip_all_tags()`.
+* The readme says where the source of the built files is, and how to rebuild them.
+
 = 0.6.0 =
 * Settings > Site Data says which sections use each field, and after activation a notice points you there until you fill one in. The Plugins screen has a Settings link.
 * The block editor shows where a bound value comes from, warns when it is empty, and marks the placeholder logos and the form slot to replace.
