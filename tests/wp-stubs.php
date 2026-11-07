@@ -13,6 +13,7 @@
  * - voyager_test_doing_it_wrong function names reported through _doing_it_wrong()
  * - voyager_test_registered_meta  keys registered through register_post_meta()
  * - voyager_test_binding_sources  source name => true, read by get_block_bindings_source()
+ * - voyager_test_caps           capability => true or a list of IDs, read by current_user_can(). Unset grants everything.
  *
  * @package VoyagerOpenBlocks
  */
@@ -116,8 +117,21 @@ if ( ! function_exists( 'register_post_meta' ) ) {
 }
 
 if ( ! function_exists( 'current_user_can' ) ) {
+	/**
+	 * Every capability, unless a test sets voyager_test_caps. Then a capability
+	 * mapped to true is granted, one mapped to a list of IDs is granted for
+	 * those IDs only, and anything else is refused.
+	 */
 	function current_user_can( string $capability, mixed ...$args ): bool {
-		return true;
+		$caps = $GLOBALS['voyager_test_caps'] ?? null;
+		if ( ! is_array( $caps ) ) {
+			return true;
+		}
+		$granted = $caps[ $capability ] ?? false;
+		if ( is_array( $granted ) ) {
+			return isset( $args[0] ) && in_array( $args[0], $granted, true );
+		}
+		return true === $granted;
 	}
 }
 

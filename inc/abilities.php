@@ -1,7 +1,7 @@
 <?php
 /**
- * Abilities for the pack: read the catalog and a post's blocks, insert,
- * configure and bind, and validate markup without saving it.
+ * Abilities for the pack: read the catalog, find a post, read its blocks,
+ * insert, configure and bind, and validate markup without saving it.
  *
  * Semantic abilities with an `item` or `path` parameter, not one per block.
  * Each callback is a thin adapter over inc/block-tree.php and inc/catalog.php.
@@ -38,6 +38,21 @@ const CATEGORY = 'voyager-open-blocks';
  * What every validation report says about saved HTML.
  */
 const SAVE_OUTPUT = 'Not checked: comparing saved HTML with each block\'s save() needs the block\'s JavaScript, which WordPress cannot run in PHP. With Node, run: npx block-runner validate <file> --strict --json --context site.context.json';
+
+/**
+ * The most posts find-posts returns at once.
+ */
+const FIND_LIMIT = 20;
+
+/**
+ * Statuses find-posts searches: everything an editor works on, not the trash.
+ */
+const FIND_STATUSES = [ 'publish', 'future', 'draft', 'pending', 'private' ];
+
+/**
+ * Post types that are block templates, found through get_block_templates().
+ */
+const TEMPLATE_TYPES = [ 'wp_template', 'wp_template_part' ];
 
 /**
  * Register the category.
@@ -183,11 +198,99 @@ function register(): void {
 		]
 	);
 
+	$text_schema = [ 'type' => 'string' ];
+
+	wp_register_ability(
+		CATEGORY . '/find-posts',
+		[
+			'label'               => __( 'Find posts and pages', 'voyager-open-blocks' ),
+			'description'         => __( 'Finds the pages, posts, templates and template parts you can edit, by words in the title, by slug, or the home page, and returns each one\'s ID for the other abilities. It lists only what the current user can edit, at most 20 at a time, and returns no content.', 'voyager-open-blocks' ),
+			'category'            => CATEGORY,
+			'input_schema'        => [
+				'type'                 => 'object',
+				'default'              => [],
+				'properties'           => [
+					'search'     => [
+						'type'        => 'string',
+						'minLength'   => 1,
+						'description' => 'Words in the title, such as "Services". For templates and template parts, words in the title or slug, such as "header".',
+					],
+					'slug'       => [
+						'type'        => 'string',
+						'minLength'   => 1,
+						'description' => 'The exact slug, such as "services" or "header".',
+					],
+					'post_type'  => [
+						'type'        => 'string',
+						'default'     => 'page',
+						'description' => 'What to search: page, post, another post type edited in the block editor, wp_template or wp_template_part.',
+					],
+					'front_page' => [
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Return the home page and ignore the other filters. When the home page lists the latest posts (Settings > Reading), it returns the template that shows them.',
+					],
+					'limit'      => [
+						'type'        => 'integer',
+						'minimum'     => 1,
+						'maximum'     => FIND_LIMIT,
+						'default'     => 10,
+						'description' => 'How many to return.',
+					],
+				],
+				'additionalProperties' => false,
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'posts'    => [
+						'type'  => 'array',
+						'items' => [
+							'type'       => 'object',
+							'properties' => [
+								'id'         => [
+									'type'        => [ 'integer', 'null' ],
+									'description' => 'The post_id the other abilities take. null for a template or template part that is still only a theme file, never saved in the Site Editor.',
+								],
+								'title'      => $text_schema,
+								'slug'       => $text_schema,
+								'post_type'  => $text_schema,
+								'status'     => $text_schema,
+								'link'       => [ 'type' => [ 'string', 'null' ] ],
+								'front_page' => [
+									'type'        => 'boolean',
+									'description' => 'This is the home page.',
+								],
+								'area'       => [
+									'type'        => 'string',
+									'description' => 'Template parts only: header, footer or uncategorized.',
+								],
+								'source'     => [
+									'type'        => 'string',
+									'description' => 'Templates and template parts only: theme (the theme\'s file) or custom (saved in the Site Editor).',
+								],
+								'note'       => $text_schema,
+							],
+						],
+					],
+					'has_more' => [
+						'type'        => 'boolean',
+						'description' => 'More matched than were returned. Narrow the search.',
+					],
+					'note'     => $text_schema,
+				],
+			],
+			'execute_callback'    => __NAMESPACE__ . '\find_posts',
+			'permission_callback' => static fn (): bool => current_user_can( 'edit_posts' ),
+			'meta'                => meta( true, true ),
+		]
+	);
+
 	wp_register_ability(
 		CATEGORY . '/get-post-blocks',
 		[
 			'label'               => __( 'Get a post\'s blocks', 'voyager-open-blocks' ),
-			'description'         => __( 'Returns every block in a post with its path, block name, label (metadata.name) and bindings. Each binding says whether its source returns a value now (resolution.status "resolved") or the block falls back to its authored text ("fell_back", with a reason). Paths are what configure and bind take.', 'voyager-open-blocks' ),
+			'description'         => __( 'Returns every block in a post with its path, block name, label (metadata.name), the start of its own text and its bindings. Each binding says whether its source returns a value now (resolution.status "resolved") or the block falls back to its authored text ("fell_back", with a reason). Paths are what insert (as parent), configure and bind take.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -215,6 +318,10 @@ function register(): void {
 								'label'    => [
 									'type'        => 'string',
 									'description' => 'metadata.name, when the block has one.',
+								],
+								'text'     => [
+									'type'        => 'string',
+									'description' => 'The first 80 characters of the block\'s own text, without its inner blocks\' text, such as a button\'s label. Absent when it has none.',
 								],
 								'pattern'  => [
 									'type'        => 'string',
@@ -264,7 +371,7 @@ function register(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items, and omit, the labels of blocks to leave out.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -275,11 +382,16 @@ function register(): void {
 						'enum'        => items(),
 						'description' => 'Block or pattern name from get-catalog.',
 					],
+					'parent'     => [
+						'type'        => 'string',
+						'pattern'     => '^\d+(/\d+)*$',
+						'description' => 'Path of the block to insert into, from get-post-blocks, such as "0" for the row that holds a header\'s buttons. Leave it out to insert at the top level. The block must already hold at least one block, must allow the new one (allowedBlocks) and must not be locked (templateLock).',
+					],
 					'position'   => [
 						'type'        => 'integer',
 						'minimum'     => -1,
 						'default'     => -1,
-						'description' => 'Top-level index to insert before. -1 appends.',
+						'description' => 'Index to insert before: among the top-level blocks, or among parent\'s inner blocks when parent is given. -1 appends.',
 					],
 					'mode'       => [
 						'type'        => 'string',
@@ -310,6 +422,20 @@ function register(): void {
 						],
 						'description' => 'Patterns in copy mode only. Labels of blocks to leave out, with everything inside them, such as ["Credential 4"] for a proof strip with three facts or ["Hours"] in the contact section. Not the label of the whole pattern.',
 					],
+					'repeat'     => [
+						'type'                 => 'object',
+						'default'              => [],
+						'additionalProperties' => [
+							'type'     => 'array',
+							'minItems' => 1,
+							'maxItems' => 10,
+							'items'    => [
+								'type'      => 'string',
+								'minLength' => 1,
+							],
+						],
+						'description'          => 'Patterns in copy mode only. Adds copies of a named block right after it, one per new label, such as {"Credential 4": ["Credential 5", "Credential 6"]} for a proof strip with six facts. Fill the new labels with copy. Runs before omit and copy. Not for the whole pattern, a block that holds named blocks, or a label used twice.',
+					],
 					'dry_run'    => [
 						'type'        => 'boolean',
 						'default'     => false,
@@ -322,13 +448,21 @@ function register(): void {
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
-					'post_id'    => [ 'type' => 'integer' ],
-					'item'       => [ 'type' => 'string' ],
-					'index'      => [ 'type' => 'integer' ],
-					'saved'      => [ 'type' => 'boolean' ],
-					'markup'     => [ 'type' => 'string' ],
-					'blocks'     => [ 'type' => 'array' ],
-					'validation' => [ 'type' => 'object' ],
+					'post_id'        => [ 'type' => 'integer' ],
+					'item'           => [ 'type' => 'string' ],
+					'parent'         => [
+						'type'        => 'string',
+						'description' => 'Path of the block the new blocks went into. Only when parent was given.',
+					],
+					'index'          => [ 'type' => 'integer' ],
+					'saved'          => [ 'type' => 'boolean' ],
+					'markup'         => [ 'type' => 'string' ],
+					'section_markup' => [
+						'type'        => 'string',
+						'description' => 'The whole top-level block that now holds the new blocks. Only when parent was given. Check this one with block-runner validate.',
+					],
+					'blocks'         => [ 'type' => 'array' ],
+					'validation'     => [ 'type' => 'object' ],
 				],
 			],
 			'execute_callback'    => __NAMESPACE__ . '\insert',
@@ -367,7 +501,7 @@ function register(): void {
 		CATEGORY . '/bind',
 		[
 			'label'               => __( 'Bind a block attribute to a field', 'voyager-open-blocks' ),
-			'description'         => __( 'Writes a block binding: the attribute must be bindable for that block, and args must match a field listed by get-catalog (or the Wesper manifest) exactly. Args are never built for you.', 'voyager-open-blocks' ),
+			'description'         => __( 'Writes a block binding: the attribute must be bindable for that block, and args must match a field listed by get-catalog (or the Wesper manifest) exactly. Args are never built for you. In a template, pass post_type: the post type it shows.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -385,6 +519,10 @@ function register(): void {
 					'args'      => [
 						'type'        => 'object',
 						'description' => 'A field\'s args, copied verbatim, such as {"key":"phone"}.',
+					],
+					'post_type' => [
+						'type'        => 'string',
+						'description' => 'Post type whose fields args are checked against. Defaults to the post\'s own type. In a template, template part or synced pattern, or inside a Query Loop, pass the post type the block shows, such as "post" for the single template, and copy args from get-catalog for that type.',
 					],
 				],
 				'required'             => [ 'post_id', 'path', 'attribute', 'source', 'args' ],
@@ -514,9 +652,306 @@ function get_post_blocks( array $input ) {
 		return $blocks;
 	}
 
+	$texts = BlockTree\texts( $blocks );
+	$rows  = [];
+
+	foreach ( BlockTree\describe( $blocks, '', $post_id ) as $row ) {
+		$text   = $texts[ $row['path'] ] ?? '';
+		$rows[] = '' === $text ? $row : $row + [ 'text' => $text ];
+	}
+
 	return [
 		'post_id' => $post_id,
-		'blocks'  => BlockTree\describe( $blocks, '', $post_id ),
+		'blocks'  => $rows,
+	];
+}
+
+/**
+ * Execute find-posts.
+ *
+ * Only posts the current user can both edit and read are returned. The query
+ * already asks for editable posts only (perm "editable"), and each result is
+ * checked again with edit_post and read_post, so a private post of another
+ * author stays out unless the user may edit it. Nothing of the content is
+ * returned: an ID, a title, a slug, a status and a link.
+ *
+ * @param array<string, mixed>|null $input Input.
+ * @return array<string, mixed>|WP_Error
+ */
+function find_posts( $input = null ) {
+	$input     = assoc( $input );
+	$limit     = max( 1, min( FIND_LIMIT, Cast\to_int( $input['limit'] ?? 10, 10 ) ) );
+	$search    = trim( Cast\to_string( $input['search'] ?? '' ) );
+	$slug      = trim( Cast\to_string( $input['slug'] ?? '' ) );
+	$post_type = Cast\to_string( $input['post_type'] ?? 'page', 'page' );
+
+	if ( isset( $input['front_page'] ) && filter_var( $input['front_page'], FILTER_VALIDATE_BOOLEAN ) ) {
+		return front_page();
+	}
+
+	$types = findable_post_types();
+	if ( ! in_array( $post_type, $types, true ) ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_post_type',
+			sprintf( 'Cannot search post type "%s". Searchable: %s.', $post_type, implode( ', ', $types ) ),
+			[ 'status' => 400 ]
+		);
+	}
+
+	if ( in_array( $post_type, TEMPLATE_TYPES, true ) ) {
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			return cannot_edit_type( $post_type );
+		}
+
+		$rows = [];
+		foreach ( get_block_templates( '' === $slug ? [] : [ 'slug__in' => [ $slug ] ], $post_type ) as $template ) {
+			if ( matches_words( $template->title . ' ' . $template->slug, $search ) ) {
+				$row = template_row( $template, $post_type );
+				if ( null !== $row ) {
+					$rows[] = $row;
+				}
+			}
+		}
+
+		return [
+			'posts'    => array_slice( $rows, 0, $limit ),
+			'has_more' => count( $rows ) > $limit,
+		];
+	}
+
+	$object = get_post_type_object( $post_type );
+	$cap    = $object ? Cast\to_string( $object->cap->edit_posts ?? '' ) : '';
+	if ( '' === $cap || ! current_user_can( $cap ) ) {
+		return cannot_edit_type( $post_type );
+	}
+
+	$query = new \WP_Query( query_args( $post_type, $search, $slug, $limit ) );
+	$rows  = [];
+
+	foreach ( $query->posts as $post ) {
+		$row = post_row( $post instanceof \WP_Post ? $post->ID : Cast\to_int( $post ) );
+		if ( null !== $row ) {
+			$rows[] = $row;
+		}
+	}
+
+	return [
+		'posts'    => array_slice( $rows, 0, $limit ),
+		'has_more' => count( $rows ) > $limit,
+	];
+}
+
+/**
+ * The error for a post type the user cannot edit.
+ *
+ * @param string $post_type Post type.
+ */
+function cannot_edit_type( string $post_type ): WP_Error {
+	return new WP_Error( 'voyager_open_blocks_invalid_post_type', sprintf( 'You cannot edit %s posts.', $post_type ), [ 'status' => 403 ] );
+}
+
+/**
+ * Post types find-posts searches: those shown in REST and edited in the block editor.
+ *
+ * @return string[]
+ */
+function findable_post_types(): array {
+	$out = [];
+
+	foreach ( get_post_types( [ 'show_in_rest' => true ] ) as $type ) {
+		$name = Cast\to_string( $type );
+		if ( '' !== $name && post_type_supports( $name, 'editor' ) ) {
+			$out[] = $name;
+		}
+	}
+
+	return $out;
+}
+
+/**
+ * WP_Query arguments for find-posts.
+ *
+ * Asks for one more than the limit, so the caller can say there are more.
+ * The search looks in titles only, and a slug must match exactly.
+ *
+ * @param string $post_type Post type.
+ * @param string $search    Words in the title, '' for any.
+ * @param string $slug      Exact slug, '' for any.
+ * @param int    $limit     How many to return.
+ * @return array<string, mixed>
+ */
+function query_args( string $post_type, string $search, string $slug, int $limit ): array {
+	$args = [
+		'post_type'              => $post_type,
+		'post_status'            => FIND_STATUSES,
+		'perm'                   => 'editable',
+		'posts_per_page'         => $limit + 1,
+		'fields'                 => 'ids',
+		'no_found_rows'          => true,
+		'ignore_sticky_posts'    => true,
+		'update_post_meta_cache' => false,
+		'update_post_term_cache' => false,
+		'orderby'                => 'title',
+		'order'                  => 'ASC',
+	];
+
+	if ( '' !== $search ) {
+		// Ordered by relevance: an exact title first.
+		$args['s']              = $search;
+		$args['search_columns'] = [ 'post_title' ];
+		unset( $args['orderby'], $args['order'] );
+	}
+
+	if ( '' !== $slug ) {
+		$args['post_name__in'] = [ $slug ];
+	}
+
+	return $args;
+}
+
+/**
+ * Can the current user both edit and read a post?
+ *
+ * @param int $post_id Post ID.
+ */
+function can_see( int $post_id ): bool {
+	return $post_id > 0 && current_user_can( 'edit_post', $post_id ) && current_user_can( 'read_post', $post_id );
+}
+
+/**
+ * Does every word of a search appear in a text, ignoring case?
+ *
+ * @param string $text   Text, such as a template's title and slug.
+ * @param string $search Words, '' matches everything.
+ */
+function matches_words( string $text, string $search ): bool {
+	foreach ( preg_split( '/\s+/', trim( $search ), -1, PREG_SPLIT_NO_EMPTY ) ?: [] as $word ) {
+		if ( false === mb_stripos( $text, $word ) ) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * One find-posts row for a post, null when the user cannot edit and read it.
+ *
+ * @param int $post_id Post ID.
+ * @return array<string, mixed>|null
+ */
+function post_row( int $post_id ): ?array {
+	$post = can_see( $post_id ) ? get_post( $post_id ) : null;
+
+	if ( ! $post ) {
+		return null;
+	}
+
+	return [
+		'id'         => $post->ID,
+		'title'      => $post->post_title,
+		'slug'       => $post->post_name,
+		'post_type'  => $post->post_type,
+		'status'     => $post->post_status,
+		'link'       => Cast\to_string( get_permalink( $post ) ),
+		'front_page' => 'page' === get_option( 'show_on_front' ) && Cast\to_int( get_option( 'page_on_front' ) ) === $post->ID,
+	];
+}
+
+/**
+ * One find-posts row for a template or template part.
+ *
+ * A template the Site Editor never saved is only a theme file: it has no post
+ * ID, so no ability can change it. Null when it has a post the user cannot edit.
+ *
+ * @param \WP_Block_Template $template  Template.
+ * @param string             $post_type wp_template or wp_template_part.
+ * @return array<string, mixed>|null
+ */
+function template_row( \WP_Block_Template $template, string $post_type ): ?array {
+	$id = is_int( $template->wp_id ) && $template->wp_id > 0 ? $template->wp_id : null;
+
+	if ( null !== $id && ! can_see( $id ) ) {
+		return null;
+	}
+
+	$row = [
+		'id'         => $id,
+		'title'      => $template->title,
+		'slug'       => $template->slug,
+		'post_type'  => $post_type,
+		'status'     => $template->status,
+		'link'       => null,
+		'front_page' => false,
+		'source'     => $template->source,
+	];
+
+	if ( 'wp_template_part' === $post_type ) {
+		$row['area'] = $template->area;
+	}
+
+	if ( null === $id ) {
+		$row['note'] = 'Only a theme file so far: it has no post ID until someone saves it in the Site Editor. Ask the user to open it in the Site Editor and save it once, then call find-posts again.';
+	}
+
+	return $row;
+}
+
+/**
+ * find-posts for the home page.
+ *
+ * When Settings > Reading shows a page, that page. When it shows the latest
+ * posts, the template that renders them: front-page, else home, else index.
+ *
+ * @return array<string, mixed>
+ */
+function front_page(): array {
+	$page_id = Cast\to_int( get_option( 'page_on_front' ) );
+
+	if ( 'page' === get_option( 'show_on_front' ) && $page_id > 0 ) {
+		$row = post_row( $page_id );
+
+		return null === $row
+			? [
+				'posts'    => [],
+				'has_more' => false,
+				'note'     => 'A page is set as the home page, but you cannot edit it.',
+			]
+			: [
+				'posts'    => [ $row ],
+				'has_more' => false,
+			];
+	}
+
+	if ( ! current_user_can( 'edit_theme_options' ) ) {
+		return [
+			'posts'    => [],
+			'has_more' => false,
+			'note'     => 'The home page lists the latest posts, so its sections are in a template, and you cannot edit templates.',
+		];
+	}
+
+	foreach ( [ 'front-page', 'home', 'index' ] as $slug ) {
+		foreach ( get_block_templates( [ 'slug__in' => [ $slug ] ], 'wp_template' ) as $template ) {
+			$row = template_row( $template, 'wp_template' );
+			if ( null === $row ) {
+				continue;
+			}
+
+			$row['front_page'] = true;
+
+			return [
+				'posts'    => [ $row ],
+				'has_more' => false,
+				'note'     => sprintf( 'The home page lists the latest posts (Settings > Reading), so its sections are in the %s template, not in a page.', $slug ),
+			];
+		}
+	}
+
+	return [
+		'posts'    => [],
+		'has_more' => false,
+		'note'     => 'The home page lists the latest posts, and the theme has no block template for it. Its sections are in PHP theme files that no ability can change.',
 	];
 }
 
@@ -594,6 +1029,11 @@ function validation( array $blocks, string $markup ): array {
 /**
  * Execute insert.
  *
+ * At the top level, or inside the block at `parent`. Either way the new blocks
+ * must be allowed where they go (BlockTree\placement_errors()), pass the same
+ * validation as before, and leave the section around them able to survive a
+ * parse and serialize round trip.
+ *
  * @param array<string, mixed> $input Input.
  * @return array<string, mixed>|WP_Error
  */
@@ -605,7 +1045,16 @@ function insert( array $input ) {
 	$attributes = assoc( $input['attributes'] ?? null );
 	$copy       = array_map( static fn ( mixed $text ): string => Cast\to_string( $text ), assoc( $input['copy'] ?? null ) );
 	$omit       = array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), (array) ( $input['omit'] ?? [] ) ) ) );
+	$repeat     = repeat_input( $input['repeat'] ?? null );
 	$dry_run    = ! empty( $input['dry_run'] );
+	$parent     = null;
+
+	if ( isset( $input['parent'] ) ) {
+		$parent = BlockTree\parse_path( Cast\to_string( $input['parent'] ) );
+		if ( is_wp_error( $parent ) ) {
+			return invalid_parent( $parent->get_error_message() );
+		}
+	}
 
 	$blocks = BlockTree\load( $post_id );
 	if ( is_wp_error( $blocks ) ) {
@@ -614,20 +1063,18 @@ function insert( array $input ) {
 
 	$pattern = \WP_Block_Patterns_Registry::get_instance()->get_registered( $item );
 
-	if ( $copy && ( ! $pattern || 'reference' === $mode ) ) {
-		return new WP_Error(
-			'voyager_open_blocks_invalid_copy',
-			'copy works only on a pattern inserted with mode "copy". A reference renders the pattern as shipped.',
-			[ 'status' => 400 ]
-		);
-	}
-
-	if ( $omit && ( ! $pattern || 'reference' === $mode ) ) {
-		return new WP_Error(
-			'voyager_open_blocks_invalid_omit',
-			'omit works only on a pattern inserted with mode "copy". A reference renders the pattern as shipped.',
-			[ 'status' => 400 ]
-		);
+	foreach ( [
+		'copy'   => [] !== $copy,
+		'omit'   => [] !== $omit,
+		'repeat' => [] !== $repeat,
+	] as $field => $given ) {
+		if ( $given && ( ! $pattern || 'reference' === $mode ) ) {
+			return new WP_Error(
+				'voyager_open_blocks_invalid_' . $field,
+				sprintf( '%s works only on a pattern inserted with mode "copy". A reference renders the pattern as shipped.', $field ),
+				[ 'status' => 400 ]
+			);
+		}
 	}
 
 	if ( $pattern ) {
@@ -642,6 +1089,14 @@ function insert( array $input ) {
 				],
 			]
 			: BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) );
+
+		// repeat first, so copy can fill the new labels and omit can drop the original.
+		if ( $repeat ) {
+			$repeated = BlockTree\repeat( $new, $repeat );
+			if ( is_wp_error( $repeated ) ) {
+				return $repeated;
+			}
+		}
 
 		if ( $omit ) {
 			$omitted = BlockTree\omit( $new, $omit );
@@ -679,8 +1134,41 @@ function insert( array $input ) {
 		return new WP_Error( 'voyager_open_blocks_invalid_item', 'The block markup did not pass validation: ' . implode( ' ', $report['errors'] ), [ 'status' => 400 ] );
 	}
 
-	$index = ( $position < 0 || $position > count( $blocks ) ) ? count( $blocks ) : $position;
-	array_splice( $blocks, $index, 0, $new );
+	$out = [];
+
+	if ( null === $parent ) {
+		$errors = BlockTree\placement_errors( $new, [] );
+		if ( $errors ) {
+			return invalid_parent( implode( ' ', $errors ) . ' Pass parent: the path of a block it can go in.' );
+		}
+
+		$prefix = '';
+		$index  = ( $position < 0 || $position > count( $blocks ) ) ? count( $blocks ) : $position;
+		array_splice( $blocks, $index, 0, $new );
+	} else {
+		$index = place_inside( $blocks, $parent, $position, $new );
+		if ( is_wp_error( $index ) ) {
+			return $index;
+		}
+
+		$prefix  = implode( '/', $parent );
+		$section = $blocks[ $parent[0] ] ?? null;
+		if ( null === $section ) {
+			return invalid_parent( sprintf( 'No block at path %s.', $prefix ) );
+		}
+
+		$section_markup               = serialize_block( $section );
+		$report['section_round_trip'] = BlockTree\to_markup( BlockTree\parse( $section_markup ) ) === $section_markup;
+
+		if ( ! $report['section_round_trip'] ) {
+			return invalid_parent( sprintf( 'The section at %d would not be written back the same way after the insert, so nothing was saved.', $parent[0] ) );
+		}
+
+		$out = [
+			'parent'         => $prefix,
+			'section_markup' => $section_markup,
+		];
+	}
 
 	if ( ! $dry_run ) {
 		$saved = BlockTree\save( $post_id, $blocks );
@@ -700,14 +1188,117 @@ function insert( array $input ) {
 		'blocks'     => array_values(
 			array_filter(
 				BlockTree\describe( $blocks ),
-				static function ( array $row ) use ( $index, $last ): bool {
-					$top = (int) strtok( $row['path'], '/' );
-					return $top >= $index && $top <= $last;
-				}
+				static fn ( array $row ): bool => BlockTree\in_range( $row['path'], $prefix, $index, $last )
 			)
 		),
 		'validation' => $report,
-	];
+	] + $out;
+}
+
+/**
+ * insert's repeat input as label => labels of the copies.
+ *
+ * @param mixed $value Input.
+ * @return array<string, string[]>
+ */
+function repeat_input( mixed $value ): array {
+	$out = [];
+
+	foreach ( assoc( $value ) as $label => $labels ) {
+		$names = array_values(
+			array_filter(
+				array_map( static fn ( mixed $name ): string => Cast\to_string( $name ), is_array( $labels ) ? $labels : [] ),
+				static fn ( string $name ): bool => '' !== $name
+			)
+		);
+
+		if ( [] !== $names ) {
+			$out[ $label ] = $names;
+		}
+	}
+
+	return $out;
+}
+
+/**
+ * Put new blocks inside the block at a path, among its inner blocks.
+ *
+ * Refused, with nothing changed, when the container holds no blocks yet, is
+ * locked, does not allow the new blocks, or a new block's parent or ancestor
+ * rule is not met there.
+ *
+ * @param array<int, Block> $blocks   All blocks, by reference.
+ * @param int[]             $path     Path of the container.
+ * @param int               $position Index among its inner blocks to insert before. -1, or past the end, appends.
+ * @param array<int, Block> $new      Blocks to insert.
+ * @return int|WP_Error Index of the first new block among the container's inner blocks.
+ */
+function place_inside( array &$blocks, array $path, int $position, array $new ) {
+	$chain     = BlockTree\ancestors( $blocks, $path );
+	$container = &BlockTree\find( $blocks, $path );
+
+	if ( null === $container ) {
+		return invalid_parent( sprintf( 'No block at path %s. Read paths with get-post-blocks.', implode( '/', $path ) ) );
+	}
+
+	$where = sprintf( '%s at %s', (string) $container['blockName'], implode( '/', $path ) );
+	$count = count( $container['innerBlocks'] );
+
+	if ( 0 === $count ) {
+		return invalid_parent( sprintf( '%s holds no blocks. %s', $where, empty_container_hint( $container ) ) );
+	}
+
+	$chain[] = $container;
+	$lock    = BlockTree\template_lock( $chain );
+	if ( null !== $lock ) {
+		return invalid_parent( sprintf( 'Cannot insert into %s: %s Unlock it in the editor, or pick another parent.', $where, $lock ) );
+	}
+
+	$errors = BlockTree\placement_errors( $new, $chain );
+	if ( $errors ) {
+		return invalid_parent( implode( ' ', $errors ) . sprintf( ' Pick another parent than %s.', $where ) );
+	}
+
+	$index = ( $position < 0 || $position > $count ) ? $count : $position;
+	if ( ! BlockTree\insert_inner( $container, $index, $new ) ) {
+		return invalid_parent( sprintf( 'The saved HTML of %s has no place for more blocks.', $where ) );
+	}
+
+	return $index;
+}
+
+/**
+ * What to do when the chosen parent holds no blocks.
+ *
+ * @param Block $block The empty container.
+ */
+function empty_container_hint( array $block ): string {
+	$name = (string) $block['blockName'];
+	$slug = Cast\to_string( $block['attrs']['slug'] ?? '' );
+	$ref  = Cast\to_int( $block['attrs']['ref'] ?? 0 );
+
+	if ( 'core/template-part' === $name && '' !== $slug ) {
+		return sprintf( 'It shows the template part "%1$s", which is a post of its own: find it with find-posts, {"post_type": "wp_template_part", "slug": "%1$s"}, and insert into that post.', $slug );
+	}
+
+	if ( 'core/block' === $name && $ref > 0 ) {
+		return sprintf( 'It shows synced pattern %1$d, which is a post of its own: insert with post_id %1$d.', $ref );
+	}
+
+	if ( 'core/pattern' === $name ) {
+		return 'It is a reference that renders a pattern as shipped, so nothing can go inside it.';
+	}
+
+	return 'Where its HTML holds inner blocks cannot be known until it holds one. Insert beside it instead, or add a block inside it in the editor first.';
+}
+
+/**
+ * The error for a parent the new blocks cannot go into.
+ *
+ * @param string $message What is wrong.
+ */
+function invalid_parent( string $message ): WP_Error {
+	return new WP_Error( 'voyager_open_blocks_invalid_parent', $message, [ 'status' => 400 ] );
 }
 
 /**
@@ -791,6 +1382,20 @@ function bind( array $input ) {
 	}
 	[ $blocks, $path ] = $located;
 
+	$post_id = Cast\to_int( $input['post_id'] );
+	$own     = (string) get_post_type( $post_id );
+	$given   = Cast\to_string( $input['post_type'] ?? '' );
+	$in_loop = in_array( 'core/post-template', array_map( static fn ( array $around ): string => Cast\to_string( $around['blockName'] ), BlockTree\ancestors( $blocks, $path ) ), true );
+
+	if ( '' !== $given && ! post_type_exists( $given ) ) {
+		return new WP_Error( 'voyager_open_blocks_invalid_post_type', sprintf( 'There is no post type "%s".', $given ), [ 'status' => 400 ] );
+	}
+
+	$post_type = Catalog\binding_post_type( $own, $given, $in_loop );
+	if ( is_wp_error( $post_type ) ) {
+		return $post_type;
+	}
+
 	$block = &BlockTree\find( $blocks, $path );
 	if ( null === $block ) {
 		return no_block_at( $path );
@@ -801,11 +1406,10 @@ function bind( array $input ) {
 	$source    = Cast\to_string( $input['source'] ?? '' );
 	$args      = (array) ( $input['args'] ?? [] );
 	$bindable  = array_values( array_filter( get_block_bindings_supported_attributes( $name ), 'is_string' ) );
-	$post_id   = Cast\to_int( $input['post_id'] );
 
-	$checked = Catalog\check_binding( $name, $attribute, $source, $args, $bindable, (string) get_post_type( $post_id ) );
+	$checked = Catalog\check_binding( $name, $attribute, $source, $args, $bindable, $post_type );
 	if ( is_wp_error( $checked ) ) {
-		return $checked;
+		return Catalog\explain_post_type( $checked, $own, $given );
 	}
 
 	$metadata = BlockTree\metadata( $block );

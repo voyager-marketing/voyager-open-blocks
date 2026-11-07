@@ -155,6 +155,250 @@ function &find( array &$blocks, array $path ): ?array {
 }
 
 /**
+ * The blocks a path runs through, outermost first, without the block at the path.
+ *
+ * @param array<int, Block> $blocks Blocks.
+ * @param int[]             $path   Parsed path.
+ * @return array<int, Block> [] for a top-level block, or a path that does not exist.
+ */
+function ancestors( array $blocks, array $path ): array {
+	$chain = [];
+	$level = $blocks;
+
+	foreach ( array_slice( $path, 0, -1 ) as $index ) {
+		if ( ! isset( $level[ $index ] ) ) {
+			return [];
+		}
+		$chain[] = $level[ $index ];
+		/** @var array<int, Block> $level */
+		$level = $level[ $index ]['innerBlocks'];
+	}
+
+	return $chain;
+}
+
+/**
+ * Is a path one of a parent's inner blocks from $first to $last, or inside one?
+ *
+ * @param string $path   Path such as "0/2/1".
+ * @param string $parent Path of the parent, '' for the top level.
+ * @param int    $first  Index of the first inner block.
+ * @param int    $last   Index of the last inner block.
+ */
+function in_range( string $path, string $parent, int $first, int $last ): bool {
+	if ( '' !== $parent ) {
+		if ( ! str_starts_with( $path, $parent . '/' ) ) {
+			return false;
+		}
+		$path = substr( $path, strlen( $parent ) + 1 );
+	}
+
+	$top = (int) strtok( $path, '/' );
+
+	return $top >= $first && $top <= $last;
+}
+
+/**
+ * A block's own text, without its inner blocks' text: the first 80 characters.
+ *
+ * Lets an agent tell two blocks of the same type apart, such as the call
+ * button among a header's buttons.
+ *
+ * @param Block $block Parsed block.
+ */
+function own_text( array $block ): string {
+	$html = implode( ' ', array_filter( $block['innerContent'], 'is_string' ) );
+	$text = html_entity_decode( strip_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+
+	return mb_substr( trim( (string) preg_replace( '/\s+/u', ' ', $text ) ), 0, 80 );
+}
+
+/**
+ * Every block's own text by path, for the blocks that have any.
+ *
+ * @param array<int, Block> $blocks Blocks.
+ * @param string            $prefix Path of the parent, '' at the top.
+ * @return array<int|string, string> Keyed by path. PHP turns a top-level path such as "2" into an int key.
+ */
+function texts( array $blocks, string $prefix = '' ): array {
+	$out = [];
+
+	foreach ( $blocks as $index => $block ) {
+		$path = '' === $prefix ? (string) $index : $prefix . '/' . $index;
+		$text = null === $block['blockName'] ? '' : own_text( $block );
+
+		if ( '' !== $text ) {
+			$out[ $path ] = $text;
+		}
+
+		/** @var array<int, Block> $inner */
+		$inner = $block['innerBlocks'];
+		$out  += texts( $inner, $path );
+	}
+
+	return $out;
+}
+
+/**
+ * Where a block type may go, from its block.json: parent, ancestor and allowedBlocks.
+ *
+ * @param string $name Block name.
+ * @return array{parent: string[]|null, ancestor: string[]|null, allowed_blocks: string[]|null}
+ */
+function block_rules( string $name ): array {
+	$type = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+
+	return [
+		'parent'         => $type ? names( $type->parent ) : null,
+		'ancestor'       => $type ? names( $type->ancestor ) : null,
+		'allowed_blocks' => $type ? names( $type->allowed_blocks ) : null,
+	];
+}
+
+/**
+ * A list of block names from block.json, null when the key is not set.
+ *
+ * @param mixed $value Value of parent, ancestor or allowedBlocks.
+ * @return string[]|null
+ */
+function names( mixed $value ): ?array {
+	return is_array( $value ) ? array_values( array_filter( $value, 'is_string' ) ) : null;
+}
+
+/**
+ * Why blocks cannot go where they are being put, [] when they can.
+ *
+ * The rules the editor's inserter applies, read from block.json: a container's
+ * allowedBlocks (and its own allowedBlocks attribute, which some containers
+ * take), and each block's parent (the block directly around it) and ancestor
+ * (any block around it). They are checked for every block being placed and,
+ * recursively, for the blocks inside it.
+ *
+ * @param array<int, Block> $blocks Blocks to place, with their inner blocks.
+ * @param array<int, Block> $chain  The blocks they go inside, outermost first, so their parent is last. [] at the top level.
+ * @param (callable(string): array{parent: string[]|null, ancestor: string[]|null, allowed_blocks: string[]|null})|null $rules Rules for a block name. Defaults to block_rules().
+ * @return string[]
+ */
+function placement_errors( array $blocks, array $chain, ?callable $rules = null ): array {
+	$rules  = $rules ?? static fn ( string $name ): array => block_rules( $name );
+	$parent = [] === $chain ? null : $chain[ count( $chain ) - 1 ];
+	$around = array_map( static fn ( array $block ): string => Cast\to_string( $block['blockName'] ), $chain );
+	$errors = [];
+
+	foreach ( $blocks as $block ) {
+		$name = $block['blockName'];
+		if ( null === $name ) {
+			continue;
+		}
+
+		$own       = $rules( $name );
+		$parents   = $own['parent'] ?? [];
+		$ancestors = $own['ancestor'] ?? [];
+
+		if ( null !== $parent ) {
+			$parent_name = (string) $parent['blockName'];
+			$allowed     = $rules( $parent_name )['allowed_blocks'];
+			$attribute   = $parent['attrs']['allowedBlocks'] ?? null;
+
+			if ( is_array( $allowed ) && ! in_array( $name, $allowed, true ) ) {
+				$errors[] = sprintf( '%s cannot go inside %s, which allows only %s.', $name, $parent_name, $allowed ? implode( ', ', $allowed ) : 'no blocks' );
+			} elseif ( is_array( $attribute ) && ! in_array( $name, $attribute, true ) ) {
+				$errors[] = sprintf( '%s cannot go inside this %s: its allowedBlocks setting allows only %s.', $name, $parent_name, $attribute ? implode( ', ', array_map( static fn ( mixed $item ): string => Cast\to_string( $item ), $attribute ) ) : 'no blocks' );
+			}
+		}
+
+		if ( [] !== $parents && ( null === $parent || ! in_array( (string) $parent['blockName'], $parents, true ) ) ) {
+			$errors[] = sprintf( '%s can only go directly inside %s.', $name, implode( ' or ', $parents ) );
+		}
+
+		if ( [] !== $ancestors && [] === array_intersect( $around, $ancestors ) ) {
+			$errors[] = sprintf( '%s can only go somewhere inside %s.', $name, implode( ' or ', $ancestors ) );
+		}
+
+		if ( ! empty( $block['innerBlocks'] ) ) {
+			/** @var array<int, Block> $inner */
+			$inner  = $block['innerBlocks'];
+			$errors = array_merge( $errors, placement_errors( $inner, [ ...$chain, $block ], $rules ) );
+		}
+	}
+
+	return $errors;
+}
+
+/**
+ * Why nothing can be inserted inside the last block of a chain, null when it can.
+ *
+ * templateLock "all", "insert" or "contentOnly" stops the editor from adding
+ * blocks. A block without the attribute takes the lock of the nearest block
+ * around it that sets one, and "contentOnly" anywhere around it holds.
+ *
+ * @param array<int, Block> $chain Blocks from the top level down to the container.
+ */
+function template_lock( array $chain ): ?string {
+	$locks = [ 'all', 'insert', 'contentOnly' ];
+	$found = null;
+
+	foreach ( array_reverse( $chain ) as $block ) {
+		if ( ! array_key_exists( 'templateLock', $block['attrs'] ) ) {
+			continue;
+		}
+
+		$lock = $block['attrs']['templateLock'];
+
+		if ( 'contentOnly' === $lock ) {
+			return sprintf( '%s is locked (templateLock "contentOnly").', (string) $block['blockName'] );
+		}
+
+		if ( null === $found ) {
+			$found = is_string( $lock ) && in_array( $lock, $locks, true )
+				? sprintf( '%s is locked (templateLock "%s").', (string) $block['blockName'], $lock )
+				: '';
+		}
+	}
+
+	return '' === $found ? null : $found;
+}
+
+/**
+ * Put blocks among a container's inner blocks, at an index.
+ *
+ * The container must already hold at least one block: its saved HTML then has
+ * a slot for each inner block, and the new ones go into new slots beside them,
+ * separated by the blank line the editor writes between sibling blocks. A
+ * container with no inner blocks has no slot, and where its HTML would hold
+ * them cannot be known without its JavaScript save().
+ *
+ * @param Block             $parent Container, by reference. Unchanged when false is returned.
+ * @param int               $index  Index among its inner blocks to insert before. Its count appends.
+ * @param array<int, Block> $blocks Blocks to insert.
+ * @return bool False when the container holds no blocks or the index is out of range.
+ */
+function insert_inner( array &$parent, int $index, array $blocks ): bool {
+	$content = array_values( $parent['innerContent'] );
+	$slots   = array_keys( $content, null, true );
+	$count   = count( $parent['innerBlocks'] );
+
+	if ( 0 === $count || count( $slots ) !== $count || $index < 0 || $index > $count || [] === $blocks ) {
+		return false;
+	}
+
+	// Before an inner block: a slot, then the gap to that block. Appended: the gap, then a slot.
+	$pair   = $index < $count ? [ null, "\n\n" ] : [ "\n\n", null ];
+	$pieces = array_merge( ...array_fill( 0, count( $blocks ), $pair ) );
+	$at     = $index < $count ? $slots[ $index ] : $slots[ $count - 1 ] + 1;
+	array_splice( $content, $at, 0, $pieces );
+
+	$inner = $parent['innerBlocks'];
+	array_splice( $inner, $index, 0, $blocks );
+
+	$parent['innerBlocks']  = $inner;
+	$parent['innerContent'] = $content;
+	$parent['innerHTML']    = implode( '', array_filter( $content, 'is_string' ) );
+
+	return true;
+}
+
+/**
  * Describe a block tree: one row per block with its path, name and bindings.
  *
  * With a post, each binding also carries `resolution`: whether its source
@@ -712,6 +956,136 @@ function omit( array &$blocks, array $labels ) {
 	$blocks = $changed;
 
 	return true;
+}
+
+/**
+ * Add copies of named blocks right after them, such as a fifth and sixth credential.
+ *
+ * Each key of $repeat is a label (metadata.name) and each value the labels of
+ * its copies, in order. The block must be the only one with that label, sit
+ * inside the pattern rather than be all of it, hold no named blocks (their
+ * names would repeat) and carry no HTML anchor (an id must be unique). A copy
+ * is the same block with the new label, so its text, attributes and bindings
+ * are the original's until copy replaces its text. Like omit(), it relies on
+ * core containers saving their inner blocks in one slot each.
+ *
+ * @param array<int, Block>       $blocks Blocks, by reference. Unchanged on error.
+ * @param array<string, string[]> $repeat Label => labels of the copies.
+ * @return true|WP_Error
+ */
+function repeat( array &$blocks, array $repeat ) {
+	$changed = $blocks;
+
+	foreach ( $repeat as $label => $new_labels ) {
+		$label      = (string) $label;
+		$rows       = describe( $changed );
+		$used       = array_column( array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) ), 'label' );
+		$repeatable = repeatable_labels( $changed );
+		$matches    = array_values( array_filter( $rows, static fn ( array $row ): bool => ( $row['label'] ?? null ) === $label ) );
+
+		if ( [] === $matches ) {
+			return invalid_repeat( sprintf( 'No block is named "%s".', $label ), $repeatable );
+		}
+		if ( count( $matches ) > 1 ) {
+			return invalid_repeat( sprintf( '"%s" names more than one block.', $label ), $repeatable );
+		}
+		if ( ! in_array( $label, $repeatable, true ) ) {
+			return invalid_repeat( sprintf( '"%s" is the whole section, holds named blocks or has an HTML anchor, so it cannot be repeated.', $label ), $repeatable );
+		}
+		if ( count( array_unique( $new_labels ) ) !== count( $new_labels ) ) {
+			return invalid_repeat( sprintf( 'The copies of "%s" need different labels.', $label ), $repeatable );
+		}
+		foreach ( $new_labels as $new_label ) {
+			if ( '' === $new_label || in_array( $new_label, $used, true ) ) {
+				return invalid_repeat( sprintf( 'A copy needs a label no block has yet, and "%s" is taken or empty.', $new_label ), $repeatable );
+			}
+		}
+
+		$indices = parse_path( $matches[0]['path'] );
+		if ( is_wp_error( $indices ) ) {
+			return $indices;
+		}
+
+		$index  = (int) array_pop( $indices );
+		$parent = &find( $changed, $indices );
+		if ( null === $parent || ! isset( $parent['innerBlocks'][ $index ] ) ) {
+			return invalid_repeat( sprintf( 'No block at path %s.', $matches[0]['path'] ), $repeatable );
+		}
+
+		/** @var Block $source */
+		$source = $parent['innerBlocks'][ $index ];
+		$copies = [];
+		foreach ( $new_labels as $new_label ) {
+			$copy                              = $source;
+			$copy['attrs']['metadata']         = metadata( $source );
+			$copy['attrs']['metadata']['name'] = $new_label;
+			$copies[]                          = $copy;
+		}
+
+		$inserted = insert_inner( $parent, $index + 1, $copies );
+		unset( $parent );
+
+		if ( ! $inserted ) {
+			return invalid_repeat( sprintf( 'The block around "%s" has no room for copies.', $label ), $repeatable );
+		}
+	}
+
+	$blocks = $changed;
+
+	return true;
+}
+
+/**
+ * Labels repeat() accepts: a named block inside a section that is the only
+ * one with its label, holds no named blocks and has no HTML anchor.
+ *
+ * @param array<int, Block> $blocks Blocks.
+ * @return string[]
+ */
+function repeatable_labels( array $blocks ): array {
+	$rows   = describe( $blocks );
+	$counts = array_count_values( array_column( array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) ), 'label' ) );
+	$out    = [];
+
+	foreach ( $rows as $row ) {
+		$label = $row['label'] ?? null;
+		if ( null === $label || ! str_contains( $row['path'], '/' ) || 1 !== ( $counts[ $label ] ?? 0 ) ) {
+			continue;
+		}
+
+		$path = parse_path( $row['path'] );
+		$copy = $blocks;
+		$node = is_wp_error( $path ) ? null : find( $copy, $path );
+		if ( null === $node || isset( $node['attrs']['anchor'] ) ) {
+			continue;
+		}
+
+		/** @var array<int, Block> $inner */
+		$inner = $node['innerBlocks'];
+		$named = array_filter( describe( $inner ), static fn ( array $inner_row ): bool => isset( $inner_row['label'] ) );
+		if ( [] === $named ) {
+			$out[] = $label;
+		}
+	}
+
+	return $out;
+}
+
+/**
+ * The error for repeat that cannot be applied, listing the labels that can be repeated.
+ *
+ * @param string   $message What is wrong.
+ * @param string[] $labels  Labels that can be repeated.
+ */
+function invalid_repeat( string $message, array $labels ): WP_Error {
+	return new WP_Error(
+		'voyager_open_blocks_invalid_repeat',
+		sprintf( '%s Labels you can repeat: %s.', $message, $labels ? implode( ', ', array_map( 'wp_json_encode', $labels ) ) : 'none' ),
+		[
+			'status' => 400,
+			'labels' => $labels,
+		]
+	);
 }
 
 /**
