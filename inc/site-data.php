@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace VoyagerOpenBlocks\SiteData;
 
 use VoyagerOpenBlocks\Cast;
+use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\PostMetaText;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -55,6 +56,97 @@ function fields(): array {
 		'social_linkedin'  => [ 'label' => __( 'LinkedIn URL', 'voyager-open-blocks' ), 'type' => 'url', 'option' => 'voyager_site_social_linkedin' ],
 		'social_x'         => [ 'label' => __( 'X URL', 'voyager-open-blocks' ), 'type' => 'url', 'option' => 'voyager_site_social_x' ],
 	];
+}
+
+/**
+ * Keys that values() composes from other keys: derived key => the keys it is made from.
+ *
+ * A pattern that binds `phone_link` shows nothing useful until the phone is
+ * set, so the settings screen counts it as a use of the phone field.
+ *
+ * @return array<string, list<string>>
+ */
+function derived_from(): array {
+	return [
+		'phone_link'       => [ 'phone' ],
+		'email_link'       => [ 'email' ],
+		'address_locality' => [ 'address_city', 'address_state', 'address_zip' ],
+		'copyright'        => [ 'company', 'year' ],
+	];
+}
+
+/**
+ * Which patterns read each key, directly or through a key derived from it.
+ *
+ * @param array<array{title: string, keys: list<string>}> $patterns Each pattern's title and the keys it binds, as Patterns\bound_keys() returns them.
+ * @return array<string, list<string>> Every key of fields() => pattern titles. A key no pattern reads maps to [].
+ */
+function used_by( array $patterns ): array {
+	$out = [];
+
+	foreach ( array_keys( fields() ) as $key ) {
+		$reads = [ $key ];
+		foreach ( derived_from() as $derived => $parts ) {
+			if ( in_array( $key, $parts, true ) ) {
+				$reads[] = $derived;
+			}
+		}
+
+		$titles = [];
+		foreach ( $patterns as $pattern ) {
+			if ( [] !== array_intersect( $reads, $pattern['keys'] ) ) {
+				$titles[] = $pattern['title'];
+			}
+		}
+
+		$out[ $key ] = $titles;
+	}
+
+	return $out;
+}
+
+/**
+ * used_by() for the pack's own patterns, read from their intents once per request.
+ *
+ * @return array<string, list<string>>
+ */
+function usage(): array {
+	/** @var array<string, list<string>>|null $usage */
+	static $usage = null;
+
+	if ( null === $usage ) {
+		$usage = used_by( Patterns\bound_keys( SOURCE ) );
+	}
+
+	return $usage;
+}
+
+/**
+ * The help line under a stored field on Settings > Site Data.
+ *
+ * @param string $key Binding key.
+ */
+function help( string $key ): string {
+	switch ( $key ) {
+		case 'phone':
+			return __( 'Shown the way you type it, for example (555) 555-0100. Call buttons keep only the digits and +, so that number dials tel:5555550100.', 'voyager-open-blocks' );
+		case 'email':
+			return __( 'Shown as typed. Email buttons open a new message to it (mailto:) once it is a valid address, for example hello@example.com.', 'voyager-open-blocks' );
+		case 'address':
+			return __( 'Street and number, for example 100 Main Street, Suite 200.', 'voyager-open-blocks' );
+		case 'address_city':
+			return __( 'City, state and postal code also make one line, for example Springfield, ST 00000.', 'voyager-open-blocks' );
+		case 'address_state':
+			return __( 'A state, province or region. A short form such as ST reads best on the city line.', 'voyager-open-blocks' );
+		case 'address_zip':
+			return __( 'Also called a ZIP code. A blank part is left out of the city line, with its comma.', 'voyager-open-blocks' );
+		case 'hours':
+			return __( 'One line, written the way you want it shown, for example Monday to Friday, 9am to 5pm.', 'voyager-open-blocks' );
+	}
+
+	return str_starts_with( $key, 'social_' )
+		? __( 'The full profile address, starting with https://.', 'voyager-open-blocks' )
+		: '';
 }
 
 /**
@@ -228,9 +320,7 @@ function register_settings(): void {
 	add_settings_section(
 		'voyager_site_data',
 		'',
-		static function (): void {
-			echo '<p>' . esc_html__( 'Blocks bound to the voyager/site-data source show these values. A blank field leaves the pattern\'s own placeholder text in place.', 'voyager-open-blocks' ) . '</p>';
-		},
+		__NAMESPACE__ . '\render_intro',
 		'voyager-site-data'
 	);
 
@@ -365,16 +455,46 @@ function binding_json( string $key ): string {
 }
 
 /**
- * Render one settings input with its binding key underneath.
+ * The intro at the top of Settings > Site Data, for someone who has never
+ * bound a block.
+ */
+function render_intro(): void {
+	echo '<p>' . esc_html__( 'Site Data keeps your business details in one place. Enter your phone, email, address and hours once. The pack\'s buttons and sections show them, and they change everywhere when you change them here.', 'voyager-open-blocks' ) . '</p>';
+
+	echo '<p>';
+	printf(
+		/* translators: %s: link to Settings > General. */
+		esc_html__( 'A blank field leaves the section\'s placeholder text in place. Your company name and tagline come from %s.', 'voyager-open-blocks' ),
+		'<a href="' . esc_url( admin_url( 'options-general.php' ) ) . '">' . esc_html__( 'Settings > General', 'voyager-open-blocks' ) . '</a>'
+	);
+	echo '</p>';
+
+	echo '<p>' . esc_html__( 'Under each field: the patterns that use it, and the binding that shows it in your own blocks.', 'voyager-open-blocks' ) . '</p>';
+}
+
+/**
+ * Render one settings input with its help, the patterns that use it and its
+ * binding underneath.
  *
  * @param array{label_for: string, key: string, type: string} $args Field args.
  */
 function render_field( array $args ): void {
+	$id     = $args['label_for'];
+	$titles = usage()[ $args['key'] ] ?? [];
+	$used   = __( 'Used by: no pattern in the pack. Available for your own blocks.', 'voyager-open-blocks' );
+
+	if ( [] !== $titles ) {
+		/* translators: %s: pattern names, separated by commas. */
+		$used = sprintf( __( 'Used by: %s', 'voyager-open-blocks' ), implode( ', ', $titles ) );
+	}
+
 	printf(
-		'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text" /><p class="description"><code>%4$s</code></p>',
+		'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text" aria-describedby="%2$s-help %2$s-used" /><p class="description" id="%2$s-help">%4$s</p><p class="description" id="%2$s-used">%5$s</p><p class="description"><code>%6$s</code></p>',
 		esc_attr( $args['type'] ),
-		esc_attr( $args['label_for'] ),
-		esc_attr( Cast\to_string( get_option( $args['label_for'], '' ) ) ),
+		esc_attr( $id ),
+		esc_attr( Cast\to_string( get_option( $id, '' ) ) ),
+		esc_html( help( $args['key'] ) ),
+		esc_html( $used ),
 		esc_html( '{"source":"voyager/site-data","args":{"key":"' . $args['key'] . '"}}' )
 	);
 }
