@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.6.0...v0.6.1) (2026-11-07)
+
+
+### Documentation
+
+* readme.txt changelog for 0.6.1 ([#44](https://github.com/voyager-marketing/voyager-open-blocks/issues/44)) ([790d91c](https://github.com/voyager-marketing/voyager-open-blocks/commit/790d91c2648221958be5c812300d3c87a8c32d0d))
+* say in readme.txt where the built files' source is, and check it ([#42](https://github.com/voyager-marketing/voyager-open-blocks/issues/42)) ([956e793](https://github.com/voyager-marketing/voyager-open-blocks/commit/956e79338e8f3049e953e73ac15ddf6d0f3f66e8))
+
 ## [0.6.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.5.0...v0.6.0) (2026-11-07)
 
 
