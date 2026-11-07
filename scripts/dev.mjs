@@ -279,6 +279,44 @@ export function reportPhpLog( lines ) {
 }
 
 /**
+ * On a failed check, one notice with what Playground was told and the end of
+ * the PHP log, since CI job logs are not always readable.
+ *
+ * @param {{playground: Object}} site From boot().
+ * @param {string[]|null}        log  From phpLog().
+ */
+async function explain( site, log ) {
+	const facts = [];
+	try {
+		const consts = JSON.parse(
+			await site.playground.readFileAsText(
+				'/internal/shared/consts.json'
+			)
+		);
+		facts.push(
+			`Playground constants: ${ Object.keys( consts ).join( ', ' ) }`
+		);
+	} catch ( error ) {
+		facts.push( `Playground constants unreadable: ${ error.message }` );
+	}
+	try {
+		const result = await site.playground.run( {
+			code: `<?php echo json_encode( [
+				'auto_login_plugin' => file_exists( '/internal/shared/mu-plugins/1-auto-login.php' ),
+				'auto_login_user' => defined( 'PLAYGROUND_AUTO_LOGIN_AS_USER' ) ? PLAYGROUND_AUTO_LOGIN_AS_USER : null,
+			] );`,
+		} );
+		facts.push( `PHP sees: ${ result.text }` );
+	} catch ( error ) {
+		facts.push( `PHP probe failed: ${ error.message }` );
+	}
+	facts.push(
+		`debug.log tail: ${ ( log || [] ).slice( -12 ).join( ' | ' ) || 'empty' }`
+	);
+	annotate( 'notice', facts.join( '\n' ), 'Why the check failed' );
+}
+
+/**
  * Open a URL in the default browser. Best effort: failures are ignored.
  *
  * @param {string} url
@@ -346,8 +384,12 @@ async function check( opts ) {
 		for ( const message of failed ) {
 			annotate( 'error', message, 'npm run dev -- --check' );
 		}
-		const fatal = reportPhpLog( await phpLog( site ) );
+		const log = await phpLog( site );
+		const fatal = reportPhpLog( log );
 		code = failed.length || fatal ? 1 : 0;
+		if ( code ) {
+			await explain( site, log );
+		}
 	} catch ( error ) {
 		annotate(
 			'error',
