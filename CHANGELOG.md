@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.5.0...v0.6.0) (2026-11-07)
+
+
+### Features
+
+* abilities-only route, a validate ability and insert omit ([#36](https://github.com/voyager-marketing/voyager-open-blocks/issues/36)) ([f1796e0](https://github.com/voyager-marketing/voyager-open-blocks/commit/f1796e0827e6511c8431bc88781a12fc6b91e440))
+* add a first-run Site Data notice, Settings link and used-by lines ([#33](https://github.com/voyager-marketing/voyager-open-blocks/issues/33)) ([f19511d](https://github.com/voyager-marketing/voyager-open-blocks/commit/f19511d0ec5e079f068936b752ac59bb21dba6f7))
+* add npm run dev and npm run screenshots ([#34](https://github.com/voyager-marketing/voyager-open-blocks/issues/34)) ([28f3ca8](https://github.com/voyager-marketing/voyager-open-blocks/commit/28f3ca8008cb23f5ebf422bb4a01b2e596a976b8))
+* close the abilities-only route's four gaps ([#40](https://github.com/voyager-marketing/voyager-open-blocks/issues/40)) ([32fbd24](https://github.com/voyager-marketing/voyager-open-blocks/commit/32fbd24ec8fea7a1108a246cf0a8335ceac1f9c3))
+* show binding and placeholder hints in the editor ([#37](https://github.com/voyager-marketing/voyager-open-blocks/issues/37)) ([99a7e7c](https://github.com/voyager-marketing/voyager-open-blocks/commit/99a7e7c1931d041efdd6d1c32bbe8753e687f525))
+
+
+### Documentation
+
+* drop internal tracker links from CLAUDE.md ([#32](https://github.com/voyager-marketing/voyager-open-blocks/issues/32)) ([359d5a9](https://github.com/voyager-marketing/voyager-open-blocks/commit/359d5a926addcd120f1a09cea973801ecf0d5afb))
+* open the README with three doors and add the theme guide ([#35](https://github.com/voyager-marketing/voyager-open-blocks/issues/35)) ([175cbd7](https://github.com/voyager-marketing/voyager-open-blocks/commit/175cbd701df3b4cbcd3ac4423f4db158d7793c23))
+
 ## [0.5.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.4.3...v0.5.0) (2026-10-29)
 
 

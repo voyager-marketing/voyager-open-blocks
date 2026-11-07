@@ -5,7 +5,7 @@ Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.1
 Release marker: x-release-please-start-version
-Stable tag: 0.5.0
+Stable tag: 0.6.0
 Release marker: x-release-please-end
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -140,6 +140,13 @@ In the plugin's `skills/` folder, one `SKILL.md` per item in the open Agent Skil
 7. Settings > Site Data: one screen for the business details every section reads.
 
 == Changelog ==
+
+= 0.6.0 =
+* Settings > Site Data says which sections use each field, and after activation a notice points you there until you fill one in. The Plugins screen has a Settings link.
+* The block editor shows where a bound value comes from, warns when it is empty, and marks the placeholder logos and the form slot to replace.
+* The patterns sit in the "Business sections (Open Blocks)" category.
+* Seven abilities: new `find-posts` and `validate`. `insert` takes `omit`, `repeat` and `parent`, and `bind` takes `post_type` in templates, so an agent with only MCP access can find a page, place and fill a section, and check it.
+* Uninstalling removes the notice state and keeps your Site Data.
 
 = 0.3.0 =
 * `insert` takes `copy`: plain text by label for a pattern's named headings, paragraphs, buttons and list items. `get-catalog` marks those labels `copy: true`.
