@@ -19,7 +19,8 @@
 			"step": "defineWpConfigConsts",
 			"consts": {
 				"WP_ENVIRONMENT_TYPE": "local"
-			}
+			},
+			"method": "rewrite-wp-config"
 		},
 		{
 			"step": "activatePlugin",
