@@ -1,0 +1,60 @@
+name: Plugin Check
+
+# The plugin zip, checked the way the WordPress.org plugin directory checks
+# it. Builds and zips exactly as a release does, then npm run plugin-check
+# boots a fresh WordPress in Playground, installs Plugin Check from
+# WordPress.org and the zip as a plugin, activates the pack, requests the
+# front end and the admin screens it touches, runs wp plugin check, and
+# deactivates and uninstalls the pack. A Plugin Check error, or a PHP error,
+# warning or notice from the plugin, fails the job. Plugin Check warnings
+# do not.
+#
+# Job logs are not always at hand, so every finding is also an annotation
+# with its file, line and code, and the job summary lists them all.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin-check:
+    name: Plugin Check on the plugin zip
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # As release-please.yml and release.yml build it.
+      - name: Build the zip as a release does
+        run: |
+          npm ci
+          npm run build
+          npm run zip
+
+      # Same list as release.yml and release-please.yml.
+      - name: Check the zip holds what a release ships
+        run: |
+          list="$RUNNER_TEMP/zip.txt"
+          unzip -Z1 voyager-open-blocks.zip > "$list"
+          test "$(cut -d/ -f1 "$list" | sort -u)" = voyager-open-blocks
+          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ LICENSE README.md readme.txt voyager-open-blocks.php; do
+            grep -q "^voyager-open-blocks/$path" "$list" || { echo "::error::zip is missing $path"; exit 1; }
+          done
+          # playground/ is demo seeding for blueprints, which install from Git.
+          test "$(grep -c -E '/node_modules/|/scripts/|/tests/|/src/|/playground/' "$list")" -eq 0
+
+      - name: Activate the zip, request front-end and admin pages, run wp plugin check, uninstall
+        run: npm run plugin-check -- --zip voyager-open-blocks.zip
