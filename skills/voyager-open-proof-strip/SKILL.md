@@ -40,7 +40,7 @@ On route 2, copy the intent and replace the list items' `text` with three to six
 { "block": "core/list", "attrs": { "className": "is-style-voyager-open-ticks" }, "items": [ "Licensed and insured", "Family owned since 1998" ] }
 ```
 
-On route 1, `insert` rewrites the four shipped items with `copy` and drops items with `omit` (see Abilities). It cannot add a fifth or sixth item.
+On route 1, `insert` rewrites the four shipped items with `copy`, drops items with `omit` and adds a fifth or sixth with `repeat` (see Abilities).
 
 ## Bindings
 
@@ -66,15 +66,22 @@ This is route 2, with a shell and Node. On route 1, follow Abilities below inste
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **Where:** "under the hero" is usually `position` 1. Read `get-post-blocks` first and count the top-level blocks (paths with no `/`): the hero is normally the one at path `0`.
+- **Which page:** for "my home page", call `find-posts` with `{"front_page": true}` and use the row's `id`. If its `note` says the home page lists the latest posts, the row is a template: that works the same way when its `id` is a number. When `id` is `null`, ask the user to save that template once in the Site Editor.
+- **Where:** "under the hero" is usually `position` 1. Read `get-post-blocks` first and count the top-level blocks (paths with no `/`): the hero is normally the one at path `0`, and the `text` of the heading inside it is the page's main headline.
 - **Three or four facts:** `insert` with `copy` for one item per fact, and `omit` for the items left over:
 
   ```json
   {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "copy": {"Credential 1": "Licensed and insured", "Credential 2": "Family owned since 1998", "Credential 3": "Written quotes"}, "omit": ["Credential 4"]}
   ```
 
-  Labels: `Credential 1` to `Credential 4`. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label is refused with `voyager_open_blocks_invalid_copy` or `voyager_open_blocks_invalid_omit`, which list the valid labels.
-- **Five or six facts:** route 1 cannot add items. Insert four, and tell the user which facts still need an item in the editor. Or use route 2.
+  Labels: `Credential 1` to `Credential 4`. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label is refused with `voyager_open_blocks_invalid_copy`, `voyager_open_blocks_invalid_omit` or `voyager_open_blocks_invalid_repeat`, which list the valid labels.
+- **Five or six facts:** `repeat` adds items after `Credential 4`, each with a new label, and `copy` fills them:
+
+  ```json
+  {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "repeat": {"Credential 4": ["Credential 5", "Credential 6"]}, "copy": {"Credential 1": "Licensed and insured", "Credential 2": "Family owned since 1998", "Credential 3": "Written quotes", "Credential 4": "Same-week scheduling", "Credential 5": "Free estimates", "Credential 6": "Two-year guarantee"}}
+  ```
+
+  Give each new item a label no block has yet. Every item you add needs a fact in `copy`, or it shows the fourth item's placeholder text. More than six makes a crowded row: say so and ask which to keep.
 - **No facts:** do not insert the strip. Ask the owner for them.
 - **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. It shows the four shipped claims, so use it only on a demo page.
 - **bind:** optional. Bind a list item's `content` to an allowlisted post meta field by its path and the field's args from `get-catalog`.

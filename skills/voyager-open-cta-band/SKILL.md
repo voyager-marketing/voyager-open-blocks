@@ -63,7 +63,7 @@ This is route 2, with a shell and Node. On route 1, follow Abilities below inste
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write. Run them in this order.
 
 1. **get-catalog.** Confirm `voyager-open/cta-band` is in `patterns`, and that the `voyager/site-data` source lists a field with args `{"key": "phone"}` and one with `{"key": "phone_link"}`.
-2. **get-post-blocks** on the page, `{"post_id": 123}`. Count the top-level blocks (paths with no `/`). To place the band before the last section, pass that count minus one as `position`. On an empty page, leave `position` out.
+2. **find-posts, then get-post-blocks.** For "my Services page", call `find-posts` with `{"search": "Services"}` and take `id` from the row whose `title` is the page's name, say 123. No row: try `{"slug": "services"}`, or ask the user which page. Then `get-post-blocks` with `{"post_id": 123}`. Count the top-level blocks (paths with no `/`). To place the band before the last section, pass that count minus one as `position`. On an empty page, leave `position` out.
 3. **insert with dry_run.** Write the eyebrow, heading and line for the page:
 
    ```json

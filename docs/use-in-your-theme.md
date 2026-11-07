@@ -212,30 +212,34 @@ The plugin fires no actions of its own. It hooks these:
 | `init` | 20 | Registers both binding sources, their options and the settings screen hooks |
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
 | `enqueue_block_editor_assets` | 10 | The editor half of both sources: field lists, live values, in-place editing of post meta |
-| `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the six abilities |
+| `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the seven abilities |
 
 ### Abilities
 
-Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<name>/run`: `GET` with `input[<field>]` query parameters for the three read-only abilities, `POST` with a `{"input": {...}}` body for the rest. The WordPress MCP Adapter serves the same abilities as MCP tools.
+Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<name>/run`: `GET` with `input[<field>]` query parameters for the four read-only abilities, `POST` with a `{"input": {...}}` body for the rest. The WordPress MCP Adapter serves the same abilities as MCP tools.
 
 | Ability | Method | Permission | Input |
 |---|---|---|---|
 | `voyager-open-blocks/get-catalog` | GET | `edit_posts` | `post_type` (default `page`) |
+| `voyager-open-blocks/find-posts` | GET | `edit_posts`; the post type's own `edit_posts` capability, or `edit_theme_options` for `wp_template` and `wp_template_part`; each result needs `edit_post` and `read_post` | `search` (words in the title; for templates, the title or slug), `slug` (exact), `post_type` (default `page`; any type shown in REST with editor support, including `wp_template` and `wp_template_part`), `front_page` (default `false`; returns the home page and ignores the rest), `limit` (default `10`, at most `20`) |
 | `voyager-open-blocks/get-post-blocks` | GET | `edit_post` on `post_id` | `post_id` (required) |
-| `voyager-open-blocks/insert` | POST | `edit_post` on `post_id` | `post_id`, `item` (required); `position` (default `-1`, appends), `mode` (`copy` or `reference`, default `copy`), `attributes` (blocks only), `copy` (patterns in copy mode only, label => plain text), `omit` (patterns in copy mode only, labels of blocks to leave out), `dry_run` (default `false`) |
+| `voyager-open-blocks/insert` | POST | `edit_post` on `post_id` | `post_id`, `item` (required); `parent` (path of the block to insert into; left out, the top level), `position` (default `-1`, appends; an index among `parent`'s inner blocks when it is given), `mode` (`copy` or `reference`, default `copy`), `attributes` (blocks only), `copy` (patterns in copy mode only, label => plain text), `omit` (patterns in copy mode only, labels of blocks to leave out), `repeat` (patterns in copy mode only, label => labels of copies added right after it), `dry_run` (default `false`) |
 | `voyager-open-blocks/configure` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attributes` (all required). Blocks that save no HTML only. `null` resets an attribute. |
-| `voyager-open-blocks/bind` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attribute`, `source` (`voyager/site-data`, `voyager/post-meta-text` or `core/post-meta`), `args` (all required) |
+| `voyager-open-blocks/bind` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attribute`, `source` (`voyager/site-data`, `voyager/post-meta-text` or `core/post-meta`), `args` (all required); `post_type` (the post type whose fields `args` must match; only in a template, template part, synced pattern or Query Loop, default the post's own type) |
 | `voyager-open-blocks/validate` | GET | `edit_post` on `post_id` when one is given, otherwise `edit_posts` | `markup` or `post_id` (one of them, not both); `post_type` (for binding args, default the post's type or `page`) |
 
 What they return:
 
 - `get-catalog`: `blocks` (attribute schema and bindable attributes), `patterns` (named blocks, their bindings, `copy: true` on those `insert` can rewrite) and `sources` (each with `fields`, every one with its exact `args`).
-- `get-post-blocks`: `post_id` and `blocks`, each with `path`, `block`, `label` (its `metadata.name`), `pattern` (for a `core/pattern` reference) and `bindings`. Every binding carries `resolution`: `status` (`resolved` or `fell_back`), `reason` (`null`, `source_unregistered`, `unknown_key` or `empty_value`) and `value_preview` (the first 80 characters).
-- `insert`: `post_id`, `item`, `index`, `saved`, `markup`, `blocks` (the inserted blocks with their paths) and `validation`.
+- `find-posts`: `posts`, each with `id` (`null` for a template or template part that is only a theme file, never saved in the Site Editor), `title`, `slug`, `post_type`, `status`, `link`, `front_page`, and for templates `source` (`theme` or `custom`) and `note`, and for template parts `area`; `has_more`; and `note` when there is something to explain, such as a home page that lists the latest posts.
+- `get-post-blocks`: `post_id` and `blocks`, each with `path`, `block`, `label` (its `metadata.name`), `text` (the first 80 characters of its own text, when it has any), `pattern` (for a `core/pattern` reference) and `bindings`. Every binding carries `resolution`: `status` (`resolved` or `fell_back`), `reason` (`null`, `source_unregistered`, `unknown_key` or `empty_value`) and `value_preview` (the first 80 characters).
+- `insert`: `post_id`, `item`, `index`, `saved`, `markup`, `blocks` (the inserted blocks with their paths) and `validation`. With `parent`, also `parent`, `section_markup` (the whole top-level block that now holds them) and `validation.section_round_trip`.
 - `configure` and `bind`: `post_id`, `path`, `block`, `attributes`, `markup` and `validation`.
 - `validate`: `valid`, `post_type`, `round_trip`, `blocks` (each with `path`, `block`, `errors` and `warnings`), `errors`, `warnings`, `post_id` when it checked a saved post, and `save_output`, which says what it can't check: saved HTML against each block's `save()`. `npx block-runner validate` checks that.
 
-A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `path`, `item`, `attributes`, `attribute`, `source`, `args` or `copy`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` through `npx block-runner validate --strict --json`.
+A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat` or `markup`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` and `section_markup` through `npx block-runner validate --strict --json`.
+
+`insert` with `parent` follows the rules the editor's inserter follows, from block.json: the parent must allow the new block (`allowedBlocks`, or its own `allowedBlocks` attribute), each new block's `parent` and `ancestor` must hold, and the parent must not be locked (`templateLock` `all`, `insert` or `contentOnly`, its own or the nearest one set around it). The parent must already hold a block, because where an empty container's HTML holds its inner blocks is known only to its JavaScript `save()`.
 
 ### Block, styles and patterns
 

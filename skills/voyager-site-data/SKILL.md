@@ -97,8 +97,8 @@ The attribute must be bindable for that block, and `args` must exactly match a f
 
 **A phone number in the footer.** The footer is a template part, so `bind` needs that part's post ID.
 
-1. Find it. A template part has a post ID only once it has been saved in the Site Editor. Over REST, `GET /wp-json/wp/v2/template-parts` lists the parts, and the footer's `wp_id` is its post ID. If you cannot get an ID, tell the user to save the footer once in the Site Editor, or to bind it there.
-2. Call `get-post-blocks` with that ID and find the paragraph that shows the number.
+1. Find it with `find-posts`: `{"post_type": "wp_template_part", "search": "footer"}`, and take `id` from the row whose `area` is `footer`. A template part has a post ID only once it has been saved in the Site Editor, so `id` is `null` for one that is still the theme's file. Then tell the user to save the footer once in the Site Editor, or to bind it there.
+2. Call `get-post-blocks` with that ID and find the paragraph that shows the number: its `text` holds it.
 3. If the paragraph holds only the number, bind its `content` to `{"key": "phone"}`. If the number sits in a longer line, such as "Call us at 555-0142", binding would replace the whole line. Tell the user to move the number into its own paragraph first.
 4. If the number is also a link, bind that block's `url` (a button) or `linkUrl` (an icon) to `{"key": "phone_link"}`. A link inside a paragraph's text cannot be bound on its own.
 5. Call `get-post-blocks` again and read the binding's `resolution`.

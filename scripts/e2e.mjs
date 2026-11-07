@@ -6,16 +6,27 @@
  *
  * Against a running site (npm run playground -- serve), it:
  *   1. lists the pack's abilities and reads the catalog,
- *   2. creates a page and inserts the CTA band (bound to voyager/site-data), then
- *      inserts it again with copy for its heading, body and bound call button,
- *      and inserts the proof strip with three facts and its fourth item omitted,
- *   3. inserts an icon, configures it and binds its link,
+ *   2. creates a page, finds it with find-posts by title words and by slug, and
+ *      inserts the CTA band (bound to voyager/site-data), then inserts it again
+ *      with copy for its heading, body and bound call button, and inserts the
+ *      proof strip with three facts (fourth item omitted) and with six (two repeated),
+ *   3. inserts an icon, configures it and binds its link, and inserts an icon
+ *      inside the second CTA band's row, beside its buttons,
  *   4. checks bad input is refused (unknown icon, invented args, unbindable attribute,
- *      copy for an unknown label, a block that is not text, or a reference),
+ *      copy for an unknown label, a block that is not text, or a reference, a parent
+ *      that does not allow the icon, holds no blocks or is locked, a repeat that
+ *      cannot apply, post_type on a page block),
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
  *      and on the saved page, and the validate ability on the same markup, on the
  *      saved page and on broken markup, including one case only block-runner catches,
- *   6. fetches the page and checks the bound values rendered.
+ *   6. fetches the page and checks the bound values rendered,
+ *   7. the icon prompt end to end: creates a header template part with a call
+ *      button, finds it with find-posts, puts a phone icon beside the button and
+ *      binds its link to Site Data, then checks it resolves and validates,
+ *   8. binds post meta in a template with post_type, and checks it is refused without,
+ *   9. checks find-posts as a contributor: their own draft is listed, an
+ *      administrator's private post is not, and pages are refused,
+ *  10. deletes what steps 7 to 9 created. The page from step 2 is kept, as before.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -129,14 +140,14 @@ async function request( target, init = {} ) {
 	throw new Error( `Too many redirects for ${ url }` );
 }
 
-async function api( path, { method = 'GET', body, query } = {} ) {
+async function api( path, { method = 'GET', body, query, as = auth } = {} ) {
 	const url = new URL( `${ base }/wp-json${ path }` );
 	for ( const [ key, value ] of Object.entries( query || {} ) ) {
 		url.searchParams.set( key, String( value ) );
 	}
 	const response = await request( url, {
 		method,
-		headers: { Authorization: auth, 'Content-Type': 'application/json' },
+		headers: { Authorization: as, 'Content-Type': 'application/json' },
 		body: body ? JSON.stringify( body ) : undefined,
 	} );
 	let data = {};
@@ -152,18 +163,20 @@ async function api( path, { method = 'GET', body, query } = {} ) {
  * @param {string}  name     Ability name.
  * @param {Object}  input    Input.
  * @param {boolean} readonly GET for read-only abilities, POST otherwise.
+ * @param {string}  as       Authorization header, the --user's by default.
  */
-function run( name, input, readonly = false ) {
+function run( name, input, readonly = false, as = auth ) {
 	if ( readonly ) {
 		const query = {};
 		for ( const [ key, value ] of Object.entries( input ) ) {
 			query[ `input[${ key }]` ] = value;
 		}
-		return api( `/wp-abilities/v1/abilities/${ name }/run`, { query } );
+		return api( `/wp-abilities/v1/abilities/${ name }/run`, { query, as } );
 	}
 	return api( `/wp-abilities/v1/abilities/${ name }/run`, {
 		method: 'POST',
 		body: { input },
+		as,
 	} );
 }
 
@@ -211,7 +224,9 @@ const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.sort();
 step(
 	'abilities listed',
-	names.length === 6 && names.includes( `${ ns }/validate` ),
+	names.length === 7 &&
+		names.includes( `${ ns }/validate` ) &&
+		names.includes( `${ ns }/find-posts` ),
 	names.join( ', ' )
 );
 
@@ -232,13 +247,63 @@ step(
 	`${ ( catalog.data.patterns || [] ).length } patterns, ${ ( siteData?.fields || [] ).length } site-data fields`
 );
 
-// 2. A fresh page with the CTA band.
+// 2. A fresh page with the CTA band. The stamp keeps this run's posts apart
+// from earlier runs' on a site that lasts.
+const stamp = String( Date.now() );
 const page = await api( '/wp/v2/pages', {
 	method: 'POST',
-	body: { title: 'E2E: CTA band', status: 'publish', content: '' },
+	body: { title: `E2E: CTA band ${ stamp }`, status: 'publish', content: '' },
 } );
 const postId = page.data.id;
 step( 'page created', page.status === 201, `id ${ postId }` );
+
+// find-posts: the route-1 way to get a post_id from "my ... page".
+const ids = ( found ) => ( found.data.posts || [] ).map( ( p ) => p.id );
+const byTitle = await run( `${ ns }/find-posts`, { search: stamp }, true );
+step(
+	'find-posts finds the page by words in its title',
+	byTitle.status === 200 &&
+		ids( byTitle ).includes( postId ) &&
+		byTitle.data.posts.every( ( p ) => p.post_type === 'page' ),
+	byTitle.data.code || `ids ${ ids( byTitle ).join( ', ' ) }`
+);
+
+const bySlug = await run(
+	`${ ns }/find-posts`,
+	{ slug: page.data.slug },
+	true
+);
+step(
+	'find-posts finds the page by its exact slug',
+	bySlug.status === 200 &&
+		bySlug.data.posts?.length === 1 &&
+		bySlug.data.posts[ 0 ].id === postId &&
+		bySlug.data.posts[ 0 ].title === `E2E: CTA band ${ stamp }`,
+	bySlug.data.code || JSON.stringify( bySlug.data.posts?.[ 0 ] ?? null )
+);
+
+const frontPage = await run( `${ ns }/find-posts`, { front_page: true }, true );
+step(
+	'find-posts answers for the home page',
+	frontPage.status === 200 &&
+		( frontPage.data.posts || [] ).length <= 1 &&
+		( frontPage.data.posts || [] ).every( ( p ) => p.front_page === true ),
+	frontPage.data.note ||
+		frontPage.data.code ||
+		JSON.stringify( frontPage.data.posts?.[ 0 ] ?? null )
+);
+
+const badType = await run(
+	`${ ns }/find-posts`,
+	{ post_type: 'not_a_post_type' },
+	true
+);
+step(
+	'find-posts refuses a post type that is not edited in the block editor',
+	badType.status === 400 &&
+		badType.data.code === 'voyager_open_blocks_invalid_post_type',
+	badType.data.code
+);
 
 const cta = await run( `${ ns }/insert`, {
 	post_id: postId,
@@ -321,6 +386,74 @@ step(
 		`${ ( stripMarkup.match( /<li>/g ) || [] ).length } items`
 );
 validate( 'proof-strip with omit', stripMarkup );
+
+// The proof strip with six facts: repeat adds a fifth and sixth item after the
+// fourth, and copy fills all six.
+const sixFacts = [
+	'Licensed in three states',
+	'Family owned since 1998',
+	'Written quotes',
+	'Same-week scheduling',
+	'Free estimates',
+	'Two-year guarantee',
+];
+const six = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/proof-strip',
+	repeat: { 'Credential 4': [ 'Credential 5', 'Credential 6' ] },
+	copy: Object.fromEntries(
+		sixFacts.map( ( fact, i ) => [ `Credential ${ i + 1 }`, fact ] )
+	),
+} );
+const sixMarkup = six.data.markup || '';
+const sixItems = [ ...sixMarkup.matchAll( /<li>([^<]*)<\/li>/g ) ].map(
+	( m ) => m[ 1 ]
+);
+step(
+	'insert proof-strip with six facts (repeat and copy)',
+	six.status === 200 &&
+		six.data.saved === true &&
+		six.data.validation?.round_trip === true &&
+		JSON.stringify( sixItems ) === JSON.stringify( sixFacts ) &&
+		( six.data.blocks || [] ).some( ( b ) => b.label === 'Credential 6' ),
+	six.data.code || sixItems.join( ' | ' )
+);
+validate( 'proof-strip with six facts', sixMarkup );
+
+for ( const [ label, input ] of [
+	[
+		'insert refuses repeat for the whole section',
+		{ repeat: { 'Proof strip': [ 'Proof strip 2' ] } },
+	],
+	[
+		'insert refuses repeat to a label already used',
+		{ repeat: { 'Credential 4': [ 'Credential 2' ] } },
+	],
+	[
+		'insert refuses repeat for a block that holds named blocks',
+		{ repeat: { Credentials: [ 'More credentials' ] } },
+	],
+	[
+		'insert refuses repeat on a reference',
+		{
+			repeat: { 'Credential 4': [ 'Credential 5' ] },
+			mode: 'reference',
+		},
+	],
+] ) {
+	const refused = await run( `${ ns }/insert`, {
+		post_id: postId,
+		item: 'voyager-open/proof-strip',
+		dry_run: true,
+		...input,
+	} );
+	step(
+		label,
+		refused.status === 400 &&
+			refused.data.code === 'voyager_open_blocks_invalid_repeat',
+		refused.data.message || refused.data.code
+	);
+}
 
 // 3. Icon: insert, configure, bind.
 const icon = await run( `${ ns }/insert`, {
@@ -457,6 +590,92 @@ for ( const [ label, input, code ] of [
 		refused.data.message || refused.data.code
 	);
 }
+
+// Nested insert: an icon inside the second CTA band's row, before its buttons.
+// The row is a core/group, which takes any block. core/buttons takes only
+// buttons, a heading holds no blocks, and a locked group takes nothing.
+const blocksOf = ( response ) => response.data.blocks || [];
+const parentOf = ( path ) => path.split( '/' ).slice( 0, -1 ).join( '/' );
+const rowPath = blocksOf( withCopy ).find( ( b ) => b.label === 'Row' )?.path;
+const buttonsRow = blocksOf( withCopy ).find(
+	( b ) => b.block === 'core/buttons' && parentOf( b.path ) === rowPath
+);
+const buttonsIndex = Number( buttonsRow?.path.split( '/' ).pop() );
+const nested = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/icon',
+	parent: rowPath,
+	position: buttonsIndex,
+	attributes: { icon: 'phone', size: 24, label: 'Call us' },
+} );
+step(
+	'insert an icon inside a row, before its buttons',
+	nested.status === 200 &&
+		nested.data.saved === true &&
+		nested.data.parent === rowPath &&
+		nested.data.index === buttonsIndex &&
+		nested.data.blocks?.[ 0 ]?.path === `${ rowPath }/${ buttonsIndex }` &&
+		nested.data.validation?.section_round_trip === true &&
+		( nested.data.section_markup || '' ).includes(
+			'<!-- wp:voyager-open/icon {"icon":"phone","size":24,"label":"Call us"} /-->\n\n<!-- wp:buttons'
+		),
+	nested.data.message || `icon at ${ nested.data.blocks?.[ 0 ]?.path }`
+);
+validate( 'section with a nested icon', nested.data.section_markup || '' );
+
+const lockedPage = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E: locked ${ stamp }`,
+		status: 'draft',
+		content:
+			'<!-- wp:group {"templateLock":"all","layout":{"type":"constrained"}} -->\n<div class="wp-block-group"><!-- wp:paragraph -->\n<p>Locked</p>\n<!-- /wp:paragraph --></div>\n<!-- /wp:group -->',
+	},
+} );
+
+for ( const [ label, input ] of [
+	[
+		'insert refuses an icon inside core/buttons (allowedBlocks)',
+		{ parent: buttonsRow?.path },
+	],
+	[
+		'insert refuses a parent that holds no blocks',
+		{ parent: heading?.path },
+	],
+	[ 'insert refuses a parent path with no block', { parent: '99/0' } ],
+	[
+		'insert refuses a locked parent (templateLock)',
+		{ post_id: lockedPage.data.id, parent: '0' },
+	],
+] ) {
+	const refused = await run( `${ ns }/insert`, {
+		post_id: postId,
+		item: 'voyager-open/icon',
+		dry_run: true,
+		...input,
+	} );
+	step(
+		label,
+		refused.status === 400 &&
+			refused.data.code === 'voyager_open_blocks_invalid_parent',
+		refused.data.message || refused.data.code
+	);
+}
+
+const pageWithPostType = await run( `${ ns }/bind`, {
+	post_id: postId,
+	path: heading?.path,
+	attribute: 'content',
+	source: 'voyager/site-data',
+	args: { key: 'phone' },
+	post_type: 'post',
+} );
+step(
+	'bind refuses post_type for a block that reads its own page',
+	pageWithPostType.status === 400 &&
+		pageWithPostType.data.code === 'voyager_open_blocks_invalid_post_type',
+	pageWithPostType.data.code
+);
 
 // 5. The saved page as a whole.
 const saved = await api( `/wp/v2/pages/${ postId }`, {
@@ -595,6 +814,308 @@ step(
 	telLinks.length >= 2,
 	telLinks.join( ' ' )
 );
+
+// 7. The icon prompt, end to end: "Add a phone icon next to the call button
+// in my header, linked to my Site Data phone number." The header is a
+// template part with a post of its own, as one saved in the Site Editor is.
+const cleanup = [];
+const partSlug = `voyager-open-e2e-header-${ stamp }`;
+const part = await api( '/wp/v2/template-parts', {
+	method: 'POST',
+	body: {
+		slug: partSlug,
+		title: `E2E header ${ stamp }`,
+		area: 'header',
+		content:
+			'<!-- wp:group {"layout":{"type":"flex","flexWrap":"nowrap","justifyContent":"space-between"}} -->\n<div class="wp-block-group"><!-- wp:paragraph -->\n<p>Example Co.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="tel:+15550100">Call us</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons --></div>\n<!-- /wp:group -->',
+	},
+} );
+const partId = part.data.wp_id;
+if ( part.data.id ) {
+	cleanup.push( `/wp/v2/template-parts/${ part.data.id }` );
+}
+step(
+	'header template part created',
+	part.status === 201 && partId > 0,
+	part.data.code || `post ${ partId }`
+);
+
+const foundPart = await run(
+	`${ ns }/find-posts`,
+	{ post_type: 'wp_template_part', search: `header ${ stamp }` },
+	true
+);
+const partRow = foundPart.data.posts?.[ 0 ];
+step(
+	'find-posts finds the header by words in its title',
+	foundPart.status === 200 &&
+		partRow?.id === partId &&
+		partRow.area === 'header' &&
+		partRow.source === 'custom',
+	foundPart.data.code || JSON.stringify( partRow ?? null )
+);
+
+const partTree = await run(
+	`${ ns }/get-post-blocks`,
+	{ post_id: partId },
+	true
+);
+const partCall = ( partTree.data.blocks || [] ).find(
+	( b ) => b.block === 'core/button' && b.text === 'Call us'
+);
+step(
+	'get-post-blocks shows the call button by its text',
+	partTree.status === 200 && !! partCall,
+	partCall?.path
+);
+
+// The icon goes beside the buttons block, in the row that holds it: inside
+// core/buttons only buttons belong.
+const partButtons = parentOf( partCall?.path || '' );
+const partIcon = await run( `${ ns }/insert`, {
+	post_id: partId,
+	item: 'voyager-open/icon',
+	parent: parentOf( partButtons ),
+	position: Number( partButtons.split( '/' ).pop() ),
+	attributes: { icon: 'phone', size: 24, label: 'Call us' },
+} );
+const partIconPath = partIcon.data.blocks?.[ 0 ]?.path;
+step(
+	"insert the phone icon beside the header's call button",
+	partIcon.status === 200 &&
+		partIcon.data.saved === true &&
+		partIconPath === partButtons,
+	partIcon.data.message || `icon at ${ partIconPath }`
+);
+validate( 'header with the icon', partIcon.data.section_markup || '' );
+
+const partBound = await run( `${ ns }/bind`, {
+	post_id: partId,
+	path: partIconPath,
+	attribute: 'linkUrl',
+	source: 'voyager/site-data',
+	args: field,
+} );
+step(
+	'bind the header icon to Site Data phone_link',
+	partBound.status === 200,
+	partBound.data.message ||
+		JSON.stringify( partBound.data.attributes?.metadata?.bindings )
+);
+
+const partAfter = await run(
+	`${ ns }/get-post-blocks`,
+	{ post_id: partId },
+	true
+);
+const partLink = ( partAfter.data.blocks || [] ).find(
+	( b ) => b.path === partIconPath
+)?.bindings?.linkUrl?.resolution;
+step(
+	'the header icon link resolves to a tel: link',
+	partLink?.status === 'resolved' &&
+		( partLink.value_preview || '' ).startsWith( 'tel:' ),
+	JSON.stringify( partLink ?? null )
+);
+
+const partReport = await checkMarkup( { post_id: partId } );
+step(
+	'validate passes the saved header',
+	clean( partReport ),
+	( partReport.data.errors || [] ).join( ' ' ) || partReport.data.code
+);
+
+// 8. Post meta in a template: bind checks args against the post type the
+// template shows, given as post_type, not against wp_template.
+const template = await api( '/wp/v2/templates', {
+	method: 'POST',
+	body: {
+		slug: `voyager-open-e2e-single-${ stamp }`,
+		title: `E2E single ${ stamp }`,
+		content:
+			'<!-- wp:paragraph -->\n<p>Subtitle</p>\n<!-- /wp:paragraph -->',
+	},
+} );
+const templateId = template.data.wp_id;
+if ( template.data.id ) {
+	cleanup.push( `/wp/v2/templates/${ template.data.id }` );
+}
+step(
+	'template created',
+	template.status === 201 && templateId > 0,
+	template.data.code || `post ${ templateId }`
+);
+
+const postFields = await run(
+	`${ ns }/get-catalog`,
+	{ post_type: 'post' },
+	true
+);
+const templateFields = await run(
+	`${ ns }/get-catalog`,
+	{ post_type: 'wp_template' },
+	true
+);
+const listed = ( catalogResponse, source ) =>
+	(
+		( catalogResponse.data.sources || [] ).find(
+			( x ) => x.name === source
+		)?.fields || []
+	).map( ( f ) => JSON.stringify( f.args ) );
+let metaBinding = null;
+for ( const source of [ 'voyager/post-meta-text', 'core/post-meta' ] ) {
+	const forTemplate = listed( templateFields, source );
+	const forPosts = listed( postFields, source ).filter(
+		( args ) => ! forTemplate.includes( args )
+	);
+	if ( forPosts.length ) {
+		metaBinding = { source, args: JSON.parse( forPosts[ 0 ] ) };
+		break;
+	}
+}
+step(
+	'get-catalog lists a post meta field for posts that templates do not have',
+	!! metaBinding,
+	JSON.stringify( metaBinding )
+);
+
+const bindInTemplate = ( extra ) =>
+	run( `${ ns }/bind`, {
+		post_id: templateId,
+		path: '0',
+		attribute: 'content',
+		...metaBinding,
+		...extra,
+	} );
+const withoutType = await bindInTemplate( {} );
+step(
+	'bind refuses post meta in a template without post_type, and says to pass it',
+	withoutType.status === 400 &&
+		withoutType.data.code === 'voyager_open_blocks_invalid_args' &&
+		( withoutType.data.message || '' ).includes( 'post_type' ),
+	withoutType.data.message
+);
+
+const withType = await bindInTemplate( { post_type: 'post' } );
+step(
+	'bind accepts post meta in a template with post_type "post"',
+	withType.status === 200,
+	withType.data.message ||
+		JSON.stringify( withType.data.attributes?.metadata?.bindings )
+);
+
+const unknownType = await bindInTemplate( { post_type: 'not_a_post_type' } );
+step(
+	'bind refuses a post_type that does not exist',
+	unknownType.status === 400 &&
+		unknownType.data.code === 'voyager_open_blocks_invalid_post_type',
+	unknownType.data.code
+);
+
+const templateReport = await checkMarkup( {
+	post_id: templateId,
+	post_type: 'post',
+} );
+const templateAsTemplate = await checkMarkup( { post_id: templateId } );
+step(
+	'validate passes the template for posts, and not for wp_template',
+	clean( templateReport ) && templateAsTemplate.data.valid === false,
+	( templateReport.data.errors || [] ).join( ' ' ) || templateReport.data.code
+);
+
+// 9. find-posts as a contributor: their own draft is listed, an
+// administrator's private post is not, and pages (which they cannot edit) are refused.
+const me = await api( '/wp/v2/users/me' );
+const privatePost = await api( '/wp/v2/posts', {
+	method: 'POST',
+	body: { title: `E2E private ${ stamp }`, status: 'private' },
+} );
+const contributor = await api( '/wp/v2/users', {
+	method: 'POST',
+	body: {
+		username: `voyager-open-e2e-${ stamp }`,
+		email: `voyager-open-e2e-${ stamp }@example.com`,
+		password: `${ stamp }-${ Math.random().toString( 36 ).slice( 2 ) }`,
+		roles: [ 'contributor' ],
+	},
+} );
+const contributorKey = contributor.data.id
+	? await api(
+			`/wp/v2/users/${ contributor.data.id }/application-passwords`,
+			{ method: 'POST', body: { name: 'e2e' } }
+		)
+	: { data: {} };
+const asContributor =
+	'Basic ' +
+	Buffer.from(
+		`${ contributor.data.username }:${ contributorKey.data.password }`
+	).toString( 'base64' );
+step(
+	'contributor and private post created',
+	privatePost.status === 201 &&
+		contributor.status === 201 &&
+		!! contributorKey.data.password,
+	`${ privatePost.data.code || privatePost.status } ${ contributor.data.code || contributor.status }`
+);
+
+const ownDraft = await api( '/wp/v2/posts', {
+	method: 'POST',
+	body: { title: `E2E contributor ${ stamp }`, status: 'draft' },
+	as: asContributor,
+} );
+const contributorFound = await run(
+	`${ ns }/find-posts`,
+	{ post_type: 'post', search: stamp },
+	true,
+	asContributor
+);
+const adminFound = await run(
+	`${ ns }/find-posts`,
+	{ post_type: 'post', search: stamp },
+	true
+);
+step(
+	"find-posts shows a contributor their own draft and not an administrator's private post",
+	ownDraft.status === 201 &&
+		contributorFound.status === 200 &&
+		ids( contributorFound ).includes( ownDraft.data.id ) &&
+		! ids( contributorFound ).includes( privatePost.data.id ) &&
+		ids( adminFound ).includes( privatePost.data.id ),
+	contributorFound.data.code ||
+		`contributor sees ${ ids( contributorFound ).join( ', ' ) }`
+);
+
+const contributorPages = await run(
+	`${ ns }/find-posts`,
+	{ post_type: 'page' },
+	true,
+	asContributor
+);
+step(
+	'find-posts refuses pages to a contributor',
+	contributorPages.status === 403 &&
+		contributorPages.data.code === 'voyager_open_blocks_invalid_post_type',
+	contributorPages.data.code
+);
+
+// 10. Clean up what steps 7 to 9 created. The step 2 page stays, as before.
+for ( const id of [ ownDraft.data.id, privatePost.data.id ] ) {
+	if ( id ) {
+		cleanup.push( `/wp/v2/posts/${ id }` );
+	}
+}
+if ( lockedPage.data.id ) {
+	cleanup.push( `/wp/v2/pages/${ lockedPage.data.id }` );
+}
+for ( const path of cleanup ) {
+	await api( path, { method: 'DELETE', query: { force: true } } );
+}
+if ( contributor.data.id ) {
+	await api( `/wp/v2/users/${ contributor.data.id }`, {
+		method: 'DELETE',
+		query: { force: true, reassign: me.data.id },
+	} );
+}
 
 rmSync( scratch, { recursive: true, force: true } );
 console.log(

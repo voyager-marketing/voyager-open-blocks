@@ -295,6 +295,62 @@ function match_args( string $source, string $post_type, array $args ) {
 }
 
 /**
+ * Post types whose blocks render for other posts: a template, a template part,
+ * and a synced pattern show whichever post is being viewed.
+ */
+const SHOWS_OTHER_POSTS = [ 'wp_template', 'wp_template_part', 'wp_block' ];
+
+/**
+ * The post type whose fields a binding's args are checked against.
+ *
+ * A block reads post meta from the post in its context: its own post, or the
+ * post a template, template part, synced pattern or Query Loop is showing.
+ * So another post type is accepted only where the block can show other posts.
+ *
+ * @param string $own           Post type of the post the block is saved in.
+ * @param string $given         post_type from the input, '' when not given.
+ * @param bool   $in_query_loop The block is inside a core/post-template.
+ * @return string|WP_Error
+ */
+function binding_post_type( string $own, string $given, bool $in_query_loop ) {
+	if ( '' === $given || $given === $own ) {
+		return $own;
+	}
+
+	if ( $in_query_loop || in_array( $own, SHOWS_OTHER_POSTS, true ) ) {
+		return $given;
+	}
+
+	return new WP_Error(
+		'voyager_open_blocks_invalid_post_type',
+		sprintf( 'This block is saved in a %1$s and reads that %1$s\'s own fields, so post_type cannot be %2$s. Pass post_type only for a block in a template, a template part, a synced pattern or a Query Loop.', $own, $given ),
+		[ 'status' => 400 ]
+	);
+}
+
+/**
+ * Point a refused binding in a template at post_type.
+ *
+ * A template has no post meta of its own, so binding one of its blocks to a
+ * post meta field is refused until the agent names the post type it shows.
+ *
+ * @param WP_Error $error The refusal.
+ * @param string   $own   Post type of the post the block is saved in.
+ * @param string   $given post_type from the input, '' when not given.
+ */
+function explain_post_type( WP_Error $error, string $own, string $given ): WP_Error {
+	if ( '' !== $given || 'voyager_open_blocks_invalid_args' !== $error->get_error_code() || ! in_array( $own, SHOWS_OTHER_POSTS, true ) ) {
+		return $error;
+	}
+
+	return new WP_Error(
+		'voyager_open_blocks_invalid_args',
+		$error->get_error_message() . sprintf( ' A %s has no fields of its own: pass post_type, the post type it shows, such as "post" for the single template.', $own ),
+		[ 'status' => 400 ]
+	);
+}
+
+/**
  * The checks bind makes before it writes a binding.
  *
  * The attribute must be bindable on the block, the source must be registered,
