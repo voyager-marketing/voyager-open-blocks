@@ -12,14 +12,15 @@
  *   4. checks bad input is refused (unknown icon, invented args, unbindable attribute,
  *      copy for an unknown label, a block that is not text, or a reference),
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
- *      and on the saved page,
+ *      and on the saved page, and the validate ability on the same markup, on the
+ *      saved page and on broken markup, including one case only block-runner catches,
  *   6. fetches the page and checks the bound values rendered.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import { tmpdir } from 'node:os';
@@ -207,7 +208,11 @@ const list = await api( '/wp-abilities/v1/abilities', {
 const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.map( ( a ) => a.name )
 	.sort();
-step( 'abilities listed', names.length === 5, names.join( ', ' ) );
+step(
+	'abilities listed',
+	names.length === 6 && names.includes( `${ ns }/validate` ),
+	names.join( ', ' )
+);
 
 const catalog = await run( `${ ns }/get-catalog`, { post_type: 'page' }, true );
 const siteData = ( catalog.data.sources || [] ).find(
@@ -413,6 +418,110 @@ const saved = await api( `/wp/v2/pages/${ postId }`, {
 	query: { context: 'edit' },
 } );
 validate( 'saved page content', saved.data.content?.raw || '' );
+
+// The validate ability: the PHP floor an agent without Node has. It is
+// read-only, so over REST its input travels in the query string.
+function checkMarkup( input ) {
+	return run( `${ ns }/validate`, input, true );
+}
+
+function clean( report ) {
+	return (
+		report.status === 200 &&
+		report.data.valid === true &&
+		report.data.round_trip === true &&
+		( report.data.blocks || [] ).length > 0 &&
+		( report.data.errors || [] ).length === 0
+	);
+}
+
+const copiedReport = await checkMarkup( { markup: copied } );
+step(
+	'validate passes the CTA band markup insert returned',
+	clean( copiedReport ),
+	`${ ( copiedReport.data.blocks || [] ).length } blocks, ${ ( copiedReport.data.errors || [] ).join( ' ' ) || 'no errors' }`
+);
+
+const pageReport = await checkMarkup( { post_id: postId } );
+step(
+	'validate passes the saved page by post_id',
+	clean( pageReport ) && pageReport.data.post_type === 'page',
+	`${ ( pageReport.data.blocks || [] ).length } blocks, ${ ( pageReport.data.errors || [] ).join( ' ' ) || 'no errors' }`
+);
+
+// Spelling WordPress reads the same way (core/ prefix, & in JSON, escaped
+// slashes) is not a round-trip failure.
+const spelled = await checkMarkup( {
+	markup: '<!-- wp:voyager-open/icon {"icon":"phone","linkUrl":"https:\\/\\/example.com\\/?a=1&b=2"} /-->\n\n<!-- wp:core/paragraph -->\n<p>Hello</p>\n<!-- /wp:core/paragraph -->',
+} );
+step(
+	'validate accepts equivalent spelling of block comments',
+	clean( spelled ),
+	( spelled.data.errors || [] ).join( ' ' ) || spelled.data.code
+);
+
+for ( const [ label, markup, expect ] of [
+	[
+		'validate reports invented binding args at the block',
+		'<!-- wp:voyager-open/icon {"icon":"phone","metadata":{"bindings":{"linkUrl":{"source":"voyager/site-data","args":{"key":"telephone"}}}}} /-->',
+		( r ) => r.data.blocks?.[ 0 ]?.errors?.[ 0 ]?.includes( 'telephone' ),
+	],
+	[
+		'validate reports an unregistered block type',
+		'<!-- wp:example/not-a-block /-->',
+		( r ) =>
+			r.data.blocks?.[ 0 ]?.errors?.[ 0 ]?.includes(
+				'not a registered block type'
+			),
+	],
+	[
+		'validate reports an icon outside the enum',
+		'<!-- wp:voyager-open/icon {"icon":"not-an-icon"} /-->',
+		( r ) => ( r.data.blocks?.[ 0 ]?.errors || [] ).length === 1,
+	],
+	[
+		'validate reports a block with no closing comment',
+		'<!-- wp:group -->\n<div class="wp-block-group"><!-- wp:paragraph -->\n<p>Hi</p>\n<!-- /wp:paragraph --></div>\n\n<!-- wp:paragraph -->\n<p>After</p>\n<!-- /wp:paragraph -->',
+		( r ) =>
+			r.data.round_trip === false &&
+			( r.data.blocks?.[ 0 ]?.errors || [] ).length === 1,
+	],
+	[
+		'validate reports HTML outside any block',
+		'<p>Loose</p>',
+		( r ) => r.data.blocks?.[ 0 ]?.block === 'core/freeform',
+	],
+] ) {
+	const report = await checkMarkup( { markup } );
+	step(
+		label,
+		report.status === 200 &&
+			report.data.valid === false &&
+			!! expect( report ),
+		( report.data.errors || [] ).join( ' ' ) || report.data.code
+	);
+}
+
+// The boundary the skills state: saved HTML that disagrees with its comment
+// passes every PHP check, and only block-runner catches it.
+const mismatch = readFileSync(
+	join( repo, 'tests', 'invalid', 'heading-level-mismatch.html' ),
+	'utf8'
+);
+const mismatchReport = await checkMarkup( { markup: mismatch } );
+step(
+	'validate passes tests/invalid/heading-level-mismatch.html (saved HTML needs block-runner)',
+	clean( mismatchReport ),
+	`valid ${ mismatchReport.data.valid }`
+);
+
+const neither = await checkMarkup( {} );
+step(
+	'validate refuses input with neither markup nor post_id',
+	neither.status === 400 &&
+		neither.data.code === 'voyager_open_blocks_invalid_markup',
+	neither.data.code
+);
 
 const tree = await run( `${ ns }/get-post-blocks`, { post_id: postId }, true );
 step(
