@@ -212,19 +212,20 @@ The plugin fires no actions of its own. It hooks these:
 | `init` | 20 | Registers both binding sources, their options and the settings screen hooks |
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
 | `enqueue_block_editor_assets` | 10 | The editor half of both sources: field lists, live values, in-place editing of post meta |
-| `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the five abilities |
+| `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the six abilities |
 
 ### Abilities
 
-Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<name>/run`: `GET` with `input[<field>]` query parameters for the two read-only abilities, `POST` with a `{"input": {...}}` body for the rest. The WordPress MCP Adapter serves the same abilities as MCP tools.
+Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<name>/run`: `GET` with `input[<field>]` query parameters for the three read-only abilities, `POST` with a `{"input": {...}}` body for the rest. The WordPress MCP Adapter serves the same abilities as MCP tools.
 
 | Ability | Method | Permission | Input |
 |---|---|---|---|
 | `voyager-open-blocks/get-catalog` | GET | `edit_posts` | `post_type` (default `page`) |
 | `voyager-open-blocks/get-post-blocks` | GET | `edit_post` on `post_id` | `post_id` (required) |
-| `voyager-open-blocks/insert` | POST | `edit_post` on `post_id` | `post_id`, `item` (required); `position` (default `-1`, appends), `mode` (`copy` or `reference`, default `copy`), `attributes` (blocks only), `copy` (patterns in copy mode only, label => plain text), `dry_run` (default `false`) |
+| `voyager-open-blocks/insert` | POST | `edit_post` on `post_id` | `post_id`, `item` (required); `position` (default `-1`, appends), `mode` (`copy` or `reference`, default `copy`), `attributes` (blocks only), `copy` (patterns in copy mode only, label => plain text), `omit` (patterns in copy mode only, labels of blocks to leave out), `dry_run` (default `false`) |
 | `voyager-open-blocks/configure` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attributes` (all required). Blocks that save no HTML only. `null` resets an attribute. |
 | `voyager-open-blocks/bind` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attribute`, `source` (`voyager/site-data`, `voyager/post-meta-text` or `core/post-meta`), `args` (all required) |
+| `voyager-open-blocks/validate` | GET | `edit_post` on `post_id` when one is given, otherwise `edit_posts` | `markup` or `post_id` (one of them, not both); `post_type` (for binding args, default the post's type or `page`) |
 
 What they return:
 
@@ -232,6 +233,7 @@ What they return:
 - `get-post-blocks`: `post_id` and `blocks`, each with `path`, `block`, `label` (its `metadata.name`), `pattern` (for a `core/pattern` reference) and `bindings`. Every binding carries `resolution`: `status` (`resolved` or `fell_back`), `reason` (`null`, `source_unregistered`, `unknown_key` or `empty_value`) and `value_preview` (the first 80 characters).
 - `insert`: `post_id`, `item`, `index`, `saved`, `markup`, `blocks` (the inserted blocks with their paths) and `validation`.
 - `configure` and `bind`: `post_id`, `path`, `block`, `attributes`, `markup` and `validation`.
+- `validate`: `valid`, `post_type`, `round_trip`, `blocks` (each with `path`, `block`, `errors` and `warnings`), `errors`, `warnings`, `post_id` when it checked a saved post, and `save_output`, which says what it can't check: saved HTML against each block's `save()`. `npx block-runner validate` checks that.
 
 A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `path`, `item`, `attributes`, `attribute`, `source`, `args` or `copy`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` through `npx block-runner validate --strict --json`.
 

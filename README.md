@@ -53,7 +53,7 @@ Bind core blocks to Site Data or to a page's own fields from your theme, and dri
   npm run dev
   ```
 
-- **Abilities:** five WordPress abilities (`get-catalog`, `get-post-blocks`, `insert`, `configure`, `bind`) read the pack and place, configure and bind its blocks over REST at `wp-abilities/v1`. `bind` accepts only args that `get-catalog` lists, so nothing can invent a field.
+- **Abilities:** six WordPress abilities (`get-catalog`, `get-post-blocks`, `insert`, `configure`, `bind`, `validate`) read the pack, place, configure and bind its blocks, and check markup over REST at `wp-abilities/v1`. `bind` accepts only args that `get-catalog` lists, so nothing can invent a field.
 
 To work on the pack itself, read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/development.md](docs/development.md) and the starter tasks in [docs/good-first-issues.md](docs/good-first-issues.md).
 
@@ -84,7 +84,7 @@ One prompt per item:
 | Site data source | Bind the phone number in my footer to Voyager Open Blocks Site Data so it follows Settings > Site Data. |
 | Post meta source | Show the [field] of each [post type] on its page with the Voyager Open Blocks post meta source. Make the field bindable under Settings > Site Data first if it isn't yet. |
 
-**MCP access is enough.** The five abilities are also served through the WordPress MCP Adapter. With the adapter on your site, an agent that reaches it only over MCP, with no shell and no command-line tools, can still read the catalog, insert a section, bind it and check that each value resolves.
+**MCP access is enough.** The six abilities are also served through the WordPress MCP Adapter. With the adapter on your site, an agent that reaches it only over MCP, with no shell and no command-line tools, can still read the catalog, insert a section, bind it and check that each value resolves.
 
 ## Reference
 
@@ -105,7 +105,7 @@ The Playground links run [`blueprint.json`](blueprint.json) (everything) and the
 
 Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and Marquee on `core/group`.
 
-**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the two binding sources, Settings > Site Data and five abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
+**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the two binding sources, Settings > Site Data and six abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
 
 ### Other ways to install
 
@@ -120,7 +120,7 @@ composer require voyager-marketing/voyager-open-blocks
 
 ### Abilities
 
-Five WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure` and `bind`. `insert` takes `copy` for a pattern's named headings, paragraphs, buttons and list items. `get-post-blocks` reports `resolution` for every binding (`resolved` or `fell_back`, with a reason and a value preview), so a bound value can be proved without rendering the page. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML.
+Six WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `get-post-blocks`, `insert`, `configure`, `bind` and `validate`. `insert` takes `copy` for a pattern's named headings, paragraphs, buttons and list items, and `omit` for the named blocks to leave out, such as a fourth credential. `validate` checks markup, or a saved post, without saving anything. `get-post-blocks` reports `resolution` for every binding (`resolved` or `fell_back`, with a reason and a value preview), so a bound value can be proved without rendering the page. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML.
 
 Inputs, permissions and return values are in the [API reference](docs/use-in-your-theme.md#abilities). The agent's view is in the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
 

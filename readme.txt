@@ -44,13 +44,14 @@ Every skill teaches an agent the same three steps:
 
 = Abilities over REST and MCP =
 
-Five WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
+Six WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
 
 * `get-catalog`: the pack's block, its patterns and every bindable field with its exact arguments.
 * `get-post-blocks`: a post's blocks with their paths, labels and bindings, and whether each binding has a value now.
-* `insert`: place a pattern or the icon block in a post. A pattern copy takes plain text for its named headings, paragraphs, buttons and list items.
+* `insert`: place a pattern or the icon block in a post. A pattern copy takes plain text for its named headings, paragraphs, buttons and list items, and can leave named blocks out.
 * `configure`: set attributes on a block that saves no HTML.
 * `bind`: write a block binding. The arguments must match a listed field exactly.
+* `validate`: check block markup, or a saved post, without saving anything.
 
 They are served over REST at `wp-abilities/v1`, and to MCP clients through the WordPress MCP Adapter, so an agent with only MCP access to your site can use the pack. Reading the catalog needs a user who can edit posts. Every other ability needs a user who can edit the post it names.
 
@@ -105,7 +106,7 @@ The pack ships no form. Replace what is inside the group named "Form" with your 
 
 = Can an agent use it with only MCP access? =
 
-Yes. With the WordPress MCP Adapter on your site, the five abilities appear as MCP tools. An agent with no shell and no command-line tools can read the catalog, insert a section, bind it and check that each value resolves.
+Yes. With the WordPress MCP Adapter on your site, the six abilities appear as MCP tools. An agent with no shell and no command-line tools can read the catalog, insert a section, bind it and check that each value resolves.
 
 = Does it call an AI service? =
 

@@ -1,6 +1,6 @@
 # With/without benchmark: results
 
-Tracking issue: VOY-1774. Protocol: [README.md](README.md). Raw runs: [runs/](runs/). Scores: [results/](results/).
+Protocol: [README.md](README.md). Raw runs: [runs/](runs/). Scores: [results/](results/).
 
 ## Summary
 

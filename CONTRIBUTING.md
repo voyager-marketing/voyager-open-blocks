@@ -70,7 +70,7 @@ CI runs the build-drift check, `npm run check`, both linters, PHP lint, `compose
 
 ## How a release happens
 
-You don't tag by hand. release-please keeps one open release PR on `main` that bumps the version in `voyager-open-blocks.php` (the header and `VOYAGER_OPEN_BLOCKS_VERSION`), the `readme.txt` Stable tag and `package.json`, and writes `CHANGELOG.md` from the commit titles. Feat bumps the minor version and fix the patch. A breaking change (`feat!:` or a `BREAKING CHANGE:` footer) bumps the major.
+You don't tag by hand. release-please keeps one open release PR on `main` that bumps the version in `voyager-open-blocks.php` (the header and `VOYAGER_OPEN_BLOCKS_VERSION`), the `readme.txt` Stable tag, the entry skill's `pack-version` and `package.json`, and writes `CHANGELOG.md` from the commit titles. Feat bumps the minor version and fix the patch. A breaking change (`feat!:` or a `BREAKING CHANGE:` footer) bumps the major.
 
 To release, add one line for the version under `== Changelog ==` in `readme.txt` on the release PR (WordPress.org shows that section), then merge the PR. Merging creates the tag and the GitHub Release, and the same run builds `voyager-open-blocks.zip` and attaches it. Nothing else to do.
 

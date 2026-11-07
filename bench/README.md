@@ -1,8 +1,6 @@
 # With/without benchmark
 
-Does an agent build a correct, editable WordPress page more often with this pack's loop than without it? This folder holds the briefs, the run protocol, the runner and the scorer. The result is in [RESULTS.md](RESULTS.md) and on the tracking issue below.
-
-Tracking issue: VOY-1774.
+Does an agent build a correct, editable WordPress page more often with this pack's loop than without it? This folder holds the briefs, the run protocol, the runner and the scorer. The result is in [RESULTS.md](RESULTS.md).
 
 ## The two arms
 

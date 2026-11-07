@@ -40,7 +40,8 @@ npm run check              # every offline gate, below
 3. the same validator rejects `tests/invalid/`, so the gate is shown to bite,
 4. `block-runner plugin inspect` recognizes the plugin as a `@wordpress/scripts` host. On Windows this step is skipped: Block Runner 1.0.0 compares `__DIR__ . '/build'` with a native path and never matches a backslash path.
 5. `Stable tag` in `readme.txt` matches `Version` in `voyager-open-blocks.php`.
-6. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
+6. the entry skill's `pack-version` (`skills/voyager-open-blocks/SKILL.md`) matches `Version` in `voyager-open-blocks.php`.
+7. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
 
 The rest of what CI runs:
 
