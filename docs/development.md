@@ -70,9 +70,15 @@ Two setup details that matter: the SQLite journal mode is set to `DELETE`, becau
 
 ### End to end over REST
 
-With the site served, `npm run e2e -- --context site.context.json` runs the abilities end to end over REST, the way an agent would. It creates a page, inserts the CTA band twice (as shipped, then with copy), then inserts, configures and binds an icon. It checks that bad input is refused, runs `block-runner validate --strict` on every markup returned and on the saved page, and checks the bound values render.
+With a site served, `npm run e2e -- --context site.context.json` runs the abilities end to end over REST, the way an agent with only MCP or REST access would. It finds pages, inserts the CTA band (as shipped, then with copy), places an icon inside the header beside its call button, builds a proof strip with more credentials than the pattern ships, binds post meta in a template, and configures and binds an icon. It checks that bad input and a contributor without permission are refused, runs `block-runner validate --strict` on every markup returned and on the saved pages, checks the bound values render, and deletes what it created.
 
 It reads an application password from `VOYAGER_OPEN_APP_PASSWORD` (`wp user application-password create admin e2e --porcelain`). `setup` sets `WP_ENVIRONMENT_TYPE` to `local` so application passwords work over plain HTTP.
+
+The quickest way to get a site for it needs no `wp` or `php`: `npm run dev -- --no-login --ready-file site.json` boots the dev site in the background and writes its URL and a fresh application password to `site.json`. That is what CI does.
+
+### End to end in the block editor
+
+`npm run e2e:editor` boots its own fresh dev site and drives headless Chrome, logged in as admin. It checks the first-run notice, the "Used by" lines on Settings > Site Data, the editor's empty-value warning, the placeholder hints (including copies from another host or folder), that each pattern's markup pastes into the editor as valid blocks, and that no editor-only hint reaches the front end. It needs Chrome or Chromium; set `CHROME_PATH` if it isn't found. `--only a,c` runs some checks; `--help` lists the options.
 
 ### Site checks
 
