@@ -655,9 +655,9 @@ function omit( array &$blocks, array $labels ) {
 	$rows      = describe( $blocks );
 	$removable = array_values(
 		array_unique(
-			array_map(
-				static fn ( array $row ): string => $row['label'] ?? '',
-				array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) && str_contains( $row['path'], '/' ) )
+			array_column(
+				array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) && str_contains( $row['path'], '/' ) ),
+				'label'
 			)
 		)
 	);
