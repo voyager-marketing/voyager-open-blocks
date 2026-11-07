@@ -55,6 +55,8 @@ Every binding uses the `voyager/site-data` source. The intent tree is `patterns/
 
 On route 2, assemble with `npx block-runner assemble intent.json --json`. A third-party form block cannot be assembled, so insert it into the markup after assembly, the same way as `voyager-open/icon` (see `voyager-open-icon`), then validate the whole section.
 
+In the block editor, the form slot's email fallback carries a "Replace this with your form block" hint, and empty Site Data lines carry a warning. Neither shows on the front end.
+
 ## Bindings
 
 | Block | Attribute | Args | Filled in at |

@@ -66,6 +66,7 @@ Those are Block Runner intent nodes. `npx block-runner assemble` turns them into
 ## Behaviour to rely on
 
 - An unknown key or an empty value resolves to nothing, and WordPress keeps the authored text. Always author sensible placeholder text.
+- In the block editor, a block bound to this source shows the field and its value in the sidebar, and warns when the value is empty. Tell the site owner which fields are empty instead of typing values into the block.
 - Values come back raw. WordPress escapes them where they land (`wp_kses_post` for rich text, the HTML API for attributes).
 - `voyager_site_data_value` filters every resolved value.
 - The voyager-blocks plugin registers the same source with the same option names. When it is active, it owns the source and this pack stands aside. voyager-blocks has `phone_link` and `email_link` from 2.28.6. An older one lacks them.
