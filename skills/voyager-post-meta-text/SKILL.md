@@ -15,9 +15,15 @@ A Block Bindings source that reads one post meta field of the current post. Only
 
 For a plain registered field without a JSON path, `core/post-meta` works too, with the same args. Use this source when you need a dot path, or for content that must also resolve on sites running voyager-blocks.
 
+## Tell your agent
+
+> Show the [field] of each [post type] on its page with the Voyager Open Blocks post meta source. Make the field bindable under Settings > Site Data first if it isn't yet.
+
+On route 1, the user makes the field bindable on the settings screen. No ability can. See Abilities for where the binding goes.
+
 ## Making a field bindable
 
-On the site, under **Settings > Site Data > Bindable post meta**: pick a public post type, enter the meta key and a label, and save. Remove a field with its Remove box. No code is needed. The rows are stored in the `voyager_open_blocks_bindable_meta` option, which an agent with WP-CLI can also write:
+On the site, under **Settings > Site Data > Bindable post meta**: pick a public post type, enter the meta key and a label, and save. Remove a field with its Remove box. No code is needed. The rows are stored in the `voyager_open_blocks_bindable_meta` option. It is not exposed over REST, so on route 1 the user adds the row on the screen. On route 2, WP-CLI can write it:
 
 ```bash
 echo '[{"post_type":"page","key":"service_eyebrow","label":"Service eyebrow"}]' | wp option update voyager_open_blocks_bindable_meta --format=json
@@ -43,7 +49,7 @@ Registered fields appear in the Wesper manifest under `contentModel.postTypes[].
 { "source": "voyager/post-meta-text", "args": { "key": "demo_stats.0.value" } }
 ```
 
-Wesper cannot tell you which registered fields are allowlisted for this source. A field added on the screen or through the helper always is. `get-catalog` lists exactly the allowlisted ones for a post type.
+Wesper cannot tell you which registered fields are allowlisted for this source. A field added on the screen or through the helper always is. `get-catalog` with `{"post_type": "<type>"}` lists exactly the allowlisted ones for that post type, with their args. On route 1, that is how you find fields.
 
 ## Binding example
 
@@ -63,12 +69,16 @@ Wesper cannot tell you which registered fields are allowlisted for this source. 
 
 ## The loop
 
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
+
 1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Find the field under the target post type's `fields`, and confirm `voyager/post-meta-text` is in `bindings.sources`.
-2. **Author.** Add the binding in `attrs.metadata.bindings` and assemble.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
-4. **Check.** Open the rendered page. If the placeholder still shows, the field is empty or not allowlisted.
+2. **Author.** Add the binding in `attrs.metadata.bindings` and assemble. To show the field on every post of a type, put the binding in that type's single template (`single-<post type>`), so one binding serves every post.
+3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
+4. **Check.** Open a rendered post. If the placeholder still shows, the field is empty or not allowlisted.
 
 ## Abilities
+
+This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
 **bind** writes this source into a block's `metadata.bindings`:
 
@@ -79,6 +89,12 @@ Wesper cannot tell you which registered fields are allowlisted for this source. 
 The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type. Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
 
 A dot path is accepted when the part before the first dot is a listed field.
+
+Where the binding goes:
+
+- **One post.** `bind` a block that is already in the post, by its path from `get-post-blocks`. No ability adds a plain paragraph or heading to bind, so the block must exist.
+- **Every post of a type.** The binding belongs in the type's single template, so one binding serves every post. `bind` checks args against the post type of the post it writes to, and a template's post type is `wp_template`. It refuses a field made bindable for one post type, so on route 1 tell the user to add the binding in the Site Editor, or use route 2. To check a template the user saved, call `validate` with its `post_id` and `"post_type": "<type>"`: that checks its bindings against that type's fields instead of `wp_template`.
+- **Check it.** `get-post-blocks` on a post reports `resolution` for each binding. `empty_value` means that post's field is empty. `unknown_key` means the field is not bindable for that post's type.
 
 ## Try it
 

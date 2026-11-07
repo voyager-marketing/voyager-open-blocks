@@ -9,7 +9,13 @@ license: GPL-2.0-or-later
 ## When to use
 
 - Directly under a hero, to back the headline with facts.
-- Only with real, verifiable facts. If the owner has not given you any, leave the shipped placeholders and say they need replacing. Never invent a license, an award, a rating or a number of years.
+- Only with real, verifiable facts. If the owner has not given you any, do not place the strip on a live page: ask for them. On a demo or draft page the shipped placeholders can stay, and you say they need replacing. Never invent a license, an award, a rating or a number of years.
+
+## Tell your agent
+
+> Add the Voyager Open Blocks proof strip under the hero on my home page with these credentials: [three to six short facts]. Use only what I give you.
+
+The shipped items read like real claims ("Licensed and insured"). On a live page, an item the owner gave no fact for must go, not stay as a placeholder.
 
 ## Structure
 
@@ -28,15 +34,17 @@ The intent tree is `patterns/intents/proof-strip.json`. The markup is `patterns/
 
 ## Customizing
 
-Copy the intent and replace the list items' `text` (three to six short facts, under about 40 characters each so the row holds), then `npx block-runner assemble intent.json --json`. The shipped intent names each item, so `insert` can rewrite it with `copy`. A list you author can use the `items` shorthand instead:
+On route 2, copy the intent and replace the list items' `text` with three to six short facts, under about 40 characters each so the row holds. Remove items you have no fact for, or add items for more. Then `npx block-runner assemble intent.json --json`. A list you author can use the `items` shorthand instead:
 
 ```json
 { "block": "core/list", "attrs": { "className": "is-style-voyager-open-ticks" }, "items": [ "Licensed and insured", "Family owned since 1998" ] }
 ```
 
+On route 1, `insert` rewrites the four shipped items with `copy` and drops items with `omit` (see Abilities). It cannot add a fifth or sixth item.
+
 ## Bindings
 
-None by default. A fact kept in post meta can drive an item when the site allows it. Check `bindings.supportedAttributes["core/list-item"]`: WordPress 7.1 lists `content`, and older versions may not. Then bind that item:
+None by default. A fact kept in post meta can drive an item when the site allows it. `core/list-item` takes a `content` binding on WordPress 7.1, and older versions may not. On route 2, check `bindings.supportedAttributes["core/list-item"]`. On route 1, `bind` refuses the attribute if the site does not support it. Then bind that item:
 
 ```json
 { "block": "core/list-item", "text": "Family owned", "attrs": { "metadata": { "bindings": {
@@ -48,18 +56,31 @@ The shipped intent already gives the list `children` of `core/list-item` nodes, 
 
 ## The loop
 
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
+
 1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/proof-strip` is in `patterns.items` and the `voyager-open-ticks` style is in the `core/list` block's `styles`.
-2. **Author.** Assemble with the owner's facts.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
+2. **Author.** Assemble with the owner's facts, one item per fact.
+3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
 
 ## Abilities
 
-With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **insert**: `{"post_id": 123, "item": "voyager-open/proof-strip"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
-- **insert with copy**: `{"post_id": 123, "item": "voyager-open/proof-strip", "copy": {"Credential 1": "Licensed and insured", "Credential 2": "Family owned since 1998", "Credential 3": "Written quotes", "Credential 4": "Same-week visits"}}` replaces the text of those list items. Labels: Credential 1 to Credential 4. copy cannot add or remove items, so a strip with fewer than four facts needs the extra items removed in the editor, or the section re-authored. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
-- **bind**: optional. Bind a list item's `content` to an allowlisted post meta field by its path and the field's args from `get-catalog`.
-- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+- **Where:** "under the hero" is usually `position` 1. Read `get-post-blocks` first and count the top-level blocks (paths with no `/`): the hero is normally the one at path `0`.
+- **Three or four facts:** `insert` with `copy` for one item per fact, and `omit` for the items left over:
+
+  ```json
+  {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "copy": {"Credential 1": "Licensed and insured", "Credential 2": "Family owned since 1998", "Credential 3": "Written quotes"}, "omit": ["Credential 4"]}
+  ```
+
+  Labels: `Credential 1` to `Credential 4`. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label is refused with `voyager_open_blocks_invalid_copy` or `voyager_open_blocks_invalid_omit`, which list the valid labels.
+- **Five or six facts:** route 1 cannot add items. Insert four, and tell the user which facts still need an item in the editor. Or use route 2.
+- **No facts:** do not insert the strip. Ask the owner for them.
+- **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. It shows the four shipped claims, so use it only on a demo page.
+- **bind:** optional. Bind a list item's `content` to an allowlisted post meta field by its path and the field's args from `get-catalog`.
+- **validate** with `{"post_id": 123}` checks the saved page.
+
+On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
 
 `get-catalog` lists this pattern's named blocks and their bindings before you insert it.
 

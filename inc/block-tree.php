@@ -407,7 +407,7 @@ function first_mismatch( string $markup, array $pieces ): ?int {
  * Finds delimiters with WP_Block_Parser's own pattern, then writes each one
  * again: the name without `core/`, single spaces, and the attributes decoded
  * and encoded with serialize_block_attributes(). Two spellings the parser
- * reads the same way then compare equal, such as `&` and `&` or `\/`
+ * reads the same way then compare equal, such as `&` and `\u0026` or `\/`
  * and `/` in the JSON. A delimiter whose JSON does not decode is left as it
  * is, so it still shows up as a mismatch.
  *

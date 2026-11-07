@@ -1,6 +1,6 @@
 # Agent notes
 
-Using the pack on a site: start at `skills/voyager-open-blocks/SKILL.md`.
+Using the pack on a site: start at `skills/voyager-open-blocks/SKILL.md`. It gives two routes: the abilities alone (MCP or REST, no shell), or a shell with Wesper and Block Runner.
 
 Working on this repo:
 
