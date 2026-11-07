@@ -43,7 +43,8 @@
 		"check:site-data": "node scripts/site-data-fixture-check.mjs",
 		"check:resolution": "node scripts/binding-resolution-check.mjs",
 		"check:bindable-meta": "node scripts/bindable-meta-check.mjs",
-		"e2e": "node scripts/e2e.mjs"
+		"e2e": "node scripts/e2e.mjs",
+		"e2e:editor": "node scripts/e2e-editor.mjs"
 	},
 	"devDependencies": {
 		"@wordpress/scripts": "37.0.0",

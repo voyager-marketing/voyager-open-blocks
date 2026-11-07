@@ -3,8 +3,9 @@
  * browser download and no npm dependency: Node's built-in WebSocket talks to
  * Chrome started with --remote-debugging-port=0.
  *
- * Only what scripts/screenshots.mjs needs: open a page at a fixed viewport,
- * optionally with cookies, run a script in it, and capture a PNG.
+ * What scripts/screenshots.mjs and scripts/e2e-editor.mjs need: open a page
+ * at a fixed viewport, optionally with cookies, run a script in it, wait for
+ * a condition or a navigation, listen to its events, and capture a PNG.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -175,6 +176,7 @@ class Browser {
 		this.nextId = 0;
 		this.pending = new Map();
 		this.waiters = new Set();
+		this.listeners = new Set();
 		socket.addEventListener( 'message', ( event ) =>
 			this.receive( JSON.parse( event.data ) )
 		);
@@ -212,6 +214,14 @@ class Browser {
 			) {
 				this.waiters.delete( waiter );
 				waiter.resolve( message.params );
+			}
+		}
+		for ( const listener of this.listeners ) {
+			if (
+				listener.method === message.method &&
+				listener.sessionId === message.sessionId
+			) {
+				listener.handler( message.params );
 			}
 		}
 	}
@@ -374,6 +384,76 @@ class Page {
 	}
 
 	/**
+	 * Run an expression that starts a navigation, such as a form submit, and
+	 * wait for the next page's load event. Schedule the navigation in the
+	 * expression (setTimeout) so the evaluation returns before the page goes.
+	 *
+	 * @param {string} expression JavaScript that navigates.
+	 * @param {number} [timeout]  Milliseconds.
+	 */
+	async navigate( expression, timeout = 180000 ) {
+		const loaded = this.browser.once(
+			'Page.loadEventFired',
+			this.sessionId,
+			timeout
+		);
+		try {
+			await this.evaluate( expression );
+		} catch ( error ) {
+			loaded.catch( () => {} );
+			throw error;
+		}
+		await loaded;
+	}
+
+	/**
+	 * Call a handler on every event of one kind from this page, such as
+	 * Runtime.exceptionThrown. Enable the domain first (Runtime.enable).
+	 *
+	 * @param {string}                   method  Protocol event name.
+	 * @param {(params: Object) => void} handler Called with the event's params.
+	 * @return {() => void} Stops listening.
+	 */
+	on( method, handler ) {
+		const listener = { method, sessionId: this.sessionId, handler };
+		this.browser.listeners.add( listener );
+		return () => this.browser.listeners.delete( listener );
+	}
+
+	/**
+	 * Evaluate an expression until it returns a truthy value.
+	 *
+	 * @param {string} expression         JavaScript; a promise is awaited.
+	 * @param {Object} [options]
+	 * @param {number} [options.timeout]  Milliseconds before giving up.
+	 * @param {number} [options.interval] Milliseconds between tries.
+	 * @return {Promise<{ok: boolean, value: unknown, error: string}>} The last
+	 *         value, and whether it was truthy before the timeout. Never throws:
+	 *         the caller decides what a timeout means.
+	 */
+	async waitFor( expression, { timeout = 30000, interval = 250 } = {} ) {
+		const until = Date.now() + timeout;
+		let value;
+		let error = '';
+		for (;;) {
+			try {
+				value = await this.evaluate( expression );
+				error = '';
+				if ( value ) {
+					return { ok: true, value, error };
+				}
+			} catch ( caught ) {
+				// The page may be between documents; try again.
+				error = caught.message;
+			}
+			if ( Date.now() >= until ) {
+				return { ok: false, value, error };
+			}
+			await new Promise( ( done ) => setTimeout( done, interval ) );
+		}
+	}
+
+	/**
 	 * Run an expression in the page and return its value.
 	 *
 	 * @param {string} expression JavaScript; a promise is awaited.
@@ -408,6 +488,11 @@ class Page {
 	}
 
 	async close() {
+		for ( const listener of this.browser.listeners ) {
+			if ( listener.sessionId === this.sessionId ) {
+				this.browser.listeners.delete( listener );
+			}
+		}
 		await this.browser.send( 'Target.closeTarget', {
 			targetId: this.targetId,
 		} );

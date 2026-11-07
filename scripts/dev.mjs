@@ -5,6 +5,8 @@
  *
  *   npm run dev                  boot, log in as admin, open the demo index
  *   npm run dev -- --check       boot, request the demo pages and Settings > Site Data, stop
+ *   npm run dev -- --ready-file site.json
+ *                                boot, write the URL and an application password, keep serving
  *   npm run dev -- --help        every option
  *
  * blueprints/dev.json activates the mounted checkout and runs
@@ -13,10 +15,11 @@
  * fresh on every run. PHP files are read from this checkout on every request,
  * so edits show on the next page load.
  *
- * scripts/screenshots.mjs imports boot() and verify() from here.
+ * scripts/screenshots.mjs imports boot() and verify() from here, and
+ * scripts/e2e-editor.mjs imports boot(), runPhp() and appPassword().
  */
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,14 +45,32 @@ the demo pages and Site Data (blueprints/dev.json), and logs you in as admin.
   --wp <version>   WordPress version, such as 6.9. Default latest.
   --php <version>  PHP version, such as 8.1. Default 8.3.
   --no-open        Do not open the demo index in your browser.
+  --no-login       Do not log a new browser in as admin. For a site that only
+                   scripts use, such as one started with --ready-file: a REST
+                   client without a cookie jar loops on the login redirect.
   --check          Boot, request the demo pages and Settings > Site Data, then stop.
                    Exits 0 when every one of them answers 200.
+  --ready-file <path>
+                   Once the site is up, create an application password for admin
+                   and write {"url", "user", "password"} to this JSON file, then
+                   keep serving. For scripts that drive the site over REST, such
+                   as npm run e2e. The file appears only when the site is ready.
   --debug          Print Playground's debug output.
   --help           Show this help.
 
 The first run downloads WordPress from wordpress.org; later runs reuse it.`;
 
-const KNOWN = [ 'port', 'wp', 'php', 'no-open', 'check', 'debug', 'help' ];
+const KNOWN = [
+	'port',
+	'wp',
+	'php',
+	'no-open',
+	'no-login',
+	'check',
+	'ready-file',
+	'debug',
+	'help',
+];
 
 /**
  * Boot Playground with this checkout mounted as the plugin.
@@ -59,9 +80,21 @@ const KNOWN = [ 'port', 'wp', 'php', 'no-open', 'check', 'debug', 'help' ];
  * @param {string}  [options.wp]    WordPress version.
  * @param {string}  [options.php]   PHP version.
  * @param {boolean} [options.debug] Playground's debug output.
+ * @param {boolean} [options.login] Log a new browser in as admin on its first
+ *                                  request, as blueprints/dev.json asks. Pass
+ *                                  false for a site that only scripts use:
+ *                                  the login redirect sets a cookie that a
+ *                                  client without a cookie jar never sends
+ *                                  back, so it redirects again and again.
  * @return {Promise<{url: string, playground: Object, stop: () => Promise<void>}>} The running site. Call stop() to shut it down.
  */
-export async function boot( { port, wp, php, debug = false } = {} ) {
+export async function boot( {
+	port,
+	wp,
+	php,
+	debug = false,
+	login = true,
+} = {} ) {
 	let cli;
 	try {
 		cli = await import( '@wp-playground/cli' );
@@ -84,6 +117,9 @@ export async function boot( { port, wp, php, debug = false } = {} ) {
 		...( wp ? { wp: String( wp ) } : {} ),
 		...( php ? { php: String( php ) } : {} ),
 	};
+	if ( ! login ) {
+		blueprint.login = false;
+	}
 
 	let server;
 	try {
@@ -222,6 +258,70 @@ export async function verify( site ) {
 	}
 
 	return { passed, failed, pages };
+}
+
+/**
+ * Run PHP in the booted site with WordPress and the plugin loaded.
+ *
+ * @param {{playground: Object}} site From boot().
+ * @param {string}               body PHP statements, without `<?php`, run as
+ *                                    the body of a function. What it returns
+ *                                    comes back.
+ * @return {Promise<unknown>} The return value, JSON-decoded (null for none).
+ */
+export async function runPhp( site, body ) {
+	const marker = '--voyager-open-run-php--';
+	const result = await site.playground.run( {
+		code: `<?php
+require_once '/wordpress/wp-load.php';
+$voyager_open_result = ( static function () {
+${ body }
+} )();
+echo "\\n${ marker }" . wp_json_encode( $voyager_open_result );`,
+	} );
+	const at = result.text.lastIndexOf( marker );
+	if ( at === -1 ) {
+		throw new Error(
+			`PHP printed no result. Output: ${ result.text.slice( -500 ) } ${ result.errors || '' }`
+		);
+	}
+	return JSON.parse( result.text.slice( at + marker.length ) );
+}
+
+/**
+ * Create an application password, for scripts that drive the site over REST.
+ *
+ * blueprints/dev.json sets WP_ENVIRONMENT_TYPE to local, which is what lets
+ * WordPress accept one over plain HTTP.
+ *
+ * @param {{playground: Object}} site   From boot().
+ * @param {string}               [user] User login.
+ * @return {Promise<string>} The password.
+ */
+export async function appPassword( site, user = 'admin' ) {
+	const result = await runPhp(
+		site,
+		`$user = get_user_by( 'login', ${ phpString( user ) } );
+if ( ! $user ) {
+	return [ 'error' => 'There is no user called ' . ${ phpString( user ) } . '.' ];
+}
+$created = WP_Application_Passwords::create_new_application_password( $user->ID, [ 'name' => 'voyager-open-blocks ' . gmdate( 'c' ) ] );
+return is_wp_error( $created ) ? [ 'error' => $created->get_error_message() ] : [ 'password' => $created[0] ];`
+	);
+	if ( ! result?.password ) {
+		throw new Error(
+			`Could not create an application password for ${ user }: ${ result?.error || 'no password returned' }`
+		);
+	}
+	return result.password;
+}
+
+/**
+ * @param {string} value
+ * @return {string} A single-quoted PHP string literal.
+ */
+function phpString( value ) {
+	return `'${ String( value ).replace( /[\\']/g, '\\$&' ) }'`;
 }
 
 /**
@@ -384,7 +484,7 @@ async function check( opts ) {
 	try {
 		group( 'Boot WordPress Playground with this checkout as the plugin' );
 		try {
-			site = await boot( opts );
+			site = await boot( { ...opts, login: ! opts[ 'no-login' ] } );
 		} finally {
 			endGroup();
 		}
@@ -446,12 +546,29 @@ async function check( opts ) {
  * @param {Object} opts Parsed flags.
  */
 async function serve( opts ) {
-	const site = await boot( opts );
+	const site = await boot( { ...opts, login: ! opts[ 'no-login' ] } );
 	const at = ( path ) => `${ site.url }${ path }`;
+
+	if ( opts[ 'ready-file' ] ) {
+		const file = resolve( opts[ 'ready-file' ] );
+		const password = await appPassword( site );
+		writeFileSync(
+			file,
+			JSON.stringify( { url: site.url, user: 'admin', password } ) + '\n',
+			{ mode: 0o600 }
+		);
+		console.log(
+			`Wrote the site URL and an application password for admin to ${ file }.`
+		);
+	}
 
 	console.log( `
 Voyager Open Blocks is running at ${ site.url }
-You are logged in as admin (password: password).
+${
+	opts[ 'no-login' ]
+		? 'Log in as admin with the password: password.'
+		: 'You are logged in as admin (password: password).'
+}
 
 Try this first:
   1. Open the demo index, one page per block, binding source and pattern:
@@ -525,15 +642,26 @@ async function main() {
 		);
 		process.exit( 2 );
 	}
-	for ( const key of [ 'port', 'wp', 'php' ] ) {
+	for ( const key of [ 'port', 'wp', 'php', 'ready-file' ] ) {
 		if ( opts[ key ] === true ) {
 			console.error(
 				`--${ key } needs a value, such as --${ key } ${
-					{ port: '9500', wp: '6.9', php: '8.1' }[ key ]
+					{
+						port: '9500',
+						wp: '6.9',
+						php: '8.1',
+						'ready-file': 'site.json',
+					}[ key ]
 				}.`
 			);
 			process.exit( 2 );
 		}
+	}
+	if ( opts.check && opts[ 'ready-file' ] ) {
+		console.error(
+			'--ready-file keeps the site running, and --check stops it. Pass one.'
+		);
+		process.exit( 2 );
 	}
 	if ( opts.port !== undefined && ! /^\d+$/.test( opts.port ) ) {
 		console.error( `--port takes a number, not ${ opts.port }.` );
