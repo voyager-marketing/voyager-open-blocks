@@ -1,0 +1,64 @@
+/**
+ * Editor hints for Voyager Open Blocks.
+ *
+ * Loaded in the block editor and its canvas iframe only (enqueue_block_assets
+ * behind is_admin(), in inc/bindings-editor.php). The classes come from
+ * assets/editor/hints.js through editor.BlockListBlock, so saved markup never
+ * carries them and the front end never loads this file.
+ */
+
+/*
+ * Canvas. A dashed outline marks a bound block whose value is empty and the
+ * pack's placeholder content. The dash pattern is the cue, so the hint does
+ * not rely on colour. Bound blocks take core's synced colour through
+ * --wp-admin-theme-color. Hidden while selected: core draws its own outline
+ * then, and the inspector says what the hint means.
+ */
+.block-editor-block-list__block.voyager-open-hint-unset:not(.is-selected),
+.block-editor-block-list__block.voyager-open-hint-placeholder:not(.is-selected) {
+	outline: 1px dashed var(--wp-admin-theme-color, #3858e9);
+	outline-offset: 2px;
+}
+
+/* The logo marquee clips what overflows it, so keep a logo's outline inside. */
+.block-editor-block-list__block.wp-block-image.voyager-open-hint-placeholder:not(.is-selected) {
+	outline-offset: -1px;
+}
+
+/* Inspector panels. */
+.voyager-open-hints p {
+	margin: 0 0 8px;
+}
+
+.voyager-open-hints .components-notice {
+	margin: 0 0 12px;
+}
+
+.voyager-open-hints .components-notice p:last-child {
+	margin-bottom: 0;
+}
+
+.voyager-open-hints__item + .voyager-open-hints__item {
+	margin-top: 16px;
+	padding-top: 16px;
+	border-top: 1px solid var(--wp-components-color-gray-300, #ddd);
+}
+
+.voyager-open-hints__field code {
+	font-size: 12px;
+}
+
+.voyager-open-hints__label,
+.voyager-open-hints__help {
+	color: var(--wp-components-color-gray-700, #757575);
+	font-size: 12px;
+}
+
+.voyager-open-hints__value {
+	overflow-wrap: anywhere;
+}
+
+.voyager-open-hints__list {
+	margin: 0 0 8px 1.25em;
+	list-style: disc;
+}
