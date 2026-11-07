@@ -705,7 +705,7 @@ function find_posts( $input = null ) {
 
 		$rows = [];
 		foreach ( get_block_templates( '' === $slug ? [] : [ 'slug__in' => [ $slug ] ], $post_type ) as $template ) {
-			if ( matches_words( $template->title . ' ' . $template->slug, $search ) ) {
+			if ( matches_words( Cast\to_string( $template->title ) . ' ' . Cast\to_string( $template->slug ), $search ) ) {
 				$row = template_row( $template, $post_type );
 				if ( null !== $row ) {
 					$rows[] = $row;
@@ -877,17 +877,17 @@ function template_row( \WP_Block_Template $template, string $post_type ): ?array
 
 	$row = [
 		'id'         => $id,
-		'title'      => $template->title,
-		'slug'       => $template->slug,
+		'title'      => Cast\to_string( $template->title ),
+		'slug'       => Cast\to_string( $template->slug ),
 		'post_type'  => $post_type,
-		'status'     => $template->status,
+		'status'     => Cast\to_string( $template->status ),
 		'link'       => null,
 		'front_page' => false,
-		'source'     => $template->source,
+		'source'     => Cast\to_string( $template->source ),
 	];
 
 	if ( 'wp_template_part' === $post_type ) {
-		$row['area'] = $template->area;
+		$row['area'] = Cast\to_string( $template->area, 'uncategorized' );
 	}
 
 	if ( null === $id ) {
