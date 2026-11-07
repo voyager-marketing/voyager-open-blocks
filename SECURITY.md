@@ -24,7 +24,7 @@ The pack is pre-1.0. Only the latest release gets security fixes. Please check y
 
 ## What counts
 
-The pack adds blocks, patterns, two binding sources and five abilities that agents call over REST or MCP. These are in scope:
+The pack adds blocks, patterns, two binding sources and six abilities that agents call over REST or MCP. These are in scope:
 
 - an ability (`voyager-open-blocks/*`) that reads or changes a post without the `edit_post` capability for it, or lists the catalog without `edit_posts`
 - `bind` writing a binding whose args were not listed by `get-catalog`, or `configure` changing a block that saves HTML
