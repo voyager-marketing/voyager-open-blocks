@@ -728,7 +728,7 @@ function find_posts( $input = null ) {
 	$query = new \WP_Query( query_args( $post_type, $search, $slug, $limit ) );
 	$rows  = [];
 
-	foreach ( $query->posts as $post ) {
+	foreach ( $query->posts ?? [] as $post ) {
 		$row = post_row( $post instanceof \WP_Post ? $post->ID : Cast\to_int( $post ) );
 		if ( null !== $row ) {
 			$rows[] = $row;

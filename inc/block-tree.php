@@ -159,7 +159,7 @@ function &find( array &$blocks, array $path ): ?array {
  *
  * @param array<int, Block> $blocks Blocks.
  * @param int[]             $path   Parsed path.
- * @return array<int, Block> [] for a top-level block, or a path that does not exist.
+ * @return array<int, Block> Empty for a top-level block, or a path that does not exist.
  */
 function ancestors( array $blocks, array $path ): array {
 	$chain = [];
