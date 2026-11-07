@@ -1,0 +1,41 @@
+name: Dev boot
+
+# npm run dev is the first thing a new contributor runs, so it has to work on
+# a clean checkout on Linux and Windows. This boots WordPress Playground with
+# the checkout mounted as the plugin, requests the demo index, every demo page
+# and Settings > Site Data as the admin, and fails on anything but a 200 or on
+# a PHP fatal error. Results show as check annotations.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-boot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boot:
+    name: npm run dev -- --check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Boot the dev site, request the demo pages and Settings > Site Data
+        run: npm run dev -- --check

@@ -34,6 +34,8 @@
 		"lint:css": "wp-scripts lint-style \"src/**/*.scss\"",
 		"patterns:build": "node scripts/build-patterns.mjs",
 		"patterns:validate": "block-runner validate \"patterns/*.html\" --strict --json",
+		"dev": "node scripts/dev.mjs",
+		"screenshots": "node scripts/screenshots.mjs",
 		"playground": "node scripts/playground.mjs",
 		"context": "node scripts/context.mjs",
 		"check": "node scripts/check.mjs",
