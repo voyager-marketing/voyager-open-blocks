@@ -2,6 +2,12 @@
 
 Thanks for helping. This file covers who runs the project, what it will and won't take, how fast you can expect a reply, and how to set up, test and send a change.
 
+Where to start:
+
+- [docs/good-first-issues.md](docs/good-first-issues.md): five starter tasks, each with the files to open first.
+- [docs/development.md](docs/development.md): how the pack is built, what every check does, the local site and releases.
+- [docs/use-in-your-theme.md](docs/use-in-your-theme.md): the public API. A change to anything listed there needs that page updated in the same pull request.
+
 ## Who maintains it
 
 Voyager Marketing maintains the pack. Ben Whitlock ([@benwhit](https://github.com/benwhit)) is the lead maintainer and makes the calls on scope, design and releases. Decisions are made in public GitHub issues, so the reasoning stays where anyone can read it.
@@ -25,7 +31,7 @@ Issues are answered within two business days. Support hours are in the [README](
 
 ## Set up
 
-You need Node `^22.23.4 || ^24.22.1 || >=26.12.1` (`.nvmrc` pins 24.22.1), and for the local site, PHP 8.1+ and WP-CLI on `PATH`.
+You need Node `^22.23.4 || ^24.22.1 || >=26.12.1` (`.nvmrc` pins 24.22.1), and for the local site, PHP 8.1+ and WP-CLI on `PATH`. To see the pack running, `npm run dev` boots WordPress Playground with your checkout mounted, the plugin active and demo content.
 
 ```
 npm install
@@ -59,7 +65,7 @@ CI runs the build-drift check, `npm run check`, both linters, PHP lint, `compose
 ## Send a change
 
 1. Fork, branch from `main`, and keep the change to one thing.
-2. Run the gates above. Add or update the pattern intent, skill or e2e step your change touches.
+2. Run the gates above. Add or update the pattern intent, skill or e2e step your change touches, and the docs page that describes it: [README.md](README.md), [readme.txt](readme.txt) or [docs/use-in-your-theme.md](docs/use-in-your-theme.md).
 3. Open a pull request that says what changed and why, and how you checked it. Give it a conventional commit title (`feat: add the icon block`). Merges are squashes, so the title becomes the commit that release-please reads, and CI fails a title that is not one. Types: feat, fix, docs, style, refactor, perf, test, chore, revert. Keep the header to 72 characters.
 
 ## How a release happens
