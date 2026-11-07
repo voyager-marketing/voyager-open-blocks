@@ -22,7 +22,7 @@ A dynamic block. The saved markup is the comment delimiter with attributes and n
 
 > Add a Voyager Open Blocks phone icon next to the call button in my header, linked to my Site Data phone number.
 
-A header is a template part, and "next to the call button" is inside it. Route 2 can author that. Route 1 cannot nest a block (see Abilities).
+A header is a template part, and "next to the call button" is inside it. Both routes can do it. On route 1, `find-posts` finds the header and `insert` with `parent` puts the icon beside the button (see Abilities).
 
 ## Attributes
 
@@ -69,13 +69,21 @@ This is route 2, with a shell and Node. On route 1, follow Abilities below inste
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **insert**: `{"post_id": 123, "item": "voyager-open/icon", "attributes": {"icon": "phone", "size": 32, "label": "Call us"}}`. The attributes are validated against block.json, so an icon outside the enum is refused. `insert` places the icon at the top level of the post only, at `position`. It cannot put the icon inside a group, a row or a header next to a button. For that, tell the user to add the icon in the editor, or use route 2.
+- **insert**: `{"post_id": 123, "item": "voyager-open/icon", "attributes": {"icon": "phone", "size": 32, "label": "Call us"}}`. The attributes are validated against block.json, so an icon outside the enum is refused. Without `parent`, the icon goes at the top level of the post, at `position`. With `parent`, the path of a group or row, it goes among that block's inner blocks, at `position`.
 - **configure**: `{"post_id": 123, "path": "4", "attributes": {"animation": "pulse", "animationTrigger": "always"}}`. A `null` value resets an attribute. This works because the icon saves no HTML. `configure` refuses blocks that do.
 - **bind**: `{"post_id": 123, "path": "4", "attribute": "linkUrl", "source": "voyager/site-data", "args": {"key": "phone_link"}}`. Only `label` and `linkUrl` are bindable, and args must match a field from `get-catalog` exactly.
 - **get-post-blocks** proves the link: the `linkUrl` binding should read `resolution.status: "resolved"` with a `tel:` link in `value_preview`. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Phone number is empty.
-- An icon already in a header can be configured and bound when the header has a post ID: it was saved in the Site Editor (over REST, `wp_id` in `GET /wp-json/wp/v2/template-parts`). Read its paths with `get-post-blocks` on that ID.
-
 Paths come from the insert response or `get-post-blocks`.
+
+### Next to the call button in the header
+
+1. **Find the header.** `find-posts` with `{"post_type": "wp_template_part", "search": "header"}`. Take `id` from the row whose `area` is `header`. If `id` is `null`, the header is still only the theme's file: ask the user to open it in the Site Editor and save it once, then call `find-posts` again.
+2. **Find the button.** `get-post-blocks` with `{"post_id": <id>}`. The call button is the `core/button` whose `text` reads like a call ("Call us", a phone number) or whose `url` binding has args `{"key": "phone_link"}`. Say its path is `0/2/1`.
+3. **Pick the parent.** Its parent, `0/2`, is a `core/buttons`, which takes only buttons, so the icon goes beside the buttons block, in the block that holds it: `parent` `"0"`. `position` `2` puts the icon before the buttons, `3` after them.
+4. **Insert.** `{"post_id": <id>, "item": "voyager-open/icon", "parent": "0", "position": 2, "attributes": {"icon": "phone", "size": 24, "label": "Call us"}, "dry_run": true}`, then again without `dry_run`. The response's `blocks[0].path` is the icon's path, here `0/2`. A refusal with `voyager_open_blocks_invalid_parent` says why: the parent does not allow the icon, holds no blocks, or is locked.
+5. **Bind.** `bind` with that path, `"attribute": "linkUrl"`, `"source": "voyager/site-data"` and the `phone_link` args from `get-catalog`.
+6. **Check.** `get-post-blocks` again: the icon's `linkUrl` binding should be `resolved` with a `tel:` link. Then `validate` with `{"post_id": <id>}`.
+7. **Report** the icon's place, the link's status, and that on route 1 the saved HTML was not checked with Block Runner. On route 2, check the response's `section_markup` with it.
 
 ## Try it
 

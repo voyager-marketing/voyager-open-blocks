@@ -19,7 +19,7 @@ For a plain registered field without a JSON path, `core/post-meta` works too, wi
 
 > Show the [field] of each [post type] on its page with the Voyager Open Blocks post meta source. Make the field bindable under Settings > Site Data first if it isn't yet.
 
-On route 1, the user makes the field bindable on the settings screen. No ability can. See Abilities for where the binding goes.
+On route 1, the user makes the field bindable on the settings screen. No ability can. Then `bind` writes the binding, in a template too (see Abilities).
 
 ## Making a field bindable
 
@@ -86,15 +86,20 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
 { "post_id": 123, "path": "2", "attribute": "content", "source": "voyager/post-meta-text", "args": { "key": "demo_stats.0.value" } }
 ```
 
-The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type. Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
+The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type, or for `post_type` when you pass it (see below). Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
 
 A dot path is accepted when the part before the first dot is a listed field.
 
 Where the binding goes:
 
 - **One post.** `bind` a block that is already in the post, by its path from `get-post-blocks`. No ability adds a plain paragraph or heading to bind, so the block must exist.
-- **Every post of a type.** The binding belongs in the type's single template, so one binding serves every post. `bind` checks args against the post type of the post it writes to, and a template's post type is `wp_template`. It refuses a field made bindable for one post type, so on route 1 tell the user to add the binding in the Site Editor, or use route 2. To check a template the user saved, call `validate` with its `post_id` and `"post_type": "<type>"`: that checks its bindings against that type's fields instead of `wp_template`.
-- **Check it.** `get-post-blocks` on a post reports `resolution` for each binding. `empty_value` means that post's field is empty. `unknown_key` means the field is not bindable for that post's type.
+- **Every post of a type.** The binding belongs in the type's single template, so one binding serves every post:
+  1. Find the template: `find-posts` with `{"post_type": "wp_template", "slug": "single-<type>"}`, or `"slug": "single"` for blog posts. If `id` is `null`, the template is still only the theme's file: ask the user to save it once in the Site Editor.
+  2. Read its blocks with `get-post-blocks` and pick the block to bind. It must already be there: no ability adds a plain paragraph or heading.
+  3. Call `get-catalog` with `{"post_type": "<type>"}` and copy the field's args.
+  4. `bind` with `"post_type": "<type>"`. A template has no fields of its own, so without `post_type` the args are checked against `wp_template` and refused, and the error says to pass it. `post_type` is accepted only in a template, a template part, a synced pattern or a Query Loop: anywhere else a block reads its own post's fields.
+  5. `validate` with the template's `post_id` and the same `post_type`.
+- **Check it.** `get-post-blocks` on a post reports `resolution` for each binding. `empty_value` means that post's field is empty. `unknown_key` means the field is not bindable for that post's type. On a template it reports a post meta binding as `fell_back`, because no post is being shown: check one post that uses the template instead, by opening it.
 
 ## Try it
 
