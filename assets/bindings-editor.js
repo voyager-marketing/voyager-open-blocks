@@ -3,6 +3,18 @@
  *
  * Data comes from window.voyagerOpenBlocksBindings (inc/bindings-editor.php).
  * A source is null there when another plugin owns it, and is then skipped.
+ *
+ * This script also adds describe() to that object. assets/editor/hints.js
+ * calls it to name a binding in plain words and to tell whether its value is
+ * empty, so both files read values the same way the front end does.
+ */
+
+/**
+ * @typedef {Object} BindingDescription
+ * @property {string} label Field label, or the key when the field is unknown.
+ * @property {string} value Current value, '' when there is none.
+ * @property {string} state 'set', 'empty', 'unknown' (no such field) or
+ *                          'no-post' (post meta with no post to read).
  */
 
 /**
@@ -16,9 +28,29 @@
 
 	const { registerBlockBindingsSource } = wp.blocks;
 	const coreStore = 'core';
+	const has = ( object, key ) =>
+		Object.prototype.hasOwnProperty.call( object, key );
+	const stateOf = ( value ) => ( value.trim() !== '' ? 'set' : 'empty' );
+	const describers = {};
 
 	if ( data.siteData ) {
 		const { fields, values } = data.siteData;
+		const labels = new Map(
+			fields.map( ( field ) => [ field.key, field.label ] )
+		);
+
+		/**
+		 * @param {Object} args Binding args, `{ key }`.
+		 * @return {BindingDescription} The binding, described.
+		 */
+		describers[ 'voyager/site-data' ] = ( args ) => {
+			const key = String( args?.key ?? '' );
+			if ( ! labels.has( key ) ) {
+				return { label: key, value: '', state: 'unknown' };
+			}
+			const value = has( values, key ) ? String( values[ key ] ) : '';
+			return { label: labels.get( key ), value, state: stateOf( value ) };
+		};
 
 		registerBlockBindingsSource( {
 			name: 'voyager/site-data',
@@ -27,9 +59,11 @@
 				for ( const [ attribute, binding ] of Object.entries(
 					bindings
 				) ) {
-					const key = binding?.args?.key;
+					const { value, state } = describers[ 'voyager/site-data' ](
+						binding?.args
+					);
 					// An empty value keeps the authored placeholder, as on the front end.
-					result[ attribute ] = values[ key ] || undefined;
+					result[ attribute ] = state === 'set' ? value : undefined;
 				}
 				return result;
 			},
@@ -53,7 +87,7 @@
 			Object.assign(
 				{},
 				allowed[ '*' ] || {},
-				allowed[ postType ] || {}
+				( postType && allowed[ postType ] ) || {}
 			);
 
 		const readPath = ( raw, path ) => {
@@ -81,6 +115,39 @@
 				: String( current );
 		};
 
+		/**
+		 * Same rules as PostMetaText\resolve(): an allowlisted base key, a
+		 * non-blank stored string, and a dot path into its JSON.
+		 *
+		 * @param {Object} args   Binding args, `{ key }`.
+		 * @param {Object} [post] `{ postType, meta }` of the post shown.
+		 * @return {BindingDescription} The binding, described.
+		 */
+		describers[ 'voyager/post-meta-text' ] = ( args, post ) => {
+			const key = String( args?.key ?? '' );
+			if ( ! post?.postType ) {
+				return { label: key, value: '', state: 'no-post' };
+			}
+			const base = key.split( '.' )[ 0 ];
+			const fields = fieldsFor( post.postType );
+			if ( ! has( fields, base ) ) {
+				return { label: key, value: '', state: 'unknown' };
+			}
+			const path = key.split( '.' ).slice( 1 );
+			const name = fields[ base ] || base;
+			const raw = post.meta?.[ base ];
+			const resolved =
+				typeof raw === 'string' && raw.trim() !== ''
+					? readPath( raw, path )
+					: undefined;
+			const value = resolved === undefined ? '' : resolved;
+			return {
+				label: path.length ? `${ name } (${ path.join( '.' ) })` : name,
+				value,
+				state: stateOf( value ),
+			};
+		};
+
 		registerBlockBindingsSource( {
 			name: 'voyager/post-meta-text',
 			usesContext: [ 'postId', 'postType' ],
@@ -94,22 +161,25 @@
 								context.postId
 							)
 						: null;
+				const post = {
+					postType: context?.postType,
+					meta: record?.meta,
+				};
 				const fields = fieldsFor( context?.postType );
 
 				for ( const [ attribute, binding ] of Object.entries(
 					bindings
 				) ) {
 					const key = String( binding?.args?.key || '' );
-					const [ base, ...path ] = key.split( '.' );
-					const value = record?.meta?.[ base ];
-					const resolved =
-						typeof value === 'string' && value !== ''
-							? readPath( value, path )
-							: undefined;
+					const [ base ] = key.split( '.' );
+					const { value, state } = describers[
+						'voyager/post-meta-text'
+					]( binding?.args, post );
+					// The editor shows the field's label until it has a value.
 					result[ attribute ] =
-						resolved !== undefined && resolved !== ''
-							? resolved
-							: fields[ base ] || key;
+						state === 'set'
+							? value
+							: ( has( fields, base ) && fields[ base ] ) || key;
 				}
 				return result;
 			},
@@ -138,7 +208,7 @@
 				// A dot path points into JSON; editing it would rewrite the whole field.
 				if (
 					key.includes( '.' ) ||
-					! ( key in fieldsFor( context.postType ) )
+					! has( fieldsFor( context.postType ), key )
 				) {
 					return false;
 				}
@@ -159,4 +229,15 @@
 			},
 		} );
 	}
+
+	/**
+	 * Describe a binding to a source this plugin registered.
+	 *
+	 * @param {string} source Source name.
+	 * @param {Object} args   Binding args.
+	 * @param {Object} [post] `{ postType, meta }`, for voyager/post-meta-text.
+	 * @return {BindingDescription|null} Null for a source another plugin owns.
+	 */
+	data.describe = ( source, args, post ) =>
+		has( describers, source ) ? describers[ source ]( args, post ) : null;
 } )( window.wp, window.voyagerOpenBlocksBindings );
