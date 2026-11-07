@@ -57,9 +57,10 @@ composer phpstan           PHPStan at level max over the plugin file, inc/ and s
 composer test              PHPUnit unit suite, no WordPress needed
 npm run e2e -- --context site.context.json     the abilities over REST, against a served local site
 npm run e2e:editor         the notice, the editor hints and pasting, in a real block editor (needs Chrome)
+npm run plugin-check       Plugin Check, activation and uninstall on the zip in a fresh WordPress (needs wordpress.org)
 ```
 
-CI runs the build-drift check, `npm run check`, both linters, PHP lint, `composer phpstan`, `composer test`, Block Check, both end-to-end suites against a real WordPress, the dev-boot check and the screenshots on every pull request, and a pull request needs them green to merge.
+CI runs the build-drift check, `npm run check`, both linters, PHP lint, `composer phpstan`, `composer test`, Block Check, both end-to-end suites against a real WordPress, Plugin Check on the zip, the dev-boot check and the screenshots on every pull request, and a pull request needs them green to merge.
 
 `composer phpstan` takes PHP 8.1 or later. Fix what it reports; don't add a baseline. The unit tests stub the few core functions the modules call in `tests/wp-stubs.php`, so a test that needs a real WordPress belongs in the e2e script.
 

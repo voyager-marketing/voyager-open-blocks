@@ -215,7 +215,7 @@ async function wpCli( site, args ) {
  * Versions of what runs, for the report.
  *
  * @param {{playground: Object}} site From boot().
- * @return {Promise<{wp: string, php: string, pluginCheck: string, pack: string}>} Versions.
+ * @return {Promise<{wp: string, php: string, pluginCheck: string, pack: string, debugLog: boolean}>} Versions, and whether PHP notices reach debug.log.
  */
 function versions( site ) {
 	return runPhp(
@@ -226,6 +226,7 @@ return [
 	'php'         => PHP_VERSION,
 	'pluginCheck' => get_plugin_data( WP_PLUGIN_DIR . '/plugin-check/plugin.php', false, false )['Version'] ?? '',
 	'pack'        => file_exists( WP_PLUGIN_DIR . '/${ PLUGIN_FILE }' ) ? get_plugin_data( WP_PLUGIN_DIR . '/${ PLUGIN_FILE }', false, false )['Version'] : '',
+	'debugLog'    => defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG,
 ];`
 	);
 }
@@ -357,22 +358,26 @@ async function requestPages( site, pageUrl ) {
 /**
  * Plugin Check's findings from its strict-json output.
  *
- * @param {string} text What wp plugin check printed.
+ * The JSON array is printed with no newline after it, so it is read from
+ * stdout alone, from the first `[` to the last `]`.
+ *
+ * @param {string} stdout What wp plugin check printed to stdout.
+ * @param {string} stderr What it printed to stderr.
  * @return {Object[]|null} Findings, [] for none, null when the output holds no result.
  */
-function parseFindings( text ) {
-	if ( /Checks complete\. No errors found\./.test( text ) ) {
+function parseFindings( stdout, stderr ) {
+	if (
+		/Checks complete\. No errors found\./.test( `${ stdout }\n${ stderr }` )
+	) {
 		return [];
 	}
-	const line = text
-		.split( /\r?\n/ )
-		.map( ( l ) => l.trim() )
-		.find( ( l ) => l.startsWith( '[' ) );
-	if ( ! line ) {
+	const start = stdout.indexOf( '[' );
+	const end = stdout.lastIndexOf( ']' );
+	if ( start === -1 || end < start ) {
 		return null;
 	}
 	try {
-		const items = JSON.parse( line );
+		const items = JSON.parse( stdout.slice( start, end + 1 ) );
 		return Array.isArray( items ) ? items : null;
 	} catch {
 		return null;
@@ -427,7 +432,7 @@ async function pluginCheck( site, debug ) {
 			console.log( raw );
 		}
 		const findings =
-			run.code === 0 ? parseFindings( run.stdout + run.stderr ) : null;
+			run.code === 0 ? parseFindings( run.stdout, run.stderr ) : null;
 		if ( findings ) {
 			return { findings, runtime, raw };
 		}
@@ -672,6 +677,14 @@ async function check( opts ) {
 				'Install the zip'
 			);
 			return 1;
+		}
+		if ( ! about.debugLog ) {
+			annotate(
+				'error',
+				'WP_DEBUG_LOG is off in the site, so PHP notices from the plugin would go unseen.',
+				'PHP errors'
+			);
+			failures++;
 		}
 		annotate(
 			'notice',
