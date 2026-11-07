@@ -26,6 +26,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 const PREFIX = 'voyager-open/';
 
 /**
+ * The binding sources whose fields the catalog lists and bind writes.
+ */
+const SOURCES = [ SiteData\SOURCE, PostMetaText\SOURCE, 'core/post-meta' ];
+
+/**
  * The pack's block types.
  *
  * @return array<int, array<string, mixed>>
@@ -231,7 +236,7 @@ function owner_fields( string $source, string $post_type ): ?array {
 function sources( string $post_type ): array {
 	$out = [];
 
-	foreach ( [ SiteData\SOURCE, PostMetaText\SOURCE, 'core/post-meta' ] as $name ) {
+	foreach ( SOURCES as $name ) {
 		$source = get_block_bindings_source( $name );
 		if ( null === $source ) {
 			continue;
@@ -287,4 +292,102 @@ function match_args( string $source, string $post_type, array $args ) {
 		sprintf( 'No %s field for post type "%s" has args %s. Copy args from get-catalog or the Wesper manifest.', $source, $post_type, wp_json_encode( $args ) ),
 		[ 'status' => 400 ]
 	);
+}
+
+/**
+ * The checks bind makes before it writes a binding.
+ *
+ * The attribute must be bindable on the block, the source must be registered,
+ * and the args must match a listed field (match_args()).
+ *
+ * @param string       $name      Block name.
+ * @param string       $attribute Attribute to bind.
+ * @param string       $source    Source name.
+ * @param array<mixed> $args      Args as given.
+ * @param string[]     $bindable  Attributes the block can bind, from get_block_bindings_supported_attributes().
+ * @param string       $post_type Post type whose fields the args are checked against.
+ * @return true|WP_Error
+ */
+function check_binding( string $name, string $attribute, string $source, array $args, array $bindable, string $post_type ) {
+	if ( ! in_array( $attribute, $bindable, true ) ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_attribute',
+			sprintf( '"%s" is not bindable on %s. Bindable: %s.', $attribute, $name, $bindable ? implode( ', ', $bindable ) : 'none' ),
+			[ 'status' => 400 ]
+		);
+	}
+
+	if ( null === get_block_bindings_source( $source ) ) {
+		return new WP_Error( 'voyager_open_blocks_invalid_source', sprintf( 'The binding source %s is not registered on this site.', $source ), [ 'status' => 400 ] );
+	}
+
+	return match_args( $source, $post_type, $args );
+}
+
+/**
+ * Errors and warnings for the bindings a block declares, as validate reports them.
+ *
+ * A binding to one of SOURCES gets bind's checks (check_binding()). When the
+ * source is registered but its fields cannot be listed (another plugin owns
+ * it and does not describe them), the args cannot be checked: a warning, not
+ * an error. A binding to any other registered source, such as
+ * core/pattern-overrides, is not checked here either: a warning. A binding to
+ * a source no plugin registers never resolves, so it is an error.
+ *
+ * @param string   $name      Block name.
+ * @param string   $path      Block path, for the messages.
+ * @param mixed    $bindings  metadata.bindings as the block declares it.
+ * @param string[] $bindable  Attributes the block can bind, from get_block_bindings_supported_attributes().
+ * @param string   $post_type Post type whose fields the args are checked against.
+ * @return array{errors: string[], warnings: string[]}
+ */
+function binding_problems( string $name, string $path, mixed $bindings, array $bindable, string $post_type ): array {
+	$errors   = [];
+	$warnings = [];
+
+	if ( ! is_array( $bindings ) ) {
+		return [
+			'errors'   => [ sprintf( '%s at %s: metadata.bindings must be an object of attribute => { "source", "args" }.', $name, $path ) ],
+			'warnings' => [],
+		];
+	}
+
+	foreach ( $bindings as $attribute => $binding ) {
+		$at     = sprintf( '%s at %s, binding "%s": ', $name, $path, (string) $attribute );
+		$source = is_array( $binding ) && isset( $binding['source'] ) && is_string( $binding['source'] ) ? $binding['source'] : '';
+		$args   = is_array( $binding ) && isset( $binding['args'] ) && is_array( $binding['args'] ) ? $binding['args'] : [];
+
+		if ( '' === $source ) {
+			$errors[] = $at . 'it names no source.';
+			continue;
+		}
+
+		$registered = null !== get_block_bindings_source( $source );
+
+		if ( ! in_array( $source, SOURCES, true ) ) {
+			if ( $registered ) {
+				$warnings[] = $at . sprintf( 'the source %s is registered, but its args cannot be checked here.', $source );
+			} else {
+				$errors[] = $at . sprintf( 'the binding source %s is not registered on this site, so the block always shows its authored text.', $source );
+			}
+			continue;
+		}
+
+		$checked = check_binding( $name, (string) $attribute, $source, $args, $bindable, $post_type );
+
+		if ( true === $checked ) {
+			continue;
+		}
+
+		if ( $registered && 'voyager_open_blocks_invalid_source' === $checked->get_error_code() ) {
+			$warnings[] = $at . $checked->get_error_message();
+		} else {
+			$errors[] = $at . $checked->get_error_message();
+		}
+	}
+
+	return [
+		'errors'   => $errors,
+		'warnings' => $warnings,
+	];
 }

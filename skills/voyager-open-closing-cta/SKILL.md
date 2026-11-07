@@ -11,6 +11,10 @@ license: GPL-2.0-or-later
 - As the last section of a page, right before the footer.
 - Once per page. For a call to action mid-page, use `voyager-open/cta-band`.
 
+## Tell your agent
+
+> End my About page with the Voyager Open Blocks closing CTA. Rewrite the heading and the line for that page, and keep the email button bound to my Site Data email.
+
 ## Structure
 
 ```
@@ -27,9 +31,9 @@ The intent tree is `patterns/intents/closing-cta.json`. The markup is `patterns/
 
 ## Customizing
 
-Change the heading, the line and the primary button. Keep the heading short, one sentence that reads as an invitation. Then `npx block-runner assemble intent.json --json`.
+Change the heading, the line and the primary button. Keep the heading short, one sentence that reads as an invitation. On route 2, edit the intent, then `npx block-runner assemble intent.json --json`. On route 1, use `insert` with `copy` (see Abilities). The primary button keeps `/contact/` on route 1, because no ability changes a static button's link.
 
-To call instead of email, bind the second button's `url` to `phone_link`, and its `text` to `phone` or a label like "Call us".
+To call instead of email, bind the second button's `url` to `{"key": "phone_link"}`. For its text, either bind `text` to `{"key": "phone"}` to show the number, or set the label with `copy` when you insert it, such as "Call us".
 
 ## Bindings
 
@@ -41,18 +45,24 @@ If the site email is not set, the button keeps its authored `/contact/` link.
 
 ## The loop
 
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
+
 1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/closing-cta` is in `patterns.items`.
 2. **Author.** Insert by reference, or assemble an edited intent.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
+3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
 
 ## Abilities
 
-With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **insert**: `{"post_id": 123, "item": "voyager-open/closing-cta"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
-- **insert with copy**: `{"post_id": 123, "item": "voyager-open/closing-cta", "copy": {"Heading": "Ready when you are.", "Body": "Book a free estimate this week.", "Primary button": "Book an estimate", "Email button": "Email the office"}}` replaces the text of those named blocks. Labels: Heading, Body, Primary button, Email button. The email button keeps its `url` binding. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
-- **bind**: it arrives with the email button bound. To make that button call instead, bind its `url` to `{"key": "phone_link"}` on `voyager/site-data`, using the path labelled "Email button".
-- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+- **insert** at the end of the page: leave `position` out, or pass `-1`. If the page already ends with a closing CTA, do not add a second one. Read `get-post-blocks` first to check.
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/closing-cta", "copy": {"Heading": "Ready when you are.", "Body": "Book a free estimate this week.", "Primary button": "Book an estimate", "Email button": "Email the office"}}` replaces the text of those named blocks. Labels: `Heading`, `Body`, `Primary button`, `Email button`. The email button keeps its `url` binding, so its text is a label, not the address. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
+- **"As shipped"**: `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates instead of a copy. Its text cannot change.
+- **bind**: the email button arrives bound. To make it call instead, bind its `url` to `{"key": "phone_link"}` on `voyager/site-data`, using the path labelled "Email button".
+- **get-post-blocks** again: the "Email button" binding should read `resolution.status: "resolved"`, with a `mailto:` link in `value_preview`. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Email address is empty or not a valid address. Say so.
+- **validate** with `{"post_id": 123}` checks the saved page.
+
+On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
 
 `get-catalog` lists this pattern's named blocks and their bindings before you insert it.
 

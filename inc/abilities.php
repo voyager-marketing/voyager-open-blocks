@@ -1,7 +1,7 @@
 <?php
 /**
- * Abilities for the pack: read the catalog and a post's blocks, then insert,
- * configure and bind.
+ * Abilities for the pack: read the catalog and a post's blocks, insert,
+ * configure and bind, and validate markup without saving it.
  *
  * Semantic abilities with an `item` or `path` parameter, not one per block.
  * Each callback is a thin adapter over inc/block-tree.php and inc/catalog.php.
@@ -9,10 +9,12 @@
  *
  * What "validated" means here: WordPress checks every block is registered,
  * every comment attribute it has a schema for is valid, and the markup
- * survives a parse and serialize round trip. Saved HTML is checked by
+ * survives a parse and serialize round trip. bind and validate also check a
+ * binding's attribute, source and args. Saved HTML is checked by
  * `block-runner validate`, which runs the blocks' JavaScript save(). Pattern
- * markup is validated that way when it is built (npm run check), and an agent
- * should pipe the returned `markup` through it too.
+ * markup is validated that way when it is built (npm run check). An agent
+ * with Node should pipe the returned `markup` through it too; one without
+ * has the PHP checks as its floor.
  *
  * @package VoyagerOpenBlocks
  */
@@ -31,6 +33,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 const CATEGORY = 'voyager-open-blocks';
+
+/**
+ * What every validation report says about saved HTML.
+ */
+const SAVE_OUTPUT = 'Not checked: comparing saved HTML with each block\'s save() needs the block\'s JavaScript, which WordPress cannot run in PHP. With Node, run: npx block-runner validate <file> --strict --json --context site.context.json';
 
 /**
  * Register the category.
@@ -76,6 +83,19 @@ function can_edit_post( $input = null ): bool {
 	$post_id = is_array( $input ) && isset( $input['post_id'] ) ? Cast\to_int( $input['post_id'] ) : 0;
 
 	return $post_id > 0 && current_user_can( 'edit_post', $post_id );
+}
+
+/**
+ * Permission for validate: edit the post when it checks a saved post, else edit posts.
+ *
+ * @param array<string, mixed>|null $input Ability input.
+ */
+function can_validate( $input = null ): bool {
+	if ( is_array( $input ) && isset( $input['post_id'] ) ) {
+		return can_edit_post( $input );
+	}
+
+	return current_user_can( 'edit_posts' );
 }
 
 /**
@@ -244,7 +264,7 @@ function register(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks. A pattern inserted as a copy takes copy: plain text for its named headings, paragraphs, buttons and list items.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post at a top-level position, and returns the inserted block markup with the paths of its blocks. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items, and omit, the labels of blocks to leave out.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -280,6 +300,15 @@ function register(): void {
 							'minLength' => 1,
 						],
 						'description'          => 'Patterns in copy mode only. Plain text by label (a block\'s metadata.name, listed by get-catalog with copy: true), such as {"Heading": "...", "Body": "..."}. Replaces the text of headings, paragraphs, button labels and list items, escaped. Bindings stay: on a bound block the text becomes its fallback.',
+					],
+					'omit'       => [
+						'type'        => 'array',
+						'default'     => [],
+						'items'       => [
+							'type'      => 'string',
+							'minLength' => 1,
+						],
+						'description' => 'Patterns in copy mode only. Labels of blocks to leave out, with everything inside them, such as ["Credential 4"] for a proof strip with three facts or ["Hours"] in the contact section. Not the label of the whole pattern.',
 					],
 					'dry_run'    => [
 						'type'        => 'boolean',
@@ -351,7 +380,7 @@ function register(): void {
 					],
 					'source'    => [
 						'type' => 'string',
-						'enum' => [ 'voyager/site-data', 'voyager/post-meta-text', 'core/post-meta' ],
+						'enum' => Catalog\SOURCES,
 					],
 					'args'      => [
 						'type'        => 'object',
@@ -365,6 +394,91 @@ function register(): void {
 			'execute_callback'    => __NAMESPACE__ . '\bind',
 			'permission_callback' => __NAMESPACE__ . '\can_edit_post',
 			'meta'                => meta( false, true ),
+		]
+	);
+
+	$messages = [
+		'type'  => 'array',
+		'items' => [ 'type' => 'string' ],
+	];
+
+	wp_register_ability(
+		CATEGORY . '/validate',
+		[
+			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'category'            => CATEGORY,
+			'input_schema'        => [
+				'type'                 => 'object',
+				'default'              => [],
+				'properties'           => [
+					'markup'    => [
+						'type'        => 'string',
+						'minLength'   => 1,
+						'description' => 'Block markup to check, such as a section you wrote or were given. Pass markup or post_id, not both.',
+					],
+					'post_id'   => [
+						'type'        => 'integer',
+						'minimum'     => 1,
+						'description' => 'ID of a saved post or page to check instead of markup.',
+					],
+					'post_type' => [
+						'type'        => 'string',
+						'description' => 'Post type whose fields binding args are checked against. Defaults to the type of post_id, else page. For a template, pass the post type it shows.',
+					],
+				],
+				'additionalProperties' => false,
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'valid'       => [
+						'type'        => 'boolean',
+						'description' => 'True when no block has an error. Warnings do not change it.',
+					],
+					'post_id'     => [ 'type' => 'integer' ],
+					'post_type'   => [
+						'type'        => 'string',
+						'description' => 'Post type the binding args were checked against.',
+					],
+					'round_trip'  => [
+						'type'        => 'boolean',
+						'description' => 'True when every block is written exactly as WordPress writes it back, apart from the whitespace between top-level blocks.',
+					],
+					'blocks'      => [
+						'type'  => 'array',
+						'items' => [
+							'type'       => 'object',
+							'properties' => [
+								'path'     => [
+									'type'        => 'string',
+									'description' => 'Block path, such as "2/0/1".',
+								],
+								'block'    => [
+									'type'        => 'string',
+									'description' => 'Block name. core/freeform is HTML outside any block.',
+								],
+								'label'    => [
+									'type'        => 'string',
+									'description' => 'metadata.name, when the block has one.',
+								],
+								'errors'   => $messages,
+								'warnings' => $messages,
+							],
+						],
+					],
+					'errors'      => $messages,
+					'warnings'    => $messages,
+					'markup'      => [
+						'type'        => 'string',
+						'description' => 'The markup as WordPress would save it. Compare it with yours where round_trip failed.',
+					],
+					'save_output' => [ 'type' => 'string' ],
+				],
+			],
+			'execute_callback'    => __NAMESPACE__ . '\validate',
+			'permission_callback' => __NAMESPACE__ . '\can_validate',
+			'meta'                => meta( true, true ),
 		]
 	);
 }
@@ -473,7 +587,7 @@ function validation( array $blocks, string $markup ): array {
 		'registered_and_attributes' => $check['valid'],
 		'errors'                    => $check['errors'],
 		'round_trip'                => BlockTree\to_markup( BlockTree\parse( $markup ) ) === $markup,
-		'save_output'               => 'Not checked by WordPress PHP. Run: npx block-runner validate <file> --strict --json --context site.context.json',
+		'save_output'               => SAVE_OUTPUT,
 	];
 }
 
@@ -490,6 +604,7 @@ function insert( array $input ) {
 	$mode       = isset( $input['mode'] ) ? Cast\to_string( $input['mode'] ) : 'copy';
 	$attributes = assoc( $input['attributes'] ?? null );
 	$copy       = array_map( static fn ( mixed $text ): string => Cast\to_string( $text ), assoc( $input['copy'] ?? null ) );
+	$omit       = array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), (array) ( $input['omit'] ?? [] ) ) ) );
 	$dry_run    = ! empty( $input['dry_run'] );
 
 	$blocks = BlockTree\load( $post_id );
@@ -507,6 +622,14 @@ function insert( array $input ) {
 		);
 	}
 
+	if ( $omit && ( ! $pattern || 'reference' === $mode ) ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_omit',
+			'omit works only on a pattern inserted with mode "copy". A reference renders the pattern as shipped.',
+			[ 'status' => 400 ]
+		);
+	}
+
 	if ( $pattern ) {
 		$new = 'reference' === $mode
 			? [
@@ -519,6 +642,13 @@ function insert( array $input ) {
 				],
 			]
 			: BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) );
+
+		if ( $omit ) {
+			$omitted = BlockTree\omit( $new, $omit );
+			if ( is_wp_error( $omitted ) ) {
+				return $omitted;
+			}
+		}
 
 		if ( $copy ) {
 			$copied = BlockTree\set_copy( $new, $copy );
@@ -671,23 +801,11 @@ function bind( array $input ) {
 	$source    = Cast\to_string( $input['source'] ?? '' );
 	$args      = (array) ( $input['args'] ?? [] );
 	$bindable  = array_values( array_filter( get_block_bindings_supported_attributes( $name ), 'is_string' ) );
+	$post_id   = Cast\to_int( $input['post_id'] );
 
-	if ( ! in_array( $attribute, $bindable, true ) ) {
-		return new WP_Error(
-			'voyager_open_blocks_invalid_attribute',
-			sprintf( '"%s" is not bindable on %s. Bindable: %s.', $attribute, $name, $bindable ? implode( ', ', $bindable ) : 'none' ),
-			[ 'status' => 400 ]
-		);
-	}
-
-	if ( null === get_block_bindings_source( $source ) ) {
-		return new WP_Error( 'voyager_open_blocks_invalid_source', sprintf( 'The binding source %s is not registered on this site.', $source ), [ 'status' => 400 ] );
-	}
-
-	$post_id = Cast\to_int( $input['post_id'] );
-	$matched = Catalog\match_args( $source, (string) get_post_type( $post_id ), $args );
-	if ( is_wp_error( $matched ) ) {
-		return $matched;
+	$checked = Catalog\check_binding( $name, $attribute, $source, $args, $bindable, (string) get_post_type( $post_id ) );
+	if ( is_wp_error( $checked ) ) {
+		return $checked;
 	}
 
 	$metadata = BlockTree\metadata( $block );
@@ -733,4 +851,42 @@ function finish( int $post_id, array $blocks, array $block, string $path ) {
 		'markup'     => $markup,
 		'validation' => $report,
 	];
+}
+
+/**
+ * Execute validate.
+ *
+ * @param array<string, mixed>|null $input Input: markup, or post_id; post_type optional.
+ * @return array<string, mixed>|WP_Error
+ */
+function validate( $input = null ) {
+	$input     = assoc( $input );
+	$has_post  = isset( $input['post_id'] );
+	$post_type = Cast\to_string( $input['post_type'] ?? '' );
+	$out       = [];
+
+	if ( isset( $input['markup'] ) === $has_post ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_markup',
+			$has_post ? 'Pass markup or post_id, not both.' : 'Pass markup (block markup to check) or post_id (a saved post to check).',
+			[ 'status' => 400 ]
+		);
+	}
+
+	if ( $has_post ) {
+		$post_id = Cast\to_int( $input['post_id'] );
+		$post    = get_post( $post_id );
+
+		if ( ! $post ) {
+			return new WP_Error( 'voyager_open_blocks_invalid_post_id', sprintf( 'Post %d does not exist.', $post_id ), [ 'status' => 404 ] );
+		}
+
+		$markup    = (string) $post->post_content;
+		$post_type = '' === $post_type ? $post->post_type : $post_type;
+		$out       = [ 'post_id' => $post_id ];
+	} else {
+		$markup = Cast\to_string( $input['markup'] );
+	}
+
+	return $out + BlockTree\validate_markup( $markup, '' === $post_type ? 'page' : $post_type ) + [ 'save_output' => SAVE_OUTPUT ];
 }

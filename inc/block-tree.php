@@ -286,33 +286,16 @@ function check( array $blocks ): array {
  * @return string[]
  */
 function check_level( array $list, string $prefix ): array {
-	$errors   = [];
-	$registry = \WP_Block_Type_Registry::get_instance();
+	$errors = [];
 
 	foreach ( $list as $index => $block ) {
 		$path = '' === $prefix ? (string) $index : $prefix . '/' . $index;
-		$name = $block['blockName'];
 
-		if ( null === $name ) {
+		if ( null === $block['blockName'] ) {
 			continue;
 		}
 
-		$type = $registry->get_registered( $name );
-		if ( ! $type ) {
-			$errors[] = sprintf( '%s at %s is not a registered block type.', $name, $path );
-			continue;
-		}
-
-		foreach ( $block['attrs'] as $attribute => $value ) {
-			$schema = $type->attributes[ $attribute ] ?? null;
-			if ( ! is_array( $schema ) || isset( $schema['source'] ) ) {
-				continue;
-			}
-			$valid = rest_validate_value_from_schema( $value, array_intersect_key( $schema, array_flip( [ 'type', 'enum', 'items', 'properties' ] ) ), (string) $attribute );
-			if ( is_wp_error( $valid ) ) {
-				$errors[] = sprintf( '%s at %s: %s', $name, $path, $valid->get_error_message() );
-			}
-		}
+		$errors = array_merge( $errors, block_errors( $block, $path ) );
 
 		/** @var array<int, Block> $inner */
 		$inner  = $block['innerBlocks'];
@@ -320,6 +303,262 @@ function check_level( array $list, string $prefix ): array {
 	}
 
 	return $errors;
+}
+
+/**
+ * The errors of one block itself, not of its inner blocks.
+ *
+ * Its type must be registered, and every comment attribute the server has a
+ * schema for must be valid against it. An attribute read from the saved HTML
+ * (`source` in block.json) is skipped: its value is in the HTML, not here.
+ *
+ * @param Block  $block Parsed block with a name.
+ * @param string $path  Its path, for the messages.
+ * @return string[]
+ */
+function block_errors( array $block, string $path ): array {
+	$name = (string) $block['blockName'];
+	$type = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+
+	if ( ! $type ) {
+		return [ sprintf( '%s at %s is not a registered block type.', $name, $path ) ];
+	}
+
+	$errors = [];
+
+	foreach ( $block['attrs'] as $attribute => $value ) {
+		$schema = $type->attributes[ $attribute ] ?? null;
+		if ( ! is_array( $schema ) || isset( $schema['source'] ) ) {
+			continue;
+		}
+		$valid = rest_validate_value_from_schema( $value, array_intersect_key( $schema, array_flip( [ 'type', 'enum', 'items', 'properties' ] ) ), (string) $attribute );
+		if ( is_wp_error( $valid ) ) {
+			$errors[] = sprintf( '%s at %s: %s', $name, $path, $valid->get_error_message() );
+		}
+	}
+
+	return $errors;
+}
+
+/**
+ * Warnings for comment attributes that WordPress reads from the saved HTML.
+ *
+ * An attribute with a `source` in block.json, such as a paragraph's content
+ * or a button's url, is parsed from the block's HTML. A value for it in the
+ * block comment is ignored, and the editor drops it the next time it saves.
+ *
+ * @param Block  $block Parsed block with a name.
+ * @param string $path  Its path, for the messages.
+ * @return string[]
+ */
+function comment_warnings( array $block, string $path ): array {
+	$name     = (string) $block['blockName'];
+	$type     = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+	$warnings = [];
+
+	if ( ! $type ) {
+		return [];
+	}
+
+	foreach ( array_keys( $block['attrs'] ) as $attribute ) {
+		$schema = $type->attributes[ $attribute ] ?? null;
+		if ( is_array( $schema ) && isset( $schema['source'] ) ) {
+			$warnings[] = sprintf( '%s at %s: "%s" is read from the block\'s HTML, so the value in the block comment is ignored. Put the text in the HTML.', $name, $path, $attribute );
+		}
+	}
+
+	return $warnings;
+}
+
+/**
+ * The first top-level block whose markup is not what WordPress writes back.
+ *
+ * Each top-level block must appear in the markup exactly as WordPress
+ * serializes it, in order, with nothing but whitespace between blocks and
+ * around the whole. That is what a parse and serialize round trip keeps, so
+ * a mismatch means WordPress would save something other than what was given:
+ * a missing closing comment, attributes that did not parse, a different
+ * nesting, or harmless spelling such as JSON escapes.
+ *
+ * @param string   $markup Markup as given.
+ * @param string[] $pieces Each top-level block as serialize_block() writes it, in order. A freeform block's piece is trimmed.
+ * @return int|null Index of the first block that does not match, count( $pieces ) when text is left after the last block, or null when everything matches.
+ */
+function first_mismatch( string $markup, array $pieces ): ?int {
+	$whitespace = " \t\n\r\0\x0B";
+	$offset     = 0;
+
+	foreach ( array_values( $pieces ) as $index => $piece ) {
+		$offset += strspn( $markup, $whitespace, $offset );
+
+		if ( substr( $markup, $offset, strlen( $piece ) ) !== $piece ) {
+			return $index;
+		}
+
+		$offset += strlen( $piece );
+	}
+
+	return '' === trim( substr( $markup, $offset ), $whitespace ) ? null : count( $pieces );
+}
+
+/**
+ * Spell every block comment delimiter the way serialize_block() does.
+ *
+ * Finds delimiters with WP_Block_Parser's own pattern, then writes each one
+ * again: the name without `core/`, single spaces, and the attributes decoded
+ * and encoded with serialize_block_attributes(). Two spellings the parser
+ * reads the same way then compare equal, such as `&` and `\u0026` or `\/`
+ * and `/` in the JSON. A delimiter whose JSON does not decode is left as it
+ * is, so it still shows up as a mismatch.
+ *
+ * @param string $markup Block markup.
+ */
+function normalize_delimiters( string $markup ): string {
+	$normalized = preg_replace_callback(
+		'/<!--\s+(?P<closer>\/)?wp:(?P<namespace>[a-z][a-z0-9_-]*\/)?(?P<name>[a-z][a-z0-9_-]*)\s+(?P<attrs>{(?:(?:[^}]+|}+(?=})|(?!}\s+\/?-->).)*+)?}\s+)?(?P<void>\/)?-->/s',
+		static function ( array $match ): string {
+			// A trailing group that did not take part is missing, not ''.
+			$part      = static fn ( string $group ): string => Cast\to_string( $match[ $group ] ?? '' );
+			$namespace = $part( 'namespace' );
+			$name      = ( 'core/' === $namespace ? '' : $namespace ) . $part( 'name' );
+
+			if ( '' !== $part( 'closer' ) ) {
+				return sprintf( '<!-- /wp:%s -->', $name );
+			}
+
+			$attrs = '';
+			if ( '' !== $part( 'attrs' ) ) {
+				$decoded = json_decode( $part( 'attrs' ), true );
+				if ( ! is_array( $decoded ) ) {
+					return $part( '0' );
+				}
+				$attrs = [] === $decoded ? '' : serialize_block_attributes( $decoded ) . ' ';
+			}
+
+			return sprintf( '<!-- wp:%s %s%s-->', $name, $attrs, '' !== $part( 'void' ) ? '/' : '' );
+		},
+		$markup
+	);
+
+	if ( null === $normalized ) {
+		return $markup;
+	}
+
+	// serialize_block() writes a block with no content as one void comment.
+	// Normalized JSON never holds "-->", so the attributes end at the first "} -->".
+	return preg_replace( '/<!-- wp:([a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)?) ((?:\{.*?\} )?)--><!-- \/wp:\1 -->/s', '<!-- wp:$1 $2/-->', $normalized ) ?? $normalized;
+}
+
+/**
+ * Validate block markup without saving it.
+ *
+ * Every block gets the checks insert, configure and bind run on the blocks
+ * they write (block_errors()), and every declared binding gets bind's checks
+ * (Catalog\binding_problems()). A top-level block that does not survive a
+ * parse and serialize round trip (first_mismatch(), after
+ * normalize_delimiters()) is an error too. HTML outside any block is an
+ * error: WordPress keeps it as a Classic block.
+ *
+ * Saved HTML is not compared with what each block's save() would write. That
+ * needs the block's JavaScript, which is what `block-runner validate` runs.
+ *
+ * @param string $markup    Block markup.
+ * @param string $post_type Post type whose fields binding args are checked against.
+ * @return array{valid: bool, post_type: string, round_trip: bool, blocks: array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>, errors: string[], warnings: string[], markup: string}
+ */
+function validate_markup( string $markup, string $post_type ): array {
+	$blocks   = parse( $markup );
+	$rows     = validate_level( $blocks, '', $post_type );
+	$errors   = [];
+	$warnings = [];
+
+	if ( [] === $blocks ) {
+		$errors[] = 'The markup holds no blocks.';
+	}
+
+	$mismatch = first_mismatch(
+		normalize_delimiters( $markup ),
+		array_map(
+			static fn ( array $block ): string => null === $block['blockName'] ? trim( serialize_block( $block ) ) : serialize_block( $block ),
+			$blocks
+		)
+	);
+
+	if ( null !== $mismatch && [] !== $blocks ) {
+		$top = (string) min( $mismatch, count( $blocks ) - 1 );
+
+		foreach ( $rows as $index => $row ) {
+			if ( $top === $row['path'] ) {
+				$rows[ $index ]['errors'][] = sprintf( '%s at %s, or a block inside it, is not written the way WordPress writes it back after a parse and serialize round trip. Compare it with the same block in the returned markup.', $row['block'], $row['path'] );
+				break;
+			}
+		}
+	}
+
+	foreach ( $rows as $row ) {
+		$errors   = array_merge( $errors, $row['errors'] );
+		$warnings = array_merge( $warnings, $row['warnings'] );
+	}
+
+	return [
+		'valid'      => [] === $errors,
+		'post_type'  => $post_type,
+		'round_trip' => null === $mismatch,
+		'blocks'     => $rows,
+		'errors'     => $errors,
+		'warnings'   => $warnings,
+		'markup'     => to_markup( $blocks ),
+	];
+}
+
+/**
+ * Per-block results for one level of blocks and, recursively, their inner blocks.
+ *
+ * @param array<int, Block> $list      Blocks at one level.
+ * @param string            $prefix    Path of the parent, '' at the top.
+ * @param string            $post_type Post type whose fields binding args are checked against.
+ * @return array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>
+ */
+function validate_level( array $list, string $prefix, string $post_type ): array {
+	$rows = [];
+
+	foreach ( $list as $index => $block ) {
+		$path     = '' === $prefix ? (string) $index : $prefix . '/' . $index;
+		$name     = $block['blockName'];
+		$metadata = metadata( $block );
+		$row      = [
+			'path'     => $path,
+			'block'    => $name ?? 'core/freeform',
+			'errors'   => [],
+			'warnings' => [],
+		];
+
+		if ( isset( $metadata['name'] ) && is_string( $metadata['name'] ) && '' !== $metadata['name'] ) {
+			$row['label'] = $metadata['name'];
+		}
+
+		if ( null === $name ) {
+			$row['errors'][] = sprintf( 'HTML outside any block at %s. WordPress keeps it as a Classic block. Put it in a block, or remove it.', $path );
+		} else {
+			$row['errors']   = block_errors( $block, $path );
+			$row['warnings'] = comment_warnings( $block, $path );
+
+			if ( array_key_exists( 'bindings', $metadata ) ) {
+				$bindable        = array_values( array_filter( get_block_bindings_supported_attributes( $name ), 'is_string' ) );
+				$found           = \VoyagerOpenBlocks\Catalog\binding_problems( $name, $path, $metadata['bindings'], $bindable, $post_type );
+				$row['errors']   = array_merge( $row['errors'], $found['errors'] );
+				$row['warnings'] = array_merge( $row['warnings'], $found['warnings'] );
+			}
+		}
+
+		$rows[] = $row;
+
+		/** @var array<int, Block> $inner */
+		$inner = $block['innerBlocks'];
+		array_push( $rows, ...validate_level( $inner, $path, $post_type ) );
+	}
+
+	return $rows;
 }
 
 /**
@@ -396,6 +635,158 @@ function set_copy( array &$blocks, array $copy ) {
 	$blocks = $changed;
 
 	return true;
+}
+
+/**
+ * Remove named blocks, such as the fourth credential of a proof strip.
+ *
+ * Each label is a metadata.name inside the blocks, never a top-level block:
+ * leaving out a whole section is leaving out the pattern. Every block with the
+ * label goes, with the whitespace that separated it from a sibling, so its
+ * parent reads as if the block had never been there. The parent's own HTML is
+ * kept. Core containers (group, list, buttons, columns) save their inner
+ * blocks in one slot, so their HTML does not depend on how many they hold.
+ *
+ * @param array<int, Block> $blocks Blocks, by reference. Unchanged on error.
+ * @param string[]          $labels Labels of the blocks to remove.
+ * @return true|WP_Error
+ */
+function omit( array &$blocks, array $labels ) {
+	$rows      = describe( $blocks );
+	$removable = array_values(
+		array_unique(
+			array_column(
+				array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) && str_contains( $row['path'], '/' ) ),
+				'label'
+			)
+		)
+	);
+	$paths     = [];
+
+	foreach ( $labels as $label ) {
+		$matches = array_filter( $rows, static fn ( array $row ): bool => ( $row['label'] ?? null ) === $label );
+
+		if ( [] === $matches ) {
+			return invalid_omit( sprintf( 'No block is named "%s".', $label ), $removable );
+		}
+
+		foreach ( $matches as $row ) {
+			if ( ! str_contains( $row['path'], '/' ) ) {
+				return invalid_omit( sprintf( '"%s" is the whole section. Leave the pattern out instead.', $label ), $removable );
+			}
+			$paths[] = $row['path'];
+		}
+	}
+
+	// A block inside another removed block goes with it.
+	$paths = array_filter(
+		array_unique( $paths ),
+		static function ( string $path ) use ( $paths ): bool {
+			foreach ( $paths as $other ) {
+				if ( str_starts_with( $path, $other . '/' ) ) {
+					return false;
+				}
+			}
+			return true;
+		}
+	);
+
+	// Last in document order first, so a removal never moves a path still to come.
+	usort( $paths, static fn ( string $a, string $b ): int => compare_paths( $b, $a ) );
+
+	$changed = $blocks;
+	foreach ( $paths as $path ) {
+		$indices = parse_path( $path );
+		if ( is_wp_error( $indices ) ) {
+			return $indices;
+		}
+
+		$index  = (int) array_pop( $indices );
+		$parent = &find( $changed, $indices );
+		if ( null === $parent || ! remove_inner( $parent, $index ) ) {
+			return invalid_omit( sprintf( 'No block at path %s.', $path ), $removable );
+		}
+		unset( $parent );
+	}
+
+	$blocks = $changed;
+
+	return true;
+}
+
+/**
+ * Compare two block paths in document order.
+ *
+ * @param string $a Path such as "0/1".
+ * @param string $b Path such as "0/0/5".
+ * @return int Negative when $a comes first, positive when $b does, 0 when equal.
+ */
+function compare_paths( string $a, string $b ): int {
+	$left  = array_map( 'intval', explode( '/', $a ) );
+	$right = array_map( 'intval', explode( '/', $b ) );
+
+	foreach ( $left as $depth => $index ) {
+		if ( ! isset( $right[ $depth ] ) ) {
+			return 1;
+		}
+		if ( $index !== $right[ $depth ] ) {
+			return $index <=> $right[ $depth ];
+		}
+	}
+
+	return count( $left ) <=> count( $right );
+}
+
+/**
+ * Remove one inner block and the whitespace that separated it from a sibling.
+ *
+ * @param Block $parent Parent block, by reference.
+ * @param int   $index  Index of the inner block.
+ * @return bool False when there is no inner block at that index.
+ */
+function remove_inner( array &$parent, int $index ): bool {
+	$content = array_values( $parent['innerContent'] );
+	$slots   = array_keys( $content, null, true );
+	$at      = $slots[ $index ] ?? null;
+
+	if ( null === $at || ! isset( $parent['innerBlocks'][ $index ] ) ) {
+		return false;
+	}
+
+	$gap = static fn ( int $key ): bool => isset( $content[ $key ] ) && is_string( $content[ $key ] ) && '' === trim( $content[ $key ] );
+
+	unset( $content[ $at ] );
+	if ( $index > 0 && $gap( $at - 1 ) ) {
+		unset( $content[ $at - 1 ] );
+	} elseif ( isset( $slots[ $index + 1 ] ) && $gap( $at + 1 ) ) {
+		unset( $content[ $at + 1 ] );
+	}
+
+	$inner = $parent['innerBlocks'];
+	array_splice( $inner, $index, 1 );
+
+	$parent['innerBlocks']  = $inner;
+	$parent['innerContent'] = array_values( $content );
+	$parent['innerHTML']    = implode( '', array_filter( $parent['innerContent'], 'is_string' ) );
+
+	return true;
+}
+
+/**
+ * The error for omit that cannot be applied, listing the labels that can go.
+ *
+ * @param string   $message What is wrong.
+ * @param string[] $labels  Labels that can be omitted.
+ */
+function invalid_omit( string $message, array $labels ): WP_Error {
+	return new WP_Error(
+		'voyager_open_blocks_invalid_omit',
+		sprintf( '%s Labels you can omit: %s.', $message, $labels ? implode( ', ', array_map( 'wp_json_encode', $labels ) ) : 'none' ),
+		[
+			'status' => 400,
+			'labels' => $labels,
+		]
+	);
 }
 
 /**

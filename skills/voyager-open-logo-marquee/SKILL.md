@@ -11,6 +11,12 @@ license: GPL-2.0-or-later
 - A strip of client, partner, supplier or certification logos.
 - Only logos the site owner has the right to show. Do not add a brand's logo because the business mentions it.
 
+## Tell your agent
+
+> Add the Voyager Open Blocks logo marquee to my home page and replace the placeholder logos with these images from my media library: [image names].
+
+Route 2 does all of it. Route 1 places the marquee and its eyebrow, and the user swaps the images in the editor (see Abilities).
+
 ## Structure
 
 ```
@@ -29,7 +35,7 @@ The shipped images are grey placeholder SVGs in the plugin's `assets/placeholder
 
 ## Customizing
 
-Replace each `core/image` with the site's own media. Upload first, then use the attachment's URL and ID:
+On route 2, replace each `core/image` in the intent with the site's own media. Upload first, or find the existing attachment, then use its URL and ID:
 
 ```json
 { "block": "core/image", "url": "https://example.com/wp-content/uploads/acme.svg", "alt": "Acme Corp", "attrs": { "id": 123, "height": "40px", "scale": "contain" } }
@@ -47,20 +53,24 @@ None. Logos are media, not site data.
 
 ## The loop
 
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
+
 1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/logo-marquee` is in `patterns.items` and `voyager-open-marquee` is in the `core/group` block's `styles`.
 2. **Author.** Assemble with real media.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
+3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
 
 ## Abilities
 
-With the plugin active, an agent places this pattern through the `voyager-open-blocks` abilities (WordPress Abilities API, `wp-abilities/v1`, also exposed to MCP) without writing markup:
+This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **insert**: `{"post_id": 123, "item": "voyager-open/logo-marquee"}`. Add `"position": 0` to put it first, or `"mode": "reference"` to insert a `core/pattern` that tracks plugin updates instead of a copy. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
-- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow heading, the only text in this pattern. Images are not copy. Plain text only, escaped on the way in. Copy mode only. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
-- Replacing the placeholder logos is media work. Upload the images, then edit the inserted blocks in the editor, or re-author the section with `block-runner assemble`, setting each image's `alt` to the company's name. `configure` only changes blocks that save no HTML, and `core/image` saves HTML.
-- Pipe the returned `markup` through `npx block-runner validate --strict --json`. WordPress cannot check saved HTML from PHP.
+- **insert**: `{"post_id": 123, "item": "voyager-open/logo-marquee"}`. Read `get-post-blocks` first to pick `position` among the top-level blocks. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow heading, the only text in this pattern. Images are not copy, and they have no labels, so `omit` cannot remove one either. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving.
+- **The logos:** no ability changes an image. `configure` only changes blocks that save no HTML, and `core/image` saves HTML. After the insert, tell the user to replace each placeholder in the editor: select the image, choose Replace, pick the logo from the Media Library, and set its alternative text to the company's name. List which image goes where, and ask the user to delete any placeholder left over. Until then the page shows grey placeholder logos, so say so before you save to a published page.
+- **validate** with `{"post_id": 123}` checks the saved page.
 
-`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+
+`get-catalog` lists this pattern's named blocks before you insert it.
 
 ## Try it
 
