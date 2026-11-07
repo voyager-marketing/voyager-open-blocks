@@ -16,6 +16,11 @@
           "type": "generic",
           "path": "readme.txt",
           "glob": false
+        },
+        {
+          "type": "generic",
+          "path": "skills/voyager-open-blocks/SKILL.md",
+          "glob": false
         }
       ]
     }

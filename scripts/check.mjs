@@ -9,7 +9,8 @@
  * 3. The same command fails on tests/invalid/, so the gate is shown to bite.
  * 4. `block-runner plugin inspect` recognizes the plugin as a wp-scripts host.
  * 5. readme.txt's `Stable tag` matches the plugin's `Version` header.
- * 6. tests/fixtures/site-data-keys.json matches its sha256 pin.
+ * 6. The entry skill's `pack-version` matches the plugin's `Version` header.
+ * 7. tests/fixtures/site-data-keys.json matches its sha256 pin.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -125,6 +126,23 @@ report(
 	'readme.txt Stable tag matches the plugin Version',
 	version !== '' && stableTag === version,
 	`Stable tag ${ stableTag || 'missing' }, Version ${ version || 'missing' }`
+);
+
+// An agent reads pack-version to know which pack the skills describe.
+// release-please moves it on each release through the x-release-please-version
+// marker on its line, so a mismatch means the marker or the line was lost.
+const entrySkill = join( 'skills', 'voyager-open-blocks', 'SKILL.md' );
+const frontmatter =
+	readFileSync( join( root, entrySkill ), 'utf8' ).match(
+		/^---\r?\n([\s\S]*?)\r?\n---\r?\n/
+	)?.[ 1 ] ?? '';
+const packVersion =
+	frontmatter.match( /^\s+pack-version:\s*["']?([^"'\s#]+)["']?/m )?.[ 1 ] ??
+	'';
+report(
+	`${ entrySkill } pack-version matches the plugin Version`,
+	version !== '' && packVersion === version,
+	`pack-version ${ packVersion || 'missing' }, Version ${ version || 'missing' }`
 );
 
 // voyager-blocks carries a byte-identical copy of the site-data fixture and

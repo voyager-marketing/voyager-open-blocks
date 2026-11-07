@@ -3,7 +3,7 @@ name: voyager-open-blocks
 description: Entry point for the Voyager Open Blocks pack on a WordPress site. Use when an agent needs to place, configure or bind any voyager-open/* block or pattern, or the voyager/site-data and voyager/post-meta-text binding sources. Teaches the read (Wesper), author (Block Runner), bind loop and routes to the per-item skills.
 license: GPL-2.0-or-later
 metadata:
-  pack-version: "0.3.0"
+  pack-version: "0.5.0" # x-release-please-version
   requires: "WordPress 6.9+, PHP 8.1+, wesper 0.5.0, block-runner 1.0.0"
 ---
 

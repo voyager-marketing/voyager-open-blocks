@@ -9,6 +9,7 @@ parameters:
 
 	paths:
 		- voyager-open-blocks.php
+		- uninstall.php
 		- inc
 		- src
 
