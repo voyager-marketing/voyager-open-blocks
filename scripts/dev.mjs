@@ -136,12 +136,20 @@ export async function verify( site ) {
 
 	// A fresh Playground server answers its first request with a redirect to
 	// the same URL. Spend it here, so later requests and cookies are ordinary.
-	await client.get( '/' );
+	const first = await client.get( '/' );
+	const notes = [
+		`first request: ${ first.hops.join( ', ' ) || first.status }`,
+	];
 
 	const index = await client.get( DEMO_PATH );
 	expect(
 		index.status === 200,
 		`${ DEMO_PATH } answers ${ index.status } (the demo index)`
+	);
+	notes.push(
+		`admin toolbar on the demo index: ${
+			index.text.includes( 'id="wpadminbar"' ) ? 'yes' : 'no'
+		}`
 	);
 
 	const escaped = site.url.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
@@ -164,17 +172,43 @@ export async function verify( site ) {
 		expect( page.status === 200, `${ path } answers ${ page.status }` );
 	}
 
-	const settings = await client.get( SETTINGS_PATH );
-	const onSettings = new URL( settings.url ).pathname.endsWith(
-		'/options-general.php'
+	notes.push(
+		`cookies held: ${ [ ...client.cookies.keys() ].join( ', ' ) }`
 	);
-	expect(
-		settings.status === 200 && onSettings,
-		onSettings
-			? `Settings > Site Data answers ${ settings.status } logged in as admin`
-			: `Settings > Site Data sent the request to ${ settings.url } instead, so the admin login did not hold`
-	);
-	if ( onSettings ) {
+	let settings = await client.get( SETTINGS_PATH );
+	const onSettings = ( res ) =>
+		new URL( res.url ).pathname.endsWith( '/options-general.php' );
+
+	if ( ! onSettings( settings ) ) {
+		notes.push( `settings redirects: ${ settings.hops.join( ', ' ) }` );
+		// Playground's automatic login did not hold. Log in the way a person
+		// would, so the report says whether sessions work at all.
+		await client.get( '/wp-login.php' );
+		const login = await client.post( '/wp-login.php', {
+			log: 'admin',
+			pwd: 'password',
+			'wp-submit': 'Log In',
+			testcookie: '1',
+			redirect_to: `${ site.url }${ SETTINGS_PATH }`,
+		} );
+		notes.push(
+			`form login: ${ login.hops.join( ', ' ) || login.status } ending at ${
+				new URL( login.url ).pathname
+			}`
+		);
+		failed.push(
+			`Settings > Site Data sent the request to ${ settings.url }, so the automatic admin login did not hold. ${ notes.join(
+				'; '
+			) }`
+		);
+		settings = login;
+	}
+
+	if ( onSettings( settings ) ) {
+		expect(
+			settings.status === 200,
+			`Settings > Site Data answers ${ settings.status } logged in as admin`
+		);
 		const phone =
 			/id="voyager_site_phone"[^>]*\svalue="([^"]*)"/.exec(
 				settings.text

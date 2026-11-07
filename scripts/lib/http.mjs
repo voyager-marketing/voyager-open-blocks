@@ -14,7 +14,7 @@ const REDIRECTS = [ 301, 302, 303, 307, 308 ];
  * @param {string} base            Site URL, such as http://127.0.0.1:9400.
  * @param {Object} options
  * @param {number} options.timeout Milliseconds to wait for one response.
- * @return {{get: (path: string) => Promise<Object>, cookies: Map<string, string>}} The client.
+ * @return {{get: (path: string) => Promise<Object>, post: (path: string, form: Object) => Promise<Object>, cookies: Map<string, string>}} The client.
  */
 export function createClient( base, { timeout = 180000 } = {} ) {
 	const cookies = new Map();
@@ -48,20 +48,29 @@ export function createClient( base, { timeout = 180000 } = {} ) {
 	}
 
 	/**
-	 * @param {URL} url
+	 * @param {URL}    url
+	 * @param {string} [body] A form body; makes the request a POST.
 	 * @return {Promise<{status: number, headers: Object, text: string}>} The response.
 	 */
-	function send( url ) {
+	function send( url, body ) {
 		const headers = { 'user-agent': 'voyager-open-blocks-dev' };
 		if ( cookies.size ) {
 			headers.cookie = [ ...cookies ]
 				.map( ( [ name, value ] ) => `${ name }=${ value }` )
 				.join( '; ' );
 		}
+		if ( body !== undefined ) {
+			headers[ 'content-type' ] = 'application/x-www-form-urlencoded';
+			headers[ 'content-length' ] = Buffer.byteLength( body );
+		}
 		return new Promise( ( resolve, reject ) => {
 			const req = ( url.protocol === 'https:' ? https : http ).request(
 				url,
-				{ method: 'GET', headers, agent: false },
+				{
+					method: body === undefined ? 'GET' : 'POST',
+					headers,
+					agent: false,
+				},
 				( res ) => {
 					let text = '';
 					res.setEncoding( 'utf8' );
@@ -84,32 +93,52 @@ export function createClient( base, { timeout = 180000 } = {} ) {
 				)
 			);
 			req.on( 'error', reject );
-			req.end();
+			req.end( body );
 		} );
 	}
 
 	/**
-	 * GET a path, following up to five redirects.
+	 * Request a path, following up to five redirects as GETs.
 	 *
-	 * @param {string} path Path or URL.
-	 * @return {Promise<{status: number, headers: Object, text: string, url: string}>} The final response and its URL.
+	 * @param {string} path   Path or URL.
+	 * @param {string} [body] A form body for the first request, which makes it a POST.
+	 * @return {Promise<{status: number, headers: Object, text: string, url: string, hops: string[]}>} The final response, its URL, and each redirect taken.
 	 */
-	async function get( path ) {
+	async function request( path, body ) {
 		let url = new URL( path, `${ base.replace( /\/$/, '' ) }/` );
+		const hops = [];
 		for ( let hop = 0; ; hop++ ) {
-			const res = await send( url );
+			const res = await send( url, hop === 0 ? body : undefined );
 			remember( res.headers[ 'set-cookie' ] );
 			if (
 				REDIRECTS.includes( res.status ) &&
 				res.headers.location &&
 				hop < 5
 			) {
-				url = new URL( res.headers.location, url );
+				const next = new URL( res.headers.location, url );
+				hops.push(
+					`${ res.status } ${ url.pathname }${ url.search } -> ${ next.pathname }${ next.search }`
+				);
+				url = next;
 				continue;
 			}
-			return { ...res, url: url.href };
+			return { ...res, url: url.href, hops };
 		}
 	}
 
-	return { get, cookies };
+	/**
+	 * @param {string} path Path or URL.
+	 * @return {ReturnType<typeof request>} The final response.
+	 */
+	const get = ( path ) => request( path );
+
+	/**
+	 * @param {string}                 path Path or URL.
+	 * @param {Object<string, string>} form Fields to send.
+	 * @return {ReturnType<typeof request>} The final response.
+	 */
+	const post = ( path, form ) =>
+		request( path, new URLSearchParams( form ).toString() );
+
+	return { get, post, cookies };
 }
