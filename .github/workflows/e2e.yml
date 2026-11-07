@@ -1,0 +1,124 @@
+name: E2E
+
+# The pack in a real WordPress (Playground) and a real block editor (headless
+# Chrome). Two jobs:
+#
+# - rest: boots the dev site (npm run dev) in the background, collects its
+#   site context with Wesper over REST, and runs npm run e2e against it: the
+#   abilities end to end, the way an agent uses them.
+# - editor: npm run e2e:editor boots its own fresh dev site and checks the
+#   first-run notice, Settings > Site Data, the editor hints, pasting each
+#   pattern and the front end, logged in as admin.
+#
+# Job logs are not always at hand, so every failed assertion is also an error
+# annotation named after it, with what it saw.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rest:
+    name: npm run e2e (abilities over REST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # blueprints/dev.json seeds the demo Site Data and sets
+      # WP_ENVIRONMENT_TYPE to local, so an application password works over
+      # plain HTTP. The ready file appears once the site is up, with its URL
+      # and a fresh application password for admin. --no-login, because
+      # Wesper's REST collector uses fetch(), which has no cookie jar and
+      # follows Playground's login redirect until it gives up.
+      - name: Boot the dev site in the background
+        run: |
+          nohup node scripts/dev.mjs --no-open --no-login --port 9400 --ready-file "$RUNNER_TEMP/site.json" > "$RUNNER_TEMP/dev.log" 2>&1 &
+          pid=$!
+          for _ in $(seq 1 300); do
+            [ -s "$RUNNER_TEMP/site.json" ] && break
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 2
+          done
+          if [ ! -s "$RUNNER_TEMP/site.json" ]; then
+            tail=$(tail -n 20 "$RUNNER_TEMP/dev.log" | sed 's/%/%25/g' | awk '{ printf "%s%%0A", $0 }')
+            echo "::error title=Boot the dev site::The dev site did not come up. Last lines of its log:%0A$tail"
+            exit 1
+          fi
+          echo "::add-mask::$(node -p "require(process.env.RUNNER_TEMP + '/site.json').password")"
+          echo "SITE_URL=$(node -p "require(process.env.RUNNER_TEMP + '/site.json').url")" >> "$GITHUB_ENV"
+          echo "Dev site at $(node -p "require(process.env.RUNNER_TEMP + '/site.json').url")"
+
+      # npm run e2e validates the markup the abilities return with
+      # block-runner, which needs the site's block registry to know the icon
+      # block. The WP-CLI collector needs files on disk; this site lives in
+      # Playground's memory, so the REST collector reads it instead.
+      - name: Collect the site context with Wesper over REST
+        run: |
+          WP_API_PASSWORD="$(node -p "require(process.env.RUNNER_TEMP + '/site.json').password")" \
+            npx wesper collect --rest --wp-url "$SITE_URL" --wp-user admin --out site.context.json
+          node -e "
+            const names = ( require( './site.context.json' ).blocks?.types || [] ).map( ( t ) => t.name );
+            if ( ! names.includes( 'voyager-open/icon' ) ) {
+              console.log( '::error title=Wesper context::site.context.json lists ' + names.length + ' block types, and voyager-open/icon is not one of them.' );
+              process.exit( 1 );
+            }
+            console.log( 'ok   site.context.json lists ' + names.length + ' block types, voyager-open/icon among them' );
+          "
+
+      - name: npm run e2e (abilities over REST, block-runner on what they return)
+        timeout-minutes: 10
+        run: |
+          export VOYAGER_OPEN_APP_PASSWORD="$(node -p "require(process.env.RUNNER_TEMP + '/site.json').password")"
+          set +e
+          npm run e2e -- --url "$SITE_URL" --context site.context.json 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          grep '^FAIL' "$RUNNER_TEMP/e2e.log" | sed 's/%/%25/g' | while IFS= read -r line; do
+            echo "::error title=npm run e2e::${line#FAIL }"
+          done
+          {
+            echo '### npm run e2e'
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/e2e.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Dev server log
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP/dev.log"
+
+  editor:
+    name: npm run e2e:editor (block editor in headless Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # ubuntu-latest ships Google Chrome; the script finds it on PATH.
+      - name: First-run notice, Site Data screen, editor hints, paste and front end
+        run: npm run e2e:editor
