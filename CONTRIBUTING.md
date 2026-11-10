@@ -49,7 +49,7 @@ npm run playground -- serve --site ../voyager-open-blocks-site
 ## Test
 
 ```
-npm run check              every offline gate: build drift, patterns, Block Runner, plugin inspect
+npm run check              every offline gate: build drift, patterns, Block Runner, plugin inspect, change notes, DESIGN.md
 npm run lint:js
 npm run lint:css
 composer install           once, for the two PHP checks below
@@ -68,13 +68,14 @@ CI runs the build-drift check, `npm run check`, both linters, PHP lint, `compose
 
 1. Fork, branch from `main`, and keep the change to one thing.
 2. Run the gates above. Add or update the pattern intent, skill or e2e step your change touches, and the docs page that describes it: [README.md](README.md), [readme.txt](readme.txt) or [docs/use-in-your-theme.md](docs/use-in-your-theme.md).
-3. Open a pull request that says what changed and why, and how you checked it. Give it a conventional commit title (`feat: add the icon block`). Merges are squashes, so the title becomes the commit that release-please reads, and CI fails a title that is not one. Types: feat, fix, docs, style, refactor, perf, test, chore, revert. Keep the header to 72 characters.
+3. If a site owner would notice the change, add a change note, `unreleased/<branch-slug>.md`, in the format in [unreleased/README.md](unreleased/README.md). Don't edit the `== Changelog ==` section of `readme.txt`: only the release pull request edits it, by folding the notes in. If you change the counts in `README.md` or `files` in `package.json`, say so in the pull request body. Those spots are shared, so such pull requests merge one at a time.
+4. Open a pull request that says what changed and why, and how you checked it. Give it a conventional commit title (`feat: add the icon block`). Merges are squashes, so the title becomes the commit that release-please reads, and CI fails a title that is not one. Types: feat, fix, docs, style, refactor, perf, test, chore, revert. Keep the header to 72 characters.
 
 ## How a release happens
 
 You don't tag by hand. release-please keeps one open release PR on `main` that bumps the version in `voyager-open-blocks.php` (the header and `VOYAGER_OPEN_BLOCKS_VERSION`), the `readme.txt` Stable tag, the entry skill's `pack-version` and `package.json`, and writes `CHANGELOG.md` from the commit titles. Feat bumps the minor version and fix the patch. A breaking change (`feat!:` or a `BREAKING CHANGE:` footer) bumps the major.
 
-To release, add one line for the version under `== Changelog ==` in `readme.txt` on the release PR (WordPress.org shows that section), then merge the PR. Merging creates the tag and the GitHub Release, and the same run builds `voyager-open-blocks.zip` and attaches it. Nothing else to do.
+To release, run `npm run changelog:fold` on the release PR's branch and commit the result: it writes every note in `unreleased/` under the new version in `readme.txt`'s `== Changelog ==` (WordPress.org shows that section) and deletes the notes. Then merge the PR. Fold last: release-please rebuilds the release PR from `main` whenever something merges, which drops the fold commit, so fold again if the PR changed after you folded. Only the release PR edits the changelog. Merging creates the tag and the GitHub Release, and the same run builds `voyager-open-blocks.zip` and attaches it. Nothing else to do.
 
 If the zip fails to attach, run the Release workflow by hand from the Actions tab with the tag (for example `v0.4.0`). It rebuilds the zip and uploads it.
 

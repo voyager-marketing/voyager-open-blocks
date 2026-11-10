@@ -29,7 +29,10 @@ npm run check              # every offline gate, below
 - **Blocks** live in `src/<name>/` and build with `@wordpress/scripts` (`npm run build`, which writes `build/blocks-manifest.php`). The plugin registers everything in that manifest. `build/` is committed so a Git install works without a build step. CI fails when `build/` is stale.
 - **Patterns** start as Block Runner intent trees in `patterns/intents/<name>.json`, with the pattern's title, description and categories beside the tree. `npm run patterns:build` assembles each one into `patterns/<name>.html` and fails on any invalid block, any dropped attribute, and two blocks in one pattern with the same `metadata.name`. Do not edit the `.html` files by hand.
 - **Binding sources** are in `inc/site-data.php` and `inc/post-meta-text.php`. Their editor half (field lists, live values, in-place editing of post meta) is `assets/bindings-editor.js`.
-- **Abilities** are in `inc/abilities.php`, a thin layer over `inc/block-tree.php` (read and write a post's blocks by path) and `inc/catalog.php` (what the pack offers, and which binding args are real).
+- **Abilities** are in `inc/abilities/`, one file per ability (`get-catalog.php`, `find-posts.php`, `get-post-blocks.php`, `insert.php`, `configure.php`, `bind.php`, `validate.php`), each holding its registration and its callbacks. `shared.php` holds what several use: the permission callbacks, the input schemas, `check_attributes()`, `validation()`, `locate()` and `finish()`, and `register()`, which registers the abilities in order. `inc/abilities.php` only loads them. They are a thin layer over `inc/block-tree.php` (read and write a post's blocks by path) and `inc/catalog.php` (what the pack offers, and which binding args are real).
+- **Change notes** for `readme.txt`'s changelog are files in `unreleased/`, one per pull request, folded in by the release pull request. The format is in [unreleased/README.md](../unreleased/README.md).
+- **DESIGN.md** at the repo root describes the patterns' design in [Google's DESIGN.md format](https://github.com/google-labs-code/design.md). It is a skeleton until its sections are written.
+- **The v2 contracts**, the shapes the lanes of version 2 build against, are in [v2-contracts.md](v2-contracts.md). The lanes are in [AGENTS.md](../AGENTS.md#lanes).
 
 ## The offline gates
 
@@ -43,6 +46,10 @@ npm run check              # every offline gate, below
 6. the entry skill's `pack-version` (`skills/voyager-open-blocks/SKILL.md`) matches `Version` in `voyager-open-blocks.php`.
 7. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
 8. `readme.txt` has a `= Source code =` section with the GitHub link and `npm run build`. The plugin directory asks a plugin that ships built files to say where their source is, and Plugin Check does not test for it.
+9. every change note in `unreleased/` is well-formed (`npm run changelog:fold -- --check`),
+10. `scripts/fold-unreleased.mjs` passes its known-answer test, `scripts/test-fold-unreleased.mjs` (`npm run test:fold`): the notes in `tests/fixtures/fold-unreleased/` folded into its `readme.in.txt` must give `readme.expected.txt`, and malformed notes must stop the fold with nothing changed,
+11. `DESIGN.md` lints with `@google/design.md` (`npm run lint:design`) with no errors and its sections in the format's order. The linter's other warnings are printed, not failed,
+12. the same linter rejects `tests/invalid/design-broken-ref.md`, a component pointing at a colour token that does not exist, so that gate is shown to bite.
 
 The rest of what CI runs:
 
@@ -101,7 +108,7 @@ The two binding sources keep the names they have in the voyager-blocks plugin, s
 
 ## Releases
 
-release-please opens the release pull request and writes `CHANGELOG.md`. You don't tag by hand. The steps are in [CONTRIBUTING.md](../CONTRIBUTING.md#how-a-release-happens).
+release-please opens the release pull request and writes `CHANGELOG.md`. You don't tag by hand. On the release pull request, `npm run changelog:fold` writes the notes in `unreleased/` into `readme.txt`'s changelog and deletes them. The steps are in [CONTRIBUTING.md](../CONTRIBUTING.md#how-a-release-happens).
 
 `npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](../.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`, and a version bump moves `Stable tag` in `readme.txt` with it.
 
