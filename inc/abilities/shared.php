@@ -1,0 +1,297 @@
+<?php
+/**
+ * What every ability shares: the category, meta, the permission callbacks,
+ * the input schemas, attribute checks, the validation report, locate() and
+ * finish(), and register(), which registers the abilities in their order.
+ * Each ability's own registration and callback is in its file beside this one.
+ *
+ * Semantic abilities with an `item` or `path` parameter, not one per block.
+ * Each callback is a thin adapter over inc/block-tree.php and inc/catalog.php.
+ * All are visible over REST (wp-abilities/v1) and to the WordPress MCP adapter.
+ *
+ * What "validated" means here: WordPress checks every block is registered,
+ * every comment attribute it has a schema for is valid, and the markup
+ * survives a parse and serialize round trip. bind and validate also check a
+ * binding's attribute, source and args. Saved HTML is checked by
+ * `block-runner validate`, which runs the blocks' JavaScript save(). Pattern
+ * markup is validated that way when it is built (npm run check). An agent
+ * with Node should pipe the returned `markup` through it too; one without
+ * has the PHP checks as its floor.
+ *
+ * @package VoyagerOpenBlocks
+ */
+
+declare(strict_types=1);
+
+namespace VoyagerOpenBlocks\Abilities;
+
+use VoyagerOpenBlocks\BlockTree;
+use VoyagerOpenBlocks\Cast;
+use VoyagerOpenBlocks\Catalog;
+use WP_Error;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+const CATEGORY = 'voyager-open-blocks';
+
+/**
+ * What every validation report says about saved HTML.
+ */
+const SAVE_OUTPUT = 'Not checked: comparing saved HTML with each block\'s save() needs the block\'s JavaScript, which WordPress cannot run in PHP. With Node, run: npx block-runner validate <file> --strict --json --context site.context.json';
+
+/**
+ * Register the category.
+ */
+function register_category(): void {
+	wp_register_ability_category(
+		CATEGORY,
+		[
+			'label'       => __( 'Voyager Open Blocks', 'voyager-open-blocks' ),
+			'description' => __( 'Place, configure and bind the blocks and patterns of the Voyager Open Blocks pack.', 'voyager-open-blocks' ),
+		]
+	);
+}
+add_action( 'wp_abilities_api_categories_init', __NAMESPACE__ . '\register_category' );
+
+/**
+ * Shared meta for every ability.
+ *
+ * @param bool $readonly   Does not change the site.
+ * @param bool $idempotent Repeating the call with the same input changes nothing more.
+ * @return array<string, mixed>
+ */
+function meta( bool $readonly, bool $idempotent ): array {
+	return [
+		'show_in_rest' => true,
+		'mcp'          => [ 'public' => true ],
+		'annotations'  => [
+			'readonly'    => $readonly,
+			// Nothing here deletes content. configure and bind overwrite one
+			// attribute or binding, which is an update, not a destructive act.
+			'destructive' => false,
+			'idempotent'  => $idempotent,
+		],
+	];
+}
+
+/**
+ * Permission: the user may edit the post named in the input.
+ *
+ * @param array<string, mixed>|null $input Ability input.
+ */
+function can_edit_post( $input = null ): bool {
+	$post_id = is_array( $input ) && isset( $input['post_id'] ) ? Cast\to_int( $input['post_id'] ) : 0;
+
+	return $post_id > 0 && current_user_can( 'edit_post', $post_id );
+}
+
+/**
+ * Permission for validate: edit the post when it checks a saved post, else edit posts.
+ *
+ * @param array<string, mixed>|null $input Ability input.
+ */
+function can_validate( $input = null ): bool {
+	if ( is_array( $input ) && isset( $input['post_id'] ) ) {
+		return can_edit_post( $input );
+	}
+
+	return current_user_can( 'edit_posts' );
+}
+
+/**
+ * A value as an array with string keys, [] when it is not an array.
+ *
+ * @param mixed $value Value.
+ * @return array<string, mixed>
+ */
+function assoc( mixed $value ): array {
+	$out = [];
+
+	foreach ( is_array( $value ) ? $value : [] as $key => $item ) {
+		$out[ (string) $key ] = $item;
+	}
+
+	return $out;
+}
+
+/**
+ * Schema for post_id: the post or page an ability reads or changes.
+ *
+ * @return array<string, mixed>
+ */
+function post_id_schema(): array {
+	return [
+		'type'        => 'integer',
+		'minimum'     => 1,
+		'description' => 'ID of the post or page to change.',
+	];
+}
+
+/**
+ * Schema for path: a block's place in a post, from get-post-blocks or insert.
+ *
+ * @return array<string, mixed>
+ */
+function path_schema(): array {
+	return [
+		'type'        => 'string',
+		'pattern'     => '^\d+(/\d+)*$',
+		'description' => 'Block path from get-post-blocks or insert, such as "2/0/1".',
+	];
+}
+
+/**
+ * Register the abilities.
+ *
+ * In this order, which is the order they are listed in. A new ability is a
+ * file in inc/abilities/, a require in inc/abilities.php and a line here.
+ */
+function register(): void {
+	register_get_catalog();
+	register_find_posts();
+	register_get_post_blocks();
+	register_insert();
+	register_configure();
+	register_bind();
+	register_validate();
+}
+add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\register' );
+
+/**
+ * Validate attributes for a block whose attributes all live in the comment.
+ *
+ * That holds only for a block that saves no HTML. A render callback is not
+ * enough: core/heading has one, yet its saved <h2> must still match `level`,
+ * so changing the comment alone would make the block invalid.
+ *
+ * @param string               $name       Block name.
+ * @param array<string, mixed> $attributes Attributes; null resets one.
+ * @param Block|null           $block      The existing block, or null when inserting a pack block.
+ * @return array<string, mixed>|WP_Error The attributes to apply.
+ */
+function check_attributes( string $name, array $attributes, ?array $block = null ) {
+	$type      = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+	$saves_any = null === $block
+		? ! str_starts_with( $name, Catalog\PREFIX )
+		: '' !== trim( $block['innerHTML'] ) || ! empty( $block['innerBlocks'] );
+
+	if ( ! $type || ! $type->is_dynamic() || $saves_any ) {
+		return new WP_Error(
+			'voyager_open_blocks_invalid_item',
+			sprintf( '%s saves HTML, so its attributes cannot be changed without re-rendering that HTML. Re-author it with block-runner assemble.', $name ),
+			[ 'status' => 400 ]
+		);
+	}
+
+	foreach ( $attributes as $attribute => $value ) {
+		if ( 'metadata' === $attribute ) {
+			return new WP_Error( 'voyager_open_blocks_invalid_attributes', 'Set bindings with the bind ability, not through attributes.', [ 'status' => 400 ] );
+		}
+
+		$schema = $type->attributes[ $attribute ] ?? null;
+		if ( ! is_array( $schema ) ) {
+			return new WP_Error(
+				'voyager_open_blocks_invalid_attributes',
+				sprintf( '%s has no attribute "%s". Valid attributes: %s.', $name, $attribute, implode( ', ', array_keys( (array) $type->attributes ) ) ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		if ( null === $value ) {
+			continue;
+		}
+
+		$valid = rest_validate_value_from_schema( $value, array_intersect_key( $schema, array_flip( [ 'type', 'enum', 'items', 'properties' ] ) ), $attribute );
+		if ( is_wp_error( $valid ) ) {
+			return new WP_Error( 'voyager_open_blocks_invalid_attributes', $valid->get_error_message(), [ 'status' => 400 ] );
+		}
+	}
+
+	return $attributes;
+}
+
+/**
+ * Validation report for markup that is about to be written.
+ *
+ * @param array<int, Block> $blocks Blocks.
+ * @param string            $markup Their markup.
+ * @return array{registered_and_attributes: bool, errors: string[], round_trip: bool, save_output: string}
+ */
+function validation( array $blocks, string $markup ): array {
+	$check = BlockTree\check( $blocks );
+
+	return [
+		'registered_and_attributes' => $check['valid'],
+		'errors'                    => $check['errors'],
+		'round_trip'                => BlockTree\to_markup( BlockTree\parse( $markup ) ) === $markup,
+		'save_output'               => SAVE_OUTPUT,
+	];
+}
+
+/**
+ * Load a post and the block at a path.
+ *
+ * @param array<string, mixed> $input Input with post_id and path.
+ * @return array{0: array<int, Block>, 1: int[]}|WP_Error Blocks and parsed path.
+ */
+function locate( array $input ) {
+	$blocks = BlockTree\load( Cast\to_int( $input['post_id'] ) );
+	if ( is_wp_error( $blocks ) ) {
+		return $blocks;
+	}
+
+	$raw  = $input['path'] ?? '';
+	$path = BlockTree\parse_path( is_string( $raw ) || is_array( $raw ) ? $raw : '' );
+	if ( is_wp_error( $path ) ) {
+		return $path;
+	}
+
+	if ( null === BlockTree\find( $blocks, $path ) ) {
+		return no_block_at( $path );
+	}
+
+	return [ $blocks, $path ];
+}
+
+/**
+ * The error for a path with no block behind it.
+ *
+ * @param int[] $path Parsed path.
+ */
+function no_block_at( array $path ): WP_Error {
+	return new WP_Error( 'voyager_open_blocks_invalid_path', sprintf( 'No block at path %s. Read paths with get-post-blocks.', implode( '/', $path ) ), [ 'status' => 400 ] );
+}
+
+/**
+ * Validate, save and report a changed block.
+ *
+ * @param int               $post_id Post ID.
+ * @param array<int, Block> $blocks  All blocks, already changed.
+ * @param Block             $block   The changed block.
+ * @param string            $path    Its path.
+ * @return array<string, mixed>|WP_Error
+ */
+function finish( int $post_id, array $blocks, array $block, string $path ) {
+	$markup = serialize_block( $block );
+	$report = validation( [ $block ], $markup );
+
+	if ( ! $report['registered_and_attributes'] || ! $report['round_trip'] ) {
+		return new WP_Error( 'voyager_open_blocks_invalid_attributes', 'The block did not pass validation: ' . implode( ' ', $report['errors'] ), [ 'status' => 400 ] );
+	}
+
+	$saved = BlockTree\save( $post_id, $blocks );
+	if ( is_wp_error( $saved ) ) {
+		return $saved;
+	}
+
+	return [
+		'post_id'    => $post_id,
+		'path'       => $path,
+		'block'      => $block['blockName'],
+		'attributes' => $block['attrs'],
+		'markup'     => $markup,
+		'validation' => $report,
+	];
+}
