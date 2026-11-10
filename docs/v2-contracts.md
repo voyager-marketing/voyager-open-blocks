@@ -12,7 +12,7 @@ None of this is in a release yet. Until a contract ships, [use-in-your-theme.md]
 
 Which posts and templates use each Site Data or post meta field, so a change to a field can refresh only the pages that show it.
 
-- Post meta `_voyager_open_blocks_uses` on every post that stores blocks, `wp_template`, `wp_template_part` and `wp_block` included. Its value is a sorted list, without duplicates, of `<source>:<key>` strings, such as `voyager/site-data:phone` or `voyager/post-meta-text:price`. It is written when the post is saved, and deleted when the list is empty.
+- Post meta `_voyager_open_blocks_uses` on every post that stores blocks, `wp_template`, `wp_template_part` and `wp_block` included. It is non-unique post meta: one row per `<source>:<key>` string, such as `voyager/site-data:phone` or `voyager/post-meta-text:price`, added with `add_post_meta( $post_id, '_voyager_open_blocks_uses', $use, false )`. A save deletes the post's rows and adds the current set, so a post that binds nothing has no rows.
 - References count. A post that contains a synced pattern (`core/block` with `ref`) or a registered pattern (`core/pattern` with `slug`) uses whatever that pattern binds. A registered pattern's bindings come from `Patterns\bound_keys()`.
 - Theme templates and template parts that are only files, not posts, are indexed in the option `voyager_open_blocks_theme_uses`, keyed by template ID. It is rebuilt on `switch_theme` and on demand.
 - PHP API, in the namespace `VoyagerOpenBlocks\Usage`:
@@ -23,6 +23,8 @@ Which posts and templates use each Site Data or post meta field, so a change to 
   templates_using( string $source, string $key ): list<string>
   rebuild( int $batch = 50 ): int
   ```
+
+  `uses()` returns the post's rows, sorted and without duplicates. `posts_using()` is an exact-match meta query (`meta_value` equal to the `<source>:<key>` string), never `LIKE`.
 
 ## 2. Purge
 
@@ -58,10 +60,10 @@ How a change to a field reaches a page cache.
 
 What text each named block in a pattern takes, so an agent's copy fits the design.
 
-- Each intent in `patterns/intents/` carries a `copy` object, keyed by a block's `metadata.name`:
+- Each intent in `patterns/intents/` carries a `copy_rules` object, keyed by a block's `metadata.name`:
 
   ```json
-  "copy": {
+  "copy_rules": {
   	"<metadata.name>": {
   		"purpose": "string",
   		"min": 0,
@@ -73,8 +75,17 @@ What text each named block in a pattern takes, so an agent's copy fits the desig
   ```
 
   `min` and `max` count characters of plain text.
-- `get-catalog` returns `copy` for each pattern. `insert` and `compose` refuse text longer than `max`, and a missing `required` slot, and name the slot.
-- `claim: true` marks a factual claim, such as a credential, a year or a rating. Its text must come from Site Data or the business profile (contract 7), or arrive with `"source": "user"`.
+- `get-catalog` returns `copy_rules` for each pattern. The `copy: true` it already puts on each named block in a pattern's `blocks` list stays exactly as it is.
+- A copy value, in `insert`'s `copy` and in a `compose` section's `copy`, is either a string or an object:
+
+  ```
+  "<slot>": "<string>"
+  "<slot>": { "text": "<string>", "source": "user" }
+  ```
+
+  `insert`'s `copy` takes only strings today; the object form arrives with copy rules.
+- `insert` and `compose` refuse text longer than `max`, and a missing `required` slot, and name the slot.
+- `claim: true` marks a factual claim, such as a credential, a year or a rating. Its text comes from Site Data or the business profile (contract 7). Only the object form, with `"source": "user"`, may fill a claim slot with text from anywhere else.
 
 ## 4. Section style roles
 
@@ -125,13 +136,16 @@ A new ability that builds a draft page from a recipe or a list of sections.
   	"post_id"?: int,
   	"title"?: string,
   	"recipe"?: string,
-  	"sections"?: [ { "pattern", "layout"?, "style"?, "copy"?: { "<slot>": "text" } } ],
+  	"sections"?: [ { "pattern", "layout"?, "style"?, "copy"?: { "<slot>": copy value } } ],
   	"dry_run"?: bool
   }
   ```
 
-  Exactly one of `post_id` and `title`, and exactly one of `recipe` and `sections`.
+  Exactly one of `post_id` and `title`, and exactly one of `recipe` and `sections`. A copy value is a string or `{ "text", "source": "user" }`, as in contract 3.
 - `compose` writes drafts only. It refuses a published post; changes to a live page go through `insert` and `configure`.
+- Given `post_id` of a draft, `compose` replaces that post's content, because it builds whole pages.
+- Refusal works like `insert`'s: if any slot is refused, nothing is saved. `saved` is `false`, and `refused` lists every refused slot, not only the first.
+- `dry_run` returns the same shape, with `saved: false`.
 - Output:
 
   ```
