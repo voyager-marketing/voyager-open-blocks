@@ -49,7 +49,8 @@ How a change to a field reaches a page cache.
   - Nothing shows the key: no purge.
 - The filter `voyager_open_blocks_purge_urls` runs on the list before the action. When it leaves no URLs and `purge_all` is false, nothing more happens: no post cache is cleaned, the action does not fire and no adapter is called. That is how a site switches the purge off.
 - A Site Data key used in a template or a template part sets `purge_all`, because every page may show it. A post meta key does not, since a template shows each post its own value.
-- A purge lists at most 50 posts. When more show the key, it lists the first 50, by ID, and sets `purge_all`; for post meta, more than 50 changed posts in one request set it too. With `purge_all`, the URL list is not complete, so a listener that can purge everything should.
+- Only published posts of public post types, attachments aside, are listed and cleaned: a draft, a private post, a synced pattern or a template has no cached page of its own.
+- A purge looks up, lists and cleans at most 50 posts, by ID. When more pages show a Site Data key, it lists and cleans the first 50 and sets `purge_all`. When more than 50 posts change post meta in one request, it looks at the first 50, lists and cleans the ones that show the key, and sets `purge_all`. With `purge_all`, the URL list is not complete, and `purge_all` is what tells a cache adapter to purge everything. With no adapter, the pages past the first 50 keep their cached copy until the cache expires it. This was chosen on 2026-11-11 over cleaning the rest through WP-Cron, 50 per run.
 - Before the action, `clean_post_cache()` runs for each post in `post_ids`. Some page caches listen to it: WP Super Cache 3.1.5 purges the post's page on `clean_post_cache` (`wpsc_register_post_hooks()` in `wp-cache-phase2.php`).
 - Cache adapters come from the filter `voyager_open_blocks_cache_adapters`, which returns objects implementing `VoyagerOpenBlocks\Cache\Adapter`:
 

@@ -19,8 +19,8 @@ name: Cache
 # - `dummy --spy`: the dummy cache offers the pack an adapter, and the
 #   adapter is told to purge the page.
 # - `wp-super-cache --real`: no WP Super Cache adapter exists. The pack's
-#   purge calls clean_post_cache() for each page that shows the field, and
-#   WP Super Cache 3.1.5 purges that page on clean_post_cache
+#   purge calls clean_post_cache() for each page that shows the field, up
+#   to 50, and WP Super Cache 3.1.5 purges that page on clean_post_cache
 #   (wpsc_register_post_hooks() in wp-cache-phase2.php).
 # The two --no-purge rows are controls and stay stale for good. They show
 # the check can fail: emptying the URL list switches the whole purge off,
