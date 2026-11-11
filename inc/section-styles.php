@@ -11,9 +11,10 @@
  * - a built-in map for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager
  *   design system, chosen by which palette slugs the theme declares;
  * - the `voyager_open_blocks_style_roles` filter, which can replace the map;
- * - for a role no map names, a fallback from the theme's own text and
- *   background colours, mixed with color-mix() and, for the roles that sit on
- *   text, currentColor.
+ * - for a role no map names, a fallback from the site's text and background
+ *   colours (Global Styles saved in the Site Editor, else the theme's
+ *   theme.json), mixed with color-mix() and, for the roles that sit on text,
+ *   currentColor.
  *
  * A theme can still restyle a section in its theme.json under
  * styles.blocks.core/group.variations.<name>: WordPress lets that win over
@@ -22,7 +23,8 @@
  * The palette is read from the theme's theme.json files, not from global
  * settings: computing global settings during init caches the theme's data
  * before every block style is registered, and any style registered after that
- * would lose its `style_data`.
+ * would lose its `style_data`. The Site Editor's Global Styles are read from
+ * their post for the same reason (user_styles()).
  *
  * @package VoyagerOpenBlocks
  */
@@ -175,22 +177,55 @@ function slugs_of( array $palette ): array {
 }
 
 /**
- * The theme's own text and background colours, as CSS.
+ * What the Site Editor saved as Global Styles for the active theme, as
+ * theme.json data: one entry, or none when nothing is saved.
  *
- * From `styles.color` in the child's theme.json, else the parent's. A colour
- * neither sets is the browser's: CanvasText and Canvas, the system colours a
- * page with no colours of its own is drawn in.
+ * Read with WP_Theme_JSON_Resolver::get_user_data_from_wp_global_styles(),
+ * which queries the theme's wp_global_styles post and leaves the resolver's
+ * cached data alone, unlike get_user_data() and get_merged_data()
+ * (wp-includes/class-wp-theme-json-resolver.php).
  *
- * @param list<array<mixed>> $files From theme_json_files().
+ * @return list<array<mixed>>
+ */
+function user_styles(): array {
+	if ( ! class_exists( 'WP_Theme_JSON_Resolver' ) ) {
+		return [];
+	}
+
+	return user_styles_from( \WP_Theme_JSON_Resolver::get_user_data_from_wp_global_styles( wp_get_theme() ) );
+}
+
+/**
+ * The theme.json data in a Global Styles post.
+ *
+ * @param mixed $post The post's fields, as get_user_data_from_wp_global_styles() returns them.
+ * @return list<array<mixed>> The decoded content, or nothing when there is none.
+ */
+function user_styles_from( mixed $post ): array {
+	$content = is_array( $post ) ? Cast\to_string( $post['post_content'] ?? '' ) : '';
+	$data    = '' === $content ? null : json_decode( $content, true );
+
+	return is_array( $data ) ? [ $data ] : [];
+}
+
+/**
+ * The site's text and background colours, as CSS.
+ *
+ * From `styles.color` in the first of these that sets each: the Global
+ * Styles saved in the Site Editor (user_styles()), the child's theme.json,
+ * the parent's. A colour none sets is the browser's: CanvasText and Canvas,
+ * the system colours a page with no colours of its own is drawn in.
+ *
+ * @param list<array<mixed>> $sources Theme.json data, first wins: user_styles(), then theme_json_files().
  * @return array{text: string, background: string}
  */
-function root_colors( array $files ): array {
+function root_colors( array $sources ): array {
 	$out = [
 		'text'       => '',
 		'background' => '',
 	];
 
-	foreach ( $files as $data ) {
+	foreach ( $sources as $data ) {
 		$styles = is_array( $data['styles'] ?? null ) ? $data['styles'] : [];
 		$color  = is_array( $styles['color'] ?? null ) ? $styles['color'] : [];
 		foreach ( [ 'text', 'background' ] as $key ) {
@@ -403,8 +438,8 @@ function style_data( string $style, array $values ): array {
 /**
  * What the styles resolve to on this site.
  *
- * Reads the theme's theme.json files, so call it once where it is needed: on
- * init to register, and in get-catalog.
+ * Reads the theme's theme.json files and the saved Global Styles, so call it
+ * once where it is needed: on init to register, and in get-catalog.
  *
  * @return array{source: string, map: array<string, string>, values: array<string, string>}
  */
@@ -415,7 +450,7 @@ function resolved(): array {
 	return [
 		'source' => $roles['source'],
 		'map'    => $roles['map'],
-		'values' => values( $roles['map'], root_colors( $files ) ),
+		'values' => values( $roles['map'], root_colors( [ ...user_styles(), ...$files ] ) ),
 	];
 }
 

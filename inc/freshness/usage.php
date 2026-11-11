@@ -683,6 +683,11 @@ function site_data_rows( string $key ): array {
  * showing both phone and phone_link counts once (per-row counts() would count
  * it twice), and the first $limit titles.
  *
+ * Titles come in the database's order, ORDER BY post_title, so "Page 10"
+ * sorts before "Page 2". A natural sort would need every title in PHP, and
+ * this runs on Settings > Site Data for every field, so the query stays at
+ * $limit rows. npm run check:usage-index pins the order.
+ *
  * @param list<string> $rows  Rows.
  * @param int          $limit Most posts to return.
  * @return array{total: int, posts: list<WP_Post>, templates: list<array{id: string, title: string, type: string, uses: list<string>}>}
