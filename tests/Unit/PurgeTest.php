@@ -277,6 +277,121 @@ final class PurgeTest extends TestCase {
 		$this->assertCount( 50, $GLOBALS['voyager_test_cleaned'] );
 	}
 
+	/**
+	 * The posts after an ID, as the queue's lookup returns them: by ID, at most $limit.
+	 *
+	 * @param list<int> $ids All the posts that show the field.
+	 * @return callable(list<string>, int, int): list<int>
+	 */
+	private function after( array $ids ): callable {
+		return function ( array $rows, int $after, int $limit ) use ( $ids ): array {
+			$this->looked_up[] = $rows;
+			return array_slice( array_values( array_filter( $ids, static fn ( int $id ): bool => $id > $after ) ), 0, $limit );
+		};
+	}
+
+	/**
+	 * Purge\drain_queue(), the WP-Cron step, by name, so a missing queue fails an assertion.
+	 */
+	private function drain(): callable {
+		$drain = 'VoyagerOpenBlocks\Purge\drain_queue';
+		$this->assertTrue( function_exists( $drain ), 'Nothing cleans the posts past the first fifty.' );
+		return $drain;
+	}
+
+	public function test_past_fifty_pages_every_page_is_cleaned_in_the_request_or_by_wp_cron(): void {
+		$index = [];
+		for ( $id = 1; $id <= 55; $id++ ) {
+			$index[ $id ]                               = [ 'voyager/site-data:phone' ];
+			$GLOBALS['voyager_test_permalinks'][ $id ] = "https://example.com/p{$id}/";
+		}
+		Purge\on_option( 'voyager_site_phone' );
+
+		Purge\run( $this->lookup( $index ) );
+
+		$this->assertSame( range( 1, 50 ), $GLOBALS['voyager_test_cleaned'], 'The first fifty are cleaned in the request.' );
+		$this->assertArrayHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_events'], 'The other five wait for WP-Cron.' );
+
+		$this->drain()( null, $this->after( array_keys( $index ) ) );
+
+		$this->assertSame( range( 1, 55 ), $GLOBALS['voyager_test_cleaned'], 'Every page that shows the phone is cleaned, once.' );
+		$this->assertSame( [ 'voyager/site-data:phone', 'voyager/site-data:phone_link' ], end( $this->looked_up ), 'WP-Cron reads the same rows.' );
+		$this->assertArrayNotHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_options'], 'The queue is gone once it is done.' );
+		$this->assertArrayNotHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_events'] );
+		$this->assertCount( 1, $this->purges(), 'The action fires once, in the request. WP-Cron only cleans post caches.' );
+	}
+
+	public function test_the_queue_keeps_a_batch_until_it_is_cleaned_and_runs_until_done(): void {
+		$ids = range( 1, 130 );
+		$index = array_fill_keys( $ids, [ 'voyager/site-data:phone' ] );
+		Purge\on_option( 'voyager_site_phone' );
+		Purge\run( $this->lookup( $index ) );
+		$drain = $this->drain();
+
+		$dies = static function ( int $id ): void {
+			if ( 70 === $id ) {
+				throw new \RuntimeException( 'The request died.' );
+			}
+			$GLOBALS['voyager_test_cleaned'][] = $id;
+		};
+		try {
+			$drain( $dies, $this->after( $ids ) );
+			$this->fail( 'The planted failure did not happen.' );
+		} catch ( \RuntimeException $error ) {
+			$this->assertSame( 'The request died.', $error->getMessage() );
+		}
+		$this->assertArrayHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_events'], 'The next run was scheduled before the batch.' );
+
+		$drain( null, $this->after( $ids ) );
+		$this->assertArrayHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_events'], 'A full batch means there may be more.' );
+		$drain( null, $this->after( $ids ) );
+
+		$cleaned = array_values( array_unique( $GLOBALS['voyager_test_cleaned'] ) );
+		sort( $cleaned );
+		$this->assertSame( $ids, $cleaned, 'The batch that died is cleaned again; nothing is lost.' );
+		$this->assertArrayNotHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_events'] );
+		$this->assertArrayNotHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_options'] );
+	}
+
+	public function test_a_new_change_while_queued_starts_the_queue_again_from_its_own_first_fifty(): void {
+		$ids   = range( 1, 130 );
+		$index = array_fill_keys( $ids, [ 'voyager/site-data:phone' ] );
+		Purge\on_option( 'voyager_site_phone' );
+		Purge\run( $this->lookup( $index ) );
+		$drain = $this->drain();
+		$drain( null, $this->after( $ids ) );
+
+		// Pages 51 to 100 were cleaned for the first change. The phone changes again.
+		$GLOBALS['voyager_test_cleaned'] = [];
+		Purge\on_option( 'voyager_site_phone' );
+		Purge\run( $this->lookup( $index ) );
+		$drain( null, $this->after( $ids ) );
+		$drain( null, $this->after( $ids ) );
+
+		$this->assertSame( $ids, $GLOBALS['voyager_test_cleaned'], 'The second change cleans pages 51 to 100 again.' );
+	}
+
+	public function test_past_fifty_changed_posts_every_post_meta_page_is_cleaned(): void {
+		add_filter( 'voyager_post_meta_text_fields', static fn () => [ 'page' => [ 'price' => 'Price' ] ] );
+		for ( $id = 1; $id <= 55; $id++ ) {
+			$GLOBALS['voyager_test_post_types'][ $id ] = 'page';
+			$GLOBALS['voyager_test_permalinks'][ $id ] = "https://example.com/p{$id}/";
+			Purge\on_meta( 1, $id, 'price' );
+		}
+
+		Purge\run( null, static fn (): array => [ 'voyager/post-meta-text:price' ] );
+
+		$this->assertSame( range( 1, 50 ), $GLOBALS['voyager_test_cleaned'], 'The first fifty are cleaned in the request.' );
+		$purges = $this->purges();
+		$this->assertCount( 1, $purges );
+		$this->assertTrue( $purges[0][1]['purge_all'], 'The URL list is not complete.' );
+
+		$this->drain()( null, $this->after( [] ) );
+
+		$this->assertSame( range( 1, 55 ), $GLOBALS['voyager_test_cleaned'], 'Every post whose price changed is cleaned.' );
+		$this->assertArrayNotHasKey( 'voyager_open_blocks_purge_queue', $GLOBALS['voyager_test_options'] );
+	}
+
 	public function test_bindable_post_meta_purges_only_its_own_post(): void {
 		add_filter( 'voyager_post_meta_text_fields', static fn () => [ 'page' => [ 'price' => 'Price' ] ] );
 		$GLOBALS['voyager_test_post_types'] = [
@@ -338,20 +453,25 @@ final class PurgeTest extends TestCase {
 		$this->assertSame( [ 5 => [ '_listed', 'price' ] ], Purge\pending()['post_meta'], 'A key the filter allows counts, as it resolves.' );
 	}
 
-	public function test_post_meta_on_more_than_fifty_posts_purges_everything_when_anything_shows_it(): void {
+	public function test_post_meta_on_more_than_fifty_posts_looks_at_fifty_and_queues_the_rest(): void {
 		$changes = [];
 		for ( $id = 1; $id <= 51; $id++ ) {
 			$changes[ $id ] = [ 'price' ];
 		}
 
-		$shown = static function (): array {
-			throw new \LogicException( 'Past fifty posts, none is looked at one by one.' );
+		$looked = [];
+		$shown  = static function ( int $post_id ) use ( &$looked ): array {
+			$looked[] = $post_id;
+			return [];
 		};
-		$plan  = Purge\post_meta_plan( $changes, $shown, static fn ( array $rows ): bool => [ 'voyager/post-meta-text:price' ] === $rows );
+		$plan   = Purge\post_meta_plan( $changes, $shown, static fn ( array $rows ): bool => [ 'voyager/post-meta-text:price' ] === $rows );
 
+		$this->assertSame( range( 1, 50 ), $looked, 'Only the first fifty are looked at in the request.' );
 		$this->assertNotNull( $plan );
 		$this->assertSame( [], $plan['urls'] );
-		$this->assertTrue( $plan['context']['purge_all'] );
+		$this->assertTrue( $plan['context']['purge_all'], 'A post past the first fifty shows the field somewhere.' );
+		$this->assertArrayHasKey( 'later', $plan );
+		$this->assertSame( [ 51 ], $plan['later']['ids'] ?? null );
 		$this->assertNull( Purge\post_meta_plan( $changes, $shown, static fn (): bool => false ), 'Nothing shows the field: nothing to purge.' );
 	}
 
@@ -435,11 +555,11 @@ final class PurgeTest extends TestCase {
 			'adapters'  => [],
 			'failed'    => [],
 		];
-		$this->assertSame( 'Last refreshed 6 pages, 2 mins ago.', Purge\last_line( $record, $now ) );
-		$this->assertSame( 'Last refreshed 1 page, 2 mins ago.', Purge\last_line( [ 'urls' => 1 ] + $record, $now ) );
-		$this->assertSame( 'Last refreshed every page, 2 mins ago.', Purge\last_line( [ 'purge_all' => true ] + $record, $now ) );
+		$this->assertSame( 'Last refreshed 6 pages, 2 minutes ago.', Purge\last_line( $record, $now ) );
+		$this->assertSame( 'Last refreshed 1 page, 2 minutes ago.', Purge\last_line( [ 'urls' => 1 ] + $record, $now ) );
+		$this->assertSame( 'Last refreshed every page, 2 minutes ago.', Purge\last_line( [ 'purge_all' => true ] + $record, $now ) );
 		$this->assertSame(
-			'Last refreshed 6 pages, 2 mins ago. Caches told: Dummy cache, other. These caches failed: broken.',
+			'Last refreshed 6 pages, 2 minutes ago. Caches told: Dummy cache, other. These caches failed: broken.',
 			Purge\last_line(
 				[
 					'adapters' => [ 'dummy', 'other' ],

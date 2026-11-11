@@ -46,11 +46,11 @@ if ( ! function_exists( '_n' ) ) {
 
 if ( ! function_exists( 'human_time_diff' ) ) {
 	/**
-	 * Minutes only, in core's short form: "1 min", "2 mins".
+	 * Minutes only, as core (wp-includes/formatting.php) words them: "1 minute", "2 minutes".
 	 */
 	function human_time_diff( int $from, int $to = 0 ): string {
 		$mins = max( 1, (int) round( abs( $to - $from ) / 60 ) );
-		return $mins . ( 1 === $mins ? ' min' : ' mins' );
+		return $mins . ( 1 === $mins ? ' minute' : ' minutes' );
 	}
 }
 
