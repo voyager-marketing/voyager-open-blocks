@@ -38,6 +38,8 @@ Copy labels are the keys of `insert`'s `copy` input. Match them exactly, includi
 
 Read them before you choose a section style, write copy or change a layout. If the site has its own `DESIGN.md`, read it first: it is often at the active theme's root, and on route 1 you ask the user for it. Where the site's file and the pack's disagree, the site's wins. Then read the pack's [DESIGN.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/DESIGN.md), which covers what the site's leaves open.
 
+A section's style is one of Plain, Panel, Inverted and Accent. `get-catalog` lists the three that are block styles under `styles`, each with its class; Plain is no style. Put one on a section with `configure`: the section's `path` and `"style": "accent"`, or `"style": "plain"` to take it off. Two sections next to each other never share a style other than Plain.
+
 ## The loop
 
 Every task reads the site, places blocks, binds them and checks them. There are two routes through that loop. Check your tools, then follow one route for the whole task.
@@ -83,6 +85,7 @@ These checks run before anything is saved. When one fails, nothing is saved, and
 - **configure**
   - The block at `path` must be dynamic and save no HTML, like the icon. Any other block is refused.
   - Each attribute must exist and match its type and enum. `null` removes one, so its default applies. `metadata` is refused.
+  - With `style` in place of `attributes`, the block at `path` must be a `core/group`, and the style one of `plain`, `panel`, `inverted` and `accent`. Anything else is refused with `voyager_open_blocks_invalid_style`. The style's class replaces any other `is-style-*` class, in the block comment and on the group's saved wrapper, as the editor's Styles panel does.
   - The changed block passes the same three checks.
 - **bind**
   - The attribute must be bindable on that block. The error lists the ones that are.

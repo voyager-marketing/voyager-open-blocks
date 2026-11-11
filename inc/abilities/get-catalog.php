@@ -11,6 +11,7 @@ namespace VoyagerOpenBlocks\Abilities;
 
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
+use VoyagerOpenBlocks\SectionStyles;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -24,7 +25,7 @@ function register_get_catalog(): void {
 		CATEGORY . '/get-catalog',
 		[
 			'label'               => __( 'Get the Voyager Open Blocks catalog', 'voyager-open-blocks' ),
-			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite) and the binding fields available for a post type, each with the exact args to bind it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite) and the binding fields available for a post type, each with the exact args to bind it. styles lists the section styles a core/group can take (Panel, Inverted and Accent; Plain is none), each with the class configure\'s style input sets, and which role map the theme\'s colours come from.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -41,6 +42,7 @@ function register_get_catalog(): void {
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
+					'styles'   => [ 'type' => 'object' ],
 					'blocks'   => [ 'type' => 'array' ],
 					'patterns' => [ 'type' => 'array' ],
 					'sources'  => [ 'type' => 'array' ],
@@ -63,6 +65,7 @@ function get_catalog( $input = null ): array {
 	$post_type = is_array( $input ) && ! empty( $input['post_type'] ) ? Cast\to_string( $input['post_type'] ) : 'page';
 
 	return [
+		'styles'   => SectionStyles\catalog(),
 		'blocks'   => Catalog\blocks(),
 		'patterns' => Catalog\patterns(),
 		'sources'  => Catalog\sources( $post_type ),

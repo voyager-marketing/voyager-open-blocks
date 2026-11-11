@@ -17,3 +17,4 @@ require_once dirname( __DIR__ ) . '/inc/site-data.php';
 require_once dirname( __DIR__ ) . '/inc/post-meta-text.php';
 require_once dirname( __DIR__ ) . '/inc/block-tree.php';
 require_once dirname( __DIR__ ) . '/inc/catalog.php';
+require_once dirname( __DIR__ ) . '/inc/section-styles.php';

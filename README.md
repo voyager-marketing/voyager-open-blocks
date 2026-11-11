@@ -103,9 +103,9 @@ One prompt per item:
 
 The Playground links run [`blueprint.json`](blueprint.json) (everything) and the per-item blueprints in [`blueprints/`](blueprints/). They install the plugin from this repository's `main` branch and add demo content.
 
-Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and Marquee on `core/group`.
+Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and Marquee on `core/group`. Three section styles on `core/group`, Panel, Inverted and Accent, colour a whole section from the theme's palette; [DESIGN.md](DESIGN.md) says how, and `npm run contrast` measures them.
 
-**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the two binding sources, Settings > Site Data and seven abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
+**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and seven abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
 
 ### Other ways to install
 
