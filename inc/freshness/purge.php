@@ -340,12 +340,13 @@ function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any
 			array_push( $in_templates, ...$template['uses'] );
 		}
 
-		_prime_post_caches( array_keys( $changes ), false, false );
+		_prime_post_caches( array_keys( $changes ), false, true );
+		$types = Usage\content_types();
 
-		$shown = static function ( int $post_id ) use ( $in_templates ): array {
+		$shown = static function ( int $post_id ) use ( $in_templates, $types ): array {
 			$post = get_post( $post_id );
 
-			if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status || ! in_array( $post->post_type, Usage\content_types(), true ) ) {
+			if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status || ! in_array( $post->post_type, $types, true ) ) {
 				return [];
 			}
 
