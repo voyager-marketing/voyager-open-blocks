@@ -1118,7 +1118,7 @@ function cli_reindex(): void {
 		$total += $count;
 		\WP_CLI::log( sprintf( 'Indexed %d posts.', $total ) );
 		wp_cache_flush_runtime();
-	} while ( $count >= BATCH );
+	} while ( $count > BATCH ); // Planted fault, reverted in the next commit.
 
 	\WP_CLI::success( sprintf( 'Indexed %d posts, and %d theme templates and template parts that use a field.', $total, count( theme_index() ) ) );
 }
@@ -1132,6 +1132,5 @@ add_action( THEME_HOOK, __NAMESPACE__ . '\theme_event' );
 add_action( QUEUE_HOOK, __NAMESPACE__ . '\queue_event' );
 add_action( 'init', __NAMESPACE__ . '\maybe_start_backfill' );
 add_action( 'cli_init', __NAMESPACE__ . '\register_cli' );
-// Planted fault, reverted in the next commit.
-// register_activation_hook( VOYAGER_OPEN_BLOCKS_FILE, __NAMESPACE__ . '\start_backfill' );
+register_activation_hook( VOYAGER_OPEN_BLOCKS_FILE, __NAMESPACE__ . '\start_backfill' );
 register_deactivation_hook( VOYAGER_OPEN_BLOCKS_FILE, __NAMESPACE__ . '\stop' );
