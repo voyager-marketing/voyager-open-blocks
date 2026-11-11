@@ -81,6 +81,13 @@ jobs:
             mode: real
             flags: ' --pages 51 --no-purge'
             expect: stale
+          # Lock Down keeps WP Super Cache's pages through a traffic spike,
+          # and the pack must leave them alone, as WP Super Cache does with
+          # its own post hooks: stale, and fresh means the adapter purged.
+          - plugin: wp-super-cache
+            mode: real
+            flags: ' --lockdown'
+            expect: stale
           # The pack's own purge, through the dummy cache's adapter.
           - plugin: dummy
             mode: spy

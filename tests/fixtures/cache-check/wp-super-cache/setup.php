@@ -32,6 +32,13 @@
  * which wp-cache-phase1.php serves stored pages from PHP. Expert mode serves
  * them through Apache rewrite rules, which Playground does not run.
  *
+ * With --lockdown it turns on Lock Down as the settings page does
+ * (wp_update_lock_down() in inc/settings-forms.php): it writes
+ * `if ( ! defined( 'WPLOCKDOWN' ) ) define( 'WPLOCKDOWN', '1' );` into the
+ * config file. Lock Down keeps the cached pages through a traffic spike:
+ * wpsc_register_post_hooks() (wp-cache-phase2.php) does not hook
+ * clean_post_cache while it is on, and the pack's adapter stands down too.
+ *
  * Last, it installs playground-php-self.php as a WP Super Cache plugin. See
  * that file for why.
  *
@@ -45,7 +52,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	];
 }
 
-return ( static function (): array {
+// ../setup.php requires this from inside its own function, where $config
+// holds the run's options.
+$voyager_open_cache_check_lock_down = isset( $config ) && is_array( $config ) && ! empty( $config['lock_down'] );
+
+return ( static function ( bool $lock_down ): array {
 	global $wp_cache_config_file;
 
 	$facts    = [];
@@ -88,6 +99,10 @@ return ( static function (): array {
 	$home_path = trailingslashit( is_array( $home ) && isset( $home['path'] ) ? $home['path'] : '' );
 	wp_cache_setting( 'wp_cache_home_path', $home_path );
 	wp_cache_setting( 'wpsc_served_header', 1 );
+	if ( $lock_down ) {
+		wp_cache_replace_line( '^.*WPLOCKDOWN', "if ( ! defined( 'WPLOCKDOWN' ) ) define( 'WPLOCKDOWN', '1' );", $wp_cache_config_file );
+	}
+	$facts['wp-super-cache lock down'] = $lock_down;
 
 	$shim_dir = WP_PLUGIN_DIR . '/wp-super-cache-plugins';
 	wp_mkdir_p( $shim_dir );
@@ -108,6 +123,7 @@ return ( static function (): array {
 		'$wp_cache_slash_check = 1'              => 1 === preg_match( '/^\s*\$wp_cache_slash_check\s*=\s*1\s*;/m', $config ),
 		'$wpsc_served_header = 1'                => 1 === preg_match( '/^\s*\$wpsc_served_header\s*=\s*1\s*;/m', $config ),
 		'the PHP_SELF plugin is in place'        => is_file( $shim_dir . '/voyager-open-cache-check-php-self.php' ),
+		'Lock Down is ' . ( $lock_down ? 'on' : 'off' ) => $lock_down === str_contains( $config, "define( 'WPLOCKDOWN', '1' );" ),
 	];
 	foreach ( $expect as $what => $true ) {
 		if ( ! $true ) {
@@ -120,4 +136,4 @@ return ( static function (): array {
 		'facts'    => $facts,
 		'problems' => $problems,
 	];
-} )();
+} )( $voyager_open_cache_check_lock_down );

@@ -24,7 +24,7 @@
  *     no errors and one contrast warning, so its fail-on-warning rule is
  *     shown to bite.
  * 15. npm run cache-check's logic (scripts/lib/cache-check.mjs, and run() in
- *     scripts/cache-check.mjs) passes its known-answer test, all of its 26
+ *     scripts/cache-check.mjs) passes its known-answer test, all of its 27
  *     cases at least, planted crashes included.
  * 16. The test-count guard behind 11 and 15 rejects tests/invalid/no-tests.mjs,
  *     a test file with no tests, so that gate is shown to bite.
@@ -363,7 +363,7 @@ report(
 // verdict needs nothing, so it is gated here.
 const cacheCheckTest = knownAnswer(
 	join( root, 'scripts', 'test-cache-check.mjs' ),
-	26
+	27
 );
 report(
 	"npm run cache-check's logic passes its known-answer test",

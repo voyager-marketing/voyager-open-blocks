@@ -84,6 +84,7 @@ test( 'parseArgs reads the documented commands', () => {
 			mode: 'real',
 			noPurge: true,
 			standIn: false,
+			lockDown: false,
 			pages: 1,
 			resultFile: undefined,
 			port: undefined,
@@ -177,6 +178,40 @@ test( 'parseArgs refuses a --pages that is not a whole number from 1 to the most
 			},
 			value
 		);
+	}
+} );
+
+test( 'parseArgs reads --lockdown only for a cache the harness can lock down', () => {
+	assert.equal(
+		parseArgs( [ '--plugin', 'wp-super-cache', '--real', '--lockdown' ] )
+			.lockDown,
+		true
+	);
+	assert.equal(
+		parseArgs( [ '--plugin', 'wp-super-cache', '--real' ] ).lockDown,
+		false
+	);
+	for ( const [ argv, message ] of [
+		[
+			[ '--plugin', 'dummy', '--spy', '--lockdown' ],
+			/--lockdown is for a cache the harness can lock down/,
+		],
+		[
+			[ '--plugin', 'wp-super-cache', '--real', '--lockdown=1' ],
+			/takes no value/,
+		],
+	] ) {
+		assert.throws(
+			() => parseArgs( argv ),
+			( error ) => {
+				assert.ok( error instanceof UsageError, error.message );
+				assert.match( error.message, message );
+				return true;
+			}
+		);
+	}
+	for ( const [ name, spec ] of Object.entries( PLUGINS ) ) {
+		assert.equal( typeof spec.lockDown, 'boolean', name );
 	}
 } );
 
@@ -566,6 +601,10 @@ test( 'the flags name --pages past one page, so the two 51-page rows read apart'
 	assert.equal(
 		flagsOf( { ...result, pages: 51, noPurge: true } ),
 		'--plugin wp-super-cache --real --pages 51 --no-purge'
+	);
+	assert.equal(
+		flagsOf( { ...result, lockDown: true } ),
+		'--plugin wp-super-cache --real --lockdown'
 	);
 	// A result written before --pages existed has no pages field.
 	assert.equal(

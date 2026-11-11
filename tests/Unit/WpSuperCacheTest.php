@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
@@ -90,6 +91,48 @@ final class WpSuperCacheTest extends TestCase {
 
 		$this->load_wp_super_cache( true );
 		$this->assertTrue( $adapter->active() );
+	}
+
+	/**
+	 * Values of WPLOCKDOWN, and whether the adapter is active with it. WP Super
+	 * Cache 3.1.5 writes '1' or '0' from its settings page
+	 * (wp_update_lock_down() in inc/settings-forms.php) and 1 or 0 from its
+	 * REST settings, and treats Lock Down as on when the constant != '0'
+	 * (wpsc_register_post_hooks() in wp-cache-phase2.php).
+	 *
+	 * @return array<string, array{0: mixed, 1: bool}>
+	 */
+	public static function lock_down_values(): array {
+		return [
+			"'1', from its settings page" => [ '1', false ],
+			'1, from its REST settings'   => [ 1, false ],
+			'true'                        => [ true, false ],
+			"'0', from its settings page" => [ '0', true ],
+			'0, from its REST settings'   => [ 0, true ],
+			'false'                       => [ false, true ],
+		];
+	}
+
+	#[DataProvider( 'lock_down_values' )]
+	public function test_lock_down_switches_it_off_as_it_switches_off_wp_super_caches_own_purge( mixed $value, bool $active ): void {
+		$this->load_wp_super_cache();
+		define( 'WPLOCKDOWN', $value );
+
+		$this->assertSame( $active, ( new WP_Super_Cache() )->active() );
+	}
+
+	public function test_a_purge_during_lock_down_leaves_wp_super_cache_alone(): void {
+		$this->load_wp_super_cache();
+		$this->load_purge();
+		define( 'WPLOCKDOWN', '1' );
+
+		$this->change_phone_on( 51 );
+		$this->change_phone_on( 2 );
+
+		$this->assertSame( [], $this->calls(), 'Lock Down is for a traffic spike: neither purge_all() nor purge_urls() may reach WP Super Cache.' );
+		$record = $GLOBALS['voyager_test_options'][ Purge\LAST_OPTION ];
+		$this->assertIsArray( $record );
+		$this->assertSame( [], $record['adapters'] );
 	}
 
 	public function test_purge_urls_deletes_each_url_once_and_clears_nothing(): void {

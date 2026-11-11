@@ -5,6 +5,7 @@
  *   npm run cache-check -- --plugin wp-super-cache --real
  *   npm run cache-check -- --plugin wp-super-cache --real --no-purge
  *   npm run cache-check -- --plugin wp-super-cache --real --pages 51
+ *   npm run cache-check -- --plugin wp-super-cache --real --lockdown
  *   npm run cache-check -- --plugin dummy --spy [--stand-in] [--no-purge]
  *   npm run cache-check -- --help
  *
@@ -79,6 +80,8 @@ Shows whether a Site Data change reaches a page a cache has already stored.
                    control: the page must go stale.
   --stand-in       Stand in for the pack's purge with the harness's own, which
                    runs contract 2 by hand. The positive control for --spy.
+  --lockdown       Turn on the cache's Lock Down, in which it keeps its pages
+                   through a traffic spike. The pack must leave them alone.
   --pages <n>      Publish n pages bound to the phone and measure the last,
                    which has the highest ID. Default 1. With 51 the measured
                    page is past the 50 the purge cleans one by one.
@@ -177,6 +180,7 @@ async function measure( opts ) {
 		mode: opts.mode,
 		noPurge: opts.noPurge,
 		standIn: opts.standIn,
+		lockDown: opts.lockDown,
 		pages: opts.pages,
 		version: spec.install?.version || null,
 		outcome: 'unmeasured',
@@ -221,6 +225,7 @@ async function measure( opts ) {
 			hooks: spec.hooks,
 			no_purge: opts.noPurge,
 			stand_in: opts.standIn,
+			lock_down: opts.lockDown,
 		};
 		const setup = await runPhp(
 			site,

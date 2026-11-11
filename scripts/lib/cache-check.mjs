@@ -46,6 +46,8 @@ const MARKER = /<!-- voyager-open-cache-check rendered ([0-9a-f]+)\b[^>]*-->/;
  *            passes when one of them covers the page. A record of the pack's
  *            own voyager_open_blocks_purge action is not one: the action
  *            firing says nothing about whether a cache heard it.
+ * lockDown:  whether the harness can turn on the cache's Lock Down, a mode
+ *            in which it keeps its cached pages through a traffic spike.
  *
  * A new cache is a new row here, plus a matrix row in
  * .github/workflows/cache.yml.
@@ -64,6 +66,9 @@ export const PLUGINS = {
 		// Recorded for the report only: in --real mode the page decides.
 		hooks: { wp_cache_cleared: { all: true } },
 		receivers: [],
+		// WPLOCKDOWN, written into wp-cache-config.php the way its settings
+		// page does (tests/fixtures/cache-check/wp-super-cache/setup.php).
+		lockDown: true,
 	},
 	dummy: {
 		label: 'Dummy cache (test fixture)',
@@ -79,10 +84,19 @@ export const PLUGINS = {
 			{ kind: 'hook', name: 'dummy_cache_purge_all' },
 			{ kind: 'http', name: 'api.cdn.example' },
 		],
+		lockDown: false,
 	},
 };
 
-const BOOLEAN = [ 'real', 'spy', 'no-purge', 'stand-in', 'debug', 'help' ];
+const BOOLEAN = [
+	'real',
+	'spy',
+	'no-purge',
+	'stand-in',
+	'lockdown',
+	'debug',
+	'help',
+];
 const VALUED = [ 'plugin', 'result-file', 'port', 'wp', 'php', 'pages' ];
 
 /**
@@ -98,7 +112,7 @@ export class UsageError extends Error {}
  * Read the command line.
  *
  * @param {string[]} argv Arguments after the script name.
- * @return {{plugin: string, mode: 'real'|'spy', noPurge: boolean, standIn: boolean, pages: number, resultFile: string|undefined, port: string|undefined, wp: string|undefined, php: string|undefined, debug: boolean, help: boolean}} The options.
+ * @return {{plugin: string, mode: 'real'|'spy', noPurge: boolean, standIn: boolean, lockDown: boolean, pages: number, resultFile: string|undefined, port: string|undefined, wp: string|undefined, php: string|undefined, debug: boolean, help: boolean}} The options.
  * @throws {UsageError} When they make no sense together.
  */
 export function parseArgs( argv ) {
@@ -137,6 +151,7 @@ export function parseArgs( argv ) {
 		mode: undefined,
 		noPurge: opts[ 'no-purge' ] === true,
 		standIn: opts[ 'stand-in' ] === true,
+		lockDown: opts.lockdown === true,
 		pages: 1,
 		resultFile: opts[ 'result-file' ],
 		port: opts.port,
@@ -168,6 +183,11 @@ export function parseArgs( argv ) {
 			`${ spec.label } runs with --${ spec.modes.join(
 				' or --'
 			) }, not --${ parsed.mode }.`
+		);
+	}
+	if ( parsed.lockDown && ! spec.lockDown ) {
+		throw new UsageError(
+			`--lockdown is for a cache the harness can lock down, and ${ spec.label } is not one.`
 		);
 	}
 	if ( parsed.port !== undefined && ! /^\d+$/.test( parsed.port ) ) {
@@ -486,6 +506,7 @@ export function flagsOf( result ) {
 		result.pages > 1 ? `--pages ${ result.pages }` : '',
 		result.noPurge ? '--no-purge' : '',
 		result.standIn ? '--stand-in' : '',
+		result.lockDown ? '--lockdown' : '',
 	]
 		.filter( Boolean )
 		.join( ' ' );
