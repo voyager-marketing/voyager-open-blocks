@@ -1,0 +1,109 @@
+name: Cache
+
+# npm run cache-check: does a Site Data change reach a page that a cache has
+# already stored? Each row of the matrix is one cache and one mode, and runs
+# as its own check. docs/development.md ("Cache check") explains the modes.
+#
+# `expect` is what a row asserts about the harness's exit code:
+#   fresh  0  the change reached the page
+#   stale  1  the cache went on serving the old number
+# Exit 2 (the harness could not measure: no cache hit, the page did not
+# render the number, setup failed) fails every row, so a broken harness can
+# never pass as a stale page.
+#
+# Two kinds of stale row:
+# - Controls (--no-purge) stay stale for good. They show the check can fail.
+# - Rows marked "until the pack purges" record today's bug: the pack does not
+#   purge anything when Site Data changes yet (contract 2 in
+#   docs/v2-contracts.md). When the purge lands, these rows go red, and the
+#   pull request that lands it flips their expect to fresh.
+#
+# A Wave 2 cache is a row in PLUGINS (scripts/lib/cache-check.mjs) and rows
+# here: --real if it serves pages from PHP inside Playground, else --spy.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cache-check:
+    name: cache-check ${{ matrix.plugin }} --${{ matrix.mode }}${{ matrix.flags }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # WP Super Cache serving the page from PHP. Stale until the pack
+          # purges, then fresh.
+          - plugin: wp-super-cache
+            mode: real
+            flags: ''
+            expect: stale
+          # Control. With the pack's purge emptied the page must go stale.
+          # This is the issue's fitness command.
+          - plugin: wp-super-cache
+            mode: real
+            flags: ' --no-purge'
+            expect: stale
+          # The pack's own purge, through a cache adapter. Stale until the
+          # pack purges, then fresh.
+          - plugin: dummy
+            mode: spy
+            flags: ''
+            expect: stale
+          # Positive control for --spy: the harness's stand-in purge runs
+          # contract 2 by hand, and the dummy cache must hear the page's URL.
+          - plugin: dummy
+            mode: spy
+            flags: ' --stand-in'
+            expect: fresh
+          # Control. --no-purge empties the stand-in's purge too.
+          - plugin: dummy
+            mode: spy
+            flags: ' --stand-in --no-purge'
+            expect: stale
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: npm run cache-check (expect ${{ matrix.expect }})
+        env:
+          PLUGIN: ${{ matrix.plugin }}
+          MODE: ${{ matrix.mode }}
+          FLAGS: ${{ matrix.flags }}
+          EXPECT: ${{ matrix.expect }}
+        run: |
+          set +e
+          # FLAGS is unquoted on purpose: it holds zero or more options.
+          # shellcheck disable=SC2086
+          npm run cache-check -- --plugin "$PLUGIN" "--$MODE" $FLAGS --result-file "$RUNNER_TEMP/cache-check.json"
+          code=$?
+          set -e
+          case "$EXPECT:$code" in
+            fresh:0 | stale:1)
+              echo "ok   the harness exited $code: $EXPECT, as this row expects"
+              ;;
+            *)
+              echo "::error title=cache-check $PLUGIN --$MODE$FLAGS::This row expects $EXPECT, and the harness exited $code (0 fresh, 1 stale, 2 could not measure)."
+              exit 1
+              ;;
+          esac
+
+      - name: Result
+        if: always()
+        run: cat "$RUNNER_TEMP/cache-check.json" 2>/dev/null || echo 'No result file was written.'

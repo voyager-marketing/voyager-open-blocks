@@ -13,10 +13,15 @@
  * 7. tests/fixtures/site-data-keys.json matches its sha256 pin.
  * 8. readme.txt says where the source of the built files is.
  * 9. Every change note in unreleased/ is well-formed (unreleased/README.md).
- * 10. scripts/fold-unreleased.mjs passes its known-answer test.
+ * 10. scripts/fold-unreleased.mjs passes its known-answer test, all of its
+ *     12 cases at least.
  * 11. DESIGN.md lints with no errors and its sections in the format's order.
  * 12. The same linter rejects tests/invalid/design-broken-ref.md, so that
  *     gate is shown to bite.
+ * 13. scripts/lib/cache-check.mjs (npm run cache-check's logic) passes its
+ *     known-answer test, all of its 17 cases at least.
+ * 14. The test-count guard behind 10 and 13 rejects tests/invalid/no-tests.mjs,
+ *     a test file with no tests, so that gate is shown to bite.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -205,22 +210,39 @@ report(
 		: notes.stderr.trim().split( '\n' )[ 0 ]
 );
 
-// A test runner that ran nothing exits 0 too, so count what it ran.
-const foldTest = run( [
-	'--test',
-	'--test-reporter=tap',
+// A test runner that ran nothing exits 0 too, and node --test counts a file
+// with no tests in it as one passing test. So the floor is each file's own
+// count of known cases, not "more than none": a file that lost its tests, or
+// most of them, fails here. Raise a floor when you add cases.
+function knownAnswer( file, minimum ) {
+	const result = run( [ '--test', '--test-reporter=tap', file ] );
+	const count = ( name ) =>
+		Number(
+			result.stdout.match(
+				new RegExp( `^# ${ name } (\\d+)$`, 'm' )
+			)?.[ 1 ] ?? 0
+		);
+	return {
+		ok:
+			result.code === 0 &&
+			count( 'tests' ) >= minimum &&
+			count( 'pass' ) >= minimum &&
+			count( 'fail' ) === 0,
+		detail: `${ count( 'pass' ) }/${ count(
+			'tests'
+		) } passed, at least ${ minimum } expected`,
+	};
+}
+
+const FOLD_CASES = 12;
+const foldTest = knownAnswer(
 	join( root, 'scripts', 'test-fold-unreleased.mjs' ),
-] );
-const tapCount = ( name ) =>
-	Number(
-		foldTest.stdout.match(
-			new RegExp( `^# ${ name } (\\d+)$`, 'm' )
-		)?.[ 1 ] ?? 0
-	);
+	FOLD_CASES
+);
 report(
 	'scripts/fold-unreleased.mjs passes its known-answer test',
-	foldTest.code === 0 && tapCount( 'tests' ) > 0 && tapCount( 'fail' ) === 0,
-	`${ tapCount( 'pass' ) }/${ tapCount( 'tests' ) } passed`
+	foldTest.ok,
+	foldTest.detail
 );
 
 // DESIGN.md is linted with Google's DESIGN.md linter. Its errors fail the
@@ -273,6 +295,30 @@ report(
 	brokenDesign.code === 1 &&
 		brokenDesign.errors.some( ( item ) => item.rule === 'broken-ref' ),
 	`exit ${ brokenDesign.code }, ${ brokenDesign.errors.length } errors`
+);
+
+// npm run cache-check needs Playground, so CI runs it. What decides its
+// verdict needs nothing, so it is gated here.
+const cacheCheckTest = knownAnswer(
+	join( root, 'scripts', 'test-cache-check.mjs' ),
+	17
+);
+report(
+	'scripts/lib/cache-check.mjs passes its known-answer test',
+	cacheCheckTest.ok,
+	cacheCheckTest.detail
+);
+
+// node --test reports this empty file as "1/1 passed". The guard, at the
+// fold test's floor, has to refuse it.
+const noTests = knownAnswer(
+	join( root, 'tests', 'invalid', 'no-tests.mjs' ),
+	FOLD_CASES
+);
+report(
+	'the test-count guard rejects tests/invalid/no-tests.mjs',
+	! noTests.ok,
+	noTests.detail
 );
 
 process.exit( failed ? 1 : 0 );

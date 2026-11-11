@@ -47,9 +47,11 @@ npm run check              # every offline gate, below
 7. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
 8. `readme.txt` has a `= Source code =` section with the GitHub link and `npm run build`. The plugin directory asks a plugin that ships built files to say where their source is, and Plugin Check does not test for it.
 9. every change note in `unreleased/` is well-formed (`npm run changelog:fold -- --check`),
-10. `scripts/fold-unreleased.mjs` passes its known-answer test, `scripts/test-fold-unreleased.mjs` (`npm run test:fold`): the notes in `tests/fixtures/fold-unreleased/` folded into its `readme.in.txt` must give `readme.expected.txt`, and malformed notes must stop the fold with nothing changed,
+10. `scripts/fold-unreleased.mjs` passes its known-answer test, `scripts/test-fold-unreleased.mjs` (`npm run test:fold`), all 12 of its cases: the notes in `tests/fixtures/fold-unreleased/` folded into its `readme.in.txt` must give `readme.expected.txt`, and malformed notes must stop the fold with nothing changed,
 11. `DESIGN.md` lints with `@google/design.md` (`npm run lint:design`) with no errors and its sections in the format's order. The linter's other warnings are printed, not failed,
-12. the same linter rejects `tests/invalid/design-broken-ref.md`, a component pointing at a colour token that does not exist, so that gate is shown to bite.
+12. the same linter rejects `tests/invalid/design-broken-ref.md`, a component pointing at a colour token that does not exist, so that gate is shown to bite,
+13. `scripts/lib/cache-check.mjs`, the logic of `npm run cache-check`, passes its known-answer test, `scripts/test-cache-check.mjs` (`npm run test:cache-check`), all 17 of its cases,
+14. the guard on 10 and 13 rejects `tests/invalid/no-tests.mjs`. `node --test` reports a file with no tests as one passing test, so the guard counts each file's known cases rather than "more than none".
 
 The rest of what CI runs:
 
@@ -97,6 +99,18 @@ Each of these runs against the local site and exits non-zero on the first mismat
 - **`npm run check:resolution`** (`node scripts/binding-resolution-check.mjs --site <dir>`) binds one paragraph to `phone` and one to a key the source does not have, then checks that `get-post-blocks` reports the first as `resolved` with a value preview and the second as `fell_back` with reason `unknown_key`. It deletes the page and restores the option, pass or fail.
 - **`npm run check:bindable-meta`** (`node scripts/bindable-meta-check.mjs --site <dir>`) checks a stored Bindable post meta row: `get-catalog` lists it, `resolve()` reads it, a `_private` key is refused, and removing the row removes the field.
 - **`node scripts/foreign-owner-check.mjs --site <dir>`** checks the voyager-blocks case below, with `tests/fixtures/foreign-site-data.php` standing in for the owner.
+
+## Cache check
+
+`npm run cache-check` asks whether a Site Data change reaches a page that a cache has already stored. It boots Playground with one cache, publishes a page whose paragraph is bound to `phone`, changes the phone over REST, and looks for the new number. It exits 0 when the change reached the page (fresh), 1 when it did not (stale), and 2 when it could not tell. It runs in CI, one check per cache and mode ([`cache.yml`](../.github/workflows/cache.yml)). Its logic has a known-answer test that `npm run check` runs.
+
+- **`--real`** is for caches that serve pages from PHP inside Playground: `npm run cache-check -- --plugin wp-super-cache --real`. It loads the page twice as a visitor, checks that the second load came from the cache, changes the phone and loads it again. A footer comment unique to each render tells a cached copy from a fresh one.
+- **`--spy`** is for caches in a server or a CDN, and for plugins that cannot be installed here: `npm run cache-check -- --plugin dummy --spy`. A test mu-plugin records the cache's purge entry points and its outgoing HTTP (`pre_http_request`) during the change, and the run passes when one of them names the page, or purges everything. `dummy` is a pretend cache with a CDN API, offered to the pack as a cache adapter.
+- **`--no-purge`** is the control: it empties the pack's purge through contract 2's filters (`voyager_open_blocks_cache_adapters` and `voyager_open_blocks_purge_urls`), so the page must go stale. **`--stand-in`** replaces the pack's purge, which does not exist yet, with a hand-run of contract 2, the positive control for `--spy`.
+
+Today the pack does not purge, so the page goes stale with or without `--no-purge`. The PLUGINS table in `scripts/lib/cache-check.mjs` and the fixtures in `tests/fixtures/cache-check/` hold the details of each cache.
+
+WP Super Cache is pinned at 3.1.5, read from its source. The harness turns it on with its own `wp_cache_enable()` after activation, and leaves it in "simple" mode, where `wp-cache-phase1.php` serves stored pages with `wp_cache_serve_cache_file()`. Its purge entry points are `wpsc_delete_url_cache()` and `wp_cache_clear_cache()` in `wp-cache-phase2.php` and `wpsc_delete_post_cache()` in `inc/cache-files.php`. Playground runs PHP with the SAPI name `cli` and sets `PHP_SELF` to the request path, which makes `wpsc_is_backend()` refuse to cache any page but the front page. A WP Super Cache plugin file in the fixtures sets `PHP_SELF` to `/index.php`, as Apache or nginx would.
 
 ## Sites running voyager-blocks
 
