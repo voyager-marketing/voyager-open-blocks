@@ -15,8 +15,10 @@
  * fresh on every run. PHP files are read from this checkout on every request,
  * so edits show on the next page load.
  *
- * scripts/screenshots.mjs imports boot() and verify() from here, and
- * scripts/e2e-editor.mjs imports boot(), runPhp() and appPassword().
+ * scripts/screenshots.mjs imports boot() and verify() from here,
+ * scripts/e2e-editor.mjs imports boot(), runPhp() and appPassword(), and
+ * scripts/cache-check.mjs imports boot(), runPhp(), appPassword(), phpLog() and
+ * reportPhpLog().
  */
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -76,16 +78,22 @@ const KNOWN = [
  * Boot Playground with this checkout mounted as the plugin.
  *
  * @param {Object}  [options]
- * @param {number}  [options.port]  Port; omit for 9400 or a free one.
- * @param {string}  [options.wp]    WordPress version.
- * @param {string}  [options.php]   PHP version.
- * @param {boolean} [options.debug] Playground's debug output.
- * @param {boolean} [options.login] Log a new browser in as admin on its first
- *                                  request, as blueprints/dev.json asks. Pass
- *                                  false for a site that only scripts use:
- *                                  the login redirect sets a cookie that a
- *                                  client without a cookie jar never sends
- *                                  back, so it redirects again and again.
+ * @param {number}  [options.port]   Port; omit for 9400 or a free one.
+ * @param {string}  [options.wp]     WordPress version.
+ * @param {string}  [options.php]    PHP version.
+ * @param {boolean} [options.debug]  Playground's debug output.
+ * @param {boolean} [options.login]  Log a new browser in as admin on its first
+ *                                   request, as blueprints/dev.json asks. Pass
+ *                                   false for a site that only scripts use:
+ *                                   the login redirect sets a cookie that a
+ *                                   client without a cookie jar never sends
+ *                                   back, so it redirects again and again.
+ * @param {Object}  [options.consts] More constants for wp-config.php, added
+ *                                   to blueprints/dev.json's
+ *                                   defineWpConfigConsts step, which writes
+ *                                   them into the file.
+ * @param {Array}   [options.steps]  More blueprint steps, run after the
+ *                                   plugin is active and the demo is seeded.
  * @return {Promise<{url: string, playground: Object, stop: () => Promise<void>}>} The running site. Call stop() to shut it down.
  */
 export async function boot( {
@@ -94,6 +102,8 @@ export async function boot( {
 	php,
 	debug = false,
 	login = true,
+	consts = {},
+	steps = [],
 } = {} ) {
 	let cli;
 	try {
@@ -120,6 +130,17 @@ export async function boot( {
 	if ( ! login ) {
 		blueprint.login = false;
 	}
+	// Into the existing rewrite-wp-config step rather than a step of their
+	// own: a define-before-run step replaces Playground's constants file and
+	// drops the defines already in it.
+	if ( Object.keys( consts ).length ) {
+		blueprint.steps = blueprint.steps.map( ( step ) =>
+			step.step === 'defineWpConfigConsts'
+				? { ...step, consts: { ...step.consts, ...consts } }
+				: step
+		);
+	}
+	blueprint.steps = [ ...blueprint.steps, ...steps ];
 
 	let server;
 	try {
