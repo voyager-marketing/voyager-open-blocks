@@ -56,3 +56,11 @@ if ( ! function_exists( 'wp_schedule_single_event' ) ) {
 		return true;
 	}
 }
+
+if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
+	function wp_clear_scheduled_hook( string $hook, array $args = [], bool $wp_error = false ): int {
+		$had = isset( $GLOBALS['voyager_test_events'][ $hook ] );
+		unset( $GLOBALS['voyager_test_events'][ $hook ] );
+		return $had ? 1 : 0;
+	}
+}

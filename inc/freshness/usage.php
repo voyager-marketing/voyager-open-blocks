@@ -679,50 +679,52 @@ function site_data_rows( string $key ): array {
  * Where some rows are shown: up to $limit published posts by title, how many
  * there are, and the templates.
  *
+ * Two queries whatever the number of rows: a distinct count, so a page
+ * showing both phone and phone_link counts once (per-row counts() would count
+ * it twice), and the first $limit titles.
+ *
  * @param list<string> $rows  Rows.
  * @param int          $limit Most posts to return.
  * @return array{total: int, posts: list<WP_Post>, templates: list<array{id: string, title: string, type: string, uses: list<string>}>}
  */
 function shown_on( array $rows, int $limit = 10 ): array {
-	$types  = content_types();
-	$titles = [];
+	$types = content_types();
+	$out   = [
+		'total'     => 0,
+		'posts'     => [],
+		'templates' => templates_with( $rows ),
+	];
 
-	foreach ( $rows as $row ) {
-		$found = select(
-			[ 'postmeta', 'posts' ],
-			"SELECT p.ID AS id, p.post_title AS title, p.post_type AS post_type FROM %i pm INNER JOIN %i p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = %s AND p.post_status = 'publish'",
-			META,
-			$row
-		);
-
-		foreach ( $found as $post ) {
-			if ( in_array( Cast\to_string( $post['post_type'] ?? '' ), $types, true ) ) {
-				$titles[ Cast\to_int( $post['id'] ?? 0 ) ] = Cast\to_string( $post['title'] ?? '' );
-			}
-		}
+	if ( [] === $rows || [] === $types ) {
+		return $out;
 	}
 
-	unset( $titles[0] );
-	asort( $titles, SORT_NATURAL | SORT_FLAG_CASE );
-	$ids = array_slice( array_keys( $titles ), 0, max( 0, $limit ) );
+	$where = ' FROM %i pm INNER JOIN %i p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND p.post_status = \'publish\''
+		. ' AND pm.meta_value IN (' . implode( ', ', array_fill( 0, count( $rows ), '%s' ) ) . ')'
+		. ' AND p.post_type IN (' . implode( ', ', array_fill( 0, count( $types ), '%s' ) ) . ')';
+
+	$total        = select( [ 'postmeta', 'posts' ], 'SELECT COUNT(DISTINCT p.ID) AS total' . $where, META, ...$rows, ...$types );
+	$out['total'] = Cast\to_int( $total[0]['total'] ?? 0 );
+
+	if ( 0 === $out['total'] || $limit < 1 ) {
+		return $out;
+	}
+
+	$found = select( [ 'postmeta', 'posts' ], 'SELECT DISTINCT p.ID AS id, p.post_title AS title' . $where . ' ORDER BY p.post_title ASC, p.ID ASC LIMIT %d', META, ...$rows, ...$types, ...[ $limit ] );
+	$ids   = ids_of( array_column( $found, 'id' ) );
 
 	if ( [] !== $ids ) {
 		_prime_post_caches( $ids, false, false );
 	}
 
-	$posts = [];
 	foreach ( $ids as $id ) {
 		$post = get_post( $id );
 		if ( $post instanceof WP_Post ) {
-			$posts[] = $post;
+			$out['posts'][] = $post;
 		}
 	}
 
-	return [
-		'total'     => count( $titles ),
-		'posts'     => $posts,
-		'templates' => templates_with( $rows ),
-	];
+	return $out;
 }
 
 /**
@@ -875,13 +877,36 @@ function queued(): array {
 /**
  * Add post IDs to the queue and make sure the queue event will run.
  *
+ * Reads the queue right before it writes, so IDs another request queued
+ * are kept.
+ *
  * @param list<int> $ids Post IDs.
  */
 function enqueue( array $ids ): void {
-	$all = array_values( array_unique( [ ...queued(), ...$ids ] ) );
-	sort( $all );
-	update_option( QUEUE_OPTION, $all, false );
+	save_queue( [ ...queued(), ...$ids ] );
+	schedule_queue();
+}
 
+/**
+ * Store the queue sorted and without duplicates, or delete it when empty.
+ *
+ * @param array<int> $ids Post IDs.
+ */
+function save_queue( array $ids ): void {
+	$ids = array_values( array_unique( $ids ) );
+	sort( $ids );
+
+	if ( [] === $ids ) {
+		delete_option( QUEUE_OPTION );
+	} else {
+		update_option( QUEUE_OPTION, $ids, false );
+	}
+}
+
+/**
+ * Schedule the queue event, unless it is scheduled already.
+ */
+function schedule_queue(): void {
 	if ( false === wp_next_scheduled( QUEUE_HOOK ) ) {
 		wp_schedule_single_event( time(), QUEUE_HOOK );
 	}
@@ -890,28 +915,33 @@ function enqueue( array $ids ): void {
 /**
  * Index the next BATCH queued posts, and run again while any are left.
  *
- * The rest of the queue is saved before the batch runs, so IDs queued while
- * it runs are kept.
+ * The next run is scheduled before the batch starts, and the batch leaves the
+ * queue only once it is indexed, so a request that dies mid-batch loses
+ * nothing: the next run indexes the batch again. Then the queue is read again
+ * and only the indexed IDs are removed, so IDs queued during the batch stay.
  *
  * @param (callable(int): mixed)|null $index Indexes one post. Defaults to index_post().
  */
 function drain_queue( ?callable $index = null ): void {
 	$index = $index ?? index_post( ... );
-	$ids   = queued();
-	$left  = array_slice( $ids, BATCH );
+	$batch = array_slice( queued(), 0, BATCH );
 
-	if ( [] === $left ) {
+	if ( [] === $batch ) {
 		delete_option( QUEUE_OPTION );
-	} else {
-		update_option( QUEUE_OPTION, $left, false );
+		return;
 	}
 
-	foreach ( array_slice( $ids, 0, BATCH ) as $id ) {
+	schedule_queue();
+
+	foreach ( $batch as $id ) {
 		$index( $id );
 	}
 
-	if ( [] !== $left && false === wp_next_scheduled( QUEUE_HOOK ) ) {
-		wp_schedule_single_event( time(), QUEUE_HOOK );
+	$left = array_values( array_diff( queued(), $batch ) );
+	save_queue( $left );
+
+	if ( [] === $left ) {
+		wp_clear_scheduled_hook( QUEUE_HOOK );
 	}
 }
 

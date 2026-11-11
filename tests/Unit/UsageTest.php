@@ -275,4 +275,46 @@ final class UsageTest extends TestCase {
 		$this->assertArrayNotHasKey( Usage\QUEUE_OPTION, $GLOBALS['voyager_test_options'] );
 		$this->assertArrayNotHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'], 'It stops once the queue is empty.' );
 	}
+
+	public function test_a_run_that_dies_mid_batch_keeps_the_ids_it_had_not_indexed(): void {
+		Usage\reindex( range( 1, 120 ), static fn ( int $id ): bool => true );
+		unset( $GLOBALS['voyager_test_events'][ Usage\QUEUE_HOOK ] );
+
+		$seen = [];
+		try {
+			Usage\drain_queue(
+				static function ( int $id ) use ( &$seen ): bool {
+					if ( 61 === $id ) {
+						throw new \RuntimeException( 'The request died.' );
+					}
+					$seen[] = $id;
+					return true;
+				}
+			);
+			$this->fail( 'The indexer should have thrown.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'The request died.', $e->getMessage() );
+		}
+
+		$this->assertSame( range( 51, 60 ), $seen );
+		$this->assertSame( range( 51, 120 ), Usage\queued(), 'Nothing leaves the queue until its batch is indexed.' );
+		$this->assertArrayHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'], 'The next run was scheduled before the batch started.' );
+	}
+
+	public function test_ids_queued_while_a_batch_runs_are_kept(): void {
+		Usage\reindex( range( 1, 120 ), static fn ( int $id ): bool => true );
+		unset( $GLOBALS['voyager_test_events'][ Usage\QUEUE_HOOK ] );
+
+		Usage\drain_queue(
+			static function ( int $id ): bool {
+				if ( 51 === $id ) {
+					Usage\enqueue( [ 500, 75 ] );
+				}
+				return true;
+			}
+		);
+
+		$this->assertSame( [ ...range( 101, 120 ), 500 ], Usage\queued(), 'Only the indexed batch leaves the queue.' );
+		$this->assertArrayHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'] );
+	}
 }
