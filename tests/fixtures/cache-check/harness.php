@@ -19,10 +19,10 @@
  *    through pre_http_request. Requests to other hosts are answered with a
  *    fake 200 and never leave the site. GET and DELETE
  *    /wp-json/voyager-open-cache-check/v1/records read and clear them.
- * 4. With stand_in set (--stand-in), stands in for the pack's purge, which
- *    does not exist yet: when a voyager_site_* option changes, it finds the
- *    published posts whose blocks bind that key, and on shutdown runs them
- *    through contract 2 the way the pack will: the purge_urls filter, the
+ * 4. With stand_in set (--stand-in), runs a purge of its own beside the
+ *    pack's (inc/freshness/purge.php): when a voyager_site_* option changes,
+ *    it finds the published posts whose blocks bind that key, and on shutdown
+ *    runs them through contract 2 by hand: the purge_urls filter, the
  *    voyager_open_blocks_purge action, then every active adapter from
  *    voyager_open_blocks_cache_adapters. It is the positive control for
  *    --spy, not a model of the real purge: its URL lookup is a LIKE query.

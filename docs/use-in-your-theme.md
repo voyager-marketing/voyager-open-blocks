@@ -201,18 +201,73 @@ apply_filters( 'voyager_post_meta_text_fields', array $fields );
 
 `block_bindings_supported_attributes_voyager-open/icon`: the core filter the plugin hooks to add `label` and `linkUrl`.
 
+`voyager_open_blocks_style_roles`: the colour preset each role of the [section styles](#block-styles-and-patterns) uses, role => palette slug. The roles are `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`. The plugin passes its built-in map when your palette matches Twenty Twenty-Five, Twenty Twenty-Four or the Voyager design system, else `[]`. A slug your theme does not declare, and a role not in the list, are dropped. A role the map leaves out is mixed from the site's own text and background colours with `color-mix()`: the ones saved in the Site Editor's Global Styles, else `styles.color` in your theme.json.
+
+```php
+apply_filters( 'voyager_open_blocks_style_roles', array $map, array $palette_slugs );
+```
+
+`voyager_open_blocks_purge_urls`: the URLs a [purge](#actions) is about to send, before the action fires. Return `[]` to switch the purge off: when the list is empty and `purge_all` is false, no post cache is cleaned, the action does not fire and no adapter is called.
+
+```php
+apply_filters( 'voyager_open_blocks_purge_urls', array $urls, array $context );
+```
+
+`voyager_open_blocks_cache_adapters`: return your page cache's adapters, objects that implement `VoyagerOpenBlocks\Cache\Adapter` (`inc/cache/adapter.php`). Anything else in the list is ignored.
+
+```php
+add_filter(
+	'voyager_open_blocks_cache_adapters',
+	static function ( array $adapters ): array {
+		$adapters[] = new My_Cache_Adapter(); // implements VoyagerOpenBlocks\Cache\Adapter
+		return $adapters;
+	}
+);
+```
+
+| Adapter method | What it does |
+|---|---|
+| `id(): string` | A stable lowercase ID, such as `my-cache`. |
+| `label(): string` | The cache's name, shown on Settings > Site Data. |
+| `active(): bool` | Whether the cache is installed and on. An inactive adapter is skipped. |
+| `supports_urls(): bool` | Whether the cache can purge single pages. When it cannot, it gets `purge_all()` instead of `purge_urls()`. |
+| `purge_urls( array $urls ): void` | Purge these absolute URLs. |
+| `purge_all(): void` | Purge every page. |
+
+Each active adapter is called once per purge: `purge_all()` when the purge is `purge_all` or `supports_urls()` is false, `purge_urls()` otherwise. An adapter that throws is recorded as failed, and the others still run. The pack ships no adapters.
+
 ### Actions
 
-The plugin fires no actions of its own. It hooks these:
+`voyager_open_blocks_purge`: fired at most once per request for each reason, on `shutdown`, after a Site Data field or an allowlisted bindable post meta field changes and a published page or a template shows it. Listen to it to purge a cache that has no adapter.
+
+```php
+do_action( 'voyager_open_blocks_purge', array $urls, array $context );
+```
+
+- `$urls`: the pages to purge, absolute, after `voyager_open_blocks_purge_urls`. For Site Data, the published posts that show the field, or a field made from it (`phone_link` for `phone`), and the front page. For post meta, that post only.
+- `$context`: `source` (`voyager/site-data` or `voyager/post-meta-text`), `keys` (the keys that changed), `post_ids`, `templates` (the active theme's templates and parts that show a key), `reason` (`site-data` or `post-meta`) and `purge_all` (bool).
+- `purge_all` is true when the URL list cannot be complete: a Site Data field shown in a template or template part, or more than 50 posts to purge, of which the list holds the first 50. An adapter then gets `purge_all()`.
+- Before the action, `clean_post_cache()` runs on each post in `post_ids`, which some page caches listen to. Only published posts of `public` post types are listed; a type registered `public => false, publicly_queryable => true` is not.
+- Nothing shows the field, or the filter emptied the list: no action. The last purge is shown on Settings > Site Data.
+
+Which pages show a field comes from the plugin's usage index, post meta `_voyager_open_blocks_uses` on each post, kept on save. `wp voyager-open-blocks reindex` rebuilds it for every post at once, and activation starts a background rebuild through WP-Cron.
+
+The plugin hooks these:
 
 | Hook | Priority | What runs |
 |---|---|---|
-| `init` | 10 | Registers the icon block, the patterns and their category, and the block styles |
+| `init` | 10 | Registers the icon block, the patterns and their category, and the block styles, and starts the usage index's background rebuild when the plugin version changed |
 | `init` | 15 | Registers the bindable post meta rows from the option |
 | `init` | 20 | Registers both binding sources, their options and the settings screen hooks |
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
+| `admin_init` | 9 | The last purge's section on Settings > Site Data |
 | `enqueue_block_editor_assets` | 10 | The editor half of both sources: field lists, live values, in-place editing of post meta |
 | `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the eight abilities |
+| `wp_after_insert_post`, `after_delete_post` | 10 | Indexes the saved post, and the posts that show a changed synced pattern |
+| `switch_theme`, `upgrader_process_complete` | 10 | Indexes the theme's template and template part files |
+| `added_option`, `updated_option`, `deleted_option`, `added_post_meta`, `updated_post_meta`, `deleted_post_meta` | 10 | Notes a Site Data or bindable post meta change for the purge |
+| `shutdown` | 0 | Runs the purge for the changes the request noted |
+| `cli_init` | 10 | Adds `wp voyager-open-blocks reindex` |
 
 ### Abilities
 
@@ -224,14 +279,15 @@ Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<nam
 | `voyager-open-blocks/find-posts` | GET | `edit_posts`; the post type's own `edit_posts` capability, or `edit_theme_options` for `wp_template` and `wp_template_part`; each result needs `edit_post` and `read_post` | `search` (words in the title; for templates, the title or slug), `slug` (exact), `post_type` (default `page`; any type shown in REST with editor support, including `wp_template` and `wp_template_part`), `front_page` (default `false`; returns the home page and ignores the rest), `limit` (default `10`, at most `20`) |
 | `voyager-open-blocks/get-post-blocks` | GET | `edit_post` on `post_id` | `post_id` (required) |
 | `voyager-open-blocks/insert` | POST | `edit_post` on `post_id` | `post_id`, `item` (required); `parent` (path of the block to insert into; left out, the top level), `position` (default `-1`, appends; an index among `parent`'s inner blocks when it is given), `mode` (`copy` or `reference`, default `copy`), `attributes` (blocks only), `copy` (patterns in copy mode only, label => plain text), `omit` (patterns in copy mode only, labels of blocks to leave out), `repeat` (patterns in copy mode only, label => labels of copies added right after it), `dry_run` (default `false`) |
-| `voyager-open-blocks/configure` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attributes` (all required). Blocks that save no HTML only. `null` resets an attribute. Optional: `dry_run` (default `false`). |
+| `voyager-open-blocks/configure` | POST | `edit_post` on `post_id` | `post_id`, `path` (both required), and one of `attributes` (blocks that save no HTML only; `null` resets an attribute) or `style` (`plain`, `panel`, `inverted` or `accent`, on a `core/group` only; `plain` takes the style off). Optional: `dry_run` (default `false`). |
 | `voyager-open-blocks/bind` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attribute`, `source` (`voyager/site-data`, `voyager/post-meta-text` or `core/post-meta`), `args` (all required); `post_type` (the post type whose fields `args` must match; only in a template, template part, synced pattern or Query Loop, default the post's own type), `dry_run` (default `false`) |
 | `voyager-open-blocks/undo` | POST | `edit_post` on `post_id` | `post_id`, `revision_id` (both required; the `revision_id` an `insert`, `configure` or `bind` save returned); `force` (default `false`; reverse the saves made after `revision_id` too) |
 | `voyager-open-blocks/validate` | GET | `edit_post` on `post_id` when one is given, otherwise `edit_posts` | `markup` or `post_id` (one of them, not both); `post_type` (for binding args, default the post's type or `page`) |
 
 What they return:
 
-- `get-catalog`: `blocks` (attribute schema and bindable attributes), `patterns` (named blocks, their bindings, `copy: true` on those `insert` can rewrite) and `sources` (each with `fields`, every one with its exact `args`).
+- `get-catalog`: `blocks` (attribute schema and bindable attributes), `patterns` (named blocks, their bindings, `copy: true` on those `insert` can rewrite), `sources` (each with `fields`, every one with its exact `args`), `styles` (the section styles, each with its class, and which role map the theme's colours come from) and `used_on`: for each Site Data and bindable post meta field, keyed `<source>:<key>` such as `voyager/site-data:phone`, how many published `posts`, `templates` and `template_parts` show it. The "Shown on" line under each field on Settings > Site Data reads the same index and links up to 10 of those pages, sorted by title in the database's order.
+- `configure` with `style`: the style's class replaces any other `is-style-*` class on the group, in the block comment and on its saved wrapper, as the editor's Styles panel does. Anything but a `core/group` or one of the four names is refused with `voyager_open_blocks_invalid_style`.
 - `find-posts`: `posts`, each with `id` (`null` for a template or template part that is only a theme file, never saved in the Site Editor), `title`, `slug`, `post_type`, `status`, `link`, `front_page`, and for templates `source` (`theme` or `custom`) and `note`, and for template parts `area`; `has_more`; and `note` when there is something to explain, such as a home page that lists the latest posts.
 - `get-post-blocks`: `post_id` and `blocks`, each with `path`, `block`, `label` (its `metadata.name`), `text` (the first 80 characters of its own text, when it has any), `pattern` (for a `core/pattern` reference) and `bindings`. Every binding carries `resolution`: `status` (`resolved` or `fell_back`), `reason` (`null`, `source_unregistered`, `unknown_key` or `empty_value`) and `value_preview` (the first 80 characters).
 - `insert`: `post_id`, `item`, `index`, `saved`, `markup`, `blocks` (the inserted blocks with their paths) and `validation`. With `parent`, also `parent`, `section_markup` (the whole top-level block that now holds them) and `validation.section_round_trip`.
@@ -240,7 +296,7 @@ What they return:
 - `undo`: `post_id`, `undone` (the `revision_id` given), `restored` (the revision whose content the post now has), `reversed` (the save undone and, with `force`, every save after it, oldest first, each with `revision_id`, `author_id`, `author` and `date_gmt`), `matches` (the content now equals the restored revision byte for byte), and the undo's own `revision_id` and `revision_note`.
 - `validate`: `valid`, `post_type`, `round_trip`, `blocks` (each with `path`, `block`, `errors` and `warnings`), `errors`, `warnings`, `post_id` when it checked a saved post, and `save_output`, which says what it can't check: saved HTML against each block's `save()`. `npx block-runner validate` checks that.
 
-A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat`, `markup` or `revision`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` and `section_markup` through `npx block-runner validate --strict --json`.
+A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat`, `markup`, `revision` or `style`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` and `section_markup` through `npx block-runner validate --strict --json`.
 
 `undo` restores the revision just before `revision_id` with `wp_restore_post_revision()`, `post_content` only, so the title and excerpt stay as they are. Like every revision restore in WordPress, it also replaces the post meta WordPress keeps in revisions (core's footnotes, and meta registered with `revisions_enabled`) with that revision's copy. Restoring an older revision reverses every save after it, so when the post was saved after `revision_id`, by a person or by another agent, `undo` refuses with `voyager_open_blocks_undo_conflict` (status 409), changes nothing, and lists those saves in the error's `later`. Pass `force: true` to reverse them too. Before it restores, `undo` stores the post as it stands as a revision, so the `revision_id` it returns puts back whatever it replaced.
 
@@ -256,6 +312,11 @@ A path is the list of indices from the top level down, such as `2/0/1`. Errors a
 |---|---|---|---|
 | `core/list` | Ticks | `is-style-voyager-open-ticks` | Checkmarked items in one wrapping row. In a flex group narrower than 32em, they stack. |
 | `core/group` | Marquee | `is-style-voyager-open-marquee` | The group inside it drifts sideways when it is wider than the marquee, then back. Paused on hover and focus. Still and wrapped under reduced motion. Set `--voyager-open-marquee-duration` to change the speed (default `24s`). |
+| `core/group` | Panel | `is-style-voyager-open-panel` | A section on a quiet tint of the page's background, with its headings, links and buttons coloured to match. |
+| `core/group` | Inverted | `is-style-voyager-open-inverted` | A section in the page's text colour, with the page's background colour as its text. |
+| `core/group` | Accent | `is-style-voyager-open-accent` | A section in the theme's accent colour, with the text colour the theme pairs with it. |
+
+Panel, Inverted and Accent are the section styles; a section with none is Plain. Their colours come from six roles mapped to your palette, which the `voyager_open_blocks_style_roles` filter can replace (see [Filters](#filters)). They are registered with `style_data`, so a theme can still restyle one in its theme.json under `styles.blocks.core/group.variations.voyager-open-panel` and the like, and that wins. An agent puts one on a section with `configure`'s `style`.
 
 **Pattern category:** slug `voyager-open`, shown as "Business sections (Open Blocks)".
 

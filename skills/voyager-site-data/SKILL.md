@@ -67,6 +67,8 @@ Those are Block Runner intent nodes. `npx block-runner assemble` turns them into
 
 - An unknown key or an empty value resolves to nothing, and WordPress keeps the authored text. Always author sensible placeholder text.
 - In the block editor, a block bound to this source shows the field and its value in the sidebar, and warns when the value is empty. Tell the site owner which fields are empty instead of typing values into the block.
+- A changed value shows on every page bound to it. `get-catalog`'s `used_on` counts, for each key, the published posts, templates and template parts that show it, keyed `voyager/site-data:<key>`. On the site, the "Shown on" line under each field on Settings > Site Data links those pages, counting the keys made from that field too: a call button bound to `phone_link` shows the phone. Before you ask the owner to change a value, say how many pages it is on.
+- When a value changes, the pack asks page caches to refresh the pages that show it (the `voyager_open_blocks_purge` action and cache adapters, in `docs/use-in-your-theme.md`).
 - Values come back raw. WordPress escapes them where they land (`wp_kses_post` for rich text, the HTML API for attributes).
 - `voyager_site_data_value` filters every resolved value.
 - The voyager-blocks plugin registers the same source with the same option names. When it is active, it owns the source and this pack stands aside. voyager-blocks has `phone_link` and `email_link` from 2.28.6. An older one lacks them.

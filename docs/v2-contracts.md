@@ -27,8 +27,10 @@ Which posts and templates use each Site Data or post meta field, so a change to 
   `uses()` returns the post's rows, sorted and without duplicates. `posts_using()` is an exact-match meta query (`meta_value` equal to the `<source>:<key>` string), never `LIKE`.
 - Three choices the index made, which the purge relies on:
   - `templates_using()` returns the active theme's file-only templates and parts, from `voyager_open_blocks_theme_uses`, plus its templates and parts saved in the Site Editor, each once, as `<theme>//<slug>`. A saved one replaces its file. A non-empty result therefore always means `purge_all`.
-  - A second, internal meta key, `_voyager_open_blocks_refs`, holds one row per synced pattern (`wp_block`) ID a post shows, nested ones included. When a synced pattern changes, the posts that show it are indexed again: up to 50 in the same request, the rest through WP-Cron, 50 per run.
+  - A second, internal meta key, `_voyager_open_blocks_refs`, holds one row per synced pattern (`wp_block`) ID a post shows, nested ones included. When a synced pattern changes, the posts that show it are indexed again: up to 50 in the same request, the rest through WP-Cron, 50 per run. Those wait in the option `voyager_open_blocks_usage_queue`, a sorted list of post IDs, and the event `voyager_open_blocks_usage_queue` runs them. The option is read and written back without a lock, so two requests that queue posts in the same instant can lose one request's IDs; those posts are indexed again on their next save, or by `wp voyager-open-blocks reindex`.
   - A `voyager/post-meta-text` key with a dot path records only the field, the part before the first dot: `stats.0.value` is the row `voyager/post-meta-text:stats`.
+- How posts get indexed: on save (`wp_after_insert_post`), by a backfill, and by WP-CLI. Activation starts the backfill, and so does the first request after the plugin's version changes: the event `voyager_open_blocks_usage_backfill` indexes 50 posts by ID per run, keeps its place in the option `voyager_open_blocks_usage_cursor`, and records the version in `voyager_open_blocks_usage_version`. `wp voyager-open-blocks reindex` indexes every post and the theme's templates at once, and clears the backfill and the queue. `npm run check:usage-index` deletes the index on a test site and checks that the backfill and the command each put every row back.
+- What reads it: get-catalog's `used_on` and the "Shown on" line under each field on Settings > Site Data. Both count published posts of the post types the purge lists (contract 2), plus the active theme's templates and parts. The line names up to 10 pages, sorted by title in the database's order, so "Page 10" comes before "Page 2".
 
 ## 2. Purge
 
@@ -49,7 +51,7 @@ How a change to a field reaches a page cache.
   - Nothing shows the key: no purge.
 - The filter `voyager_open_blocks_purge_urls` runs on the list before the action. When it leaves no URLs and `purge_all` is false, nothing more happens: no post cache is cleaned, the action does not fire and no adapter is called. That is how a site switches the purge off.
 - A Site Data key used in a template or a template part sets `purge_all`, because every page may show it. A post meta key does not, since a template shows each post its own value.
-- Only published posts of public post types, attachments aside, are listed and cleaned: a draft, a private post, a synced pattern or a template has no cached page of its own.
+- Only published posts of the post types registered `public => true` (`get_post_types( [ 'public' => true ] )`), attachments aside, are listed and cleaned: a draft, a private post, a synced pattern or a template has no cached page of its own. A type registered `public => false, publicly_queryable => true` has front-end URLs, and its posts are indexed, but a change does not list or clean them.
 - A purge looks up, lists and cleans at most 50 posts, by ID. When more pages show a Site Data key, it lists and cleans the first 50 and sets `purge_all`. When more than 50 posts change post meta in one request, it looks at the first 50, lists and cleans the ones that show the key, and sets `purge_all`. With `purge_all`, the URL list is not complete, and `purge_all` is what tells a cache adapter to purge everything. With no adapter, the pages past the first 50 keep their cached copy until the cache expires it. This was chosen on 2026-11-11 over cleaning the rest through WP-Cron, 50 per run.
 - Before the action, `clean_post_cache()` runs for each post in `post_ids`. Some page caches listen to it: WP Super Cache 3.1.5 purges the post's page on `clean_post_cache` (`wpsc_register_post_hooks()` in `wp-cache-phase2.php`).
 - Cache adapters come from the filter `voyager_open_blocks_cache_adapters`, which returns objects implementing `VoyagerOpenBlocks\Cache\Adapter`:
@@ -107,7 +109,7 @@ How a section's background and text colours follow the active theme.
 
 - Block style variations on `core/group`: `voyager-open-panel`, `voyager-open-inverted` and `voyager-open-accent`. A section with no style is plain.
 - Roles: `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`.
-- The filter `voyager_open_blocks_style_roles` returns role => colour preset slug. The pack ships maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system v2 slugs, and, for any other theme, a fallback built from `currentColor` and `color-mix()`.
+- The filter `voyager_open_blocks_style_roles` returns role => colour preset slug. The pack ships maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system v2 slugs, and, for any other theme, a fallback built from `currentColor` and `color-mix()` on the site's text and background colours: the ones saved in the Site Editor's Global Styles, else the theme's `styles.color` in theme.json.
 
 ## 5. Recipes
 

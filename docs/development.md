@@ -31,7 +31,8 @@ npm run check              # every offline gate, below
 - **Binding sources** are in `inc/site-data.php` and `inc/post-meta-text.php`. Their editor half (field lists, live values, in-place editing of post meta) is `assets/bindings-editor.js`.
 - **Abilities** are in `inc/abilities/`, one file per ability (`get-catalog.php`, `find-posts.php`, `get-post-blocks.php`, `insert.php`, `configure.php`, `bind.php`, `validate.php`), each holding its registration and its callbacks. `shared.php` holds what several use: the permission callbacks, the input schemas, `check_attributes()`, `validation()`, `locate()` and `finish()`, and `register()`, which registers the abilities in order. `inc/abilities.php` only loads them. They are a thin layer over `inc/block-tree.php` (read and write a post's blocks by path) and `inc/catalog.php` (what the pack offers, and which binding args are real).
 - **Change notes** for `readme.txt`'s changelog are files in `unreleased/`, one per pull request, folded in by the release pull request. The format is in [unreleased/README.md](../unreleased/README.md).
-- **DESIGN.md** at the repo root describes the patterns' design in [Google's DESIGN.md format](https://github.com/google-labs-code/design.md). The entry skill tells agents to read it after the site's own DESIGN.md.
+- **The usage index** (`inc/freshness/usage.php`) records which posts and templates show each Site Data and bindable post meta field, as post meta `_voyager_open_blocks_uses`, written on save. `get-catalog`'s `used_on` and the "Shown on" line under each field on Settings > Site Data read it, and the purge (`inc/freshness/purge.php`) uses it to find the pages a change must refresh. Activation starts a WP-Cron backfill of every post, and `wp voyager-open-blocks reindex` rebuilds it at once. The shapes are contracts 1 and 2 in [v2-contracts.md](v2-contracts.md).
+- **DESIGN.md** at the repo root describes the patterns' design in [Google's DESIGN.md format](https://github.com/google-labs-code/design.md). The entry skill tells agents to read it after the site's own DESIGN.md. It ships in the plugin zip, so the copy in the plugin's folder matches the version installed.
 - **The v2 contracts**, the shapes the lanes of version 2 build against, are in [v2-contracts.md](v2-contracts.md). The lanes are in [AGENTS.md](../AGENTS.md#lanes).
 
 ## The offline gates
@@ -46,12 +47,15 @@ npm run check              # every offline gate, below
 6. the entry skill's `pack-version` (`skills/voyager-open-blocks/SKILL.md`) matches `Version` in `voyager-open-blocks.php`.
 7. `tests/fixtures/site-data-keys.json` matches the hash in `tests/fixtures/site-data-keys.sha256`.
 8. `readme.txt` has a `= Source code =` section with the GitHub link and `npm run build`. The plugin directory asks a plugin that ships built files to say where their source is, and Plugin Check does not test for it.
-9. every change note in `unreleased/` is well-formed (`npm run changelog:fold -- --check`),
-10. `scripts/fold-unreleased.mjs` passes its known-answer test, `scripts/test-fold-unreleased.mjs` (`npm run test:fold`), all 12 of its cases: the notes in `tests/fixtures/fold-unreleased/` folded into its `readme.in.txt` must give `readme.expected.txt`, and malformed notes must stop the fold with nothing changed,
-11. `DESIGN.md` lints with `@google/design.md` (`npm run lint:design`) with no errors and no warnings. Contrast under 4.5:1 between a component's colours, an unused colour and a section out of order are all warnings,
-12. the same linter rejects `tests/invalid/design-broken-ref.md`, a component pointing at a colour token that does not exist, so that gate is shown to bite,
-13. the logic of `npm run cache-check` passes its known-answer test, `scripts/test-cache-check.mjs` (`npm run test:cache-check`), all 21 of its cases, including crashes planted in each step, which must exit 2 and never pass a row,
-14. the guard on 10 and 13 rejects `tests/invalid/no-tests.mjs`. `node --test` reports a file with no tests as one passing test, so the guard counts each file's known cases rather than "more than none".
+9. `readme.txt`'s `== Changelog ==` has an entry, `= <version> =`, for `Version` in `voyager-open-blocks.php`. A release pull request bumps `Version`, so it stays red until `npm run changelog:fold` writes its notes in.
+10. every change note in `unreleased/` is well-formed (`npm run changelog:fold -- --check`),
+11. `scripts/fold-unreleased.mjs` passes its known-answer test, `scripts/test-fold-unreleased.mjs` (`npm run test:fold`), all 12 of its cases: the notes in `tests/fixtures/fold-unreleased/` folded into its `readme.in.txt` must give `readme.expected.txt`, and malformed notes must stop the fold with nothing changed,
+12. `DESIGN.md` lints with `@google/design.md` (`npm run lint:design`) with no errors and no warnings. Contrast under 4.5:1 between a component's colours, an unused colour and a section out of order are all warnings,
+13. the same linter rejects `tests/invalid/design-broken-ref.md`, a component pointing at a colour token that does not exist, so that gate is shown to bite,
+14. the gate in 12 rejects `tests/invalid/design-low-contrast.md`, which the linter passes with one contrast warning and exit 0, so the rule that fails on any warning is shown to bite,
+15. the logic of `npm run cache-check` passes its known-answer test, `scripts/test-cache-check.mjs` (`npm run test:cache-check`), all 21 of its cases, including crashes planted in each step, which must exit 2 and never pass a row,
+16. the guard on 11 and 15 rejects `tests/invalid/no-tests.mjs`. `node --test` reports a file with no tests as one passing test, so the guard counts each file's known cases rather than "more than none".
+17. no tracked file but `CHANGELOG.md` and `bench/runs/` holds a tracker issue ID. The same `git grep` must find one planted in a temporary file, so a search that cannot match fails too.
 
 The rest of what CI runs:
 
@@ -89,7 +93,16 @@ The quickest way to get a site for it needs no `wp` or `php`: `npm run dev -- --
 
 ### End to end in the block editor
 
-`npm run e2e:editor` boots its own fresh dev site and drives headless Chrome, logged in as admin. It checks the first-run notice, the "Used by" lines on Settings > Site Data, the editor's empty-value warning, the placeholder hints (including copies from another host or folder), that each pattern's markup pastes into the editor as valid blocks, and that no editor-only hint reaches the front end. It needs Chrome or Chromium; set `CHROME_PATH` if it isn't found. `--only a,c` runs some checks; `--help` lists the options.
+`npm run e2e:editor` boots its own fresh dev site and drives headless Chrome, logged in as admin. It checks the first-run notice, the "Used by" and "Shown on" lines on Settings > Site Data, the editor's empty-value warning, the placeholder hints (including copies from another host or folder), that each pattern's markup pastes into the editor as valid blocks, and that no editor-only hint reaches the front end. Its check g covers theme files: a template part that is only a file in the active theme, with the phone bound in it, is counted in `get-catalog`'s `used_on` once `switch_theme` rebuilds the theme index, and not before. It needs Chrome or Chromium; set `CHROME_PATH` if it isn't found. `--only a,c` runs some checks; `--help` lists the options.
+
+### Usage index check
+
+The dev site activates the plugin before it seeds its pages, so every page there is indexed on save, and neither of the index's whole-site paths runs in the checks above. `npm run check:usage-index` boots its own dev site with WP-Cron off, adds 60 pages bound to the phone, and records what the index holds after those saves. Then it deletes the index and checks that each path puts every row back, and nothing else:
+
+- `wp voyager-open-blocks reindex`, run through WP-CLI, over more than one batch of 50 posts;
+- the backfill that activation starts: the plugin is deactivated, a page is added while it is off, the plugin is activated again, and the backfill event runs as WP-Cron would. The plugin version is unchanged, so the check on `init` starts nothing, and activation is the only way in.
+
+It also checks the "Shown on" line's order: titles in the database's order, so "Usage check 10" before "Usage check 2". `--plant activation` takes the backfill off the activation hook and `--plant reindex` replaces the command with one that reports success and indexes nothing; each run then passes only when the check fails that path and passes the rest. CI runs all three ([`e2e.yml`](../.github/workflows/e2e.yml)). It exits 0 on a pass, 1 when a path fails, and 2 when it could not tell.
 
 ### Site checks
 
