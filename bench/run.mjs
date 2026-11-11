@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Runs the with/without benchmark (VOY-1774): per brief and arm, a fresh
+ * Runs the with/without benchmark: per brief and arm, a fresh
  * WordPress site, a build prompt and an edit prompt through headless Claude
  * Code, with MCP pointed at that site.
  *

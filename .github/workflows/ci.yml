@@ -1,6 +1,6 @@
 name: CI
 
-# VOY-1781. Runs what `npm run check` and the linters do on a laptop, on Linux,
+# Runs what `npm run check` and the linters do on a laptop, on Linux,
 # so a stale build/, a stale pattern or a broken PHP file can't merge unnoticed.
 # Block Check (pattern markup) stays in its own workflow.
 
@@ -30,7 +30,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      # VOY-1829. Squash merges use the PR title as the commit subject, and
+      # Squash merges use the PR title as the commit subject, and
       # release-please reads it, so the title has to be a conventional commit.
       # Lives in this required job so the ruleset needs no edit.
       - name: Lint the PR title

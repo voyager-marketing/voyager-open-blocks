@@ -1,7 +1,7 @@
 name: E2E
 
 # The pack in a real WordPress (Playground) and a real block editor (headless
-# Chrome). Three jobs:
+# Chrome). Four jobs:
 #
 # - rest: boots the dev site (npm run dev) in the background, collects its
 #   site context with Wesper over REST, and runs npm run e2e against it: the
@@ -11,6 +11,10 @@ name: E2E
 #   pattern and the front end, logged in as admin.
 # - contrast: npm run contrast boots its own dev site and measures text contrast
 #   in each section style on each theme in tests/fixtures/contrast.json.
+# - usage-index: npm run check:usage-index boots its own dev site, deletes the
+#   usage index, and checks that `wp voyager-open-blocks reindex` and the
+#   backfill on activation each put every row back. Two more rows plant a
+#   fault in one path each, and pass only when the check fails that path.
 #
 # Job logs are not always at hand, so every failed assertion is also an error
 # annotation named after it, with what it saw.
@@ -146,3 +150,29 @@ jobs:
       # Google Chrome; the script finds it on PATH.
       - name: Measure every section style on every theme, and the planted control
         run: npm run contrast
+
+  usage-index:
+    name: npm run check:usage-index${{ matrix.plant && format(' --plant {0}', matrix.plant) || '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # '' runs the check as it is. activation and reindex are controls:
+        # each plants a fault in that path, and the run exits 0 only when the
+        # check fails that path and passes the others.
+        plant: ['', activation, reindex]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Reindex, backfill on activation, and the Shown on order
+        env:
+          PLANT: ${{ matrix.plant }}
+        run: npm run check:usage-index -- ${PLANT:+--plant "$PLANT"}

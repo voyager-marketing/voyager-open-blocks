@@ -31,7 +31,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone or email field whose fallback looks like a phone number or an email address gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell or fax) whose fallback looks like a phone number, or to an email field (email or mail) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -154,19 +154,48 @@ function validate( $input = null ) {
 }
 
 /**
- * Keys that name a phone number or an email address, such as Site Data's
- * phone, phone_link, email and email_link, or a post meta key like
- * office_phone. Only their fallbacks can be stale copies of a phone number or
+ * Name parts that make a key a phone key or an email key, such as Site Data's
+ * phone, phone_link, email and email_link, or post meta like office_phone,
+ * mobile or fax. Only their fallbacks can be stale copies of a phone number or
  * an email address.
  */
-const CONTACT_KEY = '/phone|mail/i';
+const CONTACT_PARTS = [
+	'phone' => [ 'phone', 'telephone', 'tel', 'mobile', 'cell', 'cellphone', 'fax' ],
+	'email' => [ 'email', 'mail' ],
+];
+
+/**
+ * What a key names: a phone, an email address, both or neither.
+ *
+ * The key is split into parts at anything but a letter or a digit, between a
+ * letter and a digit, and before a capital that follows a small letter, and
+ * only a whole part counts: tel names a phone and hotel does not, and
+ * mailing_address names neither.
+ *
+ * @param string $key Binding key.
+ * @return list<'phone'|'email'>
+ */
+function contact_kinds( string $key ): array {
+	$split = (string) preg_replace( [ '/([a-z])([A-Z])/', '/([a-zA-Z])([0-9])/', '/([0-9])([a-zA-Z])/' ], '$1 $2', $key );
+	$parts = preg_split( '/[^a-z0-9]+/', strtolower( $split ), -1, PREG_SPLIT_NO_EMPTY );
+	$parts = is_array( $parts ) ? $parts : [];
+	$kinds = [];
+
+	foreach ( CONTACT_PARTS as $kind => $names ) {
+		if ( [] !== array_intersect( $parts, $names ) ) {
+			$kinds[] = $kind;
+		}
+	}
+
+	return $kinds;
+}
 
 /**
  * What a fallback looks like: 'email', 'phone', or null for neither.
  *
- * Only fallbacks of keys matching CONTACT_KEY are tested, so this tells a
- * phone number or an email address from a label such as "Call us", not from
- * a date or a year range. An email is anything shaped x@y.z. A phone number
+ * Only fallbacks of keys that contact_kinds() names are tested, so this tells
+ * a phone number or an email address from a label such as "Call us", not
+ * from a date or a year range. An email is anything shaped x@y.z. A phone number
  * is a run of digits and separators (spaces, dots, hyphens, parentheses, a
  * leading +) holding 7 to 15 digits, as a tel: link does too.
  *
@@ -287,11 +316,13 @@ function fallback_index( array $fallbacks ): array {
  *
  * A fallback stays in the post when the real value changes, and visitors see
  * it whenever the source returns nothing, so a phone number there is a stale
- * copy waiting to show. Only keys matching CONTACT_KEY are checked: a block
- * bound to any other key, such as copyright or founded, may hold digits that
- * look like a phone number ("© 2015-2026", "License #1234567") and is never
- * a stale copy of one. A fallback the pack's patterns ship for the same
- * source and key is a placeholder and is left out.
+ * copy waiting to show. Only what a key names is checked (contact_kinds()): a
+ * phone number under a phone key, an email address under an email key. A
+ * block bound to any other key, such as copyright, founded or
+ * mailing_address, may hold digits that look like a phone number
+ * ("© 2015-2026", "License #1234567", "PO Box 1234567") and is never a stale
+ * copy of one. A fallback the pack's patterns ship for the same source and
+ * key is a placeholder and is left out.
  *
  * @param array<int, Block>           $blocks  Blocks.
  * @param array<string, list<string>> $shipped From shipped_fallbacks().
@@ -301,13 +332,15 @@ function stale_fallbacks( array $blocks, array $shipped ): array {
 	$stale = [];
 
 	foreach ( bound_fallbacks( $blocks ) as $fallback ) {
-		if ( 1 !== preg_match( CONTACT_KEY, $fallback['key'] ) ) {
+		$kinds = contact_kinds( $fallback['key'] );
+
+		if ( [] === $kinds ) {
 			continue;
 		}
 
 		$kind = looks_like( $fallback['fallback'] );
 
-		if ( null === $kind || in_array( $fallback['fallback'], $shipped[ $fallback['source'] . ':' . $fallback['key'] ] ?? [], true ) ) {
+		if ( null === $kind || ! in_array( $kind, $kinds, true ) || in_array( $fallback['fallback'], $shipped[ $fallback['source'] . ':' . $fallback['key'] ] ?? [], true ) ) {
 			continue;
 		}
 

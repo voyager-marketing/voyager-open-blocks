@@ -23,6 +23,7 @@
 		"blueprint.json",
 		"voyager-open-blocks.php",
 		"uninstall.php",
+		"DESIGN.md",
 		"LICENSE",
 		"README.md",
 		"readme.txt"
@@ -43,6 +44,7 @@
 		"check:site-data": "node scripts/site-data-fixture-check.mjs",
 		"check:resolution": "node scripts/binding-resolution-check.mjs",
 		"check:bindable-meta": "node scripts/bindable-meta-check.mjs",
+		"check:usage-index": "node scripts/usage-index-check.mjs",
 		"lint:design": "designmd lint DESIGN.md",
 		"changelog:fold": "node scripts/fold-unreleased.mjs",
 		"test:fold": "node --test scripts/test-fold-unreleased.mjs",

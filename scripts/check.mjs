@@ -12,24 +12,32 @@
  * 6. The entry skill's `pack-version` matches the plugin's `Version` header.
  * 7. tests/fixtures/site-data-keys.json matches its sha256 pin.
  * 8. readme.txt says where the source of the built files is.
- * 9. Every change note in unreleased/ is well-formed (unreleased/README.md).
- * 10. scripts/fold-unreleased.mjs passes its known-answer test, all of its
+ * 9. readme.txt's changelog has an entry for the plugin's `Version`, so a
+ *    release pull request stays red until its notes are folded.
+ * 10. Every change note in unreleased/ is well-formed (unreleased/README.md).
+ * 11. scripts/fold-unreleased.mjs passes its known-answer test, all of its
  *     12 cases at least.
- * 11. DESIGN.md lints with no errors and no warnings.
- * 12. The same linter rejects tests/invalid/design-broken-ref.md, so that
+ * 12. DESIGN.md lints with no errors and no warnings.
+ * 13. The same linter rejects tests/invalid/design-broken-ref.md, so that
  *     gate is shown to bite.
- * 13. npm run cache-check's logic (scripts/lib/cache-check.mjs, and run() in
+ * 14. The gate in 12 rejects tests/invalid/design-low-contrast.md, which has
+ *     no errors and one contrast warning, so its fail-on-warning rule is
+ *     shown to bite.
+ * 15. npm run cache-check's logic (scripts/lib/cache-check.mjs, and run() in
  *     scripts/cache-check.mjs) passes its known-answer test, all of its 21
  *     cases at least, planted crashes included.
- * 14. The test-count guard behind 10 and 13 rejects tests/invalid/no-tests.mjs,
+ * 16. The test-count guard behind 11 and 15 rejects tests/invalid/no-tests.mjs,
  *     a test file with no tests, so that gate is shown to bite.
+ * 17. No tracked file but CHANGELOG.md and bench/runs/ holds a tracker ID,
+ *     and the same search finds one planted in a temporary file.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -196,6 +204,33 @@ report(
 	sourceDetail
 );
 
+// A release pull request bumps Version, and its notes reach readme.txt's
+// changelog only when someone runs npm run changelog:fold on it. Until then
+// there is no entry for the new version, so the release pull request fails
+// here instead of shipping without its changelog.
+const changelog =
+	readme.match(
+		/^== Changelog ==\r?\n([\s\S]*?)(?=^== |(?![\s\S]))/m
+	)?.[ 1 ] ?? '';
+const changelogEntry =
+	version !== '' &&
+	changelog
+		.split( /\r?\n/ )
+		.some( ( line ) => line.trim() === `= ${ version } =` );
+let changelogDetail = 'no "== Changelog ==" section';
+if ( changelogEntry ) {
+	changelogDetail = `"= ${ version } =" is there`;
+} else if ( changelog ) {
+	changelogDetail = `no "= ${
+		version || 'Version'
+	} =" entry; on a release pull request, run npm run changelog:fold`;
+}
+report(
+	'readme.txt has a changelog entry for the plugin Version',
+	changelogEntry,
+	changelogDetail
+);
+
 // Pull requests add a note to unreleased/ instead of editing readme.txt's
 // changelog. A malformed note would only fail on the release PR, so every
 // pull request reads them all.
@@ -272,13 +307,19 @@ function lintDesign( file ) {
 		warnings: findings.filter( ( item ) => item.severity === 'warning' ),
 	};
 }
+// The gate, in one place, so the control below tests the same rule.
+function designClean( result ) {
+	return (
+		result.code === 0 &&
+		result.parsed &&
+		result.errors.length === 0 &&
+		result.warnings.length === 0
+	);
+}
 const design = lintDesign( 'DESIGN.md' );
 report(
 	'DESIGN.md lints clean (@google/design.md)',
-	design.code === 0 &&
-		design.parsed &&
-		design.errors.length === 0 &&
-		design.warnings.length === 0,
+	designClean( design ),
 	design.parsed
 		? [ ...design.errors, ...design.warnings ]
 				.map( ( item ) =>
@@ -299,6 +340,23 @@ report(
 	brokenDesign.code === 1 &&
 		brokenDesign.errors.some( ( item ) => item.rule === 'broken-ref' ),
 	`exit ${ brokenDesign.code }, ${ brokenDesign.errors.length } errors`
+);
+
+// The linter passes this file: exit 0, no errors, one contrast warning. Only
+// the gate's fail-on-warning rule turns it away, so a gate loosened to the
+// linter's exit code turns this red.
+const lowContrast = lintDesign(
+	join( 'tests', 'invalid', 'design-low-contrast.md' )
+);
+report(
+	'the DESIGN.md gate rejects tests/invalid/design-low-contrast.md',
+	lowContrast.code === 0 &&
+		lowContrast.errors.length === 0 &&
+		lowContrast.warnings.some(
+			( item ) => item.rule === 'contrast-ratio'
+		) &&
+		! designClean( lowContrast ),
+	`exit ${ lowContrast.code }, ${ lowContrast.errors.length } errors, ${ lowContrast.warnings.length } warnings`
 );
 
 // npm run cache-check needs Playground, so CI runs it. What decides its
@@ -323,6 +381,52 @@ report(
 	'the test-count guard rejects tests/invalid/no-tests.mjs',
 	! noTests.ok,
 	noTests.detail
+);
+
+// Tracker IDs belong to the maintainers' tracker, so a file this public repo
+// ships names an issue by what it is. git grep exits 1 when nothing matches
+// and 0 when something does, so the scan passes only on 1. The same search
+// must find an ID planted in a temporary file, made here so that no tracked
+// file holds one.
+const TRACKER_ID = '(VOY|TK)-[0-9]+';
+function trackerIds( cwd, options, paths ) {
+	const result = spawnSync(
+		'git',
+		[ 'grep', ...options, '-n', '-I', '-E', TRACKER_ID, '--', ...paths ],
+		{ cwd, encoding: 'utf8' }
+	);
+	return {
+		code: result.status,
+		lines: ( result.stdout || '' ).split( '\n' ).filter( Boolean ),
+		error: result.error?.message || ( result.stderr || '' ).trim(),
+	};
+}
+const ids = trackerIds( root, [], [ '.', ':!CHANGELOG.md', ':!bench/runs' ] );
+const plantDir = mkdtempSync( join( tmpdir(), 'voyager-open-tracker-id-' ) );
+writeFileSync(
+	join( plantDir, 'planted.md' ),
+	`Planted by scripts/check.mjs: ${ [ 'VOY', '1234' ].join( '-' ) }.\n`
+);
+const plantedId = trackerIds( plantDir, [ '--no-index' ], [ 'planted.md' ] );
+rmSync( plantDir, { recursive: true, force: true } );
+let idDetail = 'none, and the planted one was found';
+if ( plantedId.code !== 0 || plantedId.lines.length !== 1 ) {
+	idDetail = `the search missed the planted ID (exit ${ plantedId.code }${
+		plantedId.error ? `: ${ plantedId.error }` : ''
+	})`;
+} else if ( ids.code === 0 ) {
+	idDetail = `${ ids.lines.length } lines, such as ${ ids.lines
+		.slice( 0, 3 )
+		.join( ' | ' ) }`;
+} else if ( ids.code !== 1 ) {
+	idDetail = `git grep did not run (exit ${ ids.code }${
+		ids.error ? `: ${ ids.error }` : ''
+	})`;
+}
+report(
+	'no tracker IDs in tracked files (CHANGELOG.md and bench/runs aside)',
+	ids.code === 1 && plantedId.code === 0 && plantedId.lines.length === 1,
+	idDetail
 );
 
 process.exit( failed ? 1 : 0 );

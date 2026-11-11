@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Scores the with/without benchmark (VOY-1774), measures 1 to 3. No judge, no network.
+// Scores the with/without benchmark, measures 1 to 3. No judge, no network.
 //
 //   node bench/score.mjs [--runs bench/runs] [--briefs bench/briefs.json] [--out bench/results]
 //

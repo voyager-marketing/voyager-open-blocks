@@ -1,6 +1,6 @@
 name: Release Please
 
-# VOY-1829. release-please opens the release PR (version bump in
+# release-please opens the release PR (version bump in
 # voyager-open-blocks.php, readme.txt, package.json and CHANGELOG.md). Merging
 # that PR creates the tag and the GitHub Release. A release created with
 # GITHUB_TOKEN fires no downstream workflow, so the plugin zip is built and
@@ -13,7 +13,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  # VOY-1855. To approve the release PR's held pull_request runs.
+  # To approve the release PR's held pull_request runs.
   actions: write
 
 jobs:
@@ -53,7 +53,7 @@ jobs:
           list="$RUNNER_TEMP/zip.txt"
           unzip -Z1 voyager-open-blocks.zip > "$list"
           test "$(cut -d/ -f1 "$list" | sort -u)" = voyager-open-blocks
-          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ LICENSE README.md readme.txt voyager-open-blocks.php; do
+          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ DESIGN.md LICENSE README.md readme.txt voyager-open-blocks.php; do
             grep -q "^voyager-open-blocks/$path" "$list" || { echo "::error::zip is missing $path"; exit 1; }
           done
           # playground/ is demo seeding for blueprints, which install from Git.
@@ -66,7 +66,7 @@ jobs:
           TAG: ${{ steps.release.outputs.tag_name }}
         run: gh release upload "$TAG" voyager-open-blocks.zip --clobber
 
-      # VOY-1855. GitHub creates the pull_request runs for a PR this token
+      # GitHub creates the pull_request runs for a PR this token
       # opens or pushes to, but holds them as action_required until someone
       # approves them, and the PR's check rollup only counts those runs. So
       # approve them here. They appear a few seconds after the PR event, and

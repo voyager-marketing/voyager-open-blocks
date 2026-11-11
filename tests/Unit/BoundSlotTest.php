@@ -274,6 +274,75 @@ final class BoundSlotTest extends TestCase {
 		);
 	}
 
+	public function test_a_key_names_a_phone_or_an_email_by_a_whole_part_of_its_name(): void {
+		foreach ( [
+			'phone'           => [ 'phone' ],
+			'phone_link'      => [ 'phone' ],
+			'office_phone'    => [ 'phone' ],
+			'officePhone'     => [ 'phone' ],
+			'phone2'          => [ 'phone' ],
+			'mobile'          => [ 'phone' ],
+			'fax'             => [ 'phone' ],
+			'Fax-Number'      => [ 'phone' ],
+			'tel'             => [ 'phone' ],
+			'telephone'       => [ 'phone' ],
+			'cell'            => [ 'phone' ],
+			'email'           => [ 'email' ],
+			'email_link'      => [ 'email' ],
+			'contact_e-mail'  => [ 'email' ],
+			'mail'            => [ 'email' ],
+			'phone_or_email'  => [ 'phone', 'email' ],
+			// Inside another word is not a part.
+			'hotel'           => [],
+			'hotel_name'      => [],
+			'cellar_hours'    => [],
+			'telegram'        => [],
+			'mailing_address' => [],
+			'voicemail'       => [],
+			'copyright'       => [],
+		] as $key => $kinds ) {
+			$this->assertSame( $kinds, Abilities\contact_kinds( $key ), $key );
+		}
+	}
+
+	public function test_mobile_fax_tel_and_cell_fields_are_checked_and_a_mailing_address_is_not(): void {
+		$meta = static fn ( string $key ): array => [
+			'content' => [
+				'source' => 'voyager/post-meta-text',
+				'args'   => [ 'key' => $key ],
+			],
+		];
+
+		$blocks = [];
+		foreach ( [
+			'mobile'          => '+1 555 555 0199',
+			'fax'             => 'Fax (555) 555-0198',
+			'tel'             => '555-0197',
+			'cell'            => '555.555.0196',
+			// Seven digits, but a postal address and a room number, not a phone.
+			'mailing_address' => 'PO Box 1234567, Springfield',
+			'hotel'           => 'Room 5550100',
+		] as $key => $text ) {
+			$blocks[] = self::paragraph( ucfirst( $key ), $text, $meta( $key ) );
+		}
+
+		$this->assertSame(
+			[ 'mobile' => 'phone', 'fax' => 'phone', 'tel' => 'phone', 'cell' => 'phone' ],
+			array_column( Abilities\stale_fallbacks( $blocks, [] ), 'looks_like', 'key' )
+		);
+	}
+
+	public function test_a_fallback_is_checked_only_for_what_its_key_names(): void {
+		// A phone number under an email key is not a stale copy of the email, and the
+		// other way round, so neither is called one.
+		$blocks = [
+			self::paragraph( 'Email', '(555) 555-0113', [ 'content' => [ 'source' => 'voyager/site-data', 'args' => [ 'key' => 'email' ] ] ] ),
+			self::paragraph( 'Phone', 'old@example.org', [ 'content' => self::PHONE ] ),
+		];
+
+		$this->assertSame( [], Abilities\stale_fallbacks( $blocks, [] ) );
+	}
+
 	public function test_validate_flags_the_phone_number_willow_vet_stored_as_the_call_buttons_fallback(): void {
 		$stale = Abilities\stale_fallbacks( self::cta_band( '(555) 555-0113' ), [] );
 

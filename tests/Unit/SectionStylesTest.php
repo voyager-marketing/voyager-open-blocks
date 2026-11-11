@@ -191,6 +191,26 @@ final class SectionStylesTest extends TestCase {
 		);
 	}
 
+	public function test_root_colours_saved_in_the_site_editor_come_before_the_theme_files(): void {
+		$user  = SectionStyles\user_styles_from( [ 'post_content' => '{"version":3,"isGlobalStylesUserThemeJSON":true,"styles":{"color":{"background":"var:preset|color|accent-2"}}}' ] );
+		$child = [ 'styles' => [ 'color' => [ 'text' => '#111111', 'background' => '#ffffff' ] ] ];
+
+		$this->assertSame(
+			[
+				'text'       => '#111111',
+				'background' => 'var(--wp--preset--color--accent-2)',
+			],
+			SectionStyles\root_colors( [ ...$user, $child ] )
+		);
+	}
+
+	public function test_no_saved_global_styles_add_nothing(): void {
+		$this->assertSame( [], SectionStyles\user_styles_from( [] ) );
+		$this->assertSame( [], SectionStyles\user_styles_from( null ) );
+		$this->assertSame( [], SectionStyles\user_styles_from( [ 'post_content' => '' ] ) );
+		$this->assertSame( [], SectionStyles\user_styles_from( [ 'post_content' => 'not JSON' ] ) );
+	}
+
 	public function test_a_colour_that_could_end_the_declaration_is_dropped(): void {
 		$this->assertSame( '', SectionStyles\css_value( 'red;}body{display:none' ) );
 		$this->assertSame( 'var(--wp--preset--color--base)', SectionStyles\css_value( ' var:preset|color|base ' ) );

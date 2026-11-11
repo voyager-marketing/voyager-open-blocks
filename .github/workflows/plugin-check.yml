@@ -50,7 +50,7 @@ jobs:
           list="$RUNNER_TEMP/zip.txt"
           unzip -Z1 voyager-open-blocks.zip > "$list"
           test "$(cut -d/ -f1 "$list" | sort -u)" = voyager-open-blocks
-          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ LICENSE README.md readme.txt voyager-open-blocks.php; do
+          for path in build/blocks-manifest.php inc/ assets/ patterns/ skills/ blueprints/ DESIGN.md LICENSE README.md readme.txt voyager-open-blocks.php; do
             grep -q "^voyager-open-blocks/$path" "$list" || { echo "::error::zip is missing $path"; exit 1; }
           done
           # playground/ is demo seeding for blueprints, which install from Git.
