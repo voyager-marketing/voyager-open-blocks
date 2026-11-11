@@ -381,7 +381,7 @@ function select( array $tables, string $query, mixed ...$args ): array {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- prepared above; the docblock says why not WP_Query.
 	$found = $wpdb->get_results( $sql, ARRAY_A );
 
-	return is_array( $found ) ? array_values( $found ) : [];
+	return is_array( $found ) ? $found : [];
 }
 
 /**
