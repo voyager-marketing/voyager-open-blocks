@@ -41,6 +41,14 @@
  *      pages and 1 more template part, 1 page once page A loses the block, none
  *      once the synced pattern does, and a page holding a registered pattern,
  *  11. deletes what steps 7 to 10 created. The page from step 2 is kept, as before.
+ *  12. the purge, through the recorder mu-plugin blueprints/dev.json installs
+ *      (tests/fixtures/purge-recorder.php): changing the phone records one
+ *      voyager_open_blocks_purge call, whose URLs gain exactly pages A and B
+ *      (the phone, and the phone through a synced pattern) and never page C
+ *      (the email), with the front page; the same phone again records none;
+ *      a template part with the phone sets purge_all; and bindable post meta
+ *      changed on page D refreshes page D alone. Then it deletes what it
+ *      created and puts the phone back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -1836,6 +1844,189 @@ if ( contributor.data.id ) {
 		query: { force: true, reassign: me.data.id },
 	} );
 }
+
+// 12. The purge. tests/fixtures/purge-recorder.php, which blueprints/dev.json
+// installs, records each voyager_open_blocks_purge call. The demo pages and
+// the step 2 page show the phone too, so the pages a change refreshes are
+// compared with a first change made before pages A, B and C exist.
+const recorder = '/voyager-open-blocks-test/v1/purges';
+const purgesDuring = async ( change ) => {
+	await api( recorder, { method: 'DELETE' } );
+	const changed = await change();
+	const recorded = await api( recorder );
+	return {
+		changed,
+		status: recorded.status,
+		records: Array.isArray( recorded.data.records )
+			? recorded.data.records
+			: [],
+	};
+};
+const setPhone = ( phone ) =>
+	api( '/wp/v2/settings', {
+		method: 'POST',
+		body: { voyager_site_phone: phone },
+	} );
+const described = ( records ) =>
+	JSON.stringify(
+		records.map( ( r ) => ( {
+			urls: r.urls,
+			reason: r.context?.reason,
+			keys: r.context?.keys,
+			post_ids: r.context?.post_ids,
+			templates: r.context?.templates,
+			purge_all: r.context?.purge_all,
+		} ) )
+	);
+const sameList = ( a, b ) =>
+	JSON.stringify( [ ...a ].sort() ) === JSON.stringify( [ ...b ].sort() );
+const front = `${ String(
+	( await api( '/' ) ).data.home || base
+).replace( /\/$/, '' ) }/`;
+const originalPhone = ( await api( '/wp/v2/settings' ) ).data
+	.voyager_site_phone;
+const purgeCleanup = [];
+
+const firstChange = await purgesDuring( () => setPhone( '(555) 555-0161' ) );
+step(
+	'the purge recorder is installed (tests/fixtures/purge-recorder.php)',
+	firstChange.status === 200,
+	`GET ${ recorder } answered ${ firstChange.status }`
+);
+const before = firstChange.records[ 0 ];
+step(
+	'changing the phone fires voyager_open_blocks_purge once, for the phone, with the front page',
+	firstChange.changed.status === 200 &&
+		firstChange.records.length === 1 &&
+		before.context?.reason === 'site-data' &&
+		before.context?.source === 'voyager/site-data' &&
+		sameList( before.context?.keys || [], [ 'phone' ] ) &&
+		( before.urls || [] ).includes( front ),
+	described( firstChange.records )
+);
+const beforeUrls = before?.urls || [];
+
+const boundEmail =
+	'<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/site-data","args":{"key":"email"}}}}} -->\n<p>hello@example.com</p>\n<!-- /wp:paragraph -->';
+const publish = async ( path, title, content ) => {
+	const made = await api( path, {
+		method: 'POST',
+		body: { title: `${ title } ${ stamp }`, status: 'publish', content },
+	} );
+	if ( made.data.id ) {
+		purgeCleanup.push( `${ path }/${ made.data.id }` );
+	}
+	return made;
+};
+const purgePattern = await publish(
+	'/wp/v2/blocks',
+	'E2E purge pattern',
+	boundPhone
+);
+const purgeA = await publish( '/wp/v2/pages', 'E2E purge A', boundPhone );
+const purgeB = await publish(
+	'/wp/v2/pages',
+	'E2E purge B',
+	`<!-- wp:block {"ref":${ purgePattern.data.id }} /-->`
+);
+const purgeC = await publish( '/wp/v2/pages', 'E2E purge C', boundEmail );
+step(
+	'page A (phone), page B (phone through a synced pattern) and page C (email) created',
+	[ purgePattern, purgeA, purgeB, purgeC ].every( ( r ) => r.status === 201 ),
+	[ purgePattern, purgeA, purgeB, purgeC ]
+		.map( ( r ) => r.data.code || r.status )
+		.join( ' ' )
+);
+
+const withPages = await purgesDuring( () => setPhone( '(555) 555-0162' ) );
+const after = withPages.records[ 0 ];
+const afterUrls = after?.urls || [];
+const added = afterUrls.filter( ( url ) => ! beforeUrls.includes( url ) );
+step(
+	'fitness: changing the phone records one purge whose new URLs are exactly pages A and B, with the front page, and not page C',
+	withPages.records.length === 1 &&
+		sameList( added, [ purgeA.data.link, purgeB.data.link ] ) &&
+		beforeUrls.every( ( url ) => afterUrls.includes( url ) ) &&
+		afterUrls.includes( front ) &&
+		! afterUrls.includes( purgeC.data.link ) &&
+		new Set( afterUrls ).size === afterUrls.length,
+	`added ${ JSON.stringify( added ) }; ${ described( withPages.records ) }`
+);
+step(
+	'its context names pages A and B, not page C or the synced pattern, and does not purge everything',
+	( after?.context?.post_ids || [] ).includes( purgeA.data.id ) &&
+		( after?.context?.post_ids || [] ).includes( purgeB.data.id ) &&
+		! ( after?.context?.post_ids || [] ).includes( purgeC.data.id ) &&
+		! ( after?.context?.post_ids || [] ).includes( purgePattern.data.id ) &&
+		after?.context?.purge_all === false,
+	described( withPages.records )
+);
+
+const sameAgain = await purgesDuring( () => setPhone( '(555) 555-0162' ) );
+step(
+	'saving the same phone again fires nothing',
+	sameAgain.changed.status === 200 && sameAgain.records.length === 0,
+	described( sameAgain.records )
+);
+
+const purgePart = await api( '/wp/v2/template-parts', {
+	method: 'POST',
+	body: {
+		slug: `voyager-open-e2e-purge-footer-${ stamp }`,
+		title: `E2E purge footer ${ stamp }`,
+		area: 'footer',
+		content: boundPhone,
+	},
+} );
+if ( purgePart.data.id ) {
+	purgeCleanup.push( `/wp/v2/template-parts/${ purgePart.data.id }` );
+}
+const withPart = await purgesDuring( () => setPhone( '(555) 555-0163' ) );
+step(
+	'with the phone in a template part, the purge sets purge_all and names the part',
+	purgePart.status === 201 &&
+		withPart.records.length === 1 &&
+		withPart.records[ 0 ].context?.purge_all === true &&
+		( withPart.records[ 0 ].context?.templates || [] ).includes(
+			purgePart.data.id
+		),
+	`${ purgePart.data.code || purgePart.status }; ${ described(
+		withPart.records
+	) }`
+);
+
+const boundMeta =
+	'<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/post-meta-text","args":{"key":"demo_eyebrow"}}}}} -->\n<p>Eyebrow</p>\n<!-- /wp:paragraph -->';
+const purgeD = await publish( '/wp/v2/pages', 'E2E purge D', boundMeta );
+const purgeE = await publish( '/wp/v2/pages', 'E2E purge E', boundMeta );
+const metaChange = await purgesDuring( () =>
+	api( `/wp/v2/pages/${ purgeD.data.id }`, {
+		method: 'POST',
+		body: { meta: { demo_eyebrow: `Eyebrow ${ stamp }` } },
+	} )
+);
+step(
+	'changing bindable post meta on page D refreshes page D only, not page E or the front page',
+	purgeD.status === 201 &&
+		purgeE.status === 201 &&
+		metaChange.changed.status === 200 &&
+		metaChange.records.length === 1 &&
+		sameList( metaChange.records[ 0 ].urls || [], [ purgeD.data.link ] ) &&
+		metaChange.records[ 0 ].context?.reason === 'post-meta' &&
+		metaChange.records[ 0 ].context?.source === 'voyager/post-meta-text' &&
+		metaChange.records[ 0 ].context?.purge_all === false,
+	`${ metaChange.changed.data.code || metaChange.changed.status }; ${ described(
+		metaChange.records
+	) }`
+);
+
+for ( const path of purgeCleanup ) {
+	await api( path, { method: 'DELETE', query: { force: true } } );
+}
+if ( typeof originalPhone === 'string' ) {
+	await setPhone( originalPhone );
+}
+await api( recorder, { method: 'DELETE' } );
 
 rmSync( scratch, { recursive: true, force: true } );
 console.log(
