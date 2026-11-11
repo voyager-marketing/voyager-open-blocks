@@ -158,7 +158,7 @@ function undo( array $input ) {
 
 	// Read again: keep_current_state() may have just stored content no
 	// revision held, and that change is reversed too.
-	$reversed = array_values( array_merge( [ $revision_id ], later_revisions( revision_ids( $post_id ), $revision_id, is_autosave( ... ) ) ) );
+	$reversed = array_merge( [ $revision_id ], later_revisions( revision_ids( $post_id ), $revision_id, is_autosave( ... ) ) );
 
 	// wp_restore_post_revision() updates the post without asking for a
 	// WP_Error, so a failed update comes back as 0 or false.
