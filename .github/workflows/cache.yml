@@ -13,16 +13,18 @@ name: Cache
 # and 1 is the code for stale. A crash writes no result file, or one that
 # says unmeasured, and fails every row.
 #
-# Four rows expect stale today, on purpose:
-# - The two --no-purge rows are controls and stay stale for good. They show
-#   the check can fail.
-# - `dummy --spy` and `wp-super-cache --real` record today's bug: the pack
-#   does not purge anything when Site Data changes (contract 2 in
-#   docs/v2-contracts.md). The change that adds the pack's purge flips
-#   `dummy --spy` to fresh, since the dummy cache offers the pack an
-#   adapter. `wp-super-cache --real` flips once a WP Super Cache adapter
-#   exists. Each goes red when its purge starts working, until its expect
-#   is flipped.
+# The pack purges when Site Data changes (contract 2 in
+# docs/v2-contracts.md, inc/freshness/purge.php), so the rows that use it
+# expect fresh:
+# - `dummy --spy`: the dummy cache offers the pack an adapter, and the
+#   adapter is told to purge the page.
+# - `wp-super-cache --real`: no WP Super Cache adapter exists. The pack's
+#   purge calls clean_post_cache() for each page that shows the field, and
+#   WP Super Cache 3.1.5 purges that page on clean_post_cache
+#   (wpsc_register_post_hooks() in wp-cache-phase2.php).
+# The two --no-purge rows are controls and stay stale for good. They show
+# the check can fail: emptying the URL list switches the whole purge off,
+# clean_post_cache() included.
 #
 # A new cache is a row in PLUGINS (scripts/lib/cache-check.mjs) and rows
 # here: --real if it serves pages from PHP inside Playground, else --spy.
@@ -48,24 +50,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # WP Super Cache serving the page from PHP. Stale until a WP Super
-          # Cache adapter exists, then fresh.
+          # WP Super Cache serving the page from PHP. Fresh with no adapter:
+          # it purges the page on the pack's clean_post_cache() call.
           - plugin: wp-super-cache
             mode: real
             flags: ''
-            expect: stale
+            expect: fresh
           # Control. With the pack's purge emptied the page must go stale.
           # This is the issue's fitness command.
           - plugin: wp-super-cache
             mode: real
             flags: ' --no-purge'
             expect: stale
-          # The pack's own purge, through the dummy cache's adapter. Stale
-          # until the pack purges, then fresh.
+          # The pack's own purge, through the dummy cache's adapter.
           - plugin: dummy
             mode: spy
             flags: ''
-            expect: stale
+            expect: fresh
           # Positive control for --spy: the harness's stand-in purge runs
           # contract 2 by hand, and the dummy cache must hear the page's URL.
           - plugin: dummy
