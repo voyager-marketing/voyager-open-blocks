@@ -16,8 +16,8 @@
  *      with its link to Settings > Site Data; dismissing it keeps it hidden;
  *      with the dismissal cleared it shows again; saving one field records the
  *      started flag and keeps it hidden, even after that field is emptied.
- *   b. Settings > Site Data shows its intro, and the phone's "Used by:" line
- *      names the CTA band.
+ *   b. Settings > Site Data shows its intro, the phone's "Used by:" line
+ *      names the CTA band, and its "Shown on" line links the demo pages.
  *   c. Editor, empty value: on a page holding the CTA band, with the phone
  *      empty, the selected "Click to call" button warns "Not set yet" and links
  *      to Settings > Site Data. With the phone set, the value shows instead.
@@ -235,6 +235,7 @@ function submitSettings( values ) {
 function readSettings() {
 	const wrap = document.querySelector( '#wpbody-content .wrap' );
 	const used = document.getElementById( 'voyager_site_phone-used' );
+	const shown = document.getElementById( 'voyager_site_phone-shown' );
 	return {
 		path: window.location.pathname + window.location.search,
 		heading: wrap?.querySelector( 'h1' )?.textContent.trim() || '',
@@ -244,6 +245,14 @@ function readSettings() {
 				)
 			: [],
 		phoneUsedBy: used ? used.textContent.trim() : null,
+		phoneShownOn: shown
+			? {
+					text: shown.textContent.trim(),
+					links: [ ...shown.querySelectorAll( 'a' ) ].map(
+						( a ) => a.href
+					),
+				}
+			: null,
 	};
 }
 
@@ -773,6 +782,15 @@ async function checkSettings() {
 			screen.phoneUsedBy.startsWith( 'Used by:' ) &&
 			screen.phoneUsedBy.includes( 'CTA band' ),
 		screen.phoneUsedBy
+	);
+	expect(
+		'b3 the phone field\'s "Shown on" line links the published pages that show it',
+		/^Shown on \d+ pages?:/.test( screen.phoneShownOn?.text || '' ) &&
+			screen.phoneShownOn.links.length > 0 &&
+			screen.phoneShownOn.links.every( ( href ) =>
+				href.startsWith( 'http' )
+			),
+		screen.phoneShownOn
 	);
 }
 
