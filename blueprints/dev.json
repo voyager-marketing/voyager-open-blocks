@@ -2,7 +2,7 @@
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
 		"title": "Voyager Open Blocks, local development",
-		"description": "Used by npm run dev and npm run screenshots, which mount this checkout as the plugin. Activates it, then runs playground/seed.php: demo Site Data and one page per item under /voyager-open/, the same seeding blueprint.json does. Not for playground.wordpress.net, because it installs nothing.",
+		"description": "Used by npm run dev and npm run screenshots, which mount this checkout as the plugin. Activates it, then runs playground/seed.php: demo Site Data and one page per item under /voyager-open/, the same seeding blueprint.json does. Last, it installs the test fixture tests/fixtures/purge-recorder.php as an mu-plugin, for npm run e2e. Not for playground.wordpress.net, because it installs nothing.",
 		"author": "voyager-marketing",
 		"categories": [
 			"Blocks"
@@ -29,6 +29,10 @@
 		{
 			"step": "runPHP",
 			"code": "<?php require_once '/wordpress/wp-load.php'; require WP_PLUGIN_DIR . '/voyager-open-blocks/playground/seed.php';"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; $from = WP_PLUGIN_DIR . '/voyager-open-blocks/tests/fixtures/purge-recorder.php'; if ( is_file( $from ) ) { wp_mkdir_p( WPMU_PLUGIN_DIR ); copy( $from, WPMU_PLUGIN_DIR . '/voyager-open-blocks-purge-recorder.php' ); }"
 		}
 	]
 }

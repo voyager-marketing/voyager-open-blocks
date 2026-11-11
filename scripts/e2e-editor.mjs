@@ -18,6 +18,7 @@
  *      started flag and keeps it hidden, even after that field is emptied.
  *   b. Settings > Site Data shows its intro, the phone's "Used by:" line
  *      names the CTA band, and its "Shown on" line links the demo pages.
+ *      After a phone change over REST, it shows the last refresh.
  *   c. Editor, empty value: on a page holding the CTA band, with the phone
  *      empty, the selected "Click to call" button warns "Not set yet" and links
  *      to Settings > Site Data. With the phone set, the value shows instead.
@@ -241,6 +242,9 @@ function readSettings() {
 	const wrap = document.querySelector( '#wpbody-content .wrap' );
 	const used = document.getElementById( 'voyager_site_phone-used' );
 	const shown = document.getElementById( 'voyager_site_phone-shown' );
+	const refreshed = document.getElementById(
+		'voyager-open-blocks-last-purge'
+	);
 	return {
 		path: window.location.pathname + window.location.search,
 		heading: wrap?.querySelector( 'h1' )?.textContent.trim() || '',
@@ -250,6 +254,7 @@ function readSettings() {
 				)
 			: [],
 		phoneUsedBy: used ? used.textContent.trim() : null,
+		lastRefresh: refreshed ? refreshed.textContent.trim() : null,
 		phoneShownOn: shown
 			? {
 					text: shown.textContent.trim(),
@@ -769,8 +774,16 @@ async function checkNotice() {
 }
 
 async function checkSettings() {
+	// A phone change refreshes the demo pages that show it, so the screen has
+	// a last refresh to show. The phone is put back afterwards.
+	const phoneBefore = ( await rest.api( '/wp/v2/settings' ) ).data
+		?.voyager_site_phone;
+	await setSiteData( { voyager_site_phone: '(555) 555-0164' } );
 	await goAdmin( SETTINGS_PATH );
 	const screen = await admin.evaluate( js( readSettings ) );
+	if ( typeof phoneBefore === 'string' ) {
+		await setSiteData( { voyager_site_phone: phoneBefore } );
+	}
 	expect(
 		'b1 Settings > Site Data shows its intro',
 		screen.heading === 'Site Data' &&
@@ -796,6 +809,13 @@ async function checkSettings() {
 				href.startsWith( 'http' )
 			),
 		screen.phoneShownOn
+	);
+	expect(
+		'b4 after a phone change, Settings > Site Data shows the last refresh',
+		/^Last refreshed (\d+ pages?|every page), .+ ago\./.test(
+			screen.lastRefresh || ''
+		),
+		screen.lastRefresh
 	);
 }
 

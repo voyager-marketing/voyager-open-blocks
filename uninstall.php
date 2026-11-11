@@ -5,8 +5,8 @@
  * Removes only the plugin's own state: the flag that records Site Data was
  * started, each user's dismissal of the first-run notice, and the usage index
  * (the `_voyager_open_blocks_uses` and `_voyager_open_blocks_refs` post meta,
- * its options and its scheduled events). The index is read from the content,
- * and activation builds it again.
+ * its options and its scheduled events), and the record of the last purge.
+ * The index is read from the content, and activation builds it again.
  *
  * Kept on purpose:
  * - The Site Data values (`voyager_site_*`). The voyager-blocks plugin reads
@@ -22,7 +22,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 /**
- * Remove the onboarding state and the usage index from the current site.
+ * Remove the onboarding state, the usage index and the last purge from the current site.
  */
 function voyager_open_blocks_uninstall_site(): void {
 	delete_option( 'voyager_open_blocks_site_data_started' );
@@ -33,6 +33,7 @@ function voyager_open_blocks_uninstall_site(): void {
 	delete_option( 'voyager_open_blocks_usage_version' );
 	delete_option( 'voyager_open_blocks_usage_cursor' );
 	delete_option( 'voyager_open_blocks_usage_queue' );
+	delete_option( 'voyager_open_blocks_last_purge' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_backfill' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_theme' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_queue' );
