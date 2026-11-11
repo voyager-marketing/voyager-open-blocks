@@ -8,17 +8,20 @@
  *   1. lists the pack's abilities and reads the catalog,
  *   2. creates a page, finds it with find-posts by title words and by slug, and
  *      inserts the CTA band (bound to voyager/site-data), then inserts it again
- *      with copy for its heading, body and bound call button, and inserts the
- *      proof strip with three facts (fourth item omitted) and with six (two repeated),
+ *      with copy for its heading and body, checks copy for its bound call button
+ *      is refused with the page unchanged, and inserts the proof strip with
+ *      three facts (fourth item omitted) and with six (two repeated),
  *   3. inserts an icon, configures it and binds its link, and inserts an icon
  *      inside the second CTA band's row, beside its buttons,
  *   4. checks bad input is refused (unknown icon, invented args, unbindable attribute,
+ *      configure on a bound attribute,
  *      copy for an unknown label, a block that is not text, or a reference, a parent
  *      that does not allow the icon, holds no blocks or is locked, a repeat that
  *      cannot apply, post_type on a page block),
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
  *      and on the saved page, and the validate ability on the same markup, on the
  *      saved page and on broken markup, including one case only block-runner catches,
+ *      and its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
  *   6. fetches the page and checks the bound values rendered,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
@@ -327,14 +330,14 @@ step(
 validate( 'cta-band insert', cta.data.markup || '' );
 
 // The CTA band again, with copy. The heading and body carry characters that
-// must arrive escaped, and the bound call button gets new fallback text.
+// must arrive escaped. The call button's text is bound, so it takes no copy
+// and keeps its label.
 const withCopy = await run( `${ ns }/insert`, {
 	post_id: postId,
 	item: 'voyager-open/cta-band',
 	copy: {
 		Heading: 'Leaks fixed today & done right',
 		Body: "Call before noon and we're there by 5pm, <b>guaranteed</b>.",
-		'Click to call': 'Call now',
 	},
 } );
 const copied = withCopy.data.markup || '';
@@ -350,7 +353,7 @@ step(
 		copied.includes(
 			">Call before noon and we're there by 5pm, &lt;b&gt;guaranteed&lt;/b&gt;.</p>"
 		) &&
-		copied.includes( '>Call now</a>' ) &&
+		copied.includes( '>Call us</a>' ) &&
 		! copied.includes( 'Ready to get started?' ) &&
 		copiedCall?.bindings?.text?.args?.key === 'phone' &&
 		copiedCall?.bindings?.url?.args?.key === 'phone_link',
@@ -358,6 +361,51 @@ step(
 		`index ${ withCopy.data.index }, call button still bound at ${ copiedCall?.path }`
 );
 validate( 'cta-band with copy', copied );
+
+// The page's saved content, to show a refused write changed nothing.
+const rawContent = async () =>
+	(
+		await api( `/wp/v2/pages/${ postId }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw ?? null;
+
+// Copy for a bound slot: the call button's text comes from Site Data, so copy
+// for it would be saved only as a fallback that outlives the next change to the
+// phone number. The whole call is refused before anything is saved, and the
+// heading's copy, which alone would have been fine, is not saved either.
+// Inserted at position 1, the slot is named by its path in the page: the call
+// button's path inside the first band, under top-level index 1.
+const boundCallPath = [
+	'1',
+	...( callButton?.path || '' ).split( '/' ).slice( 1 ),
+].join( '/' );
+const beforeBoundCopy = await rawContent();
+const boundCopy = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/cta-band',
+	position: 1,
+	copy: {
+		Heading: 'Call us today',
+		'Click to call': '(555) 555-0113',
+	},
+} );
+const afterBoundCopy = await rawContent();
+step(
+	'insert refuses copy for the bound "Click to call" with voyager_open_blocks_bound_slot, names it by its path in the page, and the page is unchanged',
+	boundCopy.status === 400 &&
+		boundCopy.data.code === 'voyager_open_blocks_bound_slot' &&
+		( boundCopy.data.message || '' ).includes(
+			`"Click to call" (core/button text at ${ boundCallPath })`
+		) &&
+		( boundCopy.data.message || '' ).includes(
+			'voyager/site-data, key "phone"'
+		) &&
+		( boundCopy.data.message || '' ).includes( 'Settings > Site Data' ) &&
+		!! beforeBoundCopy &&
+		afterBoundCopy === beforeBoundCopy,
+	boundCopy.data.message || boundCopy.data.code
+);
 
 // The proof strip with three facts: copy fills three items, omit drops the fourth.
 const strip = await run( `${ ns }/insert`, {
@@ -677,6 +725,40 @@ step(
 	pageWithPostType.data.code
 );
 
+// configure refuses a bound attribute the same way: the icon's link is now
+// bound to phone_link, and the CTA band's call button text to phone. Nothing
+// is saved. The call button is named as bound even though configure could not
+// change it anyway.
+for ( const [ label, path, attributes ] of [
+	[
+		"configure refuses the icon's bound linkUrl",
+		iconPath,
+		{ linkUrl: 'tel:+15555550113' },
+	],
+	[
+		"configure refuses the call button's bound text",
+		callButton?.path,
+		{ text: '(555) 555-0113' },
+	],
+] ) {
+	const before = await rawContent();
+	const refused = await run( `${ ns }/configure`, {
+		post_id: postId,
+		path,
+		attributes,
+	} );
+	const after = await rawContent();
+	step(
+		`${ label } with voyager_open_blocks_bound_slot, and the page is unchanged`,
+		refused.status === 400 &&
+			refused.data.code === 'voyager_open_blocks_bound_slot' &&
+			( refused.data.message || '' ).includes( 'Settings > Site Data' ) &&
+			!! before &&
+			after === before,
+		refused.data.message || refused.data.code
+	);
+}
+
 // 5. The saved page as a whole.
 const saved = await api( `/wp/v2/pages/${ postId }`, {
 	query: { context: 'edit' },
@@ -777,6 +859,68 @@ step(
 	'validate passes tests/invalid/heading-level-mismatch.html (saved HTML needs block-runner)',
 	clean( mismatchReport ),
 	`valid ${ mismatchReport.data.valid }`
+);
+
+// stale_fallback: the benchmark's one loss. The willow-vet agent passed the
+// phone number as copy for the bound call button, so the stored page kept the
+// old number as that button's fallback after the number changed. validate
+// warns on it, given the markup and given the stored page, and on nothing in
+// this run's page, whose bound call buttons hold "Call us".
+const staleWarnings = ( report ) =>
+	( report.data.warnings || [] ).filter( ( w ) =>
+		w.startsWith( 'stale_fallback: ' )
+	);
+const willowMarkup = readFileSync(
+	join( repo, 'bench', 'runs', 'loop', 'willow-vet', 'after-edit.html' ),
+	'utf8'
+);
+const flagsWillow = ( report ) => {
+	const found = staleWarnings( report );
+	return (
+		report.status === 200 &&
+		found.length === 1 &&
+		found[ 0 ].includes( 'core/button "Click to call"' ) &&
+		found[ 0 ].includes( '"(555) 555-0113" looks like a phone number' )
+	);
+};
+const willowReport = await checkMarkup( { markup: willowMarkup } );
+step(
+	'validate warns stale_fallback on the markup of bench/runs/loop/willow-vet/after-edit.html',
+	flagsWillow( willowReport ),
+	staleWarnings( willowReport ).join( ' ' ) ||
+		willowReport.data.code ||
+		`status ${ willowReport.status }`
+);
+
+const willowPage = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E: willow-vet ${ stamp }`,
+		status: 'draft',
+		content: willowMarkup,
+	},
+} );
+const willowStored = await checkMarkup( { post_id: willowPage.data.id } );
+step(
+	'validate warns stale_fallback on the stored willow-vet page, by post_id',
+	willowPage.status === 201 && flagsWillow( willowStored ),
+	staleWarnings( willowStored ).join( ' ' ) ||
+		willowStored.data.code ||
+		`status ${ willowPage.status }`
+);
+
+const pageCallLabels = (
+	saved.data.content?.raw?.match(
+		/"name":"Click to call","bindings":\{"text"[^>]*-->\s*<div[^>]*><a[^>]*>([^<]*)<\/a>/g
+	) || []
+).map( ( m ) => m.replace( /^[\s\S]*>([^<]*)<\/a>$/, '$1' ) );
+step(
+	'validate warns nothing on a page whose bound call buttons hold "Call us"',
+	pageReport.status === 200 &&
+		pageCallLabels.length >= 2 &&
+		pageCallLabels.every( ( text ) => text === 'Call us' ) &&
+		staleWarnings( pageReport ).length === 0,
+	`call buttons hold ${ JSON.stringify( pageCallLabels ) }; ${ staleWarnings( pageReport ).join( ' ' ) || 'no stale_fallback' }`
 );
 
 const neither = await checkMarkup( {} );
@@ -1104,8 +1248,10 @@ for ( const id of [ ownDraft.data.id, privatePost.data.id ] ) {
 		cleanup.push( `/wp/v2/posts/${ id }` );
 	}
 }
-if ( lockedPage.data.id ) {
-	cleanup.push( `/wp/v2/pages/${ lockedPage.data.id }` );
+for ( const id of [ lockedPage.data.id, willowPage.data.id ] ) {
+	if ( id ) {
+		cleanup.push( `/wp/v2/pages/${ id }` );
+	}
 }
 for ( const path of cleanup ) {
 	await api( path, { method: 'DELETE', query: { force: true } } );
