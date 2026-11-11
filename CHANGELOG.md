@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.6.1...v0.7.0) (2026-11-11)
+
+
+### Features
+
+* add Panel, Inverted and Accent section styles ([#53](https://github.com/voyager-marketing/voyager-open-blocks/issues/53)) ([bf210a1](https://github.com/voyager-marketing/voyager-open-blocks/commit/bf210a1b72e47fcb3e74862d8e6db7ca4b194063))
+* record which pages and templates use each Site Data field ([#47](https://github.com/voyager-marketing/voyager-open-blocks/issues/47)) ([58b0856](https://github.com/voyager-marketing/voyager-open-blocks/commit/58b08567c884e42b41f4b419bfc428644c183116))
+* refresh the pages that use a Site Data field when it changes ([#52](https://github.com/voyager-marketing/voyager-open-blocks/issues/52)) ([7646e40](https://github.com/voyager-marketing/voyager-open-blocks/commit/7646e40bed536bf44c64bb8b05a2cc7797547bba))
+* trial runs, revision IDs and undo for every write ability ([#50](https://github.com/voyager-marketing/voyager-open-blocks/issues/50)) ([b0e2255](https://github.com/voyager-marketing/voyager-open-blocks/commit/b0e22554fea532e2f2228775cb5c0bffd4702804))
+
+
+### Bug Fixes
+
+* check more contact fields, and follow Site Editor colours ([#54](https://github.com/voyager-marketing/voyager-open-blocks/issues/54)) ([5dc9ff8](https://github.com/voyager-marketing/voyager-open-blocks/commit/5dc9ff8ec30949dc5c1c7354e417e9eae5c72ad1))
+* refuse copy for bound slots and warn on stale fallbacks ([#48](https://github.com/voyager-marketing/voyager-open-blocks/issues/48)) ([46aaa21](https://github.com/voyager-marketing/voyager-open-blocks/commit/46aaa215e5178c6f98b6de247580d9d0d3b68b5c))
+* write the pack's DESIGN.md and pad the Closing CTA on every theme ([#51](https://github.com/voyager-marketing/voyager-open-blocks/issues/51)) ([21b188a](https://github.com/voyager-marketing/voyager-open-blocks/commit/21b188a859c4cb7aeb40e54ad0c229c698910b88))
+
+
+### Code Refactoring
+
+* one file per ability, change notes and the v2 contracts ([#45](https://github.com/voyager-marketing/voyager-open-blocks/issues/45)) ([7c32c7e](https://github.com/voyager-marketing/voyager-open-blocks/commit/7c32c7e081609898c40479a26db16e95f23faf2e))
+
 ## [0.6.1](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.6.0...v0.6.1) (2026-11-07)
 
 

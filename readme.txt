@@ -5,7 +5,7 @@ Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.1
 Release marker: x-release-please-start-version
-Stable tag: 0.6.1
+Stable tag: 0.7.0
 Release marker: x-release-please-end
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -144,6 +144,15 @@ In the plugin's `skills/` folder, one `SKILL.md` per item in the open Agent Skil
 7. Settings > Site Data: one screen for the business details every section reads.
 
 == Changelog ==
+
+= 0.7.0 =
+* Three section styles for a group, Panel, Inverted and Accent, take their colours from the active theme's palette, with built-in colour maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system and a fallback from the theme's own text and background colours elsewhere; `get-catalog` lists them, `configure` sets one with its new `style` input, and a theme can replace the colour map with the `voyager_open_blocks_style_roles` filter.
+* Settings > Site Data shows the published pages and the templates each field appears on, and `get-catalog` returns a `used_on` count for every Site Data and bindable post meta field.
+* A Site Data change now refreshes the pages that show the field, and a bindable post meta change refreshes its own page: the pack fires `voyager_open_blocks_purge` with their URLs and calls each cache adapter offered through `voyager_open_blocks_cache_adapters`. Settings > Site Data shows the last refresh.
+* `configure` and `bind` take `dry_run` like `insert`, every save returns `revision_id`, and the new `undo` ability restores a post's content as it was before a save. It refuses when someone saved the post after that save, unless asked to reverse their saves too.
+* `insert` and `configure` refuse text for a slot bound to Site Data or post meta, such as the CTA band's call button, and save nothing; `validate` warns `stale_fallback` when a block bound to a phone or email field keeps a phone number or an email address as its fallback.
+* The Closing CTA pads its top and bottom with the `60` spacing preset instead of `70`, so it keeps its padding on themes that stop at `60`, such as Twenty Twenty-Four; `DESIGN.md` now gives agents the pack's design rules in Google's DESIGN.md format, and the entry skill reads a site's own DESIGN.md first.
+* `validate` also warns `stale_fallback` on fields named mobile, fax, tel or cell and no longer takes a mailing address for a phone number; on themes without a built-in colour map, the Panel, Inverted and Accent styles follow text and background colours set in the Site Editor; and `DESIGN.md` ships with the plugin.
 
 = 0.6.1 =
 * WordPress.org's Plugin Check reports no errors on the plugin: the abilities read a block's text with `wp_strip_all_tags()`.
