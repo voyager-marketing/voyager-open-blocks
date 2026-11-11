@@ -457,6 +457,9 @@ function presets( file ) {
 		return { error: error?.message || String( error ) };
 	}
 }
+function plural( number, noun ) {
+	return `${ number } ${ noun }${ number === 1 ? '' : 's' }`;
+}
 function printEach( lines ) {
 	for ( const line of lines ) {
 		console.log( `     ${ line }` );
@@ -488,7 +491,7 @@ report(
 		patternBlocks > 0 &&
 		patternFindings.length === 0,
 	patternFindings.length
-		? `${ patternFindings.length } findings, below`
+		? `${ plural( patternFindings.length, 'finding' ) }, below`
 		: `${ patternBlocks } blocks`
 );
 printEach( patternFindings );
@@ -553,7 +556,7 @@ report(
 	`presets: rejects ${ rejected } of ${ RULES.length } planted files in ${ plantedDir }/`,
 	rejected === RULES.length && plantProblems.length === 0,
 	plantProblems.length
-		? `${ plantProblems.length } problems, below`
+		? `${ plural( plantProblems.length, 'problem' ) }, below`
 		: `${ plantedCases } planted blocks, each refused for its file's rule`
 );
 printEach( plantProblems );
@@ -574,7 +577,7 @@ report(
 		allowed.top >= ALLOWED_CASES &&
 		allowedFindings.length === 0,
 	allowedFindings.length
-		? `${ allowedFindings.length } findings, below`
+		? `${ plural( allowedFindings.length, 'finding' ) }, below`
 		: `${ allowed.top } cases, at least ${ ALLOWED_CASES } expected`
 );
 printEach( allowedFindings );
