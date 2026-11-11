@@ -32,8 +32,10 @@ function voyager_open_blocks_uninstall_site(): void {
 	delete_option( 'voyager_open_blocks_theme_uses' );
 	delete_option( 'voyager_open_blocks_usage_version' );
 	delete_option( 'voyager_open_blocks_usage_cursor' );
+	delete_option( 'voyager_open_blocks_usage_queue' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_backfill' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_theme' );
+	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_queue' );
 
 	// The dismissal is a user option, stored per site under the site's table prefix.
 	$db = $GLOBALS['wpdb'] ?? null;

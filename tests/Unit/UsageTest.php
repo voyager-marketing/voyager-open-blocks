@@ -26,6 +26,12 @@ require_once dirname( __DIR__, 2 ) . '/inc/freshness/usage.php';
 
 final class UsageTest extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+		$GLOBALS['voyager_test_options'] = [];
+		$GLOBALS['voyager_test_events']  = [];
+	}
+
 	/**
 	 * A parsed block, as parse_blocks() returns it.
 	 *
@@ -206,5 +212,67 @@ final class UsageTest extends TestCase {
 		$this->assertSame( [ 'voyager/site-data:phone', 'voyager/site-data:phone_link' ], Usage\site_data_rows( 'phone' ) );
 		$this->assertSame( [ 'voyager/site-data:address_city', 'voyager/site-data:address_locality' ], Usage\site_data_rows( 'address_city' ) );
 		$this->assertSame( [ 'voyager/site-data:hours' ], Usage\site_data_rows( 'hours' ) );
+	}
+
+	/**
+	 * An indexer that records the IDs it is given.
+	 *
+	 * @param list<int> $seen Filled with each ID, in order.
+	 * @return \Closure(int): bool
+	 */
+	private function recorder( array &$seen ): \Closure {
+		return static function ( int $id ) use ( &$seen ): bool {
+			$seen[] = $id;
+			return true;
+		};
+	}
+
+	public function test_a_synced_pattern_on_a_batch_of_pages_or_fewer_reindexes_them_all_now(): void {
+		$seen  = [];
+		$later = Usage\reindex( range( 1, Usage\BATCH ), $this->recorder( $seen ) );
+
+		$this->assertSame( range( 1, Usage\BATCH ), $seen );
+		$this->assertSame( [], $later );
+		$this->assertSame( [], Usage\queued() );
+		$this->assertArrayNotHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'] );
+	}
+
+	public function test_a_synced_pattern_on_more_pages_reindexes_one_batch_now_and_queues_the_rest(): void {
+		$seen  = [];
+		$later = Usage\reindex( range( 1, 120 ), $this->recorder( $seen ) );
+
+		$this->assertSame( range( 1, 50 ), $seen, 'The save indexes one batch and no more.' );
+		$this->assertSame( range( 51, 120 ), $later );
+		$this->assertSame( range( 51, 120 ), Usage\queued() );
+		$this->assertArrayHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'], 'WP-Cron takes the rest.' );
+	}
+
+	public function test_ids_queued_twice_are_kept_once_and_in_order(): void {
+		Usage\enqueue( [ 90, 70, 80 ] );
+		Usage\enqueue( [ 80, 60 ] );
+
+		$this->assertSame( [ 60, 70, 80, 90 ], Usage\queued() );
+	}
+
+	public function test_the_queue_event_indexes_a_batch_at_a_time_until_the_queue_is_empty(): void {
+		Usage\reindex( range( 1, 120 ), static fn ( int $id ): bool => true );
+
+		// WP-Cron unschedules an event before it runs it.
+		unset( $GLOBALS['voyager_test_events'][ Usage\QUEUE_HOOK ] );
+		$seen = [];
+		Usage\drain_queue( $this->recorder( $seen ) );
+
+		$this->assertSame( range( 51, 100 ), $seen );
+		$this->assertSame( range( 101, 120 ), Usage\queued() );
+		$this->assertArrayHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'], 'It runs again while IDs are left.' );
+
+		unset( $GLOBALS['voyager_test_events'][ Usage\QUEUE_HOOK ] );
+		$seen = [];
+		Usage\drain_queue( $this->recorder( $seen ) );
+
+		$this->assertSame( range( 101, 120 ), $seen );
+		$this->assertSame( [], Usage\queued() );
+		$this->assertArrayNotHasKey( Usage\QUEUE_OPTION, $GLOBALS['voyager_test_options'] );
+		$this->assertArrayNotHasKey( Usage\QUEUE_HOOK, $GLOBALS['voyager_test_events'], 'It stops once the queue is empty.' );
 	}
 }

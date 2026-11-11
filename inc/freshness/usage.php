@@ -20,7 +20,8 @@
  *   patterns (Patterns\bound_keys()) and parsed from the registry for others.
  * - Post meta `_voyager_open_blocks_refs`, one row per synced pattern ID the
  *   post shows, nested ones included. It is internal: when a synced pattern
- *   changes what it binds, the posts that show it are indexed again.
+ *   changes what it binds, the posts that show it are indexed again, 50 in
+ *   the same request and the rest by WP-Cron, 50 per run.
  * - The option `voyager_open_blocks_theme_uses`: theme templates and template
  *   parts that are only files, keyed by template ID, each with its type, title
  *   and rows. A template saved in the Site Editor is a post and is indexed as
@@ -33,6 +34,9 @@
  * it was inactive, is indexed by a WP-Cron backfill in batches of 50, started
  * on activation and whenever the plugin version changes, and by
  * `wp voyager-open-blocks reindex`.
+ *
+ * Reads of the index are plain selects on postmeta (select()), not WP_Query,
+ * so no plugin's query filters narrow them.
  *
  * @package VoyagerOpenBlocks
  */
@@ -72,7 +76,13 @@ const BACKFILL_HOOK = 'voyager_open_blocks_usage_backfill';
 /** WP-Cron event that rebuilds the theme templates on the next request. */
 const THEME_HOOK = 'voyager_open_blocks_usage_theme';
 
-/** Posts per backfill batch. */
+/** Option: IDs of posts to index again, past the batch a synced pattern's save indexes itself. */
+const QUEUE_OPTION = 'voyager_open_blocks_usage_queue';
+
+/** WP-Cron event that indexes the next batch of QUEUE_OPTION. */
+const QUEUE_HOOK = 'voyager_open_blocks_usage_queue';
+
+/** Posts per backfill batch, and most posts a synced pattern's save indexes again itself. */
 const BATCH = 50;
 
 /** The binding sources the index records. */
@@ -344,13 +354,62 @@ function uses( int $post_id ): array {
 }
 
 /**
- * IDs from WP_Query's posts, run with `fields => ids`.
+ * Post IDs from a column of query results, without zeros.
  *
- * @param array<mixed> $posts WP_Query::$posts.
+ * @param array<mixed> $ids IDs as the database returns them.
  * @return list<int>
  */
-function ids_of( array $posts ): array {
-	return array_values( array_filter( array_map( Cast\to_int( ... ), $posts ) ) );
+function ids_of( array $ids ): array {
+	return array_values( array_filter( array_map( Cast\to_int( ... ), $ids ) ) );
+}
+
+/**
+ * Rows of a read query on the index, run directly rather than through WP_Query.
+ *
+ * WP_Query runs every plugin's query filters, and a multilingual plugin's
+ * narrow a result to one language, which would hide pages that show a field.
+ * The index is exact rows in postmeta, so these are plain selects, and
+ * cheaper than WP_Query too.
+ *
+ * @param list<'posts'|'postmeta'|'term_relationships'|'term_taxonomy'|'terms'> $tables Tables for the query's first %i placeholders, in order.
+ * @param literal-string                                                        $query  SQL with %i, %s and %d placeholders. Alias every column it selects.
+ * @param mixed                                                                 ...$args Values for the placeholders after the tables.
+ * @return list<array<mixed>>
+ */
+function select( array $tables, string $query, mixed ...$args ): array {
+	global $wpdb;
+
+	if ( ! $wpdb instanceof \wpdb ) {
+		return [];
+	}
+
+	$names = [];
+	foreach ( $tables as $table ) {
+		$names[] = match ( $table ) {
+			'posts'              => $wpdb->posts,
+			'postmeta'           => $wpdb->postmeta,
+			'term_relationships' => $wpdb->term_relationships,
+			'term_taxonomy'      => $wpdb->term_taxonomy,
+			'terms'              => $wpdb->terms,
+		};
+	}
+
+	$sql = $wpdb->prepare( $query, ...$names, ...$args ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders -- every caller passes a literal query with placeholders, which PHPStan checks.
+	if ( ! is_string( $sql ) ) {
+		return [];
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- prepared above; the docblock says why not WP_Query.
+	$found = $wpdb->get_results( $sql, ARRAY_A );
+
+	$out = [];
+	foreach ( is_array( $found ) ? $found : [] as $row ) {
+		if ( is_array( $row ) ) {
+			$out[] = $row;
+		}
+	}
+
+	return $out;
 }
 
 /**
@@ -361,24 +420,14 @@ function ids_of( array $posts ): array {
  * @return list<int>
  */
 function posts_with( string $key, string $value ): array {
-	$query = new \WP_Query(
-		[
-			'post_type'              => array_values( get_post_types() ),
-			'post_status'            => 'any',
-			'meta_key'               => $key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- the index is post meta by contract.
-			'meta_value'             => $value, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- matched exactly, never LIKE.
-			'fields'                 => 'ids',
-			'posts_per_page'         => -1,
-			'orderby'                => 'ID',
-			'order'                  => 'ASC',
-			'no_found_rows'          => true,
-			'ignore_sticky_posts'    => true,
-			'update_post_term_cache' => false,
-			'update_post_meta_cache' => false,
-		]
+	$found = select(
+		[ 'postmeta', 'posts' ],
+		"SELECT DISTINCT pm.post_id AS post_id FROM %i pm INNER JOIN %i p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = %s AND p.post_type <> 'revision' AND p.post_status NOT IN ('trash', 'auto-draft') ORDER BY pm.post_id ASC",
+		$key,
+		$value
 	);
 
-	return ids_of( (array) $query->posts );
+	return ids_of( array_column( $found, 'post_id' ) );
 }
 
 /**
@@ -467,66 +516,61 @@ function rebuild_theme(): int {
 /**
  * The active theme's templates and parts that show any of some rows, files and saved ones.
  *
+ * A saved template replaces the file with its ID, so its rows win.
+ *
  * @param list<string> $rows Rows.
  * @return list<array{id: string, title: string, type: string, uses: list<string>}> By template ID. `uses` holds the matching rows.
  */
 function templates_with( array $rows ): array {
-	$out = [];
-
 	if ( [] === $rows ) {
 		return [];
 	}
 
+	$files = [];
 	foreach ( theme_index() as $id => $entry ) {
-		$hit = array_values( array_intersect( $entry['uses'], $rows ) );
-		if ( [] !== $hit ) {
-			$out[ $id ] = [
-				'id'    => $id,
-				'title' => $entry['title'],
-				'type'  => $entry['type'],
-				'uses'  => $hit,
-			];
-		}
+		$files[ $id ] = [
+			'id'    => $id,
+			'title' => $entry['title'],
+			'type'  => $entry['type'],
+			'uses'  => $entry['uses'],
+		];
 	}
 
 	$theme = get_stylesheet();
-	$query = new \WP_Query(
-		[
-			'post_type'              => TEMPLATE_TYPES,
-			'post_status'            => 'publish',
-			'meta_query'             => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the index is post meta by contract.
-				[
-					'key'     => META,
-					'value'   => $rows,
-					'compare' => 'IN',
-				],
-			],
-			'tax_query'              => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- templates of the active theme only.
-				[
-					'taxonomy' => 'wp_theme',
-					'field'    => 'name',
-					'terms'    => $theme,
-				],
-			],
-			'posts_per_page'         => -1,
-			'no_found_rows'          => true,
-			'ignore_sticky_posts'    => true,
-			'update_post_term_cache' => false,
-		]
+	$saved = [];
+	$found = select(
+		[ 'posts', 'postmeta', 'term_relationships', 'term_taxonomy', 'terms' ],
+		"SELECT p.post_name AS slug, p.post_title AS title, p.post_type AS post_type, pm.meta_value AS use_row FROM %i p INNER JOIN %i pm ON pm.post_id = p.ID INNER JOIN %i tr ON tr.object_id = p.ID INNER JOIN %i tt ON tt.term_taxonomy_id = tr.term_taxonomy_id INNER JOIN %i t ON t.term_id = tt.term_id WHERE pm.meta_key = %s AND tt.taxonomy = 'wp_theme' AND t.name = %s AND p.post_type IN ('wp_template', 'wp_template_part') AND p.post_status = 'publish'",
+		META,
+		$theme
 	);
 
-	foreach ( (array) $query->posts as $post ) {
-		if ( ! $post instanceof WP_Post ) {
-			continue;
-		}
+	foreach ( $found as $row ) {
+		$slug  = Cast\to_string( $row['slug'] ?? '' );
+		$title = Cast\to_string( $row['title'] ?? '' );
+		$id    = $theme . '//' . $slug;
+		$uses  = $saved[ $id ]['uses'] ?? [];
 
-		$id         = $theme . '//' . $post->post_name;
-		$out[ $id ] = [
+		$uses[]       = Cast\to_string( $row['use_row'] ?? '' );
+		$saved[ $id ] = [
 			'id'    => $id,
-			'title' => '' !== $post->post_title ? $post->post_title : $post->post_name,
-			'type'  => $post->post_type,
-			'uses'  => array_values( array_intersect( uses( $post->ID ), $rows ) ),
+			'title' => '' !== $title ? $title : $slug,
+			'type'  => Cast\to_string( $row['post_type'] ?? '' ),
+			'uses'  => $uses,
 		];
+	}
+
+	$out = [];
+	foreach ( array_replace( $files, $saved ) as $id => $template ) {
+		$hit = array_values( array_intersect( tidy( $template['uses'] ), $rows ) );
+		if ( [] !== $hit ) {
+			$out[ (string) $id ] = [
+				'id'    => (string) $id,
+				'title' => $template['title'],
+				'type'  => $template['type'],
+				'uses'  => $hit,
+			];
+		}
 	}
 
 	ksort( $out );
@@ -558,29 +602,9 @@ function content_types(): array {
 }
 
 /**
- * Published content showing any of some rows, as a meta query clause.
- *
- * @param list<string> $rows Rows.
- * @return array<string, mixed> WP_Query arguments.
- */
-function content_query( array $rows ): array {
-	return [
-		'post_type'              => content_types(),
-		'post_status'            => 'publish',
-		'meta_query'             => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the index is post meta by contract.
-			[
-				'key'     => META,
-				'value'   => $rows,
-				'compare' => 'IN',
-			],
-		],
-		'ignore_sticky_posts'    => true,
-		'update_post_term_cache' => false,
-	];
-}
-
-/**
  * How many published posts, templates and template parts show each row.
+ *
+ * Posts are counted with one grouped query, by row and post type.
  *
  * @param list<string> $rows Rows.
  * @return array<string, array{posts: int, templates: int, template_parts: int}> Row => counts, every row given.
@@ -599,25 +623,17 @@ function counts( array $rows ): array {
 		return $out;
 	}
 
-	$query = new \WP_Query(
-		[
-			'fields'                 => 'ids',
-			'posts_per_page'         => -1,
-			'no_found_rows'          => true,
-			'update_post_meta_cache' => false,
-		] + content_query( $rows )
+	$types = content_types();
+	$found = select(
+		[ 'postmeta', 'posts' ],
+		"SELECT pm.meta_value AS use_row, p.post_type AS post_type, COUNT(DISTINCT p.ID) AS total FROM %i pm INNER JOIN %i p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND p.post_status = 'publish' GROUP BY pm.meta_value, p.post_type",
+		META
 	);
-	$ids   = ids_of( (array) $query->posts );
 
-	if ( [] !== $ids ) {
-		update_meta_cache( 'post', $ids );
-	}
-
-	foreach ( $ids as $id ) {
-		foreach ( uses( $id ) as $row ) {
-			if ( isset( $out[ $row ] ) ) {
-				++$out[ $row ]['posts'];
-			}
+	foreach ( $found as $group ) {
+		$row = Cast\to_string( $group['use_row'] ?? '' );
+		if ( isset( $out[ $row ] ) && in_array( Cast\to_string( $group['post_type'] ?? '' ), $types, true ) ) {
+			$out[ $row ]['posts'] += Cast\to_int( $group['total'] ?? 0 );
 		}
 	}
 
@@ -692,24 +708,42 @@ function site_data_rows( string $key ): array {
  * @return array{total: int, posts: list<WP_Post>, templates: list<array{id: string, title: string, type: string, uses: list<string>}>}
  */
 function shown_on( array $rows, int $limit = 10 ): array {
-	$query = new \WP_Query(
-		[
-			'posts_per_page'         => $limit,
-			'orderby'                => 'title',
-			'order'                  => 'ASC',
-			'update_post_meta_cache' => false,
-		] + content_query( $rows )
-	);
+	$types  = content_types();
+	$titles = [];
+
+	foreach ( $rows as $row ) {
+		$found = select(
+			[ 'postmeta', 'posts' ],
+			"SELECT p.ID AS id, p.post_title AS title, p.post_type AS post_type FROM %i pm INNER JOIN %i p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = %s AND p.post_status = 'publish'",
+			META,
+			$row
+		);
+
+		foreach ( $found as $post ) {
+			if ( in_array( Cast\to_string( $post['post_type'] ?? '' ), $types, true ) ) {
+				$titles[ Cast\to_int( $post['id'] ?? 0 ) ] = Cast\to_string( $post['title'] ?? '' );
+			}
+		}
+	}
+
+	unset( $titles[0] );
+	asort( $titles, SORT_NATURAL | SORT_FLAG_CASE );
+	$ids = array_slice( array_keys( $titles ), 0, max( 0, $limit ) );
+
+	if ( [] !== $ids ) {
+		_prime_post_caches( $ids, false, false );
+	}
 
 	$posts = [];
-	foreach ( (array) $query->posts as $post ) {
+	foreach ( $ids as $id ) {
+		$post = get_post( $id );
 		if ( $post instanceof WP_Post ) {
 			$posts[] = $post;
 		}
 	}
 
 	return [
-		'total'     => (int) $query->found_posts,
+		'total'     => count( $titles ),
 		'posts'     => $posts,
 		'templates' => templates_with( $rows ),
 	];
@@ -813,16 +847,100 @@ function on_delete( int $post_id, mixed $post ): void {
  */
 function after_change( WP_Post $post, bool $changed ): void {
 	if ( 'wp_block' === $post->post_type && $changed ) {
-		foreach ( referrers( $post->ID ) as $id ) {
-			if ( $id !== $post->ID ) {
-				index_post( $id );
-			}
-		}
+		reindex( array_values( array_diff( referrers( $post->ID ), [ $post->ID ] ) ) );
 	}
 
 	if ( in_array( $post->post_type, TEMPLATE_TYPES, true ) ) {
 		rebuild_theme();
 	}
+}
+
+/**
+ * Index posts again: up to BATCH now, and the rest through WP-Cron, BATCH per run.
+ *
+ * A synced pattern can be on thousands of pages; saving it must not index
+ * them all in the same request.
+ *
+ * @param list<int>                   $ids   Post IDs.
+ * @param (callable(int): mixed)|null $index Indexes one post. Defaults to index_post().
+ * @return list<int> The IDs left to WP-Cron.
+ */
+function reindex( array $ids, ?callable $index = null ): array {
+	$index = $index ?? index_post( ... );
+	$later = array_values( array_slice( $ids, BATCH ) );
+
+	foreach ( array_slice( $ids, 0, BATCH ) as $id ) {
+		$index( $id );
+	}
+
+	if ( [] !== $later ) {
+		enqueue( $later );
+	}
+
+	return $later;
+}
+
+/**
+ * The post IDs waiting in QUEUE_OPTION, sorted and without duplicates.
+ *
+ * @return list<int>
+ */
+function queued(): array {
+	$stored = get_option( QUEUE_OPTION, [] );
+	$ids    = array_values( array_unique( array_filter( array_map( Cast\to_int( ... ), is_array( $stored ) ? $stored : [] ), static fn ( int $id ): bool => $id > 0 ) ) );
+	sort( $ids );
+
+	return $ids;
+}
+
+/**
+ * Add post IDs to the queue and make sure the queue event will run.
+ *
+ * @param list<int> $ids Post IDs.
+ */
+function enqueue( array $ids ): void {
+	$all = array_values( array_unique( [ ...queued(), ...$ids ] ) );
+	sort( $all );
+	update_option( QUEUE_OPTION, $all, false );
+
+	if ( false === wp_next_scheduled( QUEUE_HOOK ) ) {
+		wp_schedule_single_event( time(), QUEUE_HOOK );
+	}
+}
+
+/**
+ * Index the next BATCH queued posts, and run again while any are left.
+ *
+ * The rest of the queue is saved before the batch runs, so IDs queued while
+ * it runs are kept.
+ *
+ * @param (callable(int): mixed)|null $index Indexes one post. Defaults to index_post().
+ */
+function drain_queue( ?callable $index = null ): void {
+	$index = $index ?? index_post( ... );
+	$ids   = queued();
+	$left  = array_values( array_slice( $ids, BATCH ) );
+
+	if ( [] === $left ) {
+		delete_option( QUEUE_OPTION );
+	} else {
+		update_option( QUEUE_OPTION, $left, false );
+	}
+
+	foreach ( array_slice( $ids, 0, BATCH ) as $id ) {
+		$index( $id );
+	}
+
+	if ( [] !== $left && false === wp_next_scheduled( QUEUE_HOOK ) ) {
+		wp_schedule_single_event( time(), QUEUE_HOOK );
+	}
+}
+
+/**
+ * The queue event.
+ */
+function queue_event(): void {
+	drain_queue();
 }
 
 /**
@@ -871,25 +989,14 @@ function rebuild( int $batch = BATCH ): int {
  * @return list<int>
  */
 function next_batch( int $after, int $batch ): array {
-	global $wpdb;
-
-	if ( ! $wpdb instanceof \wpdb ) {
-		return [];
-	}
-
-	$sql = $wpdb->prepare(
-		"SELECT ID FROM %i WHERE ID > %d AND post_type <> 'revision' AND post_status NOT IN ('trash', 'auto-draft', 'inherit') ORDER BY ID ASC LIMIT %d",
-		$wpdb->posts,
+	$found = select(
+		[ 'posts' ],
+		"SELECT ID AS id FROM %i WHERE ID > %d AND post_type <> 'revision' AND post_status NOT IN ('trash', 'auto-draft', 'inherit') ORDER BY ID ASC LIMIT %d",
 		$after,
 		$batch
 	);
 
-	if ( ! is_string( $sql ) ) {
-		return [];
-	}
-
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- a one-off backfill walks every post by ID; no WordPress API takes an ID range. $sql is prepared above.
-	return ids_of( $wpdb->get_col( $sql ) );
+	return ids_of( array_column( $found, 'id' ) );
 }
 
 /**
@@ -966,6 +1073,7 @@ function on_upgrade( mixed $upgrader, array $options ): void {
 function stop(): void {
 	wp_clear_scheduled_hook( BACKFILL_HOOK );
 	wp_clear_scheduled_hook( THEME_HOOK );
+	wp_clear_scheduled_hook( QUEUE_HOOK );
 }
 
 /**
@@ -989,9 +1097,11 @@ function cli_reindex(): void {
 		return;
 	}
 
-	// This pass covers everything, so a backfill event would only repeat it.
+	// This pass covers everything, so a backfill or queue event would only repeat it.
 	wp_clear_scheduled_hook( BACKFILL_HOOK );
+	wp_clear_scheduled_hook( QUEUE_HOOK );
 	delete_option( CURSOR_OPTION );
+	delete_option( QUEUE_OPTION );
 	$total = 0;
 
 	do {
@@ -1010,6 +1120,7 @@ add_action( 'switch_theme', __NAMESPACE__ . '\on_switch_theme' );
 add_action( 'upgrader_process_complete', __NAMESPACE__ . '\on_upgrade', 10, 2 );
 add_action( BACKFILL_HOOK, __NAMESPACE__ . '\backfill' );
 add_action( THEME_HOOK, __NAMESPACE__ . '\theme_event' );
+add_action( QUEUE_HOOK, __NAMESPACE__ . '\queue_event' );
 add_action( 'init', __NAMESPACE__ . '\maybe_start_backfill' );
 add_action( 'cli_init', __NAMESPACE__ . '\register_cli' );
 register_activation_hook( VOYAGER_OPEN_BLOCKS_FILE, __NAMESPACE__ . '\start_backfill' );
