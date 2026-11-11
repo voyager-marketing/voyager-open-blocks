@@ -109,22 +109,21 @@ function undo( array $input ) {
 	// newest revision does not hold it.
 	$before = keep_current_state( $post_id );
 
-	$restored = wp_restore_post_revision( $from->ID, [ 'post_content' ] );
-	if ( ! $restored || is_wp_error( $restored ) ) {
+	// wp_restore_post_revision() updates the post without asking for a
+	// WP_Error, so a failed update comes back as 0 or false.
+	if ( ! wp_restore_post_revision( $from->ID, [ 'post_content' ] ) ) {
 		return new WP_Error(
 			'voyager_open_blocks_undo_failed',
-			sprintf( 'WordPress did not restore revision %d: %s Nothing was changed.', $from->ID, is_wp_error( $restored ) ? $restored->get_error_message() : 'the update failed.' ),
+			sprintf( 'WordPress did not restore revision %d, so the content was not changed.', $from->ID ),
 			[ 'status' => 500 ]
 		);
 	}
-
-	$post = get_post( $post_id );
 
 	return [
 		'post_id'  => $post_id,
 		'undone'   => $revision_id,
 		'restored' => $from->ID,
-		'matches'  => $post instanceof \WP_Post && $post->post_content === $from->post_content,
+		'matches'  => get_post_field( 'post_content', $post_id, 'raw' ) === $from->post_content,
 	] + revision_made( $post_id, $before );
 }
 
