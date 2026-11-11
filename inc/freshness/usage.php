@@ -1048,11 +1048,7 @@ function theme_event(): void {
  * a template part holding one is read correctly then.
  */
 function on_switch_theme(): void {
-	rebuild_theme();
-
-	if ( false === wp_next_scheduled( THEME_HOOK ) ) {
-		wp_schedule_single_event( time(), THEME_HOOK );
-	}
+	// Disabled on purpose for one CI run, to see the editor e2e's check g2 fail. Reverted in the next commit.
 }
 
 /**
