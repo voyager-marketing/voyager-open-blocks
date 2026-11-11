@@ -154,8 +154,9 @@ function on_option( mixed $option ): void {
  * added_post_meta, updated_post_meta and deleted_post_meta: note an
  * allowlisted bindable field.
  *
- * Protected meta (a leading underscore), such as the usage index's own rows,
- * is skipped before anything is looked up.
+ * The allowlist decides, as it does for the binding source: a key the
+ * `voyager_post_meta_text_fields` filter allows counts even with a leading
+ * underscore, and the usage index's own rows never do.
  *
  * @param mixed $meta_id  Meta ID, or IDs when deleted.
  * @param mixed $post_id  Post ID.
@@ -165,7 +166,7 @@ function on_meta( mixed $meta_id, mixed $post_id, mixed $meta_key ): void {
 	$key = Cast\to_string( $meta_key );
 	$id  = Cast\to_int( $post_id );
 
-	if ( $id < 1 || ! PostMetaText\valid_key( $key ) ) {
+	if ( $id < 1 || '' === $key ) {
 		return;
 	}
 

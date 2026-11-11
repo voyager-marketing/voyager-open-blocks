@@ -313,8 +313,14 @@ final class PurgeTest extends TestCase {
 		);
 	}
 
-	public function test_only_allowlisted_unprotected_meta_on_content_is_noted(): void {
-		add_filter( 'voyager_post_meta_text_fields', static fn () => [ '*' => [ 'price' => 'Price' ] ] );
+	public function test_only_allowlisted_meta_on_content_is_noted(): void {
+		add_filter(
+			'voyager_post_meta_text_fields',
+			static fn () => [
+				'*'    => [ 'price' => 'Price' ],
+				'page' => [ '_listed' => 'Listed by a filter' ],
+			]
+		);
 		$GLOBALS['voyager_test_post_types'] = [
 			5 => 'page',
 			9 => 'revision',
@@ -328,7 +334,8 @@ final class PurgeTest extends TestCase {
 		$this->assertSame( [], Purge\pending()['post_meta'] );
 
 		Purge\on_meta( 1, 5, 'price' );
-		$this->assertSame( [ 5 => [ 'price' ] ], Purge\pending()['post_meta'] );
+		Purge\on_meta( 1, 5, '_listed' );
+		$this->assertSame( [ 5 => [ '_listed', 'price' ] ], Purge\pending()['post_meta'], 'A key the filter allows counts, as it resolves.' );
 	}
 
 	public function test_post_meta_on_more_than_fifty_posts_purges_everything_when_anything_shows_it(): void {
