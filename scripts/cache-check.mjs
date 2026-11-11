@@ -198,6 +198,11 @@ async function measure( opts ) {
 		}
 		console.log( `ok   booted ${ site.url }` );
 
+		// Playground's CLI server answers the first HTTP request it gets with
+		// a 302 to the same URL, login or not. Spend it on a page load that
+		// follows redirects, before the cache is on, so no REST call gets it.
+		await createClient( site.url ).get( '/' );
+
 		// Before the cache is on: runPhp() loads WordPress outside a request.
 		const password = await appPassword( site );
 		const config = {
