@@ -2,8 +2,9 @@
 /**
  * What every ability shares: the category, meta, the permission callbacks,
  * the input schemas, attribute checks, the validation report, locate() and
- * finish(), and register(), which registers the abilities in their order.
- * Each ability's own registration and callback is in its file beside this one.
+ * finish(), saving with a revision, and register(), which registers the
+ * abilities in their order. Each ability's own registration and callback is
+ * in its file beside this one.
  *
  * Semantic abilities with an `item` or `path` parameter, not one per block.
  * Each callback is a thin adapter over inc/block-tree.php and inc/catalog.php.
@@ -71,7 +72,8 @@ function meta( bool $readonly, bool $idempotent ): array {
 		'annotations'  => [
 			'readonly'    => $readonly,
 			// Nothing here deletes content. configure and bind overwrite one
-			// attribute or binding, which is an update, not a destructive act.
+			// attribute or binding, which is an update, not a destructive act,
+			// and undo keeps the content it replaces in the post's revisions.
 			'destructive' => false,
 			'idempotent'  => $idempotent,
 		],
@@ -145,6 +147,37 @@ function path_schema(): array {
 }
 
 /**
+ * Schema for dry_run, the same on every ability that saves.
+ *
+ * @return array<string, mixed>
+ */
+function dry_run_schema(): array {
+	return [
+		'type'        => 'boolean',
+		'default'     => false,
+		'description' => 'Run every check and return the markup and validation without saving the post. A refusal is returned the same way as without dry_run.',
+	];
+}
+
+/**
+ * Output schema for revision_id and revision_note, the same on every ability that saves.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function revision_output_schema(): array {
+	return [
+		'revision_id'   => [
+			'type'        => [ 'integer', 'null' ],
+			'description' => 'The revision WordPress made for this save. Pass it to undo to reverse the save. null on a dry run, and when no revision was made; revision_note then says why.',
+		],
+		'revision_note' => [
+			'type'        => 'string',
+			'description' => 'Why revision_id is null, or why undo cannot reverse this save. Only when one of those holds.',
+		],
+	];
+}
+
+/**
  * Register the abilities.
  *
  * In this order, which is the order they are listed in. A new ability is a
@@ -157,6 +190,7 @@ function register(): void {
 	register_insert();
 	register_configure();
 	register_bind();
+	register_undo();
 	register_validate();
 }
 add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\register' );
@@ -273,9 +307,10 @@ function no_block_at( array $path ): WP_Error {
  * @param array<int, Block> $blocks  All blocks, already changed.
  * @param Block             $block   The changed block.
  * @param string            $path    Its path.
+ * @param bool              $dry_run Check and report, but save nothing.
  * @return array<string, mixed>|WP_Error
  */
-function finish( int $post_id, array $blocks, array $block, string $path ) {
+function finish( int $post_id, array $blocks, array $block, string $path, bool $dry_run = false ) {
 	$markup = serialize_block( $block );
 	$report = validation( [ $block ], $markup );
 
@@ -283,9 +318,13 @@ function finish( int $post_id, array $blocks, array $block, string $path ) {
 		return new WP_Error( 'voyager_open_blocks_invalid_attributes', 'The block did not pass validation: ' . implode( ' ', $report['errors'] ), [ 'status' => 400 ] );
 	}
 
-	$saved = BlockTree\save( $post_id, $blocks );
-	if ( is_wp_error( $saved ) ) {
-		return $saved;
+	$revision = [ 'revision_id' => null ];
+
+	if ( ! $dry_run ) {
+		$revision = save_blocks( $post_id, $blocks );
+		if ( is_wp_error( $revision ) ) {
+			return $revision;
+		}
 	}
 
 	return [
@@ -293,9 +332,203 @@ function finish( int $post_id, array $blocks, array $block, string $path ) {
 		'path'       => $path,
 		'block'      => $block['blockName'],
 		'attributes' => $block['attrs'],
+		'saved'      => ! $dry_run,
 		'markup'     => $markup,
 		'validation' => $report,
-	];
+	] + $revision;
+}
+
+/**
+ * Save blocks as a post's content, and name the revision WordPress made for the save.
+ *
+ * The post as it stands is stored as a revision first, unless the newest one
+ * already holds its content byte for byte. WordPress makes no revision when a
+ * post is created, only when it is updated, and compares with
+ * normalize_whitespace(), so without this the content before the first save
+ * through an ability would be in no revision and undo could not restore it.
+ *
+ * @param int               $post_id Post ID.
+ * @param array<int, Block> $blocks  Blocks.
+ * @return array{revision_id: int|null, revision_note?: string}|WP_Error
+ */
+function save_blocks( int $post_id, array $blocks ) {
+	$before = keep_current_state( $post_id );
+
+	$saved = BlockTree\save( $post_id, $blocks );
+	if ( is_wp_error( $saved ) ) {
+		return $saved;
+	}
+
+	return revision_made( $post_id, $before );
+}
+
+/**
+ * The revision a save made, read straight after it, or null and the reason.
+ *
+ * @param int      $post_id Post ID.
+ * @param int|null $before  The newest revision before the save, from keep_current_state().
+ * @return array{revision_id: int|null, revision_note?: string}
+ */
+function revision_made( int $post_id, ?int $before ): array {
+	$post = get_post( $post_id );
+
+	if ( ! $post instanceof \WP_Post || ! wp_revisions_enabled( $post ) ) {
+		return [
+			'revision_id'   => null,
+			'revision_note' => 'Revisions are off for this post (its post type does not support them, or the site keeps none), so WordPress kept no revision of this save and undo is unavailable.',
+		];
+	}
+
+	// wp_save_post_revision() skips an auto-draft, a post created and never
+	// saved, so neither this save nor the content before it is in a revision.
+	if ( 'auto-draft' === $post->post_status ) {
+		return [
+			'revision_id'   => null,
+			'revision_note' => 'This post is an auto-draft, and WordPress keeps no revisions of an auto-draft, so this save cannot be undone. Once the post is saved as a draft or published, each save returns a revision_id.',
+		];
+	}
+
+	// The same check as before the save: a change WordPress compared away,
+	// such as one in whitespace only, still gets a revision of its own.
+	$after = keep_current_state( $post_id );
+
+	if ( null === $after ) {
+		return [
+			'revision_id'   => null,
+			'revision_note' => 'WordPress made no revision of this save, so undo is unavailable for it.',
+		];
+	}
+
+	if ( $after === $before ) {
+		return [
+			'revision_id'   => null,
+			'revision_note' => 'The content did not change, so WordPress made no revision and there is nothing to undo.',
+		];
+	}
+
+	if ( null === prior_revision( revision_ids( $post_id ), $after, is_autosave( ... ) ) ) {
+		return [
+			'revision_id'   => $after,
+			'revision_note' => 'WordPress kept no revision from before this save (the site limits how many it keeps), so undo cannot restore the content it replaced.',
+		];
+	}
+
+	return [ 'revision_id' => $after ];
+}
+
+/**
+ * Store the post as it stands as a revision, unless the newest one already holds its content.
+ *
+ * Only post_content is compared, byte for byte, because it is all the
+ * abilities write and all undo restores.
+ *
+ * @param int $post_id Post ID.
+ * @return int|null The newest revision that is not an autosave, null when revisions are off or there is none.
+ */
+function keep_current_state( int $post_id ): ?int {
+	$post = get_post( $post_id );
+
+	if ( ! $post instanceof \WP_Post || ! wp_revisions_enabled( $post ) ) {
+		return null;
+	}
+
+	$latest = latest_revision( $post_id );
+
+	if ( null !== $latest && $latest->post_content === $post->post_content ) {
+		return $latest->ID;
+	}
+
+	// wp_save_post_revision() skips a post that matches its newest revision
+	// once whitespace is normalized. Ask it to save regardless, for this call only.
+	$always = static fn (): bool => false;
+	add_filter( 'wp_save_post_revision_check_for_changes', $always );
+	wp_save_post_revision( $post_id );
+	remove_filter( 'wp_save_post_revision_check_for_changes', $always );
+
+	return latest_revision( $post_id )?->ID;
+}
+
+/**
+ * A post's newest revision that is not an autosave.
+ *
+ * @param int $post_id Post ID.
+ */
+function latest_revision( int $post_id ): ?\WP_Post {
+	foreach ( revision_ids( $post_id ) as $id ) {
+		if ( ! is_autosave( $id ) ) {
+			return revision( $id );
+		}
+	}
+
+	return null;
+}
+
+/**
+ * A revision by ID, null when the ID names no revision.
+ *
+ * get_post() rather than wp_get_post_revision(), which takes its argument by reference.
+ *
+ * @param int $revision_id Revision ID.
+ */
+function revision( int $revision_id ): ?\WP_Post {
+	$revision = get_post( $revision_id );
+
+	return $revision instanceof \WP_Post && 'revision' === $revision->post_type ? $revision : null;
+}
+
+/**
+ * A post's revision IDs, autosaves included, newest first.
+ *
+ * In wp_get_post_revisions()'s order (date, then ID), which is the order the
+ * revisions screen shows. Read whether or not revisions are on now, so a
+ * revision made while they were on can still be found.
+ *
+ * @param int $post_id Post ID.
+ * @return list<int>
+ */
+function revision_ids( int $post_id ): array {
+	$ids = wp_get_post_revisions(
+		$post_id,
+		[
+			'fields'        => 'ids',
+			'check_enabled' => false,
+		]
+	);
+
+	return array_values( array_map( static fn ( mixed $id ): int => Cast\to_int( $id instanceof \WP_Post ? $id->ID : $id ), $ids ) );
+}
+
+/**
+ * Whether a revision is an autosave, which no ability makes and undo skips.
+ *
+ * @param int $revision_id Revision ID.
+ */
+function is_autosave( int $revision_id ): bool {
+	return false !== wp_is_post_autosave( $revision_id );
+}
+
+/**
+ * The revision before a given one: the content a save replaced.
+ *
+ * @param list<int>          $ids         Revision IDs, newest first, from revision_ids().
+ * @param int                $revision_id The revision a save made.
+ * @param callable(int):bool $autosave    Whether a revision is an autosave. Autosaves are skipped.
+ * @return int|null Null when $revision_id is not in the list, or no older revision is kept.
+ */
+function prior_revision( array $ids, int $revision_id, callable $autosave ): ?int {
+	$at = array_search( $revision_id, $ids, true );
+
+	if ( false === $at ) {
+		return null;
+	}
+
+	foreach ( array_slice( $ids, $at + 1 ) as $id ) {
+		if ( ! $autosave( $id ) ) {
+			return $id;
+		}
+	}
+
+	return null;
 }
 
 /**
