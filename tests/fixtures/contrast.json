@@ -1,0 +1,41 @@
+{
+	"$comment": "What npm run contrast renders and measures. Each theme renders the CTA band once per section style at 1280px, with one link put into its body text, and every target is measured against its background in every state listed. roles is the role map get-catalog must report on that theme: a positive control that the map under test is the one in use. plant is the low-contrast role map the control run sets through voyager_open_blocks_style_roles; the control passes only when every target at rest in the planted style fails (a hover can be the theme's own, such as Twenty Twenty-Four's grey outline hover). On twentytwentythree, which has no built-in map, the plant changes on-accent alone, so the Accent background the control measures is still the fallback's.",
+	"pattern": "voyager-open/cta-band",
+	"width": 1280,
+	"height": 900,
+	"floor": 4.5,
+	"min_pairs": 81,
+	"link": {
+		"text": "we will get back to you",
+		"href": "/contact/"
+	},
+	"styles": [ "panel", "inverted", "accent" ],
+	"targets": [
+		{ "name": "eyebrow", "selector": "p.has-small-font-size", "states": [ "rest" ] },
+		{ "name": "heading", "selector": "h2", "states": [ "rest" ] },
+		{ "name": "body", "selector": "p:not(.has-small-font-size)", "states": [ "rest" ] },
+		{ "name": "link", "selector": "p:not(.has-small-font-size) > a", "states": [ "rest", "hover" ] },
+		{ "name": "button", "selector": ".wp-block-button:not(.is-style-outline) > .wp-block-button__link", "states": [ "rest", "hover" ] },
+		{ "name": "outline button", "selector": ".wp-block-button.is-style-outline > .wp-block-button__link", "states": [ "rest", "hover" ] }
+	],
+	"themes": [
+		{
+			"theme": "twentytwentyfive",
+			"roles": "twentytwentyfive",
+			"editor": true,
+			"plant": { "style": "accent", "map": { "on-accent": "accent-3" } }
+		},
+		{
+			"theme": "twentytwentyfour",
+			"roles": "twentytwentyfour",
+			"editor": true,
+			"plant": { "style": "accent", "map": { "on-accent": "accent-3" } }
+		},
+		{
+			"theme": "twentytwentythree",
+			"roles": "fallback",
+			"editor": false,
+			"plant": { "style": "accent", "map": { "on-accent": "contrast" } }
+		}
+	]
+}
