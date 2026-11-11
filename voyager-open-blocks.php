@@ -36,6 +36,7 @@ require_once __DIR__ . '/inc/patterns.php';
 require_once __DIR__ . '/inc/block-styles.php';
 require_once __DIR__ . '/inc/block-tree.php';
 require_once __DIR__ . '/inc/catalog.php';
+require_once __DIR__ . '/inc/freshness/usage.php';
 require_once __DIR__ . '/inc/abilities.php';
 require_once __DIR__ . '/inc/onboarding.php';
 
