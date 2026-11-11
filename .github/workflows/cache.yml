@@ -4,21 +4,27 @@ name: Cache
 # already stored? Each row of the matrix is one cache and one mode, and runs
 # as its own check. docs/development.md ("Cache check") explains the modes.
 #
-# `expect` is what a row asserts about the harness's exit code:
-#   fresh  0  the change reached the page
-#   stale  1  the cache went on serving the old number
-# Exit 2 (the harness could not measure: no cache hit, the page did not
-# render the number, setup failed) fails every row, so a broken harness can
-# never pass as a stale page.
+# `expect` is the outcome a row asserts, read from the harness's result file:
+#   fresh  the change reached the page   (the harness exits 0)
+#   stale  the cache kept the old number (the harness exits 1)
+# scripts/cache-check-row.mjs passes a row only when the result file names
+# that outcome and the exit code agrees. The exit code alone is not enough:
+# Node exits 1 on an uncaught exception and npm exits 1 on a missing script,
+# and 1 is the code for stale. A crash writes no result file, or one that
+# says unmeasured, and fails every row.
 #
-# Two kinds of stale row:
-# - Controls (--no-purge) stay stale for good. They show the check can fail.
-# - Rows marked "until the pack purges" record today's bug: the pack does not
-#   purge anything when Site Data changes yet (contract 2 in
-#   docs/v2-contracts.md). When the purge lands, these rows go red, and the
-#   pull request that lands it flips their expect to fresh.
+# Four rows expect stale today, on purpose:
+# - The two --no-purge rows are controls and stay stale for good. They show
+#   the check can fail.
+# - `dummy --spy` and `wp-super-cache --real` record today's bug: the pack
+#   does not purge anything when Site Data changes (contract 2 in
+#   docs/v2-contracts.md). The change that adds the pack's purge flips
+#   `dummy --spy` to fresh, since the dummy cache offers the pack an
+#   adapter. `wp-super-cache --real` flips once a WP Super Cache adapter
+#   exists. Each goes red when its purge starts working, until its expect
+#   is flipped.
 #
-# A Wave 2 cache is a row in PLUGINS (scripts/lib/cache-check.mjs) and rows
+# A new cache is a row in PLUGINS (scripts/lib/cache-check.mjs) and rows
 # here: --real if it serves pages from PHP inside Playground, else --spy.
 
 on:
@@ -42,8 +48,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # WP Super Cache serving the page from PHP. Stale until the pack
-          # purges, then fresh.
+          # WP Super Cache serving the page from PHP. Stale until a WP Super
+          # Cache adapter exists, then fresh.
           - plugin: wp-super-cache
             mode: real
             flags: ''
@@ -54,8 +60,8 @@ jobs:
             mode: real
             flags: ' --no-purge'
             expect: stale
-          # The pack's own purge, through a cache adapter. Stale until the
-          # pack purges, then fresh.
+          # The pack's own purge, through the dummy cache's adapter. Stale
+          # until the pack purges, then fresh.
           - plugin: dummy
             mode: spy
             flags: ''
@@ -88,21 +94,15 @@ jobs:
           FLAGS: ${{ matrix.flags }}
           EXPECT: ${{ matrix.expect }}
         run: |
+          result="$RUNNER_TEMP/cache-check.json"
+          rm -f "$result"
           set +e
           # FLAGS is unquoted on purpose: it holds zero or more options.
           # shellcheck disable=SC2086
-          npm run cache-check -- --plugin "$PLUGIN" "--$MODE" $FLAGS --result-file "$RUNNER_TEMP/cache-check.json"
+          npm run cache-check -- --plugin "$PLUGIN" "--$MODE" $FLAGS --result-file "$result"
           code=$?
           set -e
-          case "$EXPECT:$code" in
-            fresh:0 | stale:1)
-              echo "ok   the harness exited $code: $EXPECT, as this row expects"
-              ;;
-            *)
-              echo "::error title=cache-check $PLUGIN --$MODE$FLAGS::This row expects $EXPECT, and the harness exited $code (0 fresh, 1 stale, 2 could not measure)."
-              exit 1
-              ;;
-          esac
+          node scripts/cache-check-row.mjs --expect "$EXPECT" --exit "$code" --result-file "$result"
 
       - name: Result
         if: always()

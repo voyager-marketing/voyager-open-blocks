@@ -18,8 +18,9 @@
  * 11. DESIGN.md lints with no errors and its sections in the format's order.
  * 12. The same linter rejects tests/invalid/design-broken-ref.md, so that
  *     gate is shown to bite.
- * 13. scripts/lib/cache-check.mjs (npm run cache-check's logic) passes its
- *     known-answer test, all of its 17 cases at least.
+ * 13. npm run cache-check's logic (scripts/lib/cache-check.mjs, and run() in
+ *     scripts/cache-check.mjs) passes its known-answer test, all of its 21
+ *     cases at least, planted crashes included.
  * 14. The test-count guard behind 10 and 13 rejects tests/invalid/no-tests.mjs,
  *     a test file with no tests, so that gate is shown to bite.
  *
@@ -301,10 +302,10 @@ report(
 // verdict needs nothing, so it is gated here.
 const cacheCheckTest = knownAnswer(
 	join( root, 'scripts', 'test-cache-check.mjs' ),
-	17
+	21
 );
 report(
-	'scripts/lib/cache-check.mjs passes its known-answer test',
+	"npm run cache-check's logic passes its known-answer test",
 	cacheCheckTest.ok,
 	cacheCheckTest.detail
 );

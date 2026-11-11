@@ -47,7 +47,7 @@ const MARKER = /<!-- voyager-open-cache-check rendered ([0-9a-f]+)\b[^>]*-->/;
  *            own voyager_open_blocks_purge action is not one: the action
  *            firing says nothing about whether a cache heard it.
  *
- * A Wave 2 cache is a new row here, plus a matrix row in
+ * A new cache is a new row here, plus a matrix row in
  * .github/workflows/cache.yml.
  */
 export const PLUGINS = {
@@ -434,4 +434,54 @@ export function summaryMarkdown( result ) {
 		lines.push( `${ result.label } ${ result.version }.`, '' );
 	}
 	return lines.join( '\n' );
+}
+
+/**
+ * Whether a row of .github/workflows/cache.yml passes: the result file names
+ * the outcome the row expects, and the exit code agrees with it.
+ *
+ * The exit code alone is not enough. Node exits 1 on an uncaught exception,
+ * and npm exits 1 when the script is missing, and 1 is also the code for
+ * stale, so a crashed harness would pass every row that expects stale. A
+ * crash writes no result file, or one that says unmeasured, and fails here.
+ *
+ * @param {Object}      row
+ * @param {string}      row.expect fresh or stale.
+ * @param {number}      row.exit   The harness's exit code.
+ * @param {Object|null} row.result The parsed --result-file, or null when it is missing or unreadable.
+ * @return {{ok: boolean, reason: string}} Whether the row passes, and why.
+ */
+export function rowVerdict( { expect, exit, result } ) {
+	if ( ! [ 'fresh', 'stale' ].includes( expect ) ) {
+		return {
+			ok: false,
+			reason: `A row expects fresh or stale, not ${ expect }.`,
+		};
+	}
+	if ( ! result || typeof result !== 'object' ) {
+		return {
+			ok: false,
+			reason: `The harness exited ${ exit } and wrote no result, so it did not finish. A crash is never ${ expect }.`,
+		};
+	}
+	if ( result.outcome !== expect ) {
+		return {
+			ok: false,
+			reason: `This row expects ${ expect }, and the harness reported ${
+				result.outcome
+			} (exit ${ exit }): ${ result.reason || 'no reason given' }`,
+		};
+	}
+	if ( exit !== EXIT[ expect ] || result.exit !== EXIT[ expect ] ) {
+		return {
+			ok: false,
+			reason: `The result says ${ expect }, which exits ${
+				EXIT[ expect ]
+			}, and the harness exited ${ exit }.`,
+		};
+	}
+	return {
+		ok: true,
+		reason: `${ expect }, as this row expects: ${ result.reason }`,
+	};
 }

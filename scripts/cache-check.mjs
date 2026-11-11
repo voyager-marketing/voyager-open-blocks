@@ -394,45 +394,16 @@ function report( result ) {
 	}
 }
 
-async function main() {
-	const problem = nodeVersionProblem();
-	if ( problem ) {
-		console.error( problem );
-		process.exit( EXIT.unmeasured );
-	}
-
-	let opts;
-	try {
-		opts = parseArgs( process.argv.slice( 2 ) );
-	} catch ( error ) {
-		if ( error instanceof UsageError ) {
-			console.error(
-				`${ error.message } Run npm run cache-check -- --help for the options.`
-			);
-			process.exit( EXIT.unmeasured );
-		}
-		throw error;
-	}
-	if ( opts.help ) {
-		console.log( HELP );
-		return;
-	}
-
-	setTimeout( () => {
-		annotate(
-			'error',
-			`npm run cache-check gave up after ${ TIMEOUT_MINUTES } minutes.`
-		);
-		process.exit( EXIT.unmeasured );
-	}, TIMEOUT_MINUTES * 60000 ).unref();
-
-	const result = await measure( opts );
-	result.exit = EXIT[ result.outcome ];
-	report( result );
-
-	if ( opts.resultFile ) {
+/**
+ * Write the result file and the job summary.
+ *
+ * @param {Object}      result     From measure().
+ * @param {string|null} resultFile --result-file, or nothing.
+ */
+function writeResult( result, resultFile ) {
+	if ( resultFile ) {
 		writeFileSync(
-			resolve( opts.resultFile ),
+			resolve( resultFile ),
 			JSON.stringify( result, null, 2 ) + '\n'
 		);
 	}
@@ -442,13 +413,89 @@ async function main() {
 			summaryMarkdown( result ) + '\n'
 		);
 	}
-	process.exit( result.exit );
+}
+
+/**
+ * The whole run, as an exit code. It never throws: a crash anywhere, in
+ * measure(), in stopping the site, in report() or in writing the result,
+ * comes back as 2 (unmeasured). Node's own code for an uncaught exception is
+ * 1, the code for stale, so a crash that escaped would pass as a stale page.
+ * scripts/test-cache-check.mjs plants crashes in each step to show it.
+ *
+ * @param {string[]}                                         argv                Arguments after the script name.
+ * @param {Object}                                           [steps]             Stand-ins for the steps, for the known-answer test.
+ * @param {(opts: Object) => Promise<Object>}                [steps.measure]     Boots, sets up and decides. Default measure().
+ * @param {(result: Object) => void}                         [steps.report]      Prints the result. Default report().
+ * @param {(result: Object, file: string|undefined) => void} [steps.writeResult] Writes --result-file. Default writeResult().
+ * @return {Promise<number>} The exit code: 0 fresh, 1 stale, 2 anything else.
+ */
+export async function run( argv, steps = {} ) {
+	const {
+		measure: doMeasure = measure,
+		report: doReport = report,
+		writeResult: doWrite = writeResult,
+	} = steps;
+	let opts = {};
+	try {
+		const problem = nodeVersionProblem();
+		if ( problem ) {
+			console.error( problem );
+			return EXIT.unmeasured;
+		}
+		try {
+			opts = parseArgs( argv );
+		} catch ( error ) {
+			if ( error instanceof UsageError ) {
+				console.error(
+					`${ error.message } Run npm run cache-check -- --help for the options.`
+				);
+				return EXIT.unmeasured;
+			}
+			throw error;
+		}
+		if ( opts.help ) {
+			console.log( HELP );
+			return 0;
+		}
+
+		const result = await doMeasure( opts );
+		result.exit = EXIT[ result.outcome ] ?? EXIT.unmeasured;
+		doReport( result );
+		doWrite( result, opts.resultFile );
+		return result.exit;
+	} catch ( error ) {
+		annotate(
+			'error',
+			`npm run cache-check crashed, so it measured nothing: ${
+				error?.stack || error
+			}`
+		);
+		// Best effort: a result file that says so. The workflow fails a row
+		// with no result file anyway.
+		try {
+			if ( opts.resultFile ) {
+				writeFileSync(
+					resolve( opts.resultFile ),
+					JSON.stringify(
+						{
+							outcome: 'unmeasured',
+							exit: EXIT.unmeasured,
+							reason: `The harness crashed: ${ error?.message || error }`,
+						},
+						null,
+						2
+					) + '\n'
+				);
+			}
+		} catch {}
+		return EXIT.unmeasured;
+	}
 }
 
 /**
  * True when this file is the script node was asked to run, not an import.
  *
- * @return {boolean} Whether to run main().
+ * @return {boolean} Whether to run run().
  */
 function isMain() {
 	if ( ! process.argv[ 1 ] ) {
@@ -462,5 +509,26 @@ function isMain() {
 }
 
 if ( isMain() ) {
-	await main();
+	// Whatever escapes run(), such as an error a Playground worker throws
+	// after the fact, exits 2 too, never Node's 1.
+	const crashed = ( error ) => {
+		annotate(
+			'error',
+			`npm run cache-check crashed, so it measured nothing: ${
+				error?.stack || error
+			}`
+		);
+		process.exit( EXIT.unmeasured );
+	};
+	process.on( 'uncaughtException', crashed );
+	process.on( 'unhandledRejection', crashed );
+	setTimeout( () => {
+		annotate(
+			'error',
+			`npm run cache-check gave up after ${ TIMEOUT_MINUTES } minutes.`
+		);
+		process.exit( EXIT.unmeasured );
+	}, TIMEOUT_MINUTES * 60000 ).unref();
+
+	process.exit( await run( process.argv.slice( 2 ) ) );
 }

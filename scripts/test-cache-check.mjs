@@ -10,8 +10,17 @@
  * verdicts on pages and records written out by hand. Each verdict is shown
  * giving all three outcomes, because a harness that cannot say "stale" or
  * "unmeasured" proves nothing when it says "fresh".
+ *
+ * It also plants crashes: in each step of run() in scripts/cache-check.mjs,
+ * which must answer 2, and a real Node crash (exit 1, the code for stale)
+ * fed to scripts/cache-check-row.mjs, which must fail a row expecting stale.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 import {
@@ -25,10 +34,19 @@ import {
 	parseArgs,
 	realVerdict,
 	renderMarker,
+	rowVerdict,
 	shows,
 	spyVerdict,
 	summaryMarkdown,
 } from './lib/cache-check.mjs';
+
+// run() writes a job summary and annotations in GitHub Actions. Neither
+// belongs in CI's log from a test, so both are off before it is imported.
+delete process.env.GITHUB_STEP_SUMMARY;
+process.env.GITHUB_ACTIONS = 'false';
+const { run } = await import( './cache-check.mjs' );
+
+const scripts = fileURLToPath( new URL( '.', import.meta.url ) );
 
 const URL_ = 'http://127.0.0.1:9400/voyager-open-cache-check/';
 
@@ -450,4 +468,199 @@ test( 'the job summary names the command, the outcome and the exit code', () => 
 	);
 	assert.match( text, /\*\*stale\*\* \(exit 1\)/ );
 	assert.match( text, /WP Super Cache 3\.1\.5/ );
+} );
+
+test( 'a row passes only when the result file and the exit code agree with it', () => {
+	const stale = { outcome: 'stale', exit: 1, reason: 'old number' };
+	const fresh = { outcome: 'fresh', exit: 0, reason: 'new number' };
+	const unmeasured = { outcome: 'unmeasured', exit: 2, reason: 'no hit' };
+	for ( const [ name, row, ok ] of [
+		[
+			'stale as expected',
+			{ expect: 'stale', exit: 1, result: stale },
+			true,
+		],
+		[
+			'fresh as expected',
+			{ expect: 'fresh', exit: 0, result: fresh },
+			true,
+		],
+		[
+			'a crash: exit 1 and no result',
+			{ expect: 'stale', exit: 1, result: null },
+			false,
+		],
+		[
+			'unmeasured, whatever the exit code',
+			{ expect: 'stale', exit: 1, result: unmeasured },
+			false,
+		],
+		[
+			'the purge landed: fresh where stale is expected',
+			{ expect: 'stale', exit: 0, result: fresh },
+			false,
+		],
+		[
+			'the exit code disagrees with the result',
+			{ expect: 'stale', exit: 2, result: stale },
+			false,
+		],
+		[
+			'an expectation that is neither',
+			{ expect: 'unmeasured', exit: 2, result: unmeasured },
+			false,
+		],
+	] ) {
+		assert.equal( rowVerdict( row ).ok, ok, name );
+	}
+} );
+
+test( 'a planted crash cannot pass a row that expects stale', () => {
+	// A real crash: Node exits 1 on an uncaught exception, the code for stale.
+	const crash = spawnSync(
+		process.execPath,
+		[ '-e', "throw new Error( 'planted crash' )" ],
+		{ encoding: 'utf8' }
+	);
+	assert.equal( crash.status, EXIT.stale );
+
+	const dir = mkdtempSync( join( tmpdir(), 'cache-check-row-' ) );
+	const row = ( resultFile ) =>
+		spawnSync(
+			process.execPath,
+			[
+				join( scripts, 'cache-check-row.mjs' ),
+				'--expect',
+				'stale',
+				'--exit',
+				String( crash.status ),
+				'--result-file',
+				resultFile,
+			],
+			{
+				encoding: 'utf8',
+				env: { ...process.env, GITHUB_ACTIONS: 'false' },
+			}
+		);
+
+	const missing = row( join( dir, 'never-written.json' ) );
+	assert.equal( missing.status, 1, missing.stdout + missing.stderr );
+	assert.match( missing.stderr, /wrote no result/ );
+
+	const said = join( dir, 'unmeasured.json' );
+	writeFileSync(
+		said,
+		JSON.stringify( { outcome: 'unmeasured', exit: 2, reason: 'crashed' } )
+	);
+	assert.equal( row( said ).status, 1 );
+
+	const stale = join( dir, 'stale.json' );
+	writeFileSync(
+		stale,
+		JSON.stringify( { outcome: 'stale', exit: 1, reason: 'old number' } )
+	);
+	assert.equal( row( stale ).status, 0 );
+} );
+
+/**
+ * A finished measurement, as measure() returns it.
+ *
+ * @param {string} outcome
+ * @return {Object} A result.
+ */
+function measured( outcome ) {
+	return {
+		plugin: 'wp-super-cache',
+		label: 'WP Super Cache',
+		mode: 'real',
+		noPurge: true,
+		standIn: false,
+		version: '3.1.5',
+		outcome,
+		reason: `planted ${ outcome }`,
+		observed: {},
+	};
+}
+
+const ARGV = [ '--plugin', 'wp-super-cache', '--real', '--no-purge' ];
+
+test( 'run() answers 2, never 1, when any step crashes, and the result file says so', async () => {
+	const dir = mkdtempSync( join( tmpdir(), 'cache-check-run-' ) );
+	const boom = () => {
+		throw new Error( 'planted crash' );
+	};
+	for ( const [ name, steps ] of [
+		[
+			'measure() throws',
+			{
+				measure: async () => boom(),
+			},
+		],
+		[
+			'stopping the site throws after a stale verdict',
+			{
+				measure: async () => {
+					try {
+						return measured( 'stale' );
+					} finally {
+						boom();
+					}
+				},
+			},
+		],
+		[
+			'report() throws after a stale verdict',
+			{ measure: async () => measured( 'stale' ), report: boom },
+		],
+		[
+			'writing the result throws after a stale verdict',
+			{
+				measure: async () => measured( 'stale' ),
+				report: () => {},
+				writeResult: boom,
+			},
+		],
+	] ) {
+		const file = join( dir, `${ name.replace( /\W+/g, '-' ) }.json` );
+		const code = await run( [ ...ARGV, '--result-file', file ], steps );
+		assert.equal( code, EXIT.unmeasured, name );
+		if ( existsSync( file ) ) {
+			assert.equal(
+				JSON.parse( readFileSync( file, 'utf8' ) ).outcome,
+				'unmeasured',
+				name
+			);
+		}
+	}
+
+	// The real writeResult(), pointed at a directory, fails to write.
+	const code = await run( [ ...ARGV, '--result-file', dir ], {
+		measure: async () => measured( 'stale' ),
+		report: () => {},
+	} );
+	assert.equal(
+		code,
+		EXIT.unmeasured,
+		'a result file that cannot be written'
+	);
+} );
+
+test( 'run() answers the outcome and writes it when nothing crashes', async () => {
+	const dir = mkdtempSync( join( tmpdir(), 'cache-check-run-' ) );
+	for ( const outcome of [ 'stale', 'fresh', 'unmeasured' ] ) {
+		const file = join( dir, `${ outcome }.json` );
+		const code = await run( [ ...ARGV, '--result-file', file ], {
+			measure: async () => measured( outcome ),
+			report: () => {},
+		} );
+		assert.equal( code, EXIT[ outcome ], outcome );
+		const written = JSON.parse( readFileSync( file, 'utf8' ) );
+		assert.equal( written.outcome, outcome );
+		assert.equal( written.exit, EXIT[ outcome ] );
+		assert.ok(
+			rowVerdict( { expect: outcome, exit: code, result: written } )
+				.ok ===
+				( outcome !== 'unmeasured' )
+		);
+	}
 } );
