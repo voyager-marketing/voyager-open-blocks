@@ -1,0 +1,2 @@
+type: feat
+Three section styles for a group, Panel, Inverted and Accent, take their colours from the active theme's palette, with built-in colour maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system and a fallback from the theme's own text and background colours elsewhere; `get-catalog` lists them, `configure` sets one with its new `style` input, and a theme can replace the colour map with the `voyager_open_blocks_style_roles` filter.

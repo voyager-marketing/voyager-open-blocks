@@ -34,6 +34,7 @@ require_once __DIR__ . '/inc/post-meta-text.php';
 require_once __DIR__ . '/inc/bindings-editor.php';
 require_once __DIR__ . '/inc/patterns.php';
 require_once __DIR__ . '/inc/block-styles.php';
+require_once __DIR__ . '/inc/section-styles.php';
 require_once __DIR__ . '/inc/block-tree.php';
 require_once __DIR__ . '/inc/catalog.php';
 require_once __DIR__ . '/inc/freshness/usage.php';

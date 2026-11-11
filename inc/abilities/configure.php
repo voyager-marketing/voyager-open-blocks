@@ -11,6 +11,7 @@ namespace VoyagerOpenBlocks\Abilities;
 
 use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
+use VoyagerOpenBlocks\SectionStyles;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -28,20 +29,25 @@ function register_configure(): void {
 		CATEGORY . '/configure',
 		[
 			'label'               => __( 'Configure a Voyager Open block', 'voyager-open-blocks' ),
-			'description'         => __( 'Sets attributes on a block in a post, validated against its block.json. Only blocks that save no HTML, so every attribute lives in the block comment (such as voyager-open/icon). A null value resets an attribute to its default. An attribute the block binds is refused with voyager_open_blocks_bound_slot and nothing is saved, because its value comes from the binding; null still resets it. dry_run runs every check, refusals included, and returns the markup without saving. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Sets attributes on a block in a post, validated against its block.json. Only blocks that save no HTML, so every attribute lives in the block comment (such as voyager-open/icon). A null value resets an attribute to its default. An attribute the block binds is refused with voyager_open_blocks_bound_slot and nothing is saved, because its value comes from the binding; null still resets it. style sets a section style on a core/group instead (panel, inverted or accent from get-catalog\'s styles, or plain for none): its is-style-* class in the block comment and on the saved wrapper, replacing any other style. dry_run runs every check, refusals included, and returns the markup without saving. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
 				'properties'           => [
 					'post_id'    => $post_id_schema,
 					'path'       => $path_schema,
+					'style'      => [
+						'type'        => 'string',
+						'enum'        => array_merge( [ 'plain' ], array_keys( SectionStyles\STYLES ) ),
+						'description' => 'Section style for a core/group, in place of attributes. plain takes the style off.',
+					],
 					'attributes' => [
 						'type'        => 'object',
 						'description' => 'Attributes to set.',
 					],
 					'dry_run'    => dry_run_schema(),
 				],
-				'required'             => [ 'post_id', 'path', 'attributes' ],
+				'required'             => [ 'post_id', 'path' ],
 				'additionalProperties' => false,
 			],
 			'output_schema'       => [
@@ -71,6 +77,24 @@ function configure( array $input ) {
 	$block = &BlockTree\find( $blocks, $path );
 	if ( null === $block ) {
 		return no_block_at( $path );
+	}
+
+	if ( isset( $input['style'] ) ) {
+		if ( isset( $input['attributes'] ) ) {
+			return new WP_Error( 'voyager_open_blocks_invalid_style', 'Pass style or attributes, not both: a section style goes on a core/group, which takes no attributes here.', [ 'status' => 400 ] );
+		}
+
+		$styled = SectionStyles\apply( $block, Cast\to_string( $input['style'] ) );
+		if ( is_wp_error( $styled ) ) {
+			return $styled;
+		}
+		$block = $styled;
+
+		return finish( Cast\to_int( $input['post_id'] ), $blocks, $block, implode( '/', $path ), ! empty( $input['dry_run'] ) );
+	}
+
+	if ( ! array_key_exists( 'attributes', $input ) ) {
+		return new WP_Error( 'voyager_open_blocks_invalid_attributes', 'Pass attributes to set, or style to set a section style.', [ 'status' => 400 ] );
 	}
 
 	// Before the other checks, so a bound attribute is named as bound even on a

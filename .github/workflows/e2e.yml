@@ -1,7 +1,7 @@
 name: E2E
 
 # The pack in a real WordPress (Playground) and a real block editor (headless
-# Chrome). Two jobs:
+# Chrome). Three jobs:
 #
 # - rest: boots the dev site (npm run dev) in the background, collects its
 #   site context with Wesper over REST, and runs npm run e2e against it: the
@@ -9,6 +9,8 @@ name: E2E
 # - editor: npm run e2e:editor boots its own fresh dev site and checks the
 #   first-run notice, Settings > Site Data, the editor hints, pasting each
 #   pattern and the front end, logged in as admin.
+# - contrast: npm run contrast boots its own dev site and measures text contrast
+#   in each section style on each theme in tests/fixtures/contrast.json.
 #
 # Job logs are not always at hand, so every failed assertion is also an error
 # annotation named after it, with what it saw.
@@ -122,3 +124,25 @@ jobs:
       # ubuntu-latest ships Google Chrome; the script finds it on PATH.
       - name: First-run notice, Site Data screen, editor hints, paste and front end
         run: npm run e2e:editor
+
+  contrast:
+    name: npm run contrast (section style contrast in headless Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # Boots its own dev site, renders the CTA band in each section style on
+      # each theme in tests/fixtures/contrast.json at 1280px, and measures text
+      # against its background from computed styles. Every run also plants a
+      # low-contrast role map and requires it to fail. ubuntu-latest ships
+      # Google Chrome; the script finds it on PATH.
+      - name: Measure every section style on every theme, and the planted control
+        run: npm run contrast

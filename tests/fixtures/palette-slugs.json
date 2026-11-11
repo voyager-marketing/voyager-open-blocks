@@ -1,0 +1,7 @@
+{
+	"$comment": "The palette slugs each section style role map is chosen by, in the order each theme.json declares them. twentytwentyfive, twentytwentyfour and twentytwentythree are the bundled themes in WordPress 7.1.4. voyager is the Voyager design system's theme.json at 2.14.0, which this public repo cannot load in CI. tests/Unit/SectionStylesTest.php checks every built-in map against these lists.",
+	"twentytwentyfive": [ "base", "contrast", "accent-1", "accent-2", "accent-3", "accent-4", "accent-5", "accent-6" ],
+	"twentytwentyfour": [ "base", "base-2", "contrast", "contrast-2", "contrast-3", "accent", "accent-2", "accent-3", "accent-4", "accent-5" ],
+	"twentytwentythree": [ "base", "contrast", "primary", "secondary", "tertiary" ],
+	"voyager": [ "bg-canvas", "bg-panel", "bg-raised", "bg-inset", "fg-1", "fg-2", "fg-3", "fg-4", "fg-5", "border-hair", "border-1", "border-strong", "accent", "accent-strong", "accent-bright", "accent-fg-on", "accent-2", "accent-2-strong", "link", "link-hover", "warn", "success", "critical", "info", "signal-ok", "signal-down", "signal-flat", "field-bg", "field-dim", "field-mid", "field-hot", "field-accent" ]
+}
