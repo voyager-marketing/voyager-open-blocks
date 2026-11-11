@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "Permissions.allow block for a PUBLIC repo that /mission drains (VOY-1807, parent VOY-1801).",
+    "Permissions.allow block for a PUBLIC repo that /mission drains.",
     "Merge this into the repo's TRACKED .claude/settings.json. It is the private template",
     "(claude-settings-permissions.json) minus every mcp__* grant.",
     "",

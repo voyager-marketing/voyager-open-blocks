@@ -25,7 +25,7 @@ const SOURCE = 'voyager/site-data';
  * Field list, in voyager-blocks' shape: key => { label, type, args? }.
  *
  * One field leaves its args to the default `{ "key": "<key>" }`; the other
- * declares its own, which a consumer must use verbatim (VOY-477).
+ * declares its own, which a consumer must use verbatim.
  *
  * @return array<string, array<string, mixed>>
  */
