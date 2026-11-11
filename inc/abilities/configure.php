@@ -28,7 +28,7 @@ function register_configure(): void {
 		CATEGORY . '/configure',
 		[
 			'label'               => __( 'Configure a Voyager Open block', 'voyager-open-blocks' ),
-			'description'         => __( 'Sets attributes on a block in a post, validated against its block.json. Only blocks that save no HTML, so every attribute lives in the block comment (such as voyager-open/icon). A null value resets an attribute to its default. An attribute the block binds is refused with voyager_open_blocks_bound_slot and nothing is saved, because its value comes from the binding; null still resets it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Sets attributes on a block in a post, validated against its block.json. Only blocks that save no HTML, so every attribute lives in the block comment (such as voyager-open/icon). A null value resets an attribute to its default. An attribute the block binds is refused with voyager_open_blocks_bound_slot and nothing is saved, because its value comes from the binding; null still resets it. dry_run runs every check, refusals included, and returns the markup without saving. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -39,11 +39,15 @@ function register_configure(): void {
 						'type'        => 'object',
 						'description' => 'Attributes to set.',
 					],
+					'dry_run'    => dry_run_schema(),
 				],
 				'required'             => [ 'post_id', 'path', 'attributes' ],
 				'additionalProperties' => false,
 			],
-			'output_schema'       => [ 'type' => 'object' ],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [ 'saved' => [ 'type' => 'boolean' ] ] + revision_output_schema(),
+			],
 			'execute_callback'    => __NAMESPACE__ . '\configure',
 			'permission_callback' => __NAMESPACE__ . '\can_edit_post',
 			'meta'                => meta( false, true ),
@@ -70,7 +74,8 @@ function configure( array $input ) {
 	}
 
 	// Before the other checks, so a bound attribute is named as bound even on a
-	// block configure cannot change, such as the CTA band's call button.
+	// block configure cannot change, such as the CTA band's call button. A dry
+	// run is refused the same way.
 	$refused = bound_attribute_slots( $block, assoc( $input['attributes'] ?? null ), implode( '/', $path ) );
 	if ( [] !== $refused ) {
 		return bound_slot_error( 'attributes', $refused );
@@ -89,5 +94,5 @@ function configure( array $input ) {
 		}
 	}
 
-	return finish( Cast\to_int( $input['post_id'] ), $blocks, $block, implode( '/', $path ) );
+	return finish( Cast\to_int( $input['post_id'] ), $blocks, $block, implode( '/', $path ), ! empty( $input['dry_run'] ) );
 }

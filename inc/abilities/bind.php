@@ -29,7 +29,7 @@ function register_bind(): void {
 		CATEGORY . '/bind',
 		[
 			'label'               => __( 'Bind a block attribute to a field', 'voyager-open-blocks' ),
-			'description'         => __( 'Writes a block binding: the attribute must be bindable for that block, and args must match a field listed by get-catalog (or the Wesper manifest) exactly. Args are never built for you. In a template, pass post_type: the post type it shows.', 'voyager-open-blocks' ),
+			'description'         => __( 'Writes a block binding: the attribute must be bindable for that block, and args must match a field listed by get-catalog (or the Wesper manifest) exactly. Args are never built for you. In a template, pass post_type: the post type it shows. dry_run runs every check and returns the markup without saving. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -52,11 +52,15 @@ function register_bind(): void {
 						'type'        => 'string',
 						'description' => 'Post type whose fields args are checked against. Defaults to the post\'s own type. In a template, template part or synced pattern, or inside a Query Loop, pass the post type the block shows, such as "post" for the single template, and copy args from get-catalog for that type.',
 					],
+					'dry_run'   => dry_run_schema(),
 				],
 				'required'             => [ 'post_id', 'path', 'attribute', 'source', 'args' ],
 				'additionalProperties' => false,
 			],
-			'output_schema'       => [ 'type' => 'object' ],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [ 'saved' => [ 'type' => 'boolean' ] ] + revision_output_schema(),
+			],
 			'execute_callback'    => __NAMESPACE__ . '\bind',
 			'permission_callback' => __NAMESPACE__ . '\can_edit_post',
 			'meta'                => meta( false, true ),
@@ -117,5 +121,5 @@ function bind( array $input ) {
 	$metadata['bindings']       = $bindings;
 	$block['attrs']['metadata'] = $metadata;
 
-	return finish( $post_id, $blocks, $block, implode( '/', $path ) );
+	return finish( $post_id, $blocks, $block, implode( '/', $path ), ! empty( $input['dry_run'] ) );
 }
