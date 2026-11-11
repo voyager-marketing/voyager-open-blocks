@@ -18,15 +18,15 @@ name: Cache
 # expect fresh:
 # - `dummy --spy`: the dummy cache offers the pack an adapter, and the
 #   adapter is told to purge the page.
-# - `wp-super-cache --real`: no WP Super Cache adapter exists. The pack's
-#   purge calls clean_post_cache() for each page that shows the field, up
-#   to 50, and WP Super Cache 3.1.5 purges that page on clean_post_cache
-#   (wpsc_register_post_hooks() in wp-cache-phase2.php).
+# - `wp-super-cache --real`: the pack's purge calls clean_post_cache() for
+#   each page that shows the field, up to 50, and WP Super Cache 3.1.5
+#   purges that page on clean_post_cache (wpsc_register_post_hooks() in
+#   wp-cache-phase2.php). The pack's WP Super Cache adapter
+#   (inc/cache/wp-super-cache.php) deletes the page's URL too.
 # - `wp-super-cache --real --pages 51`: 51 pages show the phone, and the
 #   one measured has the highest ID, so it is past the 50 the purge cleans
-#   one by one. The purge sets purge_all for it, and only a WP Super Cache
-#   adapter (inc/cache/wp-super-cache.php) turns purge_all into a clear of
-#   WP Super Cache's cache.
+#   one by one. The purge sets purge_all for it, and the WP Super Cache
+#   adapter turns purge_all into a clear of WP Super Cache's cache.
 # The three --no-purge rows are controls and stay stale for good. They show
 # the check can fail. On a one-page row the empty URL list switches the
 # whole purge off, clean_post_cache() included. On the 51-page row the
@@ -57,8 +57,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # WP Super Cache serving the page from PHP. Fresh with no adapter:
-          # it purges the page on the pack's clean_post_cache() call.
+          # WP Super Cache serving the page from PHP. Fresh: it purges the
+          # page on the pack's clean_post_cache() call, and the pack's
+          # adapter deletes the page's URL.
           - plugin: wp-super-cache
             mode: real
             flags: ''
