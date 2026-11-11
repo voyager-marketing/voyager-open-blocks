@@ -200,7 +200,7 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 
 ## Do's and Don'ts
 
-Each rule names the check that enforces it, or says judge only. `lint` runs in `npm run check`. `contrast` runs in CI for the section styles today (`npm run contrast`: the CTA band in each style at 1280 px on Twenty Twenty-Five, Twenty Twenty-Four and Twenty Twenty-Three, the last on the fallback roles). The rest are planned and not in CI yet. The rendered ones (`contrast`, `overflow`, `a11y`, `impeccable`, `motion`) will render every pattern and style at 320, 390, 768 and 1280 px on public themes.
+Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast` runs in CI for the section styles today (`npm run contrast`: the CTA band in each style at 1280 px on Twenty Twenty-Five, Twenty Twenty-Four and Twenty Twenty-Three, the last on the fallback roles). The rest are planned and not in CI yet. The rendered ones (`contrast`, `overflow`, `a11y`, `impeccable`, `motion`) will render every pattern and style at 320, 390, 768 and 1280 px on public themes.
 
 | Check | Fails when |
 | -- | -- |
@@ -210,7 +210,7 @@ Each rule names the check that enforces it, or says judge only. `lint` runs in `
 | `a11y` | an accessibility scan of a render reports a violation |
 | `impeccable` | Impeccable's rules report an error on a render |
 | `motion` | anything moves in a reduced-motion render |
-| `presets` | pattern markup sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug above `60`, or uses `core/html` |
+| `presets` | pattern markup sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug outside `20` to `60`, or uses `core/html` or HTML outside a block |
 | `rhythm` | a recipe or a composed page breaks the Layout rule on adjacent styles |
 | `validate` | the `validate` ability reports an image with no alt text or a placeholder left in place |
 
