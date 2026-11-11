@@ -23,6 +23,13 @@
  *      saved page and on broken markup, including one case only block-runner catches,
  *      and its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
  *   6. fetches the page and checks the bound values rendered,
+ *  6b. on pages of its own, trial runs and undo: insert, configure and bind
+ *      return revision_id, undo with it restores the content byte for byte and
+ *      undoing the undo puts the change back, configure and bind with dry_run
+ *      change nothing, a dry run is refused for a bound slot as a save is, and
+ *      undo refuses another post's revision and a contributor on a page they
+ *      cannot edit, while a contributor can undo on their own draft, and undo
+ *      refuses to reverse a person's later edit unless forced,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
  *      binds its link to Site Data, then checks it resolves and validates,
@@ -227,9 +234,10 @@ const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.sort();
 step(
 	'abilities listed',
-	names.length === 7 &&
+	names.length === 8 &&
 		names.includes( `${ ns }/validate` ) &&
-		names.includes( `${ ns }/find-posts` ),
+		names.includes( `${ ns }/find-posts` ) &&
+		names.includes( `${ ns }/undo` ),
 	names.join( ', ' )
 );
 
@@ -958,6 +966,429 @@ step(
 	telLinks.length >= 2,
 	telLinks.join( ' ' )
 );
+
+// 6b. Trial runs and undo, on pages of their own so the step 2 page is left
+// as it was. Every save returns revision_id, the revision WordPress made for
+// it, and undo with that ID restores the content the save replaced, byte for
+// byte. A page created over REST has no revision until its first update, so
+// the first undo also shows the abilities store the state before their save.
+// The block keeps its names to itself; it deletes what it creates.
+{
+	const contentOf = async ( route, as = auth ) =>
+		( await api( route, { query: { context: 'edit' }, as } ) ).data.content
+			?.raw ?? null;
+	const revisionOf = ( response ) => response.data.revision_id;
+	const startingContent =
+		'<!-- wp:paragraph -->\n<p>Before the insert: Smith &amp; Sons, "since 1998".</p>\n<!-- /wp:paragraph -->';
+
+	const undoPage = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E: undo ${ stamp }`,
+			status: 'publish',
+			content: startingContent,
+		},
+	} );
+	const undoId = undoPage.data.id;
+	const undoRoute = `/wp/v2/pages/${ undoId }`;
+	const beforeInsert = await contentOf( undoRoute );
+	step(
+		'undo: page created',
+		undoPage.status === 201 && !! beforeInsert,
+		undoPage.data.code || `id ${ undoId }`
+	);
+
+	// Fitness, part 1: insert, then undo with the revision_id insert returned.
+	const inserted = await run( `${ ns }/insert`, {
+		post_id: undoId,
+		item: 'voyager-open/icon',
+		attributes: { icon: 'phone', size: 32, label: 'Call us' },
+	} );
+	const afterInsert = await contentOf( undoRoute );
+	step(
+		'insert returns revision_id, the revision WordPress made for its save',
+		inserted.status === 200 &&
+			inserted.data.saved === true &&
+			Number.isInteger( revisionOf( inserted ) ) &&
+			afterInsert !== beforeInsert,
+		inserted.data.message || `revision ${ revisionOf( inserted ) }`
+	);
+
+	const undone = await run( `${ ns }/undo`, {
+		post_id: undoId,
+		revision_id: revisionOf( inserted ),
+	} );
+	const afterUndo = await contentOf( undoRoute );
+	step(
+		"undo with insert's revision_id restores the page's post_content byte for byte",
+		undone.status === 200 &&
+			undone.data.matches === true &&
+			Number.isInteger( revisionOf( undone ) ) &&
+			!! beforeInsert &&
+			afterUndo === beforeInsert,
+		undone.data.message ||
+			`restored revision ${ undone.data.restored }: ${ JSON.stringify( afterUndo ) }`
+	);
+
+	const redone = await run( `${ ns }/undo`, {
+		post_id: undoId,
+		revision_id: revisionOf( undone ),
+	} );
+	const afterRedo = await contentOf( undoRoute );
+	step(
+		"undo with undo's own revision_id puts the insert back",
+		redone.status === 200 && !! afterInsert && afterRedo === afterInsert,
+		redone.data.message || `restored revision ${ redone.data.restored }`
+	);
+
+	// Fitness, part 2: configure and bind with dry_run return what they would
+	// save and save nothing.
+	const iconAt = inserted.data.blocks?.[ 0 ]?.path;
+	const trialConfigure = await run( `${ ns }/configure`, {
+		post_id: undoId,
+		path: iconAt,
+		attributes: { size: 48 },
+		dry_run: true,
+	} );
+	const afterTrialConfigure = await contentOf( undoRoute );
+	step(
+		'configure with dry_run returns the would-be markup and leaves post_content unchanged',
+		trialConfigure.status === 200 &&
+			trialConfigure.data.saved === false &&
+			trialConfigure.data.revision_id === null &&
+			( trialConfigure.data.markup || '' ).includes( '"size":48' ) &&
+			!! afterInsert &&
+			afterTrialConfigure === afterInsert,
+		trialConfigure.data.message || trialConfigure.data.markup
+	);
+
+	const trialBind = await run( `${ ns }/bind`, {
+		post_id: undoId,
+		path: iconAt,
+		attribute: 'linkUrl',
+		source: 'voyager/site-data',
+		args: field,
+		dry_run: true,
+	} );
+	const afterTrialBind = await contentOf( undoRoute );
+	step(
+		'bind with dry_run returns the would-be markup and leaves post_content unchanged',
+		trialBind.status === 200 &&
+			trialBind.data.saved === false &&
+			trialBind.data.revision_id === null &&
+			( trialBind.data.markup || '' ).includes( '"key":"phone_link"' ) &&
+			!! afterInsert &&
+			afterTrialBind === afterInsert,
+		trialBind.data.message || trialBind.data.markup
+	);
+
+	const configuredSave = await run( `${ ns }/configure`, {
+		post_id: undoId,
+		path: iconAt,
+		attributes: { size: 48 },
+	} );
+	const afterConfigure = await contentOf( undoRoute );
+	step(
+		'configure returns revision_id when it saves',
+		configuredSave.status === 200 &&
+			configuredSave.data.saved === true &&
+			Number.isInteger( revisionOf( configuredSave ) ) &&
+			revisionOf( configuredSave ) !== revisionOf( inserted ) &&
+			( afterConfigure || '' ).includes( '"size":48' ),
+		configuredSave.data.message ||
+			`revision ${ revisionOf( configuredSave ) }`
+	);
+
+	// A save that changes nothing makes no revision, and says so rather than
+	// naming an older save that undo would then reverse.
+	const sameAgain = await run( `${ ns }/configure`, {
+		post_id: undoId,
+		path: iconAt,
+		attributes: { size: 48 },
+	} );
+	step(
+		'configure that changes nothing returns revision_id null and a revision_note',
+		sameAgain.status === 200 &&
+			sameAgain.data.revision_id === null &&
+			!! sameAgain.data.revision_note &&
+			( await contentOf( undoRoute ) ) === afterConfigure,
+		sameAgain.data.message || sameAgain.data.revision_note
+	);
+
+	const boundSave = await run( `${ ns }/bind`, {
+		post_id: undoId,
+		path: iconAt,
+		attribute: 'linkUrl',
+		source: 'voyager/site-data',
+		args: field,
+	} );
+	const afterBind = await contentOf( undoRoute );
+	step(
+		'bind returns revision_id when it saves',
+		boundSave.status === 200 &&
+			boundSave.data.saved === true &&
+			Number.isInteger( revisionOf( boundSave ) ) &&
+			( afterBind || '' ).includes( '"key":"phone_link"' ),
+		boundSave.data.message || `revision ${ revisionOf( boundSave ) }`
+	);
+
+	// A trial run is refused for a bound slot exactly as a save is.
+	const trialBound = await run( `${ ns }/configure`, {
+		post_id: undoId,
+		path: iconAt,
+		attributes: { linkUrl: 'tel:+15555550113' },
+		dry_run: true,
+	} );
+	step(
+		"configure with dry_run is refused for the icon's bound linkUrl with voyager_open_blocks_bound_slot, and saves nothing",
+		trialBound.status === 400 &&
+			trialBound.data.code === 'voyager_open_blocks_bound_slot' &&
+			( await contentOf( undoRoute ) ) === afterBind,
+		trialBound.data.message || trialBound.data.code
+	);
+
+	const trialCopy = await run( `${ ns }/insert`, {
+		post_id: undoId,
+		item: 'voyager-open/cta-band',
+		copy: { 'Click to call': '(555) 555-0113' },
+		dry_run: true,
+	} );
+	step(
+		'insert with dry_run is refused for copy aimed at the bound "Click to call" with voyager_open_blocks_bound_slot, and saves nothing',
+		trialCopy.status === 400 &&
+			trialCopy.data.code === 'voyager_open_blocks_bound_slot' &&
+			( await contentOf( undoRoute ) ) === afterBind,
+		trialCopy.data.message || trialCopy.data.code
+	);
+
+	const unbound = await run( `${ ns }/undo`, {
+		post_id: undoId,
+		revision_id: revisionOf( boundSave ),
+	} );
+	step(
+		"undo with bind's revision_id restores the content configure left",
+		unbound.status === 200 &&
+			unbound.data.matches === true &&
+			!! afterConfigure &&
+			( await contentOf( undoRoute ) ) === afterConfigure,
+		unbound.data.message || `restored revision ${ unbound.data.restored }`
+	);
+
+	// Another post's revision is refused, even one the user may edit.
+	const otherPage = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E: undo other ${ stamp }`,
+			status: 'draft',
+			content: startingContent,
+		},
+	} );
+	const otherInsert = await run( `${ ns }/insert`, {
+		post_id: otherPage.data.id,
+		item: 'voyager-open/icon',
+		attributes: { icon: 'phone' },
+	} );
+	const foreign = await run( `${ ns }/undo`, {
+		post_id: undoId,
+		revision_id: revisionOf( otherInsert ),
+	} );
+	step(
+		'undo refuses a revision of another post with voyager_open_blocks_invalid_revision, and changes nothing',
+		Number.isInteger( revisionOf( otherInsert ) ) &&
+			foreign.status === 400 &&
+			foreign.data.code === 'voyager_open_blocks_invalid_revision' &&
+			( await contentOf( undoRoute ) ) === afterConfigure,
+		foreign.data.message || foreign.data.code
+	);
+
+	// A contributor cannot undo on a page they cannot edit. The same
+	// contributor can undo their own insert on their own draft, so the refusal
+	// is about the page, not the ability.
+	const writer = await api( '/wp/v2/users', {
+		method: 'POST',
+		body: {
+			username: `voyager-open-e2e-undo-${ stamp }`,
+			email: `voyager-open-e2e-undo-${ stamp }@example.com`,
+			password: `${ stamp }-${ Math.random().toString( 36 ).slice( 2 ) }`,
+			roles: [ 'contributor' ],
+		},
+	} );
+	const writerKey = writer.data.id
+		? await api( `/wp/v2/users/${ writer.data.id }/application-passwords`, {
+				method: 'POST',
+				body: { name: 'e2e' },
+			} )
+		: { data: {} };
+	const asWriter =
+		'Basic ' +
+		Buffer.from(
+			`${ writer.data.username }:${ writerKey.data.password }`
+		).toString( 'base64' );
+
+	const writerUndo = await run(
+		`${ ns }/undo`,
+		{ post_id: undoId, revision_id: revisionOf( configuredSave ) },
+		false,
+		asWriter
+	);
+	step(
+		'undo refuses a contributor on a page they cannot edit, and changes nothing',
+		writer.status === 201 &&
+			!! writerKey.data.password &&
+			writerUndo.status === 403 &&
+			( await contentOf( undoRoute ) ) === afterConfigure,
+		writerUndo.data.code || `status ${ writerUndo.status }`
+	);
+
+	const draft = await api( '/wp/v2/posts', {
+		method: 'POST',
+		body: {
+			title: `E2E: contributor undo ${ stamp }`,
+			status: 'draft',
+			content: startingContent,
+		},
+		as: asWriter,
+	} );
+	const draftRoute = `/wp/v2/posts/${ draft.data.id }`;
+	const draftBefore = await contentOf( draftRoute, asWriter );
+	const draftInsert = await run(
+		`${ ns }/insert`,
+		{
+			post_id: draft.data.id,
+			item: 'voyager-open/icon',
+			attributes: { icon: 'phone' },
+		},
+		false,
+		asWriter
+	);
+	const draftUndo = await run(
+		`${ ns }/undo`,
+		{ post_id: draft.data.id, revision_id: revisionOf( draftInsert ) },
+		false,
+		asWriter
+	);
+	step(
+		'a contributor can insert into their own draft and undo it, byte for byte',
+		draft.status === 201 &&
+			draftInsert.status === 200 &&
+			Number.isInteger( revisionOf( draftInsert ) ) &&
+			draftUndo.status === 200 &&
+			!! draftBefore &&
+			( await contentOf( draftRoute, asWriter ) ) === draftBefore,
+		draftUndo.data.message ||
+			draftInsert.data.message ||
+			`status ${ draftInsert.status } then ${ draftUndo.status }`
+	);
+
+	// Undo never reverses a save it was not given without saying so. A person
+	// edits the page after the agent's save, through the REST route the editor
+	// saves with: undo with the agent's revision_id is refused and names that
+	// edit, force reverses both, and undoing the forced undo brings the
+	// person's edit back.
+	const clashPage = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E: undo conflict ${ stamp }`,
+			status: 'publish',
+			content: startingContent,
+		},
+	} );
+	const clashId = clashPage.data.id;
+	const clashRoute = `/wp/v2/pages/${ clashId }`;
+	const clashBefore = await contentOf( clashRoute );
+	const agentSave = await run( `${ ns }/insert`, {
+		post_id: clashId,
+		item: 'voyager-open/icon',
+		attributes: { icon: 'phone', label: 'Call us' },
+	} );
+	const afterAgent = await contentOf( clashRoute );
+	const personEdit = await api( clashRoute, {
+		method: 'POST',
+		body: {
+			content: `${ afterAgent }\n\n<!-- wp:paragraph -->\n<p>Added by a person in the editor.</p>\n<!-- /wp:paragraph -->`,
+		},
+	} );
+	const afterPerson = await contentOf( clashRoute );
+	const clashRevisions = await api( `${ clashRoute }/revisions`, {
+		query: { per_page: 100, context: 'edit' },
+	} );
+	const personRevision = Math.max(
+		...( Array.isArray( clashRevisions.data )
+			? clashRevisions.data
+			: []
+		).map( ( revision ) => revision.id )
+	);
+
+	const clash = await run( `${ ns }/undo`, {
+		post_id: clashId,
+		revision_id: revisionOf( agentSave ),
+	} );
+	const later = clash.data.data?.later || [];
+	step(
+		'undo refuses when the post was saved after revision_id with voyager_open_blocks_undo_conflict, names that save, and changes nothing',
+		Number.isInteger( revisionOf( agentSave ) ) &&
+			personEdit.status === 200 &&
+			!! afterAgent &&
+			afterPerson !== afterAgent &&
+			clash.status === 409 &&
+			clash.data.code === 'voyager_open_blocks_undo_conflict' &&
+			later.length === 1 &&
+			later[ 0 ].revision_id === personRevision &&
+			!! later[ 0 ].author &&
+			!! later[ 0 ].date_gmt &&
+			( await contentOf( clashRoute ) ) === afterPerson,
+		clash.data.message || JSON.stringify( clash.data )
+	);
+
+	const forced = await run( `${ ns }/undo`, {
+		post_id: clashId,
+		revision_id: revisionOf( agentSave ),
+		force: true,
+	} );
+	const reversedIds = ( forced.data.reversed || [] ).map(
+		( row ) => row.revision_id
+	);
+	step(
+		"undo with force reverses the agent's save and the person's, and lists both",
+		forced.status === 200 &&
+			forced.data.matches === true &&
+			!! clashBefore &&
+			( await contentOf( clashRoute ) ) === clashBefore &&
+			JSON.stringify( reversedIds ) ===
+				JSON.stringify( [ revisionOf( agentSave ), personRevision ] ),
+		forced.data.message || `reversed ${ JSON.stringify( reversedIds ) }`
+	);
+
+	const unforced = await run( `${ ns }/undo`, {
+		post_id: clashId,
+		revision_id: revisionOf( forced ),
+	} );
+	step(
+		"undo with the forced undo's revision_id brings the person's edit back",
+		unforced.status === 200 &&
+			!! afterPerson &&
+			( await contentOf( clashRoute ) ) === afterPerson,
+		unforced.data.message || `restored revision ${ unforced.data.restored }`
+	);
+
+	for ( const route of [
+		undoId && undoRoute,
+		otherPage.data.id && `/wp/v2/pages/${ otherPage.data.id }`,
+		draft.data.id && draftRoute,
+		clashId && clashRoute,
+	] ) {
+		if ( route ) {
+			await api( route, { method: 'DELETE', query: { force: true } } );
+		}
+	}
+	if ( writer.data.id ) {
+		const admin = await api( '/wp/v2/users/me' );
+		await api( `/wp/v2/users/${ writer.data.id }`, {
+			method: 'DELETE',
+			query: { force: true, reassign: admin.data.id },
+		} );
+	}
+}
 
 // 7. The icon prompt, end to end: "Add a phone icon next to the call button
 // in my header, linked to my Site Data phone number." The header is a

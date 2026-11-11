@@ -50,7 +50,7 @@ function register_insert(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items whose text is not bound; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items whose text is not bound; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block. dry_run runs every check and saves nothing. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -115,11 +115,7 @@ function register_insert(): void {
 						],
 						'description'          => 'Patterns in copy mode only. Adds copies of a named block right after it, one per new label, such as {"Credential 4": ["Credential 5", "Credential 6"]} for a proof strip with six facts. Fill the new labels with copy. Runs before omit and copy. Not for the whole pattern, a block that holds named blocks, or a label used twice.',
 					],
-					'dry_run'    => [
-						'type'        => 'boolean',
-						'default'     => false,
-						'description' => 'Return the markup without saving the post.',
-					],
+					'dry_run'    => dry_run_schema(),
 				],
 				'required'             => [ 'post_id', 'item' ],
 				'additionalProperties' => false,
@@ -142,7 +138,7 @@ function register_insert(): void {
 					],
 					'blocks'         => [ 'type' => 'array' ],
 					'validation'     => [ 'type' => 'object' ],
-				],
+				] + revision_output_schema(),
 			],
 			'execute_callback'    => __NAMESPACE__ . '\insert',
 			'permission_callback' => __NAMESPACE__ . '\can_edit_post',
@@ -314,10 +310,12 @@ function insert( array $input ) {
 		}
 	}
 
+	$revision = [ 'revision_id' => null ];
+
 	if ( ! $dry_run ) {
-		$saved = BlockTree\save( $post_id, $blocks );
-		if ( is_wp_error( $saved ) ) {
-			return $saved;
+		$revision = save_blocks( $post_id, $blocks );
+		if ( is_wp_error( $revision ) ) {
+			return $revision;
 		}
 	}
 
@@ -329,7 +327,7 @@ function insert( array $input ) {
 		'markup'     => $markup,
 		'blocks'     => $rows,
 		'validation' => $report,
-	] + $out;
+	] + $out + $revision;
 }
 
 /**
