@@ -178,4 +178,16 @@ A new ability that builds a draft page from a recipe or a list of sections.
 New Site Data fields for what a local business page says about itself.
 
 - New options: `voyager_site_services`, `voyager_site_service_area` and `voyager_site_credentials` (one item per line), `voyager_site_founded` (a year), `voyager_site_license`, `voyager_site_rating` (0 to 5, one decimal), `voyager_site_review_count`, `voyager_site_cta_label` and `voyager_site_cta_url`.
-- Site Data keys are shared with the voyager-blocks plugin through the fixture `tests/fixtures/site-data-keys.json`, which both repositories carry byte for byte and pin to the same sha256 (`npm run check` compares it). Adding these keys is therefore a change to both repositories, in pull requests that land together.
+- Each option's binding key is its name without `voyager_site_`, as for every stored key. `$value` below is the stored option, trimmed, and every key resolves to a string:
+
+  | Key | Resolves to |
+  | -- | -- |
+  | `services`, `service_area`, `credentials` | the value split on `\r\n`, `\r` or `\n`, each line trimmed, empty lines dropped, joined with `\n` |
+  | `founded` | `$value` when it matches `/^[0-9]{4}$/`, else `''` |
+  | `license`, `cta_label` | `$value` |
+  | `rating` | when `is_numeric( $value )` and it is from 0 to 5, `number_format( (float) $value, 1, '.', '' )`, else `''`. So `4.80` is `4.8`, `5` is `5.0` and `-0` is `0.0` |
+  | `review_count` | when `$value` matches `/^[0-9]+$/`, `(string) (int) $value`, so `0127` is `127`, else `''` |
+  | `cta_url` | `esc_url_raw( $value )`, as the social keys |
+
+- Saving, on Settings > Site Data and at `/wp/v2/settings` alike: the lists go through `sanitize_textarea_field()`, which keeps their lines, `cta_url` is trimmed and goes through `esc_url_raw()`, the others through `sanitize_text_field()`. `founded`, `rating` and `review_count` are then saved in their resolved form. A value that does not resolve is refused as core's `sanitize_option()` refuses one: the option keeps its previous value and the Settings screen shows an error. Each is registered with `show_in_rest`, like the other options.
+- Site Data keys are shared with the voyager-blocks plugin through the fixture `tests/fixtures/site-data-keys.json`, which both repositories carry byte for byte and pin to the same sha256 (`npm run check` compares it). Adding these keys is therefore a change to both repositories, in pull requests that land together. The fixture pins 27 keys.

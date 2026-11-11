@@ -23,7 +23,7 @@ Put this in a template, a template part or a pattern. The paragraph shows the bu
 <!-- /wp:buttons -->
 ```
 
-Args are always `{"key": "<key>"}`. The 18 keys are in [Site Data keys](#site-data-keys). Use `phone_link` and `email_link` for a `url`: they carry the `tel:` and `mailto:` prefixes.
+Args are always `{"key": "<key>"}`. The 27 keys are in [Site Data keys](#site-data-keys). Use `phone_link` and `email_link` for a `url`: they carry the `tel:` and `mailto:` prefixes.
 
 ## Recipe 2: make a post meta field bindable
 
@@ -128,8 +128,17 @@ Both return `null` when there is nothing to show, and WordPress then keeps the a
 | `social_instagram` | Profile URL, through `esc_url_raw()` | `voyager_site_social_instagram` |
 | `social_linkedin` | Profile URL, through `esc_url_raw()` | `voyager_site_social_linkedin` |
 | `social_x` | Profile URL, through `esc_url_raw()` | `voyager_site_social_x` |
+| `services` | One service per line: each line trimmed, empty lines dropped, joined with `\n` | `voyager_site_services` |
+| `service_area` | One town or area per line, the same way | `voyager_site_service_area` |
+| `credentials` | One license, certification or membership per line, the same way | `voyager_site_credentials` |
+| `founded` | Year founded, only when it is four digits | `voyager_site_founded` |
+| `license` | License number | `voyager_site_license` |
+| `rating` | Average rating with one decimal, such as `4.8`, only when it is a number from 0 to 5 | `voyager_site_rating` |
+| `review_count` | Number of reviews, such as `127`, only when it is digits | `voyager_site_review_count` |
+| `cta_label` | Text of the main call to action | `voyager_site_cta_label` |
+| `cta_url` | Link of the main call to action, through `esc_url_raw()` | `voyager_site_cta_url` |
 
-Stored values are trimmed before use.
+Stored values are trimmed before use. A list splits on `\r\n`, `\r` or `\n`. The site owner types the rating and review count in from their own review profile: the pack calls no review service. A value the rule does not accept resolves to `''`, so the authored text shows.
 
 ### Bindable attributes
 
@@ -146,7 +155,7 @@ Read-only helpers a theme can call (pre-1.0, see above):
 | Function | Returns |
 |---|---|
 | `VoyagerOpenBlocks\SiteData\values(): array` | Every Site Data key with its current value, `''` when unset. Not passed through `voyager_site_data_value`. |
-| `VoyagerOpenBlocks\SiteData\fields(): array` | Key => `label`, `type` (`text` or `url`) and, for stored keys, `option`. |
+| `VoyagerOpenBlocks\SiteData\fields(): array` | Key => `label`, `type` (`text`, `url`, or `list` for one item per line) and, for stored keys, `option`. |
 | `VoyagerOpenBlocks\SiteData\locality( string $city, string $state, string $zip ): string` | "City, ST 12345" without stray punctuation. |
 | `VoyagerOpenBlocks\SiteData\owned( bool $set = false ): bool` | Whether this plugin registered `voyager/site-data` on this request. Call it after `init` priority 20, and never pass `true`. |
 | `VoyagerOpenBlocks\PostMetaText\allowed_fields(): array` | The allowlist after the filter: post type (`*` for all) => meta key => label. |
@@ -172,9 +181,11 @@ Everything else in `inc/` is internal: hook callbacks, the settings screen, and 
 
 | Option | Type | Sanitized with | REST |
 |---|---|---|---|
-| `voyager_site_phone`, `voyager_site_address`, `voyager_site_address_city`, `voyager_site_address_state`, `voyager_site_address_zip`, `voyager_site_hours` | string, default `''` | `sanitize_text_field` | yes |
+| `voyager_site_phone`, `voyager_site_address`, `voyager_site_address_city`, `voyager_site_address_state`, `voyager_site_address_zip`, `voyager_site_hours`, `voyager_site_license`, `voyager_site_cta_label` | string, default `''` | `sanitize_text_field` | yes |
 | `voyager_site_email` | string, default `''` | `sanitize_email` | yes |
-| `voyager_site_social_facebook`, `voyager_site_social_instagram`, `voyager_site_social_linkedin`, `voyager_site_social_x` | string, default `''` | `esc_url_raw` | yes |
+| `voyager_site_social_facebook`, `voyager_site_social_instagram`, `voyager_site_social_linkedin`, `voyager_site_social_x`, `voyager_site_cta_url` | string, default `''` | trimmed, then `esc_url_raw` | yes |
+| `voyager_site_services`, `voyager_site_service_area`, `voyager_site_credentials` | string, one item per line, default `''` | `sanitize_textarea_field`, which keeps the lines | yes |
+| `voyager_site_founded`, `voyager_site_rating`, `voyager_site_review_count` | string, default `''` | `sanitize_text_field`, then saved as its key resolves, so `4.80` saves as `4.8`. A value that does not resolve is refused: the option keeps its previous value, and Settings > Site Data shows an error | yes |
 | `voyager_open_blocks_bindable_meta` | array of `{"post_type", "key", "label"}` rows, default `[]` | the screen's row rules | no |
 
 All are in the `voyager_site_data` settings group, shown on Settings > Site Data (`options-general.php?page=voyager-site-data`, `manage_options`). They register only when this plugin owns the matching source.
