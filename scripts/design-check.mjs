@@ -279,6 +279,13 @@ function installInPage( prefix ) {
 		};
 		return 0.2126 * ch( c.r ) + 0.7152 * ch( c.g ) + 0.0722 * ch( c.b );
 	};
+	const describe = ( el ) =>
+		`<${ el.tagName.toLowerCase() }${ [ ...el.classList ]
+			.filter( ( name ) => ! name.startsWith( prefix ) )
+			.slice( 0, 2 )
+			.map( ( name ) => `.${ name }` )
+			.join( '' ) }>`;
+
 	/**
 	 * An element's text colour against what is behind it. The background is
 	 * the first opaque one walking up from the element, with every
@@ -419,6 +426,88 @@ function installInPage( prefix ) {
 		return out;
 	};
 
+	/**
+	 * Whether anything in a section reaches past the viewport's right edge
+	 * with no ancestor inside the section to clip it. An element with
+	 * visible overflow reaches as far as its content does (scrollWidth),
+	 * so a long word that spills out of its box counts too.
+	 *
+	 * @param {Element} section
+	 * @return {{ok: boolean, note: string}} Result.
+	 */
+	const overflow = ( section ) => {
+		const viewport = document.documentElement.clientWidth;
+		let worst = null;
+		for ( const el of all( section ) ) {
+			const rects = el.getClientRects();
+			if ( ! rects.length ) {
+				continue;
+			}
+			const style = window.getComputedStyle( el );
+			const rect = el.getBoundingClientRect();
+			const left = rect.left + window.scrollX;
+			const reach =
+				style.overflowX === 'visible'
+					? left + Math.max( rect.width, el.scrollWidth )
+					: left + rect.width;
+			if ( reach <= viewport + 1 ) {
+				continue;
+			}
+			let clipped = false;
+			for (
+				let up = el.parentElement;
+				up && section.contains( up );
+				up = up.parentElement
+			) {
+				if ( window.getComputedStyle( up ).overflowX !== 'visible' ) {
+					clipped = true;
+					break;
+				}
+			}
+			if ( ! clipped && ( ! worst || reach > worst.reach ) ) {
+				worst = { reach, el };
+			}
+		}
+		return worst
+			? {
+					ok: false,
+					note: `${ describe( worst.el ) } reaches ${ Math.round(
+						worst.reach
+					) }px in a ${ viewport }px viewport`,
+				}
+			: { ok: true, note: '' };
+	};
+
+	/**
+	 * One motion sample of a section: what animates, and where every box is.
+	 *
+	 * @param {Element} section
+	 * @return {{running: string[], boxes: number[][]}} Sample.
+	 */
+	const sampleOf = ( section ) => ( {
+		running: section
+			.getAnimations( { subtree: true } )
+			.filter( ( a ) => a.playState === 'running' )
+			.map( ( a ) => {
+				const name =
+					a.animationName ||
+					( a.transitionProperty
+						? `transition of ${ a.transitionProperty }`
+						: 'a script animation' );
+				const target = a.effect?.target;
+				return `${ name } on ${ target ? describe( target ) : 'an element' }`;
+			} ),
+		boxes: all( section ).map( ( el ) => {
+			const r = el.getBoundingClientRect();
+			return [
+				r.left + window.scrollX,
+				r.top + window.scrollY,
+				r.width,
+				r.height,
+			].map( ( v ) => Math.round( v * 10 ) / 10 );
+		} ),
+	} );
+
 	window.voyagerOpenCheck = {
 		/**
 		 * Load every image now (a lazy one far down the page would load, and
@@ -516,6 +605,7 @@ function installInPage( prefix ) {
 						...target,
 						...measure( byId.get( target.id ).el ),
 					} ) ),
+					overflow: want.overflow ? overflow( section ) : null,
 				};
 			} );
 		},
@@ -572,6 +662,17 @@ function installInPage( prefix ) {
 		 */
 		measure( id ) {
 			return measure( byId.get( id ).el );
+		},
+
+		/**
+		 * @param {string[]} keys Section keys.
+		 * @return {Array<Object|null>} A motion sample of each, null for one not found.
+		 */
+		sample( keys ) {
+			return keys.map( ( key ) => {
+				const section = sectionOf( key );
+				return section ? sampleOf( section ) : null;
+			} );
 		},
 
 		/**
@@ -819,6 +920,46 @@ async function contrastRows( tab, scanned, context, sections ) {
 	}
 	await pointer( tab, 0, 0 );
 	return rows;
+}
+
+/**
+ * Motion in sections: two samples gapMs apart, with reduced motion on.
+ *
+ * @param {Object}   tab   A page with reduced motion emulated.
+ * @param {string[]} keys  Section keys.
+ * @param {number}   gapMs Milliseconds between the samples.
+ * @return {Promise<Object<string, {ok: boolean, note: string}>>} Key => result.
+ */
+async function motionResults( tab, keys, gapMs ) {
+	const first = await tab.evaluate( call( 'sample', keys ) );
+	await new Promise( ( done ) => setTimeout( done, gapMs ) );
+	const second = await tab.evaluate( call( 'sample', keys ) );
+	const out = {};
+	keys.forEach( ( key, i ) => {
+		const a = first[ i ];
+		const b = second[ i ];
+		if ( ! a || ! b ) {
+			out[ key ] = { ok: false, note: 'section not found' };
+			return;
+		}
+		const running = [ ...new Set( [ ...a.running, ...b.running ] ) ];
+		const moved = a.boxes.filter(
+			( box, j ) =>
+				! b.boxes[ j ] ||
+				box.some( ( v, k ) => Math.abs( v - b.boxes[ j ][ k ] ) > 0.5 )
+		).length;
+		const notes = [];
+		if ( running.length ) {
+			notes.push( `running: ${ running.join( '; ' ) }` );
+		}
+		if ( moved || a.boxes.length !== b.boxes.length ) {
+			notes.push(
+				`${ moved } of ${ a.boxes.length } boxes moved in ${ gapMs }ms`
+			);
+		}
+		out[ key ] = { ok: notes.length === 0, note: notes.join( '; ' ) };
+	} );
+	return out;
 }
 
 /**
@@ -1340,8 +1481,68 @@ async function renderAt(
 		? await contrastRows( tabs.visitor, scanned, context, sections )
 		: [];
 
-	// Overflow and motion are not measured yet, so they add no rows.
-	return { page, still: null, scanned, contrast, renders: [] };
+	let still = null;
+	const calm = {};
+	let motion = {};
+	if ( want.overflow || want.motion ) {
+		await visit( tabs.still, url, width, fixture.height );
+		still = await tabs.still.evaluate( call( 'page' ) );
+		if ( want.overflow ) {
+			for ( const s of await tabs.still.evaluate(
+				call( 'scan', keys, { contrast: false, overflow: true } )
+			) ) {
+				calm[ s.key ] = s.overflow;
+			}
+		}
+		if ( want.motion ) {
+			motion = await motionResults(
+				tabs.still,
+				keys,
+				fixture.motion.gap_ms
+			);
+		}
+	}
+
+	const renders = [];
+	for ( const s of scanned ) {
+		const where = {
+			theme: context.theme,
+			width,
+			key: s.key,
+			...sections[ s.key ],
+		};
+		if ( want.overflow ) {
+			const results = [
+				[ '', s.overflow ],
+				[ 'with reduced motion: ', calm[ s.key ] ],
+			];
+			const notes = results
+				.filter( ( [ , r ] ) => ! r?.ok )
+				.map(
+					( [ label, r ] ) =>
+						`${ label }${ r?.note || 'not measured' }`
+				);
+			renders.push( {
+				check: 'overflow',
+				...where,
+				ok: notes.length === 0,
+				note: notes.join( '; ' ) || 'stays inside the viewport',
+			} );
+		}
+		if ( want.motion ) {
+			const result = motion[ s.key ] || {
+				ok: false,
+				note: 'not measured',
+			};
+			renders.push( {
+				check: 'motion',
+				...where,
+				ok: result.ok,
+				note: result.note || 'still',
+			} );
+		}
+	}
+	return { page, still, scanned, contrast, renders };
 }
 
 /**
@@ -1486,6 +1687,56 @@ async function checkTheme( ctx, entry ) {
 					.join( ', ' )
 			);
 		}
+		if ( seen.still ) {
+			expect(
+				`${ at }: the reduced-motion page matches prefers-reduced-motion: reduce, and the visitor's does not`,
+				seen.still.reducedMotion && ! seen.page.reducedMotion,
+				{
+					still: seen.still.reducedMotion,
+					visitor: seen.page.reducedMotion,
+				}
+			);
+		}
+		if ( want.overflow ) {
+			for ( const [ label, page ] of [
+				[ '', seen.page ],
+				[ ' with reduced motion on', seen.still ],
+			] ) {
+				expect(
+					`${ at }: the page does not scroll sideways${ label }`,
+					page.scrollWidth <= page.clientWidth,
+					`document ${ page.scrollWidth }px wide in a ${ page.clientWidth }px viewport`
+				);
+			}
+		}
+	}
+
+	if ( want.motion ) {
+		// A pattern that moves with motion on must be seen moving, so a still
+		// render with motion off is its reduced-motion rule at work, not a
+		// check that cannot see it.
+		const movers = keys.base.filter( ( key ) =>
+			fixture.motion.moves_with_motion_on.includes(
+				sections[ key ].pattern
+			)
+		);
+		await visit(
+			tabs.visitor,
+			pages.main.link,
+			widths[ 0 ],
+			fixture.height
+		);
+		const moving = await tabs.visitor.evaluate( call( 'sample', movers ) );
+		expect(
+			`${ theme }: with motion on, the motion check sees ${ fixture.motion.moves_with_motion_on.join(
+				', '
+			) } animate in every style`,
+			movers.length ===
+				fixture.motion.moves_with_motion_on.length *
+					fixture.styles.length &&
+				moving.every( ( m ) => m?.running.length > 0 ),
+			moving.map( ( m ) => m?.running.join( '; ' ) || 'nothing' )
+		);
 	}
 
 	// The controls: each planted fault must fail its own check.
@@ -1732,8 +1983,16 @@ async function run( opts ) {
 				width: widths[ 0 ],
 				height: fixture.height,
 			} ),
+			still: await browser.newPage( {
+				width: widths[ 0 ],
+				height: fixture.height,
+			} ),
 			admin: null,
 		};
+		await tabs.still.call( 'Emulation.setEmulatedMedia', {
+			features: [ { name: 'prefers-reduced-motion', value: 'reduce' } ],
+		} );
+
 		for ( const [ wp, entries ] of sites ) {
 			let site;
 			try {
