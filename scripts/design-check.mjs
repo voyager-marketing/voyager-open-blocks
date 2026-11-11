@@ -2385,4 +2385,9 @@ setTimeout( () => {
 	process.exit( 1 );
 }, TIMEOUT_MINUTES * 60000 ).unref();
 
-process.exit( await run( opts ) );
+const code = await run( opts );
+// The tables run to thousands of lines, and when stdout is a pipe, as in CI,
+// process.exit() drops whatever is still queued: wait for both streams first.
+await new Promise( ( done ) => process.stdout.write( '', done ) );
+await new Promise( ( done ) => process.stderr.write( '', done ) );
+process.exit( code );
