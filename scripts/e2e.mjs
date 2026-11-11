@@ -23,7 +23,10 @@
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
  *      and on the saved page, and the validate ability on the same markup, on the
  *      saved page and on broken markup, including one case only block-runner catches,
- *      and its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
+ *      its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
+ *      and its placeholder and missing_alt warnings: the logo marquee's six
+ *      logos and the contact section's form slot, each placed with insert on
+ *      a draft of its own, and an image with and without alt text,
  *   6. fetches the page and checks the bound values rendered,
  *  6b. on pages of its own, trial runs and undo: insert, configure and bind
  *      return revision_id, undo with it restores the content byte for byte and
@@ -1049,6 +1052,109 @@ step(
 		staleWarnings( pageReport ).length === 0,
 	`call buttons hold ${ JSON.stringify( pageCallLabels ) }; ${ staleWarnings( pageReport ).join( ' ' ) || 'no stale_fallback' }`
 );
+
+// placeholder and missing_alt: the pack's placeholders left in place, and
+// images with no alt text. Each pattern goes on a draft of its own through
+// insert, so validate reads them as insert saves them: placeholder logos at
+// the plugin's assets URL, not the token the raw markup carries.
+const codedWarnings = ( report, code ) =>
+	( report.data.warnings || [] ).filter( ( w ) =>
+		w.startsWith( `${ code }: ` )
+	);
+const warningSummary = ( report ) =>
+	`valid ${ report.data.valid }, ${
+		( report.data.warnings || [] ).join( ' ' ) ||
+		report.data.code ||
+		`status ${ report.status }, no warnings`
+	}`;
+const placeholderPages = [];
+
+/**
+ * A draft holding one pattern placed with insert, and validate's report on it.
+ *
+ * @param {string} item Pattern name.
+ * @return {Promise<Object>} The insert response and the validate report.
+ */
+async function validateInserted( item ) {
+	const draft = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: { title: `E2E: ${ item } ${ stamp }`, status: 'draft' },
+	} );
+	placeholderPages.push( draft.data.id );
+	const placed = await run( `${ ns }/insert`, {
+		post_id: draft.data.id,
+		item,
+	} );
+	return {
+		placed,
+		report: await checkMarkup( { post_id: draft.data.id } ),
+	};
+}
+
+const marquee = await validateInserted( 'voyager-open/logo-marquee' );
+const logoWarnings = codedWarnings( marquee.report, 'placeholder' );
+step(
+	'validate warns placeholder once per logo on a page holding the logo marquee as insert saves it',
+	marquee.placed.data.saved === true &&
+		marquee.report.status === 200 &&
+		logoWarnings.length === 6 &&
+		logoWarnings.every( ( w ) =>
+			/^placeholder: core\/image at \d+(\/\d+)+ shows the pack's placeholder image placeholders\/logo-[1-6]\.svg\./.test(
+				w
+			)
+		) &&
+		new Set( logoWarnings.map( ( w ) => w.match( /logo-\d/ )[ 0 ] ) )
+			.size === 6,
+	`${ logoWarnings.length } placeholder warnings; ${ warningSummary( marquee.report ) }`
+);
+step(
+	'validate warns no missing_alt for the placeholder logos, and the page stays valid',
+	marquee.report.data.valid === true &&
+		codedWarnings( marquee.report, 'missing_alt' ).length === 0,
+	warningSummary( marquee.report )
+);
+
+const contact = await validateInserted( 'voyager-open/contact-section' );
+const formWarnings = codedWarnings( contact.report, 'placeholder' );
+step(
+	'validate warns placeholder once for the form slot on a page holding the contact section',
+	contact.placed.data.saved === true &&
+		contact.report.status === 200 &&
+		contact.report.data.valid === true &&
+		formWarnings.length === 1 &&
+		formWarnings[ 0 ].startsWith( 'placeholder: core/group "Form" at ' ) &&
+		formWarnings[ 0 ].includes( '"Form slot" column' ),
+	warningSummary( contact.report )
+);
+
+const photo = ( alt ) =>
+	`<!-- wp:image -->\n<figure class="wp-block-image"><img src="https://example.com/wp-content/uploads/team.jpg" alt="${ alt }"/></figure>\n<!-- /wp:image -->`;
+const noAlt = await checkMarkup( { markup: photo( '' ) } );
+step(
+	'validate warns missing_alt once on an image with empty alt outside the placeholders, and it stays valid',
+	clean( noAlt ) &&
+		codedWarnings( noAlt, 'missing_alt' ).length === 1 &&
+		codedWarnings( noAlt, 'missing_alt' )[ 0 ].startsWith(
+			'missing_alt: core/image at 0 '
+		) &&
+		codedWarnings( noAlt, 'placeholder' ).length === 0,
+	warningSummary( noAlt )
+);
+const withAlt = await checkMarkup( {
+	markup: photo( 'Our team outside the clinic' ),
+} );
+step(
+	'validate warns nothing on the same image with alt text',
+	clean( withAlt ) && ( withAlt.data.warnings || [] ).length === 0,
+	warningSummary( withAlt )
+);
+
+for ( const id of placeholderPages ) {
+	await api( `/wp/v2/pages/${ id }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
 
 const neither = await checkMarkup( {} );
 step(

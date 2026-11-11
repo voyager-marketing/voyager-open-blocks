@@ -56,6 +56,9 @@ npm run check              # every offline gate, below
 15. the logic of `npm run cache-check` passes its known-answer test, `scripts/test-cache-check.mjs` (`npm run test:cache-check`), all 21 of its cases, including crashes planted in each step, which must exit 2 and never pass a row,
 16. the guard on 11 and 15 rejects `tests/invalid/no-tests.mjs`. `node --test` reports a file with no tests as one passing test, so the guard counts each file's known cases rather than "more than none".
 17. no tracked file but `CHANGELOG.md` and `bench/runs/` holds a tracker issue ID. The same `git grep` must find one planted in a temporary file, so a search that cannot match fails too.
+18. `presets`: no block in `patterns/*.html` sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug outside `20` to `60`, or is `core/html` or HTML outside a block (`scripts/lib/presets.mjs`). It reads the block comments. A value passes as a slug attribute (`textColor`, `fontSize`, `borderColor`) or as a preset reference of the right kind (`var:preset|color|accent`, or `var(--wp--preset--color--accent)`). Each finding names the pattern, the block's path (`0/1/2`, as the abilities write it) and the attribute,
+19. the same gate refuses every block in each of the seven files in `tests/invalid/presets/`, one file per rule, for that file's rule and no other,
+20. the same gate passes `tests/fixtures/presets/allowed.html`, which writes every preset form it accepts, so a rule grown to refuse a preset fails too.
 
 The rest of what CI runs:
 
