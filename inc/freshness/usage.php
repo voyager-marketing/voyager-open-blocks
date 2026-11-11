@@ -375,11 +375,10 @@ function posts_with( string $key, string $value ): array {
 			'ignore_sticky_posts'    => true,
 			'update_post_term_cache' => false,
 			'update_post_meta_cache' => false,
-			'suppress_filters'       => true,
 		]
 	);
 
-	return ids_of( $query->posts );
+	return ids_of( (array) $query->posts );
 }
 
 /**
@@ -513,11 +512,10 @@ function templates_with( array $rows ): array {
 			'no_found_rows'          => true,
 			'ignore_sticky_posts'    => true,
 			'update_post_term_cache' => false,
-			'suppress_filters'       => true,
 		]
 	);
 
-	foreach ( $query->posts as $post ) {
+	foreach ( (array) $query->posts as $post ) {
 		if ( ! $post instanceof WP_Post ) {
 			continue;
 		}
@@ -578,7 +576,6 @@ function content_query( array $rows ): array {
 		],
 		'ignore_sticky_posts'    => true,
 		'update_post_term_cache' => false,
-		'suppress_filters'       => true,
 	];
 }
 
@@ -610,7 +607,7 @@ function counts( array $rows ): array {
 			'update_post_meta_cache' => false,
 		] + content_query( $rows )
 	);
-	$ids   = ids_of( $query->posts );
+	$ids   = ids_of( (array) $query->posts );
 
 	if ( [] !== $ids ) {
 		update_meta_cache( 'post', $ids );
@@ -705,7 +702,7 @@ function shown_on( array $rows, int $limit = 10 ): array {
 	);
 
 	$posts = [];
-	foreach ( $query->posts as $post ) {
+	foreach ( (array) $query->posts as $post ) {
 		if ( $post instanceof WP_Post ) {
 			$posts[] = $post;
 		}
@@ -881,7 +878,8 @@ function next_batch( int $after, int $batch ): array {
 	}
 
 	$sql = $wpdb->prepare(
-		"SELECT ID FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'revision' AND post_status NOT IN ('trash', 'auto-draft', 'inherit') ORDER BY ID ASC LIMIT %d",
+		"SELECT ID FROM %i WHERE ID > %d AND post_type <> 'revision' AND post_status NOT IN ('trash', 'auto-draft', 'inherit') ORDER BY ID ASC LIMIT %d",
+		$wpdb->posts,
 		$after,
 		$batch
 	);
