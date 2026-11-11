@@ -19,6 +19,12 @@
  * - $cache_enabled, set from wp-cache-config.php, is the plugin's "Caching
  *   On" setting. While it is false, wp_cache_postload() returns before any
  *   page is served or stored.
+ * - Lock Down is the constant WPLOCKDOWN, which the settings page writes into
+ *   wp-cache-config.php as '1' or '0' (wp_update_lock_down() in
+ *   inc/settings-forms.php). It keeps the cached pages through a traffic
+ *   spike: while it is anything but '0', wpsc_register_post_hooks() does not
+ *   hook clean_post_cache or any other purge. During Lock Down the adapter is
+ *   inactive, so the pack leaves WP Super Cache's files alone too.
  *
  * Each call checks that the function exists, so the adapter does nothing
  * when WP Super Cache is missing. A site that does not want it drops the
@@ -48,12 +54,22 @@ final class WP_Super_Cache implements Adapter {
 	}
 
 	/**
-	 * Loaded, and its caching is on.
+	 * Loaded, its caching is on, and it is not locked down.
 	 */
 	public function active(): bool {
 		return function_exists( 'wpsc_delete_url_cache' )
 			&& function_exists( 'wp_cache_clear_cache' )
-			&& ! empty( $GLOBALS['cache_enabled'] );
+			&& ! empty( $GLOBALS['cache_enabled'] )
+			&& ! self::locked_down();
+	}
+
+	/**
+	 * Whether Lock Down is on, by the test wpsc_register_post_hooks() makes
+	 * before it hooks WP Super Cache's own purges. The comparison is loose, as
+	 * there: '0', 0 and false mean off, and any other value means on.
+	 */
+	private static function locked_down(): bool {
+		return defined( 'WPLOCKDOWN' ) && '0' != constant( 'WPLOCKDOWN' ); // phpcs:ignore Universal.Operators.StrictComparisons.LooseNotEqual -- WP Super Cache compares it loosely.
 	}
 
 	public function supports_urls(): bool {

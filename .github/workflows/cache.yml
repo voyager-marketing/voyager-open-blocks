@@ -32,6 +32,10 @@ name: Cache
 # whole purge off, clean_post_cache() included. On the 51-page row the
 # purge still cleans the first 50 pages and sets purge_all, and with no
 # adapter left nothing reaches the 51st.
+# `wp-super-cache --real --lockdown` expects stale for good too. In Lock
+# Down WP Super Cache hooks none of its own purges, and the adapter is
+# inactive, so a change refreshes no page; fresh means the pack purged
+# through Lock Down.
 #
 # A new cache is a row in PLUGINS (scripts/lib/cache-check.mjs) and rows
 # here: --real if it serves pages from PHP inside Playground, else --spy.
