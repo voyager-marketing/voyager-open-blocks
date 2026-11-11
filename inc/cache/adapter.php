@@ -10,7 +10,8 @@
  * pages that show the field, or purge_all() when every page may show it or
  * the cache cannot purge single pages.
  *
- * The pack ships no adapters.
+ * The pack ships one adapter, for WP Super Cache (wp-super-cache.php), which
+ * is active only when WP Super Cache is loaded and its caching is on.
  *
  * @package VoyagerOpenBlocks
  */

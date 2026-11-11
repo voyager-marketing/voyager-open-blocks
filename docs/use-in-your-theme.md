@@ -234,7 +234,7 @@ add_filter(
 | `purge_urls( array $urls ): void` | Purge these absolute URLs. |
 | `purge_all(): void` | Purge every page. |
 
-Each active adapter is called once per purge: `purge_all()` when the purge is `purge_all` or `supports_urls()` is false, `purge_urls()` otherwise. An adapter that throws is recorded as failed, and the others still run. The pack ships no adapters.
+Each active adapter is called once per purge: `purge_all()` when the purge is `purge_all` or `supports_urls()` is false, `purge_urls()` otherwise. An adapter that throws is recorded as failed, and the others still run. The pack ships one adapter, `wp-super-cache`, active when WP Super Cache is loaded and its caching is on. To drop it, remove it from the list in a filter of your own at a later priority.
 
 ### Actions
 

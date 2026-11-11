@@ -25,12 +25,16 @@ import { test } from 'node:test';
 
 import {
 	EXIT,
+	MOST_PAGES,
 	PHONE_AFTER,
 	PHONE_BEFORE,
 	PLUGINS,
 	UsageError,
 	covers,
+	flagsOf,
+	lastByIdProblem,
 	normalizeUrl,
+	pageSlugs,
 	parseArgs,
 	realVerdict,
 	renderMarker,
@@ -80,6 +84,8 @@ test( 'parseArgs reads the documented commands', () => {
 			mode: 'real',
 			noPurge: true,
 			standIn: false,
+			lockDown: false,
+			pages: 1,
 			resultFile: undefined,
 			port: undefined,
 			wp: undefined,
@@ -118,6 +124,7 @@ test( 'parseArgs refuses what makes no sense', () => {
 		[ [ '--plugin', 'dummy', '--spy', '--result-file' ], /needs a value/ ],
 		[ [ '--plugin', 'dummy', '--spy', 'extra' ], /Unexpected argument/ ],
 		[ [ '--plugin', 'dummy', '--spy', '--port', 'abc' ], /takes a number/ ],
+		[ [ '--plugin', 'dummy', '--spy', '--pages' ], /needs a value/ ],
 	] ) {
 		assert.throws(
 			() => parseArgs( argv ),
@@ -128,6 +135,114 @@ test( 'parseArgs refuses what makes no sense', () => {
 			}
 		);
 	}
+} );
+
+test( 'parseArgs reads --pages, and a run without it publishes one page', () => {
+	const base = [ '--plugin', 'wp-super-cache', '--real' ];
+	assert.equal( parseArgs( base ).pages, 1 );
+	assert.equal( parseArgs( [ ...base, '--pages', '51' ] ).pages, 51 );
+	assert.equal( parseArgs( [ ...base, '--pages=1' ] ).pages, 1 );
+	assert.equal(
+		parseArgs( [ ...base, '--pages', String( MOST_PAGES ) ] ).pages,
+		MOST_PAGES
+	);
+	assert.equal(
+		parseArgs( [ ...base, '--pages', '51', '--no-purge' ] ).noPurge,
+		true
+	);
+} );
+
+test( 'parseArgs refuses a --pages that is not a whole number from 1 to the most', () => {
+	const base = [ '--plugin', 'wp-super-cache', '--real', '--pages' ];
+	for ( const value of [
+		'0',
+		'-1',
+		'1.5',
+		'51 ',
+		'1e2',
+		'0x33',
+		'abc',
+		String( MOST_PAGES + 1 ),
+		'99999999999999999999',
+	] ) {
+		assert.throws(
+			() => parseArgs( [ ...base, value ] ),
+			( error ) => {
+				assert.ok( error instanceof UsageError, value );
+				assert.match(
+					error.message,
+					/--pages takes a whole number from 1 to/,
+					value
+				);
+				return true;
+			},
+			value
+		);
+	}
+} );
+
+test( 'parseArgs reads --lockdown only for a cache the harness can lock down', () => {
+	assert.equal(
+		parseArgs( [ '--plugin', 'wp-super-cache', '--real', '--lockdown' ] )
+			.lockDown,
+		true
+	);
+	assert.equal(
+		parseArgs( [ '--plugin', 'wp-super-cache', '--real' ] ).lockDown,
+		false
+	);
+	for ( const [ argv, message ] of [
+		[
+			[ '--plugin', 'dummy', '--spy', '--lockdown' ],
+			/--lockdown is for a cache the harness can lock down/,
+		],
+		[
+			[ '--plugin', 'wp-super-cache', '--real', '--lockdown=1' ],
+			/takes no value/,
+		],
+	] ) {
+		assert.throws(
+			() => parseArgs( argv ),
+			( error ) => {
+				assert.ok( error instanceof UsageError, error.message );
+				assert.match( error.message, message );
+				return true;
+			}
+		);
+	}
+	for ( const [ name, spec ] of Object.entries( PLUGINS ) ) {
+		assert.equal( typeof spec.lockDown, 'boolean', name );
+	}
+} );
+
+test( 'pageSlugs publishes the measured page last, under the one-page slug', () => {
+	assert.deepEqual( pageSlugs( 'cc', 1 ), [ 'cc' ] );
+	assert.deepEqual( pageSlugs( 'cc', 3 ), [ 'cc-1', 'cc-2', 'cc' ] );
+	const many = pageSlugs( 'cc', 51 );
+	assert.equal( many.length, 51 );
+	assert.equal( many[ 50 ], 'cc' );
+	assert.equal( new Set( many ).size, 51, 'every slug is its own' );
+} );
+
+test( 'the measured page must be the last by ID, or nothing is measured', () => {
+	assert.equal( lastByIdProblem( [ { id: 7 } ] ), null );
+	assert.equal(
+		lastByIdProblem( [ { id: 7 }, { id: 9 }, { id: 12 } ] ),
+		null
+	);
+	assert.match(
+		lastByIdProblem( [ { id: 7 }, { id: 12 }, { id: 9 } ] ),
+		/has ID 9, and pages published before it have 12/
+	);
+	assert.match(
+		lastByIdProblem( [ { id: 9 }, { id: 9 } ] ),
+		/not the last by ID/
+	);
+	assert.match(
+		lastByIdProblem( [ { id: 7 }, { id: undefined } ] ),
+		/without IDs/
+	);
+	assert.match( lastByIdProblem( [] ), /without IDs/ );
 } );
 
 test( 'every plugin row is complete, and every --spy plugin names its receivers', () => {
@@ -468,6 +583,45 @@ test( 'the job summary names the command, the outcome and the exit code', () => 
 	);
 	assert.match( text, /\*\*stale\*\* \(exit 1\)/ );
 	assert.match( text, /WP Super Cache 3\.1\.5/ );
+} );
+
+test( 'the flags name --pages past one page, so the two 51-page rows read apart', () => {
+	const result = {
+		plugin: 'wp-super-cache',
+		mode: 'real',
+		noPurge: false,
+		standIn: false,
+		pages: 1,
+	};
+	assert.equal( flagsOf( result ), '--plugin wp-super-cache --real' );
+	assert.equal(
+		flagsOf( { ...result, pages: 51 } ),
+		'--plugin wp-super-cache --real --pages 51'
+	);
+	assert.equal(
+		flagsOf( { ...result, pages: 51, noPurge: true } ),
+		'--plugin wp-super-cache --real --pages 51 --no-purge'
+	);
+	assert.equal(
+		flagsOf( { ...result, lockDown: true } ),
+		'--plugin wp-super-cache --real --lockdown'
+	);
+	// A result written before --pages existed has no pages field.
+	assert.equal(
+		flagsOf( { ...result, pages: undefined, noPurge: true } ),
+		'--plugin wp-super-cache --real --no-purge'
+	);
+	assert.match(
+		summaryMarkdown( {
+			...result,
+			pages: 51,
+			label: 'WP Super Cache',
+			outcome: 'fresh',
+			exit: 0,
+			reason: 'rendered again',
+		} ),
+		/npm run cache-check -- --plugin wp-super-cache --real --pages 51\n/
+	);
 } );
 
 test( 'a row passes only when the result file and the exit code agree with it', () => {
