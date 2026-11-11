@@ -9,9 +9,11 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Abilities;
 
+use VoyagerOpenBlocks\BindingsEditor;
 use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
+use VoyagerOpenBlocks\Patterns;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,7 +33,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell or fax) whose fallback looks like a phone number, or to an email field (email or mail) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell or fax) whose fallback looks like a phone number, or to an email field (email or mail) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (an image whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -96,7 +98,7 @@ function register_validate(): void {
 					'warnings'    => [
 						'type'        => 'array',
 						'items'       => [ 'type' => 'string' ],
-						'description' => 'Every block\'s warnings. Each starts with its block, or with a code such as stale_fallback.',
+						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page) or missing_alt (an image has no alt text). A code is followed by the block and its path.',
 					],
 					'markup'      => [
 						'type'        => 'string',
@@ -147,8 +149,10 @@ function validate( $input = null ) {
 		$markup = Cast\to_string( $input['markup'] );
 	}
 
+	$blocks = BlockTree\parse( $markup );
 	$report = BlockTree\validate_markup( $markup, '' === $post_type ? 'page' : $post_type );
-	$report = with_stale_fallbacks( $report, stale_fallbacks( BlockTree\parse( $markup ), shipped_fallbacks() ) );
+	$report = with_stale_fallbacks( $report, stale_fallbacks( $blocks, shipped_fallbacks() ) );
+	$report = with_warnings( $report, image_warnings( $blocks, placeholder_names() ) );
 
 	return $out + $report + [ 'save_output' => SAVE_OUTPUT ];
 }
@@ -383,19 +387,42 @@ function stale_fallback_warning( array $stale ): string {
  * @return array{valid: bool, post_type: string, round_trip: bool, blocks: array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>, errors: string[], warnings: string[], markup: string}
  */
 function with_stale_fallbacks( array $report, array $stale ): array {
-	if ( [] === $stale ) {
+	$found = [];
+
+	foreach ( $stale as $item ) {
+		$found[] = [
+			'path'    => $item['path'],
+			'warning' => stale_fallback_warning( $item ),
+		];
+	}
+
+	return with_warnings( $report, $found );
+}
+
+/**
+ * A validation report with each warning added at its block, after the
+ * block's own, and the report's warnings rebuilt from every block's, in
+ * block order. Warnings do not change `valid`.
+ *
+ * @param array{valid: bool, post_type: string, round_trip: bool, blocks: array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>, errors: string[], warnings: string[], markup: string} $report From BlockTree\validate_markup().
+ * @param list<array{path: string, warning: string}>                                                                                                                                                                 $found  Warnings and the path of the block each is about.
+ * @return array{valid: bool, post_type: string, round_trip: bool, blocks: array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>, errors: string[], warnings: string[], markup: string}
+ */
+function with_warnings( array $report, array $found ): array {
+	if ( [] === $found ) {
 		return $report;
+	}
+
+	$by_path = [];
+
+	foreach ( $found as $item ) {
+		$by_path[ $item['path'] ][] = $item['warning'];
 	}
 
 	$warnings = [];
 
 	foreach ( $report['blocks'] as $index => $row ) {
-		foreach ( $stale as $item ) {
-			if ( $item['path'] === $row['path'] ) {
-				$row['warnings'][] = stale_fallback_warning( $item );
-			}
-		}
-
+		$row['warnings']            = array_merge( $row['warnings'], $by_path[ $row['path'] ] ?? [] );
 		$report['blocks'][ $index ] = $row;
 		$warnings                   = array_merge( $warnings, $row['warnings'] );
 	}
@@ -403,4 +430,166 @@ function with_stale_fallbacks( array $report, array $stale ): array {
 	$report['warnings'] = $warnings;
 
 	return $report;
+}
+
+/**
+ * Blocks whose image validate checks for alt text and for the pack's
+ * placeholders. core/cover is not one: its image is a background.
+ */
+const IMAGE_BLOCKS = [ 'core/image', 'core/media-text' ];
+
+/**
+ * The pack's placeholder images by the part of their URL the checks match,
+ * `placeholders/<file>`: one for each URL that
+ * BindingsEditor\placeholder_images() gives the editor hints.
+ *
+ * @return list<string>
+ */
+function placeholder_names(): array {
+	$names = [];
+
+	foreach ( BindingsEditor\placeholder_images() as $url ) {
+		$name = placeholder_name( $url );
+
+		if ( '' !== $name ) {
+			$names[] = $name;
+		}
+	}
+
+	return $names;
+}
+
+/**
+ * The part of a URL that can name one of the pack's placeholder images, read
+ * as placeholderName() in assets/editor/hints.js reads it: `placeholders/<file>`
+ * below a folder called `assets`, or below the token raw pattern markup
+ * carries (Patterns\ASSETS_TOKEN, which inc/patterns.php swaps for the
+ * plugin's assets URL when it registers a pattern). Only the path counts, so
+ * a copy saved on another host, under another plugin folder or with a query
+ * string still matches.
+ *
+ * @param string $url Image URL.
+ * @return string `placeholders/<file>`, or '' when the URL cannot name one.
+ */
+function placeholder_name( string $url ): string {
+	$path     = wp_parse_url( $url, PHP_URL_PATH );
+	$segments = is_string( $path ) ? explode( '/', $path ) : [];
+
+	if ( count( $segments ) < 3 ) {
+		return '';
+	}
+
+	[ $folder, $placeholders, $file ] = array_slice( $segments, -3 );
+
+	return 'placeholders' === $placeholders && '' !== $file && in_array( $folder, [ 'assets', trim( Patterns\ASSETS_TOKEN, '/' ) ], true )
+		? $placeholders . '/' . $file
+		: '';
+}
+
+/**
+ * The image an image block shows, read from its own saved HTML the way the
+ * editor reads it: block.json takes core/image's url and alt, and
+ * core/media-text's mediaUrl and mediaAlt, from the img tag's src and alt.
+ *
+ * A block with no image URL has nothing to check: an empty image block, or a
+ * media and text block holding a video or nothing. Nor does a media and text
+ * block set to show the post's featured image, which renders that image with
+ * its own alt text from the media library.
+ *
+ * @param Block $block Parsed block.
+ * @return array{url: string, alt: string}|null Null when the block shows no image of its own.
+ */
+function image_of( array $block ): ?array {
+	$name = (string) $block['blockName'];
+
+	if ( ! in_array( $name, IMAGE_BLOCKS, true ) || ( 'core/media-text' === $name && true === ( $block['attrs']['useFeaturedImage'] ?? false ) ) ) {
+		return null;
+	}
+
+	$tags = new \WP_HTML_Tag_Processor( $block['innerHTML'] );
+
+	if ( ! $tags->next_tag( [ 'tag_name' => 'img' ] ) ) {
+		return null;
+	}
+
+	$src = $tags->get_attribute( 'src' );
+	$alt = $tags->get_attribute( 'alt' );
+	$url = is_string( $src ) ? trim( $src ) : '';
+
+	return '' === $url ? null : [
+		'url' => $url,
+		'alt' => is_string( $alt ) ? trim( $alt ) : '',
+	];
+}
+
+/**
+ * Whether a block is the contact section's stand-in for a form, still in place.
+ *
+ * The same test assets/editor/hints.js makes, from the same names
+ * (BindingsEditor\FORM_SLOT): a core/group named "Form" whose parent is the
+ * core/column named "Form slot". Once a form block replaces the group, or the
+ * group is moved out of that column, it is not.
+ *
+ * @param Block      $block  Parsed block.
+ * @param Block|null $parent Its parent, null at the top level.
+ */
+function is_form_fallback( array $block, ?array $parent ): bool {
+	return null !== $parent
+		&& 'core/group' === $block['blockName']
+		&& BindingsEditor\FORM_SLOT['fallback'] === ( BlockTree\metadata( $block )['name'] ?? null )
+		&& 'core/column' === $parent['blockName']
+		&& BindingsEditor\FORM_SLOT['slot'] === ( BlockTree\metadata( $parent )['name'] ?? null );
+}
+
+/**
+ * Placeholders left in place and images with no alt text, as warnings, each
+ * with the path of its block.
+ *
+ * A placeholder is one of the pack's placeholder images (an image whose URL
+ * placeholder_name() reads as one of $placeholders), or the contact section's
+ * form stand-in (is_form_fallback()). Both are found from data, as the editor
+ * hints find them, never from the text on screen. A placeholder image gets a
+ * placeholder warning only, although it ships with empty alt text. Every
+ * other image (image_of()) whose alt text is empty or missing gets a
+ * missing_alt warning, unless its alt is bound to a source, which then gives
+ * the text.
+ *
+ * @param array<int, Block> $blocks       Blocks.
+ * @param list<string>      $placeholders From placeholder_names().
+ * @param string            $prefix       Path of the parent, '' at the top.
+ * @param Block|null        $parent       The parent block, null at the top.
+ * @return list<array{path: string, warning: string}>
+ */
+function image_warnings( array $blocks, array $placeholders, string $prefix = '', ?array $parent = null ): array {
+	$out = [];
+
+	foreach ( $blocks as $index => $block ) {
+		$path    = '' === $prefix ? (string) $index : $prefix . '/' . $index;
+		$label   = BlockTree\metadata( $block )['name'] ?? '';
+		$where   = sprintf( '%s%s at %s', (string) $block['blockName'], is_string( $label ) && '' !== $label ? sprintf( ' "%s"', $label ) : '', $path );
+		$image   = image_of( $block );
+		$name    = null === $image ? '' : placeholder_name( $image['url'] );
+		$warning = null;
+
+		if ( is_form_fallback( $block, $parent ) ) {
+			$warning = sprintf( 'placeholder: %s is the stand-in for a form that the contact section ships, still in its "%s" column. Replace it with a form plugin\'s block in the editor, so visitors get a form.', $where, BindingsEditor\FORM_SLOT['slot'] );
+		} elseif ( '' !== $name && in_array( $name, $placeholders, true ) ) {
+			$warning = sprintf( 'placeholder: %s shows the pack\'s placeholder image %s. Replace it in the editor with the site\'s own image, with alt text, or remove the block.', $where, $name );
+		} elseif ( null !== $image && '' === $image['alt'] && ! isset( bound_attributes( BlockTree\metadata( $block )['bindings'] ?? null )['alt'] ) ) {
+			$warning = sprintf( 'missing_alt: %s has no alt text, so a screen reader cannot say what it shows. Add alt text in the editor that names what the image shows, such as the company\'s name for a logo. Leave it empty only for an image that is decoration.', $where );
+		}
+
+		if ( null !== $warning ) {
+			$out[] = [
+				'path'    => $path,
+				'warning' => $warning,
+			];
+		}
+
+		/** @var array<int, Block> $inner */
+		$inner = $block['innerBlocks'];
+		array_push( $out, ...image_warnings( $inner, $placeholders, $path, $block ) );
+	}
+
+	return $out;
 }
