@@ -34,6 +34,10 @@ Each item skill has its own prompt under "Tell your agent".
 
 Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. Never pass copy for a bound slot: the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels: the pattern's blocks with `copy: true`.
 
+## Design rules
+
+Read them before you choose a section style, write copy or change a layout. If the site has its own `DESIGN.md`, read it first: it is often at the active theme's root, and on route 1 you ask the user for it. Where the site's file and the pack's disagree, the site's wins. Then read the pack's [DESIGN.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/DESIGN.md), which covers what the site's leaves open.
+
 ## The loop
 
 Every task reads the site, places blocks, binds them and checks them. There are two routes through that loop. Check your tools, then follow one route for the whole task.
