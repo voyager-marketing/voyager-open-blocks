@@ -28,7 +28,8 @@
  *      undoing the undo puts the change back, configure and bind with dry_run
  *      change nothing, a dry run is refused for a bound slot as a save is, and
  *      undo refuses another post's revision and a contributor on a page they
- *      cannot edit, while a contributor can undo on their own draft,
+ *      cannot edit, while a contributor can undo on their own draft, and undo
+ *      refuses to reverse a person's later edit unless forced,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
  *      binds its link to Site Data, then checks it resolves and validates,
@@ -1279,10 +1280,102 @@ step(
 			`status ${ draftInsert.status } then ${ draftUndo.status }`
 	);
 
+	// Undo never reverses a save it was not given without saying so. A person
+	// edits the page after the agent's save, through the REST route the editor
+	// saves with: undo with the agent's revision_id is refused and names that
+	// edit, force reverses both, and undoing the forced undo brings the
+	// person's edit back.
+	const clashPage = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E: undo conflict ${ stamp }`,
+			status: 'publish',
+			content: startingContent,
+		},
+	} );
+	const clashId = clashPage.data.id;
+	const clashRoute = `/wp/v2/pages/${ clashId }`;
+	const clashBefore = await contentOf( clashRoute );
+	const agentSave = await run( `${ ns }/insert`, {
+		post_id: clashId,
+		item: 'voyager-open/icon',
+		attributes: { icon: 'phone', label: 'Call us' },
+	} );
+	const afterAgent = await contentOf( clashRoute );
+	const personEdit = await api( clashRoute, {
+		method: 'POST',
+		body: {
+			content: `${ afterAgent }\n\n<!-- wp:paragraph -->\n<p>Added by a person in the editor.</p>\n<!-- /wp:paragraph -->`,
+		},
+	} );
+	const afterPerson = await contentOf( clashRoute );
+	const clashRevisions = await api( `${ clashRoute }/revisions`, {
+		query: { per_page: 100, context: 'edit' },
+	} );
+	const personRevision = Math.max(
+		...( Array.isArray( clashRevisions.data )
+			? clashRevisions.data
+			: []
+		).map( ( revision ) => revision.id )
+	);
+
+	const clash = await run( `${ ns }/undo`, {
+		post_id: clashId,
+		revision_id: revisionOf( agentSave ),
+	} );
+	const later = clash.data.data?.later || [];
+	step(
+		'undo refuses when the post was saved after revision_id with voyager_open_blocks_undo_conflict, names that save, and changes nothing',
+		Number.isInteger( revisionOf( agentSave ) ) &&
+			personEdit.status === 200 &&
+			!! afterAgent &&
+			afterPerson !== afterAgent &&
+			clash.status === 409 &&
+			clash.data.code === 'voyager_open_blocks_undo_conflict' &&
+			later.length === 1 &&
+			later[ 0 ].revision_id === personRevision &&
+			!! later[ 0 ].author &&
+			!! later[ 0 ].date_gmt &&
+			( await contentOf( clashRoute ) ) === afterPerson,
+		clash.data.message || JSON.stringify( clash.data )
+	);
+
+	const forced = await run( `${ ns }/undo`, {
+		post_id: clashId,
+		revision_id: revisionOf( agentSave ),
+		force: true,
+	} );
+	const reversedIds = ( forced.data.reversed || [] ).map(
+		( row ) => row.revision_id
+	);
+	step(
+		"undo with force reverses the agent's save and the person's, and lists both",
+		forced.status === 200 &&
+			forced.data.matches === true &&
+			!! clashBefore &&
+			( await contentOf( clashRoute ) ) === clashBefore &&
+			JSON.stringify( reversedIds ) ===
+				JSON.stringify( [ revisionOf( agentSave ), personRevision ] ),
+		forced.data.message || `reversed ${ JSON.stringify( reversedIds ) }`
+	);
+
+	const unforced = await run( `${ ns }/undo`, {
+		post_id: clashId,
+		revision_id: revisionOf( forced ),
+	} );
+	step(
+		"undo with the forced undo's revision_id brings the person's edit back",
+		unforced.status === 200 &&
+			!! afterPerson &&
+			( await contentOf( clashRoute ) ) === afterPerson,
+		unforced.data.message || `restored revision ${ unforced.data.restored }`
+	);
+
 	for ( const route of [
 		undoId && undoRoute,
 		otherPage.data.id && `/wp/v2/pages/${ otherPage.data.id }`,
 		draft.data.id && draftRoute,
+		clashId && clashRoute,
 	] ) {
 		if ( route ) {
 			await api( route, { method: 'DELETE', query: { force: true } } );

@@ -375,7 +375,16 @@ function revision_made( int $post_id, ?int $before ): array {
 	if ( ! $post instanceof \WP_Post || ! wp_revisions_enabled( $post ) ) {
 		return [
 			'revision_id'   => null,
-			'revision_note' => 'Revisions are off for this post type, so WordPress kept no revision of this save and undo is unavailable.',
+			'revision_note' => 'Revisions are off for this post (its post type does not support them, or the site keeps none), so WordPress kept no revision of this save and undo is unavailable.',
+		];
+	}
+
+	// wp_save_post_revision() skips an auto-draft, a post created and never
+	// saved, so neither this save nor the content before it is in a revision.
+	if ( 'auto-draft' === $post->post_status ) {
+		return [
+			'revision_id'   => null,
+			'revision_note' => 'This post is an auto-draft, and WordPress keeps no revisions of an auto-draft, so this save cannot be undone. Once the post is saved as a draft or published, each save returns a revision_id.',
 		];
 	}
 
@@ -383,7 +392,14 @@ function revision_made( int $post_id, ?int $before ): array {
 	// such as one in whitespace only, still gets a revision of its own.
 	$after = keep_current_state( $post_id );
 
-	if ( null === $after || $after === $before ) {
+	if ( null === $after ) {
+		return [
+			'revision_id'   => null,
+			'revision_note' => 'WordPress made no revision of this save, so undo is unavailable for it.',
+		];
+	}
+
+	if ( $after === $before ) {
 		return [
 			'revision_id'   => null,
 			'revision_note' => 'The content did not change, so WordPress made no revision and there is nothing to undo.',
