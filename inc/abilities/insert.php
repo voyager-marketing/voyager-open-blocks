@@ -50,7 +50,7 @@ function register_insert(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or the icon block into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items whose text is not bound; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -90,7 +90,7 @@ function register_insert(): void {
 							'type'      => 'string',
 							'minLength' => 1,
 						],
-						'description'          => 'Patterns in copy mode only. Plain text by label (a block\'s metadata.name, listed by get-catalog with copy: true), such as {"Heading": "...", "Body": "..."}. Replaces the text of headings, paragraphs, button labels and list items, escaped. Bindings stay: on a bound block the text becomes its fallback.',
+						'description'          => 'Patterns in copy mode only. Plain text by label (a block\'s metadata.name, listed by get-catalog with copy: true), such as {"Heading": "...", "Body": "..."}. Replaces the text of headings, paragraphs, button labels and list items, escaped. A label whose text is bound, such as the CTA band\'s "Click to call" or the contact section\'s detail lines, is refused with voyager_open_blocks_bound_slot and nothing is saved: its text comes from the binding, so change the value in Settings > Site Data instead.',
 					],
 					'omit'       => [
 						'type'        => 'array',
@@ -295,6 +295,25 @@ function insert( array $input ) {
 		];
 	}
 
+	// The new blocks as they now sit in the post, with the post's paths.
+	$last = $index + count( $new ) - 1;
+	$rows = array_values(
+		array_filter(
+			BlockTree\describe( $blocks ),
+			static fn ( array $row ): bool => BlockTree\in_range( $row['path'], $prefix, $index, $last )
+		)
+	);
+
+	// Copy for a bound slot refuses the whole call, before anything is saved,
+	// so a section is never saved half filled. Checked once the blocks are
+	// placed, so each refused slot is named by its path in the post.
+	if ( $copy ) {
+		$refused = bound_copy_slots( $rows, $copy );
+		if ( [] !== $refused ) {
+			return bound_slot_error( 'copy', $refused );
+		}
+	}
+
 	if ( ! $dry_run ) {
 		$saved = BlockTree\save( $post_id, $blocks );
 		if ( is_wp_error( $saved ) ) {
@@ -302,20 +321,13 @@ function insert( array $input ) {
 		}
 	}
 
-	$last = $index + count( $new ) - 1;
-
 	return [
 		'post_id'    => $post_id,
 		'item'       => $item,
 		'index'      => $index,
 		'saved'      => ! $dry_run,
 		'markup'     => $markup,
-		'blocks'     => array_values(
-			array_filter(
-				BlockTree\describe( $blocks ),
-				static fn ( array $row ): bool => BlockTree\in_range( $row['path'], $prefix, $index, $last )
-			)
-		),
+		'blocks'     => $rows,
 		'validation' => $report,
 	] + $out;
 }

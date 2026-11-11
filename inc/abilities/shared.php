@@ -28,6 +28,8 @@ namespace VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
+use VoyagerOpenBlocks\PostMetaText;
+use VoyagerOpenBlocks\SiteData;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -294,4 +296,168 @@ function finish( int $post_id, array $blocks, array $block, string $path ) {
 		'markup'     => $markup,
 		'validation' => $report,
 	];
+}
+
+/**
+ * The bindings on a block whose values belong to their source.
+ *
+ * Every attribute in metadata.bindings that names a source, except one bound
+ * to core/pattern-overrides: that source keeps the block's own text as the
+ * default each copy of a synced pattern may override, so text written there
+ * is the default, not a fallback.
+ *
+ * @param mixed $bindings A block's metadata.bindings.
+ * @return array<string, array{source: string, key: string}> Attribute => its source and key ('' when the args name none).
+ */
+function bound_attributes( mixed $bindings ): array {
+	$out = [];
+
+	foreach ( is_array( $bindings ) ? $bindings : [] as $attribute => $binding ) {
+		$source = is_array( $binding ) && isset( $binding['source'] ) && is_string( $binding['source'] ) ? $binding['source'] : '';
+		$args   = is_array( $binding ) && isset( $binding['args'] ) && is_array( $binding['args'] ) ? $binding['args'] : [];
+
+		if ( '' === $source || 'core/pattern-overrides' === $source ) {
+			continue;
+		}
+
+		$out[ (string) $attribute ] = [
+			'source' => $source,
+			'key'    => isset( $args['key'] ) && is_string( $args['key'] ) ? $args['key'] : '',
+		];
+	}
+
+	return $out;
+}
+
+/**
+ * insert's copy labels that would write text a binding owns.
+ *
+ * A label is refused when a block carrying it is bound on the attribute copy
+ * writes: a heading's, paragraph's or list item's content, or a button's text.
+ * The text would be saved only as the binding's fallback, which stays in the
+ * post after the value changes. Each label is listed once.
+ *
+ * @param array<int, Row>     $rows The new blocks as BlockTree\describe() lists them, with their paths in the post.
+ * @param array<mixed, mixed> $copy Label => text.
+ * @return list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}>
+ */
+function bound_copy_slots( array $rows, array $copy ): array {
+	$refused = [];
+
+	foreach ( $rows as $row ) {
+		$label     = $row['label'] ?? null;
+		$attribute = BlockTree\TEXT_ATTRIBUTES[ $row['block'] ] ?? null;
+
+		if ( null === $label || null === $attribute || ! array_key_exists( $label, $copy ) || isset( $refused[ $label ] ) ) {
+			continue;
+		}
+
+		$bound = bound_attributes( $row['bindings'] ?? [] );
+
+		if ( isset( $bound[ $attribute ] ) ) {
+			$refused[ $label ] = [
+				'slot'      => $label,
+				'reason'    => 'bound',
+				'block'     => $row['block'],
+				'path'      => $row['path'],
+				'attribute' => $attribute,
+				'source'    => $bound[ $attribute ]['source'],
+				'key'       => $bound[ $attribute ]['key'],
+			];
+		}
+	}
+
+	return array_values( $refused );
+}
+
+/**
+ * configure's attributes that a binding on the block owns.
+ *
+ * Null is not refused: it removes the attribute, which clears a stale fallback
+ * rather than writing one.
+ *
+ * @param Block                $block      The block at the path.
+ * @param array<string, mixed> $attributes Attributes to set; null resets one.
+ * @param string               $path       The block's path.
+ * @return list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}>
+ */
+function bound_attribute_slots( array $block, array $attributes, string $path ): array {
+	$bound   = bound_attributes( BlockTree\metadata( $block )['bindings'] ?? [] );
+	$refused = [];
+
+	foreach ( $attributes as $attribute => $value ) {
+		$attribute = (string) $attribute;
+
+		if ( null === $value || ! isset( $bound[ $attribute ] ) ) {
+			continue;
+		}
+
+		$refused[] = [
+			'slot'      => $attribute,
+			'reason'    => 'bound',
+			'block'     => (string) $block['blockName'],
+			'path'      => $path,
+			'attribute' => $attribute,
+			'source'    => $bound[ $attribute ]['source'],
+			'key'       => $bound[ $attribute ]['key'],
+		];
+	}
+
+	return $refused;
+}
+
+/**
+ * Where the value behind a binding is changed instead.
+ *
+ * @param string $source Binding source.
+ * @param string $key    Its key, '' when the args name none.
+ */
+function where_to_change( string $source, string $key ): string {
+	if ( SiteData\SOURCE === $source ) {
+		return 'change the value in Settings > Site Data instead';
+	}
+
+	if ( ( PostMetaText\SOURCE === $source || 'core/post-meta' === $source ) && '' !== $key ) {
+		return sprintf( 'change the post\'s "%s" field instead', $key );
+	}
+
+	return sprintf( 'change the value where %s keeps it instead', $source );
+}
+
+/**
+ * The error for copy or attributes aimed at bound slots. Lists every one.
+ *
+ * @param string $field   The input that named them: copy or attributes.
+ * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}> $refused Refused slots, from bound_copy_slots() or bound_attribute_slots().
+ */
+function bound_slot_error( string $field, array $refused ): WP_Error {
+	$slots = [];
+
+	foreach ( $refused as $slot ) {
+		$slots[] = sprintf(
+			'"%s" (%s %s at %s) is bound to %s%s, so %s.',
+			$slot['slot'],
+			$slot['block'],
+			$slot['attribute'],
+			$slot['path'],
+			$slot['source'],
+			'' === $slot['key'] ? '' : sprintf( ', key "%s"', $slot['key'] ),
+			where_to_change( $slot['source'], $slot['key'] )
+		);
+	}
+
+	return new WP_Error(
+		'voyager_open_blocks_bound_slot',
+		sprintf(
+			'Nothing was saved: %1$s names %2$s whose value comes from a binding. A value passed here would be stored only as the fallback, which stays in the post after the real value changes and shows whenever the source returns nothing. Leave %3$s out of %1$s. %4$s',
+			$field,
+			1 === count( $refused ) ? 'a slot' : 'slots',
+			1 === count( $refused ) ? 'it' : 'them',
+			implode( ' ', $slots )
+		),
+		[
+			'status'  => 400,
+			'refused' => $refused,
+		]
+	);
 }
