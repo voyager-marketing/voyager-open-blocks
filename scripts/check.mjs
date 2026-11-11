@@ -15,7 +15,7 @@
  * 9. Every change note in unreleased/ is well-formed (unreleased/README.md).
  * 10. scripts/fold-unreleased.mjs passes its known-answer test, all of its
  *     12 cases at least.
- * 11. DESIGN.md lints with no errors and its sections in the format's order.
+ * 11. DESIGN.md lints with no errors and no warnings.
  * 12. The same linter rejects tests/invalid/design-broken-ref.md, so that
  *     gate is shown to bite.
  * 13. npm run cache-check's logic (scripts/lib/cache-check.mjs, and run() in
@@ -246,10 +246,10 @@ report(
 	foldTest.detail
 );
 
-// DESIGN.md is linted with Google's DESIGN.md linter. Its errors fail the
-// gate, and so does a section out of the format's order, which the linter
-// only warns about. Its other warnings (no `primary` colour, no typography
-// tokens) are printed: whether the pack names a primary is a design call.
+// DESIGN.md is linted with Google's DESIGN.md linter. Any error or warning
+// fails the gate. The linter exits 1 on errors only, and it reports a
+// component's text under 4.5:1 against its background, an unused colour and
+// a section out of order as warnings, so the gate reads the findings.
 const designLint = join(
 	root,
 	'node_modules',
@@ -269,7 +269,6 @@ function lintDesign( file ) {
 		code: result.code,
 		parsed: Array.isArray( parsed.findings ),
 		errors: findings.filter( ( item ) => item.severity === 'error' ),
-		order: findings.filter( ( item ) => item.rule === 'section-order' ),
 		warnings: findings.filter( ( item ) => item.severity === 'warning' ),
 	};
 }
@@ -279,10 +278,14 @@ report(
 	design.code === 0 &&
 		design.parsed &&
 		design.errors.length === 0 &&
-		design.order.length === 0,
+		design.warnings.length === 0,
 	design.parsed
-		? [ ...design.errors, ...design.order ]
-				.map( ( item ) => item.message )
+		? [ ...design.errors, ...design.warnings ]
+				.map( ( item ) =>
+					item.path
+						? `${ item.path }: ${ item.message }`
+						: item.message
+				)
 				.join( ' ' ) ||
 				`${ design.errors.length } errors, ${ design.warnings.length } warnings`
 		: `exit ${ design.code }, no JSON report`

@@ -31,7 +31,7 @@ npm run check              # every offline gate, below
 - **Binding sources** are in `inc/site-data.php` and `inc/post-meta-text.php`. Their editor half (field lists, live values, in-place editing of post meta) is `assets/bindings-editor.js`.
 - **Abilities** are in `inc/abilities/`, one file per ability (`get-catalog.php`, `find-posts.php`, `get-post-blocks.php`, `insert.php`, `configure.php`, `bind.php`, `validate.php`), each holding its registration and its callbacks. `shared.php` holds what several use: the permission callbacks, the input schemas, `check_attributes()`, `validation()`, `locate()` and `finish()`, and `register()`, which registers the abilities in order. `inc/abilities.php` only loads them. They are a thin layer over `inc/block-tree.php` (read and write a post's blocks by path) and `inc/catalog.php` (what the pack offers, and which binding args are real).
 - **Change notes** for `readme.txt`'s changelog are files in `unreleased/`, one per pull request, folded in by the release pull request. The format is in [unreleased/README.md](../unreleased/README.md).
-- **DESIGN.md** at the repo root describes the patterns' design in [Google's DESIGN.md format](https://github.com/google-labs-code/design.md). It is a skeleton until its sections are written.
+- **DESIGN.md** at the repo root describes the patterns' design in [Google's DESIGN.md format](https://github.com/google-labs-code/design.md). The entry skill tells agents to read it after the site's own DESIGN.md.
 - **The v2 contracts**, the shapes the lanes of version 2 build against, are in [v2-contracts.md](v2-contracts.md). The lanes are in [AGENTS.md](../AGENTS.md#lanes).
 
 ## The offline gates
@@ -48,7 +48,7 @@ npm run check              # every offline gate, below
 8. `readme.txt` has a `= Source code =` section with the GitHub link and `npm run build`. The plugin directory asks a plugin that ships built files to say where their source is, and Plugin Check does not test for it.
 9. every change note in `unreleased/` is well-formed (`npm run changelog:fold -- --check`),
 10. `scripts/fold-unreleased.mjs` passes its known-answer test, `scripts/test-fold-unreleased.mjs` (`npm run test:fold`), all 12 of its cases: the notes in `tests/fixtures/fold-unreleased/` folded into its `readme.in.txt` must give `readme.expected.txt`, and malformed notes must stop the fold with nothing changed,
-11. `DESIGN.md` lints with `@google/design.md` (`npm run lint:design`) with no errors and its sections in the format's order. The linter's other warnings are printed, not failed,
+11. `DESIGN.md` lints with `@google/design.md` (`npm run lint:design`) with no errors and no warnings. Contrast under 4.5:1 between a component's colours, an unused colour and a section out of order are all warnings,
 12. the same linter rejects `tests/invalid/design-broken-ref.md`, a component pointing at a colour token that does not exist, so that gate is shown to bite,
 13. the logic of `npm run cache-check` passes its known-answer test, `scripts/test-cache-check.mjs` (`npm run test:cache-check`), all 21 of its cases, including crashes planted in each step, which must exit 2 and never pass a row,
 14. the guard on 10 and 13 rejects `tests/invalid/no-tests.mjs`. `node --test` reports a file with no tests as one passing test, so the guard counts each file's known cases rather than "more than none".
