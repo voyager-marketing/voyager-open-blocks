@@ -7,7 +7,7 @@ colors:
   surface: "#ffffff"
   on-surface: "#111111"
   muted: "color-mix(in srgb, #111111 65%, #ffffff)"
-  accent: "#111111"
+  accent: "color-mix(in srgb, #111111 75%, #ffffff)"
   on-accent: "#ffffff"
   line: "color-mix(in srgb, #111111 20%, #ffffff)"
   panel: "color-mix(in srgb, #111111 5%, #ffffff)"
@@ -106,41 +106,43 @@ This file follows Google's [DESIGN.md format](https://github.com/google-labs-cod
 
 **When the site has its own DESIGN.md, that one wins.** This file fills only what the site's leaves open.
 
-The theme supplies every real value. The front matter holds stand-ins: the colours are the monochrome fallback the pack will use on a theme it has no colour map for, with `#111111` and `#ffffff` standing in for the theme's text and background, and the sizes and spacing are Twenty Twenty-Five's presets at full width.
+The theme supplies every real value. The front matter holds stand-ins: the colours are the monochrome fallback the pack uses on a theme it has no colour map for, with `#111111` and `#ffffff` standing in for the theme's text and background, and the sizes and spacing are Twenty Twenty-Five's presets at full width.
 
 ## Overview
 
 A page built from the pack should read like a well-made local business site in the theme's own clothes: plain, confident and easy to scan, with one clear next step. The theme brings colour, type and radius. The pack brings structure and rhythm.
 
-- **One bold move per section.** A strong section style (once the pack has them), a display-size heading, a large image or motion: pick one, and keep the rest of the section quiet.
+- **One bold move per section.** A strong section style, a display-size heading, a large image or motion: pick one, and keep the rest of the section quiet.
 - **Rhythm comes from alternating quiet and strong sections,** not from decoration.
 - **Core blocks and theme presets only.** No colour, font size, font family or shadow outside the theme's presets, and no `core/html`.
 
 ## Colors
 
-Every colour is one of six roles. Today the pack's patterns set no colour at all, so every section takes the theme's own background and text colour.
+Every colour is one of six roles. The pack's patterns set no colour of their own: a Plain section takes the theme's background and text colour, and the three section styles paint from the roles.
 
-**Planned, not in the pack yet:** a role map that turns each role into one of the theme's palette slugs. It will have maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system, and a `voyager_open_blocks_style_roles` filter for a theme to replace them. On any other theme the roles will be built from the theme's text colour with `currentColor` and `color-mix()`, which gives the monochrome values in the front matter.
+The roles come from a role map that turns each role into one of the theme's palette slugs. The pack has maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system, and picks one by the palette slugs the theme declares. A theme replaces the map with the `voyager_open_blocks_style_roles` filter, which returns role => slug. On any other theme, and for any role the map leaves out, the roles are built from the theme's own text and background colours (its theme.json `styles.color`): `surface` and `on-accent` are the background, `on-surface` is the text, `accent` mixes 75% of the text into the background with `color-mix()`, and `muted` and `line` mix `currentColor` into transparent at 65% and 20%. That gives the monochrome values in the front matter.
 
 | Role | Use |
 | -- | -- |
 | `surface` | page and Plain section background |
 | `on-surface` | text, headings, links and icons on `surface` |
 | `muted` | secondary text on `surface` or Panel: hours, captions, fine print |
-| `accent` | the brand colour: the Accent section's background, the primary button's fill |
+| `accent` | the brand colour: the Accent section's background, the primary button's fill in Panel |
 | `on-accent` | text and icons on `accent` |
-| `line` | 1px rules and borders, once the role map ships; today they use the text colour |
+| `line` | 1px rules and borders. The patterns' rules set no colour yet, so they take the text colour |
 
-`primary` in the front matter is the format's required name for `accent`; write `accent`. `panel` is not a role: it is `surface` with 5% of `on-surface` mixed in, so it will follow the map.
+`primary` in the front matter is the format's required name for `accent`; write `accent`. `panel` is not a role: it is `surface` with 5% of `on-surface` mixed in, so it follows the map.
 
-**The Panel, Inverted and Accent section styles are planned and not registered yet.** Until `get-catalog` lists one, never add `is-style-voyager-open-panel`, `is-style-voyager-open-inverted` or `is-style-voyager-open-accent`: every section stays Plain. Once they ship, each is a block style on the section's `core/group`:
+**Three section styles: Panel, Inverted and Accent.** Each is a block style on the section's `core/group`. `get-catalog` lists them under `styles`, `configure` sets one with its `style` input (`plain` takes it off), and the editor shows them in the group's Styles panel. Plain is no style at all. Each style sets the section's background and text colour, and the colour of the headings, links and fill buttons inside it:
 
 | Style | Class | Background | Text | Primary button |
 | -- | -- | -- | -- | -- |
-| Plain | none | `surface` | `on-surface` | `accent` fill, `on-accent` text |
+| Plain | none | `surface` | `on-surface` | the theme's own |
 | Panel | `is-style-voyager-open-panel` | `panel` | `on-surface` | `accent` fill, `on-accent` text |
 | Inverted | `is-style-voyager-open-inverted` | `on-surface` | `surface` | `surface` fill, `on-surface` text |
 | Accent | `is-style-voyager-open-accent` | `accent` | `on-accent` | `on-accent` fill, `accent` text |
+
+An outline button takes the section's text colour. A fill button keeps its colours on hover and focus, and hover underlines its label. A theme can restyle a section in its own theme.json, under `styles.blocks.core/group.variations.voyager-open-panel` and so on, and that wins over the pack's.
 
 Plain and Panel are quiet; Inverted and Accent are strong. In a strong section, secondary text takes the section's text colour too: `muted` is for `surface` and Panel only.
 
@@ -198,7 +200,7 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 
 ## Do's and Don'ts
 
-Each rule names the check that enforces it, or says judge only. `lint` runs in `npm run check` today. The rest are planned and not in CI yet. The rendered ones (`contrast`, `overflow`, `a11y`, `impeccable`, `motion`) render every pattern and style at 320, 390, 768 and 1280 px on public themes.
+Each rule names the check that enforces it, or says judge only. `lint` runs in `npm run check`. `contrast` runs in CI for the section styles today (`npm run contrast`: the CTA band in each style at 1280 px on Twenty Twenty-Five, Twenty Twenty-Four and Twenty Twenty-Three, the last on the fallback roles). The rest are planned and not in CI yet. The rendered ones (`contrast`, `overflow`, `a11y`, `impeccable`, `motion`) will render every pattern and style at 320, 390, 768 and 1280 px on public themes.
 
 | Check | Fails when |
 | -- | -- |

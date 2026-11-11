@@ -7,7 +7,9 @@
  * Against a running site (npm run playground -- serve), it:
  *   1. lists the pack's abilities and reads the catalog,
  *   2. creates a page, finds it with find-posts by title words and by slug, and
- *      inserts the CTA band (bound to voyager/site-data), then inserts it again
+ *      inserts the CTA band (bound to voyager/site-data), sets its section style
+ *      with configure (Accent, rendered on the front end, then Inverted, then
+ *      Plain) after checking get-catalog lists the styles, then inserts it again
  *      with copy for its heading and body, checks copy for its bound call button
  *      is refused with the page unchanged, and inserts the proof strip with
  *      three facts (fourth item omitted) and with six (two repeated),
@@ -340,6 +342,111 @@ step(
 		callButton?.bindings?.url?.args?.key === 'phone_link'
 );
 validate( 'cta-band insert', cta.data.markup || '' );
+
+// Section styles: get-catalog lists them, configure puts one on the CTA band's
+// group and takes it off again, and the front end renders it.
+const catalogStyles = catalog.data.styles?.styles || [];
+step(
+	'get-catalog lists the Panel, Inverted and Accent section styles',
+	[ 'panel', 'inverted', 'accent' ].every( ( style ) =>
+		catalogStyles.some(
+			( s ) =>
+				s.style === style &&
+				s.class === `is-style-voyager-open-${ style }`
+		)
+	) &&
+		catalog.data.styles?.block === 'core/group' &&
+		typeof catalog.data.styles?.roles === 'string',
+	`${ catalogStyles.map( ( s ) => s.class ).join( ', ' ) }; roles ${ catalog.data.styles?.roles }`
+);
+const bandPath = ( cta.data.blocks || [] ).find(
+	( b ) => b.label === 'CTA band'
+)?.path;
+const styledAs = ( markup ) =>
+	( ( markup || '' ).match( /is-style-voyager-open-[a-z]+/g ) || [] ).join(
+		' '
+	);
+for ( const style of [ 'accent', 'inverted', 'plain' ] ) {
+	const styled = await run( `${ ns }/configure`, {
+		post_id: postId,
+		path: bandPath,
+		style,
+	} );
+	const expected =
+		style === 'plain'
+			? ''
+			: `is-style-voyager-open-${ style } is-style-voyager-open-${ style }`;
+	step(
+		`configure sets the CTA band's section style to ${ style }, in its className and on its wrapper`,
+		styled.status === 200 &&
+			styled.data.block === 'core/group' &&
+			styledAs( styled.data.markup ) === expected,
+		styled.data.code || styledAs( styled.data.markup ) || 'no style'
+	);
+	validate( `cta-band styled ${ style }`, styled.data.markup || '' );
+	if ( style === 'accent' ) {
+		const front = ( await request( page.data.link ) ).text;
+		step(
+			'the front end renders the Accent style from its style data',
+			/class="[^"]*\bis-style-voyager-open-accent--\d+\b/.test( front ),
+			[
+				...new Set(
+					front.match(
+						/is-style-voyager-open-(?:panel|inverted|accent)[a-z0-9-]*/g
+					) || []
+				),
+			].join( ' ' ) || 'no section style class'
+		);
+	}
+}
+for ( const [ label, input, code ] of [
+	[
+		'configure refuses a section style on a block that is not a group',
+		{ path: callButton?.path, style: 'panel' },
+		'voyager_open_blocks_invalid_style',
+	],
+	[
+		'configure refuses style and attributes together',
+		{ path: bandPath, style: 'panel', attributes: {} },
+		'voyager_open_blocks_invalid_style',
+	],
+	[
+		'configure refuses a section style that does not exist',
+		{ path: bandPath, style: 'neon' },
+	],
+] ) {
+	const refused = await run( `${ ns }/configure`, {
+		post_id: postId,
+		...input,
+	} );
+	step(
+		label,
+		refused.status === 400 && ( ! code || refused.data.code === code ),
+		refused.data.code
+	);
+}
+const styleTrial = await run( `${ ns }/configure`, {
+	post_id: postId,
+	path: bandPath,
+	style: 'panel',
+	dry_run: true,
+} );
+const afterTrial = await run(
+	`${ ns }/get-post-blocks`,
+	{ post_id: postId },
+	true
+);
+step(
+	'configure with style and dry_run returns the styled markup and saves nothing',
+	styleTrial.status === 200 &&
+		styleTrial.data.saved === false &&
+		styleTrial.data.revision_id === null &&
+		styledAs( styleTrial.data.markup ) ===
+			'is-style-voyager-open-panel is-style-voyager-open-panel' &&
+		! JSON.stringify( afterTrial.data ).includes( 'voyager-open-panel' ),
+	styleTrial.data.code ||
+		`saved ${ styleTrial.data.saved }, ${ styledAs( styleTrial.data.markup ) }`
+);
 
 // The CTA band again, with copy. The heading and body carry characters that
 // must arrive escaped. The call button's text is bound, so it takes no copy
