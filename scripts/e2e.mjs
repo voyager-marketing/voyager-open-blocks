@@ -1880,9 +1880,10 @@ const described = ( records ) =>
 	);
 const sameList = ( a, b ) =>
 	JSON.stringify( [ ...a ].sort() ) === JSON.stringify( [ ...b ].sort() );
-const front = `${ String(
-	( await api( '/' ) ).data.home || base
-).replace( /\/$/, '' ) }/`;
+const front = `${ String( ( await api( '/' ) ).data.home || base ).replace(
+	/\/$/,
+	''
+) }/`;
 const originalPhone = ( await api( '/wp/v2/settings' ) ).data
 	.voyager_site_phone;
 const purgeCleanup = [];
