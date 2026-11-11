@@ -231,13 +231,6 @@ function insert( array $input ) {
 		}
 
 		if ( $copy ) {
-			// Before any text is set: one refused slot refuses the whole call,
-			// so a section is never saved half filled.
-			$refused = bound_copy_slots( $new, $copy );
-			if ( [] !== $refused ) {
-				return bound_slot_error( 'copy', $refused );
-			}
-
 			$copied = BlockTree\set_copy( $new, $copy );
 			if ( is_wp_error( $copied ) ) {
 				return $copied;
@@ -302,6 +295,25 @@ function insert( array $input ) {
 		];
 	}
 
+	// The new blocks as they now sit in the post, with the post's paths.
+	$last = $index + count( $new ) - 1;
+	$rows = array_values(
+		array_filter(
+			BlockTree\describe( $blocks ),
+			static fn ( array $row ): bool => BlockTree\in_range( $row['path'], $prefix, $index, $last )
+		)
+	);
+
+	// Copy for a bound slot refuses the whole call, before anything is saved,
+	// so a section is never saved half filled. Checked once the blocks are
+	// placed, so each refused slot is named by its path in the post.
+	if ( $copy ) {
+		$refused = bound_copy_slots( $rows, $copy );
+		if ( [] !== $refused ) {
+			return bound_slot_error( 'copy', $refused );
+		}
+	}
+
 	if ( ! $dry_run ) {
 		$saved = BlockTree\save( $post_id, $blocks );
 		if ( is_wp_error( $saved ) ) {
@@ -309,20 +321,13 @@ function insert( array $input ) {
 		}
 	}
 
-	$last = $index + count( $new ) - 1;
-
 	return [
 		'post_id'    => $post_id,
 		'item'       => $item,
 		'index'      => $index,
 		'saved'      => ! $dry_run,
 		'markup'     => $markup,
-		'blocks'     => array_values(
-			array_filter(
-				BlockTree\describe( $blocks ),
-				static fn ( array $row ): bool => BlockTree\in_range( $row['path'], $prefix, $index, $last )
-			)
-		),
+		'blocks'     => $rows,
 		'validation' => $report,
 	] + $out;
 }

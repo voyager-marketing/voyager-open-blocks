@@ -31,7 +31,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A bound block whose fallback looks like a phone number or an email address gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone or email field whose fallback looks like a phone number or an email address gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -154,12 +154,21 @@ function validate( $input = null ) {
 }
 
 /**
+ * Keys that name a phone number or an email address, such as Site Data's
+ * phone, phone_link, email and email_link, or a post meta key like
+ * office_phone. Only their fallbacks can be stale copies of a phone number or
+ * an email address.
+ */
+const CONTACT_KEY = '/phone|mail/i';
+
+/**
  * What a fallback looks like: 'email', 'phone', or null for neither.
  *
- * An email is anything shaped x@y.z. A phone number is a run of digits and
- * separators (spaces, dots, hyphens, parentheses, a leading +) holding 7 to
- * 15 digits, as a tel: link does too. A date such as 2026-11-10 and a ZIP+4
- * code are not phone numbers. A label such as "Call us" is neither.
+ * Only fallbacks of keys matching CONTACT_KEY are tested, so this tells a
+ * phone number or an email address from a label such as "Call us", not from
+ * a date or a year range. An email is anything shaped x@y.z. A phone number
+ * is a run of digits and separators (spaces, dots, hyphens, parentheses, a
+ * leading +) holding 7 to 15 digits, as a tel: link does too.
  *
  * @param string $text Fallback text.
  */
@@ -171,14 +180,11 @@ function looks_like( string $text ): ?string {
 	preg_match_all( '/\+?\d[\d\s().-]*\d/', $text, $runs );
 
 	foreach ( $runs[0] as $run ) {
-		$run    = trim( $run );
 		$digits = (int) preg_match_all( '/\d/', $run );
 
-		if ( $digits < 7 || $digits > 15 || 1 === preg_match( '/^(\d{4}([.-])\d{1,2}\2\d{1,2}|\d{5}-\d{4})$/', $run ) ) {
-			continue;
+		if ( $digits >= 7 && $digits <= 15 ) {
+			return 'phone';
 		}
-
-		return 'phone';
 	}
 
 	return null;
@@ -277,11 +283,14 @@ function fallback_index( array $fallbacks ): array {
 }
 
 /**
- * Bound blocks whose fallback looks like a phone number or an email address.
+ * Blocks bound to a phone or email key whose fallback looks like one.
  *
  * A fallback stays in the post when the real value changes, and visitors see
  * it whenever the source returns nothing, so a phone number there is a stale
- * copy waiting to show. A fallback the pack's patterns ship for the same
+ * copy waiting to show. Only keys matching CONTACT_KEY are checked: a block
+ * bound to any other key, such as copyright or founded, may hold digits that
+ * look like a phone number ("© 2015-2026", "License #1234567") and is never
+ * a stale copy of one. A fallback the pack's patterns ship for the same
  * source and key is a placeholder and is left out.
  *
  * @param array<int, Block>           $blocks  Blocks.
@@ -292,6 +301,10 @@ function stale_fallbacks( array $blocks, array $shipped ): array {
 	$stale = [];
 
 	foreach ( bound_fallbacks( $blocks ) as $fallback ) {
+		if ( 1 !== preg_match( CONTACT_KEY, $fallback['key'] ) ) {
+			continue;
+		}
+
 		$kind = looks_like( $fallback['fallback'] );
 
 		if ( null === $kind || in_array( $fallback['fallback'], $shipped[ $fallback['source'] . ':' . $fallback['key'] ] ?? [], true ) ) {

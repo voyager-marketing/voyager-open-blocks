@@ -337,14 +337,14 @@ function bound_attributes( mixed $bindings ): array {
  * The text would be saved only as the binding's fallback, which stays in the
  * post after the value changes. Each label is listed once.
  *
- * @param array<int, Block>   $blocks Blocks the copy would go into.
- * @param array<mixed, mixed> $copy   Label => text.
+ * @param array<int, Row>     $rows The new blocks as BlockTree\describe() lists them, with their paths in the post.
+ * @param array<mixed, mixed> $copy Label => text.
  * @return list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}>
  */
-function bound_copy_slots( array $blocks, array $copy ): array {
+function bound_copy_slots( array $rows, array $copy ): array {
 	$refused = [];
 
-	foreach ( BlockTree\describe( $blocks ) as $row ) {
+	foreach ( $rows as $row ) {
 		$label     = $row['label'] ?? null;
 		$attribute = BlockTree\TEXT_ATTRIBUTES[ $row['block'] ] ?? null;
 

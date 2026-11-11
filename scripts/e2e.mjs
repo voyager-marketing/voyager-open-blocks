@@ -374,10 +374,17 @@ const rawContent = async () =>
 // for it would be saved only as a fallback that outlives the next change to the
 // phone number. The whole call is refused before anything is saved, and the
 // heading's copy, which alone would have been fine, is not saved either.
+// Inserted at position 1, the slot is named by its path in the page: the call
+// button's path inside the first band, under top-level index 1.
+const boundCallPath = [
+	'1',
+	...( callButton?.path || '' ).split( '/' ).slice( 1 ),
+].join( '/' );
 const beforeBoundCopy = await rawContent();
 const boundCopy = await run( `${ ns }/insert`, {
 	post_id: postId,
 	item: 'voyager-open/cta-band',
+	position: 1,
 	copy: {
 		Heading: 'Call us today',
 		'Click to call': '(555) 555-0113',
@@ -385,11 +392,11 @@ const boundCopy = await run( `${ ns }/insert`, {
 } );
 const afterBoundCopy = await rawContent();
 step(
-	'insert refuses copy for the bound "Click to call" with voyager_open_blocks_bound_slot, and the page is unchanged',
+	'insert refuses copy for the bound "Click to call" with voyager_open_blocks_bound_slot, names it by its path in the page, and the page is unchanged',
 	boundCopy.status === 400 &&
 		boundCopy.data.code === 'voyager_open_blocks_bound_slot' &&
 		( boundCopy.data.message || '' ).includes(
-			'"Click to call" (core/button text at'
+			`"Click to call" (core/button text at ${ boundCallPath })`
 		) &&
 		( boundCopy.data.message || '' ).includes(
 			'voyager/site-data, key "phone"'

@@ -17,6 +17,7 @@ namespace VoyagerOpenBlocks\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use VoyagerOpenBlocks\Abilities;
+use VoyagerOpenBlocks\BlockTree;
 use WP_Error;
 
 require_once dirname( __DIR__, 2 ) . '/inc/abilities.php';
@@ -120,8 +121,26 @@ final class BoundSlotTest extends TestCase {
 		];
 	}
 
+	/**
+	 * The new blocks' rows as insert reads them once placed: described with
+	 * the whole post, so their paths are the post's.
+	 *
+	 * @param array<int, array<mixed>> $blocks The post's blocks after the insert.
+	 * @param int                      $index  Where the new blocks start, at the top level.
+	 * @param int                      $count  How many there are.
+	 * @return array<int, array<mixed>>
+	 */
+	private static function placed( array $blocks, int $index = 0, int $count = 1 ): array {
+		return array_values(
+			array_filter(
+				BlockTree\describe( $blocks ),
+				static fn ( array $row ): bool => BlockTree\in_range( $row['path'], '', $index, $index + $count - 1 )
+			)
+		);
+	}
+
 	public function test_insert_refuses_copy_for_the_bound_call_button(): void {
-		$refused = Abilities\bound_copy_slots( self::cta_band( 'Call us' ), [ 'Heading' => 'Book today', 'Click to call' => '(555) 555-0113' ] );
+		$refused = Abilities\bound_copy_slots( self::placed( self::cta_band( 'Call us' ) ), [ 'Heading' => 'Book today', 'Click to call' => '(555) 555-0113' ] );
 
 		$this->assertSame(
 			[
@@ -139,15 +158,28 @@ final class BoundSlotTest extends TestCase {
 		);
 	}
 
+	public function test_a_refused_slot_is_named_by_its_path_in_the_post(): void {
+		$post = array_merge(
+			array_map( static fn ( int $n ): array => self::paragraph( 'Intro ' . $n, 'Text' ), range( 1, 4 ) ),
+			self::cta_band( 'Call us' ),
+			[ self::paragraph( 'Outro', 'Text' ) ]
+		);
+
+		$refused = Abilities\bound_copy_slots( self::placed( $post, 4 ), [ 'Click to call' => '(555) 555-0113' ] );
+
+		$this->assertSame( [ '4/1' ], array_column( $refused, 'path' ) );
+		$this->assertStringContainsString( '(core/button text at 4/1)', Abilities\bound_slot_error( 'copy', $refused )->get_error_message() );
+	}
+
 	public function test_a_button_whose_link_alone_is_bound_takes_copy(): void {
-		$this->assertSame( [], Abilities\bound_copy_slots( self::cta_band( 'Call us' ), [ 'Email button' => 'Write to the office', 'Heading' => 'x' ] ) );
+		$this->assertSame( [], Abilities\bound_copy_slots( self::placed( self::cta_band( 'Call us' ) ), [ 'Email button' => 'Write to the office', 'Heading' => 'x' ] ) );
 	}
 
 	public function test_every_refused_slot_is_listed_at_once(): void {
 		$blocks   = self::cta_band( 'Call us' );
 		$blocks[] = self::paragraph( 'Phone', '(555) 010-0100', [ 'content' => self::PHONE ] );
 
-		$refused = Abilities\bound_copy_slots( $blocks, [ 'Click to call' => 'a', 'Phone' => 'b', 'Heading' => 'c' ] );
+		$refused = Abilities\bound_copy_slots( self::placed( $blocks, 0, 2 ), [ 'Click to call' => 'a', 'Phone' => 'b', 'Heading' => 'c' ] );
 
 		$this->assertSame( [ 'Click to call', 'Phone' ], array_column( $refused, 'slot' ) );
 		$this->assertSame( [ '0/1', '1' ], array_column( $refused, 'path' ) );
@@ -156,14 +188,14 @@ final class BoundSlotTest extends TestCase {
 	public function test_text_a_synced_pattern_lets_copies_override_is_not_a_bound_slot(): void {
 		$blocks = [ self::paragraph( 'Body', 'Default text', [ '__default' => [ 'source' => 'core/pattern-overrides' ] ] ) ];
 
-		$this->assertSame( [], Abilities\bound_copy_slots( $blocks, [ 'Body' => 'New text' ] ) );
+		$this->assertSame( [], Abilities\bound_copy_slots( self::placed( $blocks ), [ 'Body' => 'New text' ] ) );
 	}
 
 	public function test_the_error_names_each_slot_its_source_and_key_and_where_to_change_it(): void {
 		$blocks   = self::cta_band( 'Call us' );
 		$blocks[] = self::paragraph( 'Price', '$40', [ 'content' => [ 'source' => 'voyager/post-meta-text', 'args' => [ 'key' => 'price' ] ] ] );
 
-		$error   = Abilities\bound_slot_error( 'copy', Abilities\bound_copy_slots( $blocks, [ 'Click to call' => 'a', 'Price' => '$50' ] ) );
+		$error   = Abilities\bound_slot_error( 'copy', Abilities\bound_copy_slots( self::placed( $blocks, 0, 2 ), [ 'Click to call' => 'a', 'Price' => '$50' ] ) );
 		$message = $error->get_error_message();
 
 		$this->assertInstanceOf( WP_Error::class, $error );
@@ -206,10 +238,40 @@ final class BoundSlotTest extends TestCase {
 		}
 	}
 
-	public function test_labels_dates_and_addresses_do_not(): void {
-		foreach ( [ 'Call us', 'Email us', 'Call now', 'Monday to Friday, 9am to 5pm', '100 Main Street', 'Springfield, ST 00000', 'Springfield, ST 12345-6789', '2026-11-10', 'Since 1998', 'Follow @example', '' ] as $text ) {
+	public function test_labels_do_not(): void {
+		foreach ( [ 'Call us', 'Email us', 'Call now', 'Call the office', 'Follow @example', '' ] as $text ) {
 			$this->assertNull( Abilities\looks_like( $text ), $text );
 		}
+	}
+
+	public function test_only_keys_named_for_a_phone_or_an_email_are_checked(): void {
+		// Digits that read as a phone number, bound to keys that never hold one.
+		$blocks = [];
+		foreach ( [
+			'copyright'        => '© 2015-2026 Willow Vet',
+			'founded'          => '1998 - 2026',
+			'hours'            => 'Closed 11-10-2026',
+			'address_locality' => 'Tokyo 100-0001',
+			'name'             => 'Holiday hours from 12.01.2026',
+			'tagline'          => 'Open again 2026-11-10 09:00',
+			'stats'            => '1500000 pets treated',
+			'license'          => 'License #1234567',
+			'postal'           => 'Springfield, ST 12345-6789',
+		] as $key => $text ) {
+			$blocks[] = self::paragraph( ucfirst( $key ), $text, [ 'content' => [ 'source' => 'voyager/site-data', 'args' => [ 'key' => $key ] ] ] );
+		}
+
+		$this->assertSame( [], Abilities\stale_fallbacks( $blocks, [] ) );
+
+		// The same check still catches the real thing, on Site Data and on post meta.
+		$blocks[] = self::paragraph( 'Office phone', 'Call (555) 555-0113', [ 'content' => [ 'source' => 'voyager/post-meta-text', 'args' => [ 'key' => 'office_phone' ] ] ] );
+		$blocks[] = self::paragraph( 'Email', 'old@example.org', [ 'content' => [ 'source' => 'voyager/site-data', 'args' => [ 'key' => 'email' ] ] ] );
+		$blocks   = array_merge( $blocks, self::cta_band( '(555) 555-0113' ) );
+
+		$this->assertSame(
+			[ 'office_phone' => 'phone', 'email' => 'email', 'phone' => 'phone' ],
+			array_column( Abilities\stale_fallbacks( $blocks, [] ), 'looks_like', 'key' )
+		);
 	}
 
 	public function test_validate_flags_the_phone_number_willow_vet_stored_as_the_call_buttons_fallback(): void {
