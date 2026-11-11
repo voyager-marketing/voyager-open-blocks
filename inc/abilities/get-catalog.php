@@ -11,6 +11,7 @@ namespace VoyagerOpenBlocks\Abilities;
 
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
+use VoyagerOpenBlocks\Usage;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -24,7 +25,7 @@ function register_get_catalog(): void {
 		CATEGORY . '/get-catalog',
 		[
 			'label'               => __( 'Get the Voyager Open Blocks catalog', 'voyager-open-blocks' ),
-			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite) and the binding fields available for a post type, each with the exact args to bind it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite) and the binding fields available for a post type, each with the exact args to bind it. used_on counts, for each Site Data and bindable post meta field, the published posts, templates and template parts that show it, keyed "<source>:<key>".', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -44,6 +45,7 @@ function register_get_catalog(): void {
 					'blocks'   => [ 'type' => 'array' ],
 					'patterns' => [ 'type' => 'array' ],
 					'sources'  => [ 'type' => 'array' ],
+					'used_on'  => [ 'type' => 'object' ],
 				],
 			],
 			'execute_callback'    => __NAMESPACE__ . '\get_catalog',
@@ -61,10 +63,12 @@ function register_get_catalog(): void {
  */
 function get_catalog( $input = null ): array {
 	$post_type = is_array( $input ) && ! empty( $input['post_type'] ) ? Cast\to_string( $input['post_type'] ) : 'page';
+	$sources   = Catalog\sources( $post_type );
 
 	return [
 		'blocks'   => Catalog\blocks(),
 		'patterns' => Catalog\patterns(),
-		'sources'  => Catalog\sources( $post_type ),
+		'sources'  => $sources,
+		'used_on'  => Usage\used_on( $sources ),
 	];
 }

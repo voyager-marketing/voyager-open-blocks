@@ -36,7 +36,11 @@
  *   8. binds post meta in a template with post_type, and checks it is refused without,
  *   9. checks find-posts as a contributor: their own draft is listed, an
  *      administrator's private post is not, and pages are refused,
- *  10. deletes what steps 7 to 9 created. The page from step 2 is kept, as before.
+ *  10. binds the phone on page A, in a synced pattern on page B and in a footer
+ *      template part, and checks get-catalog's used_on counts follow: 2 more
+ *      pages and 1 more template part, 1 page once page A loses the block, none
+ *      once the synced pattern does, and a page holding a registered pattern,
+ *  11. deletes what steps 7 to 10 created. The page from step 2 is kept, as before.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -1673,7 +1677,146 @@ step(
 	contributorPages.data.code
 );
 
-// 10. Clean up what steps 7 to 9 created. The step 2 page stays, as before.
+// 10. The usage index: get-catalog's used_on counts the published pages and
+// the templates that show a Site Data field. Counts are compared with what
+// the site reported before this step, because the demo content and step 2
+// already show the phone.
+const phoneUse = 'voyager/site-data:phone';
+const usedOn = async () =>
+	( await run( `${ ns }/get-catalog`, { post_type: 'page' }, true ) ).data
+		.used_on?.[ phoneUse ] ?? null;
+const boundPhone =
+	'<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/site-data","args":{"key":"phone"}}}}} -->\n<p>(555) 555-0100</p>\n<!-- /wp:paragraph -->';
+const plainText =
+	'<!-- wp:paragraph -->\n<p>No bound field</p>\n<!-- /wp:paragraph -->';
+const usedBefore = await usedOn();
+step(
+	'get-catalog reports used_on for the phone',
+	Number.isInteger( usedBefore?.posts ) &&
+		Number.isInteger( usedBefore?.templates ) &&
+		Number.isInteger( usedBefore?.template_parts ),
+	JSON.stringify( usedBefore )
+);
+const usedDelta = ( now ) =>
+	now && usedBefore
+		? {
+				posts: now.posts - usedBefore.posts,
+				templates: now.templates - usedBefore.templates,
+				template_parts: now.template_parts - usedBefore.template_parts,
+			}
+		: null;
+const deltaIs = ( now, posts, parts ) => {
+	const delta = usedDelta( now );
+	return (
+		!! delta &&
+		delta.posts === posts &&
+		delta.templates === 0 &&
+		delta.template_parts === parts
+	);
+};
+
+const pageA = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E usage A ${ stamp }`,
+		status: 'publish',
+		content: boundPhone,
+	},
+} );
+const syncedPattern = await api( '/wp/v2/blocks', {
+	method: 'POST',
+	body: {
+		title: `E2E usage pattern ${ stamp }`,
+		status: 'publish',
+		content: boundPhone,
+	},
+} );
+const pageB = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E usage B ${ stamp }`,
+		status: 'publish',
+		content: `<!-- wp:block {"ref":${ syncedPattern.data.id }} /-->`,
+	},
+} );
+const footerPart = await api( '/wp/v2/template-parts', {
+	method: 'POST',
+	body: {
+		slug: `voyager-open-e2e-footer-${ stamp }`,
+		title: `E2E footer ${ stamp }`,
+		area: 'footer',
+		content: boundPhone,
+	},
+} );
+for ( const path of [
+	pageA.data.id && `/wp/v2/pages/${ pageA.data.id }`,
+	pageB.data.id && `/wp/v2/pages/${ pageB.data.id }`,
+	syncedPattern.data.id && `/wp/v2/blocks/${ syncedPattern.data.id }`,
+	footerPart.data.id && `/wp/v2/template-parts/${ footerPart.data.id }`,
+] ) {
+	if ( path ) {
+		cleanup.push( path );
+	}
+}
+step(
+	'pages A and B, a synced pattern and a footer template part created',
+	pageA.status === 201 &&
+		syncedPattern.status === 201 &&
+		pageB.status === 201 &&
+		footerPart.status === 201,
+	[ pageA, syncedPattern, pageB, footerPart ]
+		.map( ( r ) => r.data.code || r.status )
+		.join( ' ' )
+);
+
+const usedAll = await usedOn();
+step(
+	'phone bound on page A, through a synced pattern on page B and in a footer part: used on 2 more pages and 1 more template part',
+	deltaIs( usedAll, 2, 1 ),
+	JSON.stringify( usedDelta( usedAll ) )
+);
+
+const plainA = await api( `/wp/v2/pages/${ pageA.data.id }`, {
+	method: 'POST',
+	body: { content: plainText },
+} );
+const usedWithoutA = await usedOn();
+step(
+	'removing the bound block from page A drops it to 1 more page',
+	plainA.status === 200 && deltaIs( usedWithoutA, 1, 1 ),
+	JSON.stringify( usedDelta( usedWithoutA ) )
+);
+
+const plainPattern = await api( `/wp/v2/blocks/${ syncedPattern.data.id }`, {
+	method: 'POST',
+	body: { content: plainText },
+} );
+const usedWithoutPattern = await usedOn();
+step(
+	'unbinding the phone in the synced pattern drops page B too',
+	plainPattern.status === 200 && deltaIs( usedWithoutPattern, 0, 1 ),
+	JSON.stringify( usedDelta( usedWithoutPattern ) )
+);
+
+const pageC = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E usage C ${ stamp }`,
+		status: 'publish',
+		content: '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->',
+	},
+} );
+if ( pageC.data.id ) {
+	cleanup.push( `/wp/v2/pages/${ pageC.data.id }` );
+}
+const usedWithC = await usedOn();
+step(
+	'a page holding the registered CTA band pattern counts as using the phone',
+	pageC.status === 201 && deltaIs( usedWithC, 1, 1 ),
+	JSON.stringify( usedDelta( usedWithC ) )
+);
+
+// 11. Clean up what steps 7 to 10 created. The step 2 page stays, as before.
 for ( const id of [ ownDraft.data.id, privatePost.data.id ] ) {
 	if ( id ) {
 		cleanup.push( `/wp/v2/posts/${ id }` );
