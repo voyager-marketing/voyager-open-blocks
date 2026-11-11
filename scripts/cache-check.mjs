@@ -220,25 +220,22 @@ async function measure( opts ) {
 return require WP_PLUGIN_DIR . '/voyager-open-blocks/tests/fixtures/cache-check/setup.php';`
 		);
 		result.observed.setup = setup;
+		const problems = [ ...( setup?.problems || [] ) ];
+		if ( ! setup ) {
+			problems.push( 'setup.php returned nothing.' );
+		}
 		if ( spec.install ) {
-			const installed =
-				setup?.facts?.[ `${ spec.install.slug } version` ];
-			if ( installed !== spec.install.version ) {
-				setup.problems = [
-					...( setup?.problems || [] ),
-					`${ spec.label } ${ installed } is installed, and the harness is written against ${ spec.install.version }.`,
-				];
-				setup.ok = false;
+			result.version =
+				setup?.facts?.[ `${ spec.install.slug } version` ] ?? null;
+			if ( result.version !== spec.install.version ) {
+				problems.push(
+					`${ spec.label } ${ result.version } is installed, and the harness is written against ${ spec.install.version }.`
+				);
 			}
 		}
-		if ( ! setup?.ok ) {
-			result.reason = `Setup failed: ${ (
-				setup?.problems || [ 'no result' ]
-			).join( ' ' ) }`;
+		if ( ! setup?.ok || problems.length ) {
+			result.reason = `Setup failed: ${ problems.join( ' ' ) }`;
 			return result;
-		}
-		if ( spec.install ) {
-			result.version = setup.facts[ `${ spec.install.slug } version` ];
 		}
 		console.log(
 			`ok   set up: ${ JSON.stringify( setup.facts ) }`.slice( 0, 2000 )
