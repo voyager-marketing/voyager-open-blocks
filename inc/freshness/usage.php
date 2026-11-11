@@ -1,42 +1,19 @@
 <?php
 /**
- * The usage index: which posts and templates show each Site Data and post meta field.
+ * The usage index: which posts and templates show each Site Data and post meta
+ * field, so a change refreshes only the pages that show it. Contract 1 in
+ * docs/v2-contracts.md; Settings > Site Data and get-catalog report it.
  *
- * When a field changes, this is what says which pages show it, so only those
- * pages need refreshing, and what Settings > Site Data and get-catalog report.
- * The shape is contract 1 in docs/v2-contracts.md.
+ * - Post meta `_voyager_open_blocks_uses`: one non-unique row per
+ *   `<source>:<key>` a post's blocks bind at any depth, such as
+ *   `voyager/site-data:phone`, through synced and registered patterns too.
+ * - Post meta `_voyager_open_blocks_refs` (internal): the synced pattern IDs a
+ *   post shows, so a changed pattern re-indexes them (QUEUE_OPTION, reindex()).
+ * - Option `voyager_open_blocks_theme_uses`: file-only theme templates and
+ *   parts, keyed by template ID (rebuild_theme()).
  *
- * What is recorded:
- *
- * - Post meta `_voyager_open_blocks_uses` on every post that stores blocks,
- *   templates, template parts and synced patterns included: one non-unique row
- *   per `<source>:<key>` the post's blocks bind, at any depth, such as
- *   `voyager/site-data:phone`. A voyager/post-meta-text key can be a dot path
- *   into a field (`stats.0.value`); its row names the field, `stats`. Only
- *   voyager/site-data and voyager/post-meta-text bindings are recorded.
- * - References count. A synced pattern (`core/block` with `ref`) adds what that
- *   pattern's blocks bind; a registered pattern (`core/pattern` with `slug`)
- *   adds what the pattern binds, read from its intent for the pack's own
- *   patterns (Patterns\bound_keys()) and parsed from the registry for others.
- * - Post meta `_voyager_open_blocks_refs`, one row per synced pattern ID the
- *   post shows, nested ones included. It is internal: when a synced pattern
- *   changes what it binds, the posts that show it are indexed again, 50 in
- *   the same request and the rest by WP-Cron, 50 per run.
- * - The option `voyager_open_blocks_theme_uses`: theme templates and template
- *   parts that are only files, keyed by template ID, each with its type, title
- *   and rows. A template saved in the Site Editor is a post and is indexed as
- *   one. Rebuilt on switch_theme, on a theme update, when a template post is
- *   saved or deleted, and by rebuild().
- *
- * A post is indexed on wp_after_insert_post, which fires after its meta and
- * terms are saved. Revisions and autosaves are skipped, and a trashed post
- * keeps no rows. Content that existed before the plugin, or was changed while
- * it was inactive, is indexed by a WP-Cron backfill in batches of 50, started
- * on activation and whenever the plugin version changes, and by
- * `wp voyager-open-blocks reindex`.
- *
- * Reads of the index are plain selects on postmeta (select()), not WP_Query,
- * so no plugin's query filters narrow them.
+ * Posts are indexed on save (on_save()), by a WP-Cron backfill (rebuild()) and
+ * by `wp voyager-open-blocks reindex`. Reads are plain selects (select()).
  *
  * @package VoyagerOpenBlocks
  */
@@ -320,6 +297,8 @@ function store( int $post_id, string $key, array $values ): bool {
 /**
  * Index one post: the rows its blocks bind and the synced patterns it shows.
  *
+ * A trashed or never-saved post keeps no rows.
+ *
  * @param int $post_id Post ID.
  * @return bool Whether its rows or references changed.
  */
@@ -399,17 +378,10 @@ function select( array $tables, string $query, mixed ...$args ): array {
 		return [];
 	}
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- prepared above; the docblock says why not WP_Query.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- prepared above; the docblock says why not WP_Query.
 	$found = $wpdb->get_results( $sql, ARRAY_A );
 
-	$out = [];
-	foreach ( is_array( $found ) ? $found : [] as $row ) {
-		if ( is_array( $row ) ) {
-			$out[] = $row;
-		}
-	}
-
-	return $out;
+	return is_array( $found ) ? array_values( $found ) : [];
 }
 
 /**
@@ -480,6 +452,10 @@ function theme_index(): array {
 
 /**
  * Index the active theme's file-only templates and parts into THEME_OPTION.
+ *
+ * A template saved in the Site Editor is a post and is indexed as one. Runs on
+ * switch_theme, after a theme update, when a template post is saved or
+ * deleted, and at the start of each rebuild() pass.
  *
  * @return int How many use a field.
  */
@@ -810,6 +786,9 @@ function render_shown_on( string $key, string $id ): void {
 /**
  * wp_after_insert_post: index the saved post, then what shows it.
  *
+ * That hook fires after the post's meta and terms are saved. Revisions and
+ * autosaves are skipped.
+ *
  * @param int   $post_id Post ID.
  * @param mixed $post    The post.
  */
@@ -867,7 +846,7 @@ function after_change( WP_Post $post, bool $changed ): void {
  */
 function reindex( array $ids, ?callable $index = null ): array {
 	$index = $index ?? index_post( ... );
-	$later = array_values( array_slice( $ids, BATCH ) );
+	$later = array_slice( $ids, BATCH );
 
 	foreach ( array_slice( $ids, 0, BATCH ) as $id ) {
 		$index( $id );
@@ -919,7 +898,7 @@ function enqueue( array $ids ): void {
 function drain_queue( ?callable $index = null ): void {
 	$index = $index ?? index_post( ... );
 	$ids   = queued();
-	$left  = array_values( array_slice( $ids, BATCH ) );
+	$left  = array_slice( $ids, BATCH );
 
 	if ( [] === $left ) {
 		delete_option( QUEUE_OPTION );
@@ -1048,7 +1027,11 @@ function theme_event(): void {
  * a template part holding one is read correctly then.
  */
 function on_switch_theme(): void {
-	// Disabled on purpose for one CI run, to see the editor e2e's check g2 fail. Reverted in the next commit.
+	rebuild_theme();
+
+	if ( false === wp_next_scheduled( THEME_HOOK ) ) {
+		wp_schedule_single_event( time(), THEME_HOOK );
+	}
 }
 
 /**
