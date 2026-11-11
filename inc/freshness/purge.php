@@ -21,8 +21,8 @@
  * is recorded in `voyager_open_blocks_last_purge` and shown on Settings > Site
  * Data.
  *
- * Bounded on a site of any size: a purge looks up and lists at most
- * MOST_POSTS posts. When more show a field, it sets purge_all instead.
+ * Bounded on a site of any size: a purge looks up, lists and cleans at most
+ * MOST_POSTS posts. When more show or change a field, it sets purge_all.
  *
  * @package VoyagerOpenBlocks
  */
@@ -311,8 +311,9 @@ function site_data_plan( array $keys, ?callable $lookup = null ): ?array {
  * own that changed, and nothing else. No front page, and never purge_all for
  * a template, because a template shows each post its own value.
  *
- * More than MOST_POSTS changed posts are not looked at one by one: the purge
- * sets purge_all, if any page or template shows one of the fields.
+ * Past MOST_POSTS changed posts, as past MOST_POSTS pages for Site Data, the
+ * first MOST_POSTS are looked at and cleaned, and the purge sets purge_all if
+ * any page or template shows one of the fields. The rest are not looked at.
  *
  * @param array<int, list<string>>                $changes Post ID => meta keys that changed.
  * @param (callable(int): list<string>)|null      $shown   The rows a post shows, its own and its templates', [] unless it is published. Defaults to one built from the index.
@@ -329,9 +330,10 @@ function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any
 
 	$keys = Usage\tidy( $keys );
 	$rows = array_map( static fn ( string $key ): string => Usage\row( $source, $key ), $keys );
+	$over = count( $changes ) > MOST_POSTS;
 
-	if ( count( $changes ) > MOST_POSTS ) {
-		return ( $any ?? shown_anywhere( ... ) )( $rows ) ? plan( $source, 'post-meta', $keys, [], [], false, true ) : null;
+	if ( $over ) {
+		$changes = array_slice( $changes, 0, MOST_POSTS, true );
 	}
 
 	if ( null === $shown ) {
@@ -366,7 +368,15 @@ function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any
 		}
 	}
 
-	return plan( $source, 'post-meta', Usage\tidy( $found ), $post_ids, [], false );
+	if ( ! $over ) {
+		return plan( $source, 'post-meta', Usage\tidy( $found ), $post_ids, [], false );
+	}
+
+	if ( [] === $post_ids && ! ( $any ?? shown_anywhere( ... ) )( $rows ) ) {
+		return null;
+	}
+
+	return plan( $source, 'post-meta', $keys, $post_ids, [], false, true );
 }
 
 /**
@@ -544,7 +554,7 @@ function last(): ?array {
 }
 
 /**
- * The line on Settings > Site Data, such as "Last refreshed 6 pages, 2 mins ago."
+ * The line on Settings > Site Data, such as "Last refreshed 6 pages, 2 minutes ago."
  *
  * @param array{time: int, urls: int, purge_all: bool, adapters: list<string>, failed: list<string>}|null $last   From last().
  * @param int                                                                                          $now    The time now.
@@ -555,13 +565,13 @@ function last_line( ?array $last, int $now, array $labels = [] ): string {
 		return __( 'No pages refreshed yet. When a field changes, the pages that show it are refreshed.', 'voyager-open-blocks' );
 	}
 
-	/* translators: %s: how long ago, such as "2 mins". */
+	/* translators: %s: how long ago, such as "2 minutes". */
 	$ago = sprintf( __( '%s ago', 'voyager-open-blocks' ), human_time_diff( $last['time'], max( $now, $last['time'] ) ) );
 
 	$line = $last['purge_all']
-		/* translators: %s: how long ago, such as "2 mins ago". */
+		/* translators: %s: how long ago, such as "2 minutes ago". */
 		? sprintf( __( 'Last refreshed every page, %s.', 'voyager-open-blocks' ), $ago )
-		/* translators: 1: number of pages, 2: how long ago, such as "2 mins ago". */
+		/* translators: 1: number of pages, 2: how long ago, such as "2 minutes ago". */
 		: sprintf( _n( 'Last refreshed %1$d page, %2$s.', 'Last refreshed %1$d pages, %2$s.', $last['urls'], 'voyager-open-blocks' ), $last['urls'], $ago );
 
 	$name = static fn ( string $id ): string => $labels[ $id ] ?? $id;
