@@ -11,8 +11,8 @@
  * stores the options harness.php reads, and runs <plugin>/setup.php when
  * there is one.
  *
- * Test fixture. Never run it on a real site: it writes mu-plugins and, for
- * WP Super Cache, wp-config.php.
+ * Test fixture. Never run it on a real site: it writes mu-plugins, changes
+ * the cache plugin's settings and, for WP Super Cache, wp-config.php.
  *
  * @package VoyagerOpenBlocks
  */
