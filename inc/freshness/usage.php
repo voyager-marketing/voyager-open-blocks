@@ -1118,7 +1118,7 @@ function cli_reindex(): void {
 		$total += $count;
 		\WP_CLI::log( sprintf( 'Indexed %d posts.', $total ) );
 		wp_cache_flush_runtime();
-	} while ( $count > BATCH ); // Planted fault, reverted in the next commit.
+	} while ( $count >= BATCH );
 
 	\WP_CLI::success( sprintf( 'Indexed %d posts, and %d theme templates and template parts that use a field.', $total, count( theme_index() ) ) );
 }
