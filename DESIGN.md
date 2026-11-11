@@ -106,19 +106,21 @@ This file follows Google's [DESIGN.md format](https://github.com/google-labs-cod
 
 **When the site has its own DESIGN.md, that one wins.** This file fills only what the site's leaves open.
 
-The theme supplies every real value. The front matter holds stand-ins: the colours are the monochrome fallback the pack uses on a theme it has no colour map for, with `#111111` and `#ffffff` standing in for the theme's text and background, and the sizes and spacing are Twenty Twenty-Five's presets at full width.
+The theme supplies every real value. The front matter holds stand-ins: the colours are the monochrome fallback the pack will use on a theme it has no colour map for, with `#111111` and `#ffffff` standing in for the theme's text and background, and the sizes and spacing are Twenty Twenty-Five's presets at full width.
 
 ## Overview
 
 A page built from the pack should read like a well-made local business site in the theme's own clothes: plain, confident and easy to scan, with one clear next step. The theme brings colour, type and radius. The pack brings structure and rhythm.
 
-- **One bold move per section.** A strong style (Inverted or Accent), a display-size heading, a large image or motion: pick one, and keep the rest of the section quiet.
+- **One bold move per section.** A strong section style (once the pack has them), a display-size heading, a large image or motion: pick one, and keep the rest of the section quiet.
 - **Rhythm comes from alternating quiet and strong sections,** not from decoration.
 - **Core blocks and theme presets only.** No colour, font size, font family or shadow outside the theme's presets, and no `core/html`.
 
 ## Colors
 
-Every colour is one of six roles. A role map turns each role into one of the theme's palette slugs. The pack ships maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system, and a theme can replace them with the `voyager_open_blocks_style_roles` filter. On any other theme the roles are built from the theme's text colour with `currentColor` and `color-mix()`, which gives the monochrome values in the front matter.
+Every colour is one of six roles. Today the pack's patterns set no colour at all, so every section takes the theme's own background and text colour.
+
+**Planned, not in the pack yet:** a role map that turns each role into one of the theme's palette slugs. It will have maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system, and a `voyager_open_blocks_style_roles` filter for a theme to replace them. On any other theme the roles will be built from the theme's text colour with `currentColor` and `color-mix()`, which gives the monochrome values in the front matter.
 
 | Role | Use |
 | -- | -- |
@@ -127,11 +129,11 @@ Every colour is one of six roles. A role map turns each role into one of the the
 | `muted` | secondary text on `surface` or Panel: hours, captions, fine print |
 | `accent` | the brand colour: the Accent section's background, the primary button's fill |
 | `on-accent` | text and icons on `accent` |
-| `line` | 1px rules and borders |
+| `line` | 1px rules and borders, once the role map ships; today they use the text colour |
 
-`primary` in the front matter is the format's required name for `accent`; write `accent`. `panel` is not a role: it is `surface` with 5% of `on-surface` mixed in, so it follows the map.
+`primary` in the front matter is the format's required name for `accent`; write `accent`. `panel` is not a role: it is `surface` with 5% of `on-surface` mixed in, so it will follow the map.
 
-A section's style is a block style on its `core/group`. Use a style only when `get-catalog` lists it: older versions of the pack have none.
+**The Panel, Inverted and Accent section styles are planned and not registered yet.** Until `get-catalog` lists one, never add `is-style-voyager-open-panel`, `is-style-voyager-open-inverted` or `is-style-voyager-open-accent`: every section stays Plain. Once they ship, each is a block style on the section's `core/group`:
 
 | Style | Class | Background | Text | Primary button |
 | -- | -- | -- | -- | -- |
@@ -140,7 +142,7 @@ A section's style is a block style on its `core/group`. Use a style only when `g
 | Inverted | `is-style-voyager-open-inverted` | `on-surface` | `surface` | `surface` fill, `on-surface` text |
 | Accent | `is-style-voyager-open-accent` | `accent` | `on-accent` | `on-accent` fill, `accent` text |
 
-Plain and Panel are quiet; Inverted and Accent are strong. In a strong section, secondary text takes the section's text colour too: `muted` is for `surface` and Panel only. On a theme with no map, Accent looks the same as Inverted.
+Plain and Panel are quiet; Inverted and Accent are strong. In a strong section, secondary text takes the section's text colour too: `muted` is for `surface` and Panel only.
 
 ## Typography
 
@@ -160,7 +162,7 @@ One heading level per job: one `h1` per page, an `h2` for each section, `h3` ins
 
 ## Layout
 
-Every section is a full-width `core/group` (`tagName: section`, `align: full`, constrained layout), so its background reaches both edges. Text sits at the theme's content width or near it (the closing CTA sets 720px). Rows of items (columns, cards, logos, ticks, the CTA band's row) go `align: wide`. Body text never runs at wide width.
+Every section is a full-width `core/group` (`tagName: section`, `align: full`, constrained layout), so its background reaches both edges. Text sits at the theme's content width or near it (the closing CTA sets 720px). Rows of items (columns, cards, logos, ticks, the CTA band's row) go `align: wide`. Keep body copy short enough to stay under about 75 characters per line wherever it sits: the CTA band's body shares a wide row with its buttons.
 
 Spacing uses the theme's spacing presets:
 
@@ -175,11 +177,11 @@ Spacing uses the theme's spacing presets:
 
 Use slugs `20` to `60` only. Twenty Twenty-Four stops at `60`, and a slug the theme does not define renders as no space at all.
 
-**Two adjacent sections never share a style other than Plain.** Inverted and Accent never touch either, because on a theme with no map they look the same: put a Plain or Panel section between them.
+**Two adjacent sections never share a style other than Plain.**
 
 ## Elevation & Depth
 
-Flat. Nothing has a shadow. Hierarchy comes from the section's background, from type size and from 1px `line` rules: the proof strip's top and bottom rules, the form slot's border, a card's border. Every line is 1px.
+Flat. Nothing has a shadow. Hierarchy comes from the section's background, from type size and from 1px solid rules. The proof strip's top and bottom rules and the form slot's border set no colour, so today they render in the text colour (`currentColor`). Every line is 1px.
 
 ## Shapes
 
@@ -187,11 +189,11 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 
 ## Components
 
-- **Button** (`core/button`). The fill style for the section's one main action, `is-style-outline` for a second. At most two buttons in a section, and one fill. The label says what happens ("Call us", "Get a quote"), in sentence case, with no arrow. Never shrink the theme's padding: a button needs to be at least 44px tall.
-- **Card.** A `core/group` with a 1px `line` border, `50` padding, no fill and no shadow, holding an `h3`, one or two short paragraphs and at most one link or button. Cards in a row sit in `core/columns` at wide width and share one structure. A card never holds a card.
+- **Button** (`core/button`). The fill style for the section's one main action, `is-style-outline` for a second. At most two buttons in a section, and one fill. The label says what happens ("Call us", "Get a quote"), in sentence case, with no arrow. The target is at least 44px tall, which the planned `impeccable` check will measure. Never shrink the theme's padding. Some themes miss the target on their own: Twenty Twenty-Four's button computes to about 41.5px.
+- **Card.** A `core/group` with a 1px border, `50` padding, no fill and no shadow, holding an `h3`, one or two short paragraphs and at most one link or button. Cards in a row sit in `core/columns` at wide width and share one structure. A card never holds a card.
 - **Eyebrow.** One short line at `small`, uppercase with 0.08em letter spacing: above the section heading in the CTA band, and as the section's only heading in the logo marquee. At most one per section, and only when it tells the reader something the heading does not.
 - **Tick list.** `core/list` with the Ticks style: a wrapping row that stacks into a column in a narrow container. Three to six items, each one short claim of about 40 characters or fewer, with no full stop. The ticks take the text colour. Every claim comes from the site owner or Site Data, never from the agent.
-- **Logo row.** `core/group` with the Marquee style. Four to eight logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced). The row drifts only when it is wider than the screen, pauses on hover and focus, and stays still when the visitor turns motion off.
+- **Logo row.** `core/group` with the Marquee style. Five to ten logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced). The row drifts only when it is wider than the screen, pauses on hover and focus, and stays still when the visitor turns motion off.
 - **Form slot.** The contact section's second column: a `core/group` with a 1px border and `50` padding that holds an `h3`, one line of copy and an email button until a form plugin's block replaces it. The form plugin owns the fields. Choose one that shows a visible label on every field.
 
 ## Do's and Don'ts
@@ -200,7 +202,7 @@ Each rule names the check that enforces it, or says judge only. `lint` runs in `
 
 | Check | Fails when |
 | -- | -- |
-| `lint` | this file has a lint error or a section out of order |
+| `lint` | this file has any lint error or warning, which includes contrast under 4.5:1 between a component's colours |
 | `contrast` | rendered text measures under 4.5:1 against its background |
 | `overflow` | a render scrolls sideways |
 | `a11y` | an accessibility scan of a render reports a violation |
@@ -211,12 +213,12 @@ Each rule names the check that enforces it, or says judge only. `lint` runs in `
 | `validate` | the `validate` ability reports an image with no alt text or a placeholder left in place |
 
 - Do give each section one bold move and keep the rest quiet. Judge only.
-- Do put a quiet section between two strong ones, and never two Panels side by side. Check: `rhythm`.
+- Do give two adjacent sections different styles, unless both are Plain. Check: `rhythm`.
 - Do keep every text colour at 4.5:1 or more against its background, in every style. Check: `contrast`.
 - Do take every colour and font size from the theme's presets. Check: `presets`.
 - Do use spacing slugs `20` to `60` only. Check: `presets`.
-- Do keep body lines under 75 characters: text at content width, never wide. Check: `impeccable`.
-- Do make every tap target at least 44px tall and wide. Check: `impeccable`.
+- Do keep body copy short enough to stay under about 75 characters per line. Check: `impeccable`.
+- Do aim for tap targets at least 44px tall and wide. Check: `impeccable`, which will measure the rendered size. Known gap: Twenty Twenty-Four's own button is about 41.5px tall.
 - Do make every page work at 320px wide. Check: `overflow`.
 - Do give every meaningful image alt text, and replace placeholders before a page goes live. Check: `validate`.
 - Do write button labels that say what happens. Judge only.
