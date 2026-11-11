@@ -21,6 +21,7 @@ namespace VoyagerOpenBlocks\SiteData;
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\PostMetaText;
+use VoyagerOpenBlocks\Usage;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -469,12 +470,13 @@ function render_intro(): void {
 	);
 	echo '</p>';
 
-	echo '<p>' . esc_html__( 'Under each field: the patterns that use it, and the binding that shows it in your own blocks.', 'voyager-open-blocks' ) . '</p>';
+	echo '<p>' . esc_html__( 'Under each field: the patterns that use it, the published pages and the templates that show it, and the binding that shows it in your own blocks.', 'voyager-open-blocks' ) . '</p>';
 }
 
 /**
- * Render one settings input with its help, the patterns that use it and its
- * binding underneath.
+ * Render one settings input with its help, the patterns that use it, the
+ * pages and templates that show it (inc/freshness/usage.php) and its binding
+ * underneath.
  *
  * @param array{label_for: string, key: string, type: string} $args Field args.
  */
@@ -489,12 +491,18 @@ function render_field( array $args ): void {
 	}
 
 	printf(
-		'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text" aria-describedby="%2$s-help %2$s-used" /><p class="description" id="%2$s-help">%4$s</p><p class="description" id="%2$s-used">%5$s</p><p class="description"><code>%6$s</code></p>',
+		'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text" aria-describedby="%2$s-help %2$s-used %2$s-shown" /><p class="description" id="%2$s-help">%4$s</p><p class="description" id="%2$s-used">%5$s</p>',
 		esc_attr( $args['type'] ),
 		esc_attr( $id ),
 		esc_attr( Cast\to_string( get_option( $id, '' ) ) ),
 		esc_html( help( $args['key'] ) ),
-		esc_html( $used ),
+		esc_html( $used )
+	);
+
+	Usage\render_shown_on( $args['key'], $id );
+
+	printf(
+		'<p class="description"><code>%s</code></p>',
 		esc_html( '{"source":"voyager/site-data","args":{"key":"' . $args['key'] . '"}}' )
 	);
 }

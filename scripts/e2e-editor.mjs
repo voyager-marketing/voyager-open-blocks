@@ -16,8 +16,8 @@
  *      with its link to Settings > Site Data; dismissing it keeps it hidden;
  *      with the dismissal cleared it shows again; saving one field records the
  *      started flag and keeps it hidden, even after that field is emptied.
- *   b. Settings > Site Data shows its intro, and the phone's "Used by:" line
- *      names the CTA band.
+ *   b. Settings > Site Data shows its intro, the phone's "Used by:" line
+ *      names the CTA band, and its "Shown on" line links the demo pages.
  *   c. Editor, empty value: on a page holding the CTA band, with the phone
  *      empty, the selected "Click to call" button warns "Not set yet" and links
  *      to Settings > Site Data. With the phone set, the value shows instead.
@@ -28,6 +28,11 @@
  *      match and every block is valid.
  *   f. The front end of the CTA band page carries no editor-only class or hint
  *      text, for a visitor or for the logged-in admin.
+ *   g. Theme files: a template part that is only a file in the active theme,
+ *      with the phone bound in it, is counted by get-catalog's used_on once
+ *      switch_theme rebuilds the theme index, and not before; removing the
+ *      file and rebuilding again takes it back out. Runs last, because it
+ *      fires switch_theme.
  *
  * Each check is a named assertion. A failed one prints what it saw, and in
  * GitHub Actions becomes an error annotation titled with its name. PHP fatal
@@ -90,12 +95,12 @@ const EDITOR_ONLY = [
 const HELP = `npm run e2e:editor [-- options]
 
 Boots a fresh dev site (npm run dev), then checks the first-run notice,
-Settings > Site Data, the editor hints, pasting each pattern and the front end
-in headless Chrome. Exits 1 if any assertion fails.
+Settings > Site Data, the editor hints, pasting each pattern, the front end and
+the theme template index, in headless Chrome. Exits 1 if any assertion fails.
 
   --only <list>    Only these checks, such as --only a,c. Checks: a notice,
                    b Settings > Site Data, c empty bound value, d placeholders,
-                   e paste, f front end.
+                   e paste, f front end, g theme files.
   --port <n>       Port to serve on. Default 9400, or a free port if 9400 is taken.
   --wp <version>   WordPress version, such as 6.9. Default latest.
   --php <version>  PHP version, such as 8.1. Default 8.3.
@@ -235,6 +240,7 @@ function submitSettings( values ) {
 function readSettings() {
 	const wrap = document.querySelector( '#wpbody-content .wrap' );
 	const used = document.getElementById( 'voyager_site_phone-used' );
+	const shown = document.getElementById( 'voyager_site_phone-shown' );
 	return {
 		path: window.location.pathname + window.location.search,
 		heading: wrap?.querySelector( 'h1' )?.textContent.trim() || '',
@@ -244,6 +250,14 @@ function readSettings() {
 				)
 			: [],
 		phoneUsedBy: used ? used.textContent.trim() : null,
+		phoneShownOn: shown
+			? {
+					text: shown.textContent.trim(),
+					links: [ ...shown.querySelectorAll( 'a' ) ].map(
+						( a ) => a.href
+					),
+				}
+			: null,
 	};
 }
 
@@ -774,6 +788,15 @@ async function checkSettings() {
 			screen.phoneUsedBy.includes( 'CTA band' ),
 		screen.phoneUsedBy
 	);
+	expect(
+		'b3 the phone field\'s "Shown on" line links the published pages that show it',
+		/^Shown on \d+ pages?:/.test( screen.phoneShownOn?.text || '' ) &&
+			screen.phoneShownOn.links.length > 0 &&
+			screen.phoneShownOn.links.every( ( href ) =>
+				href.startsWith( 'http' )
+			),
+		screen.phoneShownOn
+	);
 }
 
 async function checkEmptyValue() {
@@ -995,6 +1018,75 @@ async function checkFrontEnd() {
 	);
 }
 
+/**
+ * @return {Promise<{posts: number, templates: number, template_parts: number}|null>} get-catalog's used_on for the phone.
+ */
+async function phoneUsedOn() {
+	const response = await rest.api(
+		'/wp-abilities/v1/abilities/voyager-open-blocks/get-catalog/run',
+		{ query: { 'input[post_type]': 'page' } }
+	);
+	return response.data?.used_on?.[ 'voyager/site-data:phone' ] ?? null;
+}
+
+/**
+ * Fire switch_theme for the active theme, as switching to it does.
+ *
+ * @return {Promise<string[]>} The template IDs that show the phone afterwards.
+ */
+function switchThemeHook() {
+	return php( `do_action( 'switch_theme', get_stylesheet(), wp_get_theme(), wp_get_theme() );
+return \\VoyagerOpenBlocks\\Usage\\templates_using( 'voyager/site-data', 'phone' );` );
+}
+
+async function checkThemeFiles() {
+	const before = await phoneUsedOn();
+	const file = await php( `$slug = 'voyager-open-e2e-phone';
+$file = get_stylesheet_directory() . '/parts/' . $slug . '.html';
+wp_mkdir_p( dirname( $file ) );
+$markup = '<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/site-data","args":{"key":"phone"}}}}} -->' . "\\n" . '<p>(555) 010-0123</p>' . "\\n" . '<!-- /wp:paragraph -->';
+return [
+	'written'     => false !== file_put_contents( $file, $markup ),
+	'block_theme' => wp_is_block_theme(),
+	'id'          => get_stylesheet() . '//' . $slug,
+	'path'        => $file,
+];` );
+	const parts = ( now ) =>
+		now && before ? now.template_parts - before.template_parts : null;
+
+	const unbuilt = await phoneUsedOn();
+	expect(
+		'g1 a bound template part dropped into the theme is not counted before the theme index is rebuilt',
+		file.written &&
+			file.block_theme &&
+			Number.isInteger( before?.template_parts ) &&
+			parts( unbuilt ) === 0,
+		{ file, before, after: unbuilt }
+	);
+
+	const using = await switchThemeHook();
+	const rebuilt = await phoneUsedOn();
+	expect(
+		'g2 after switch_theme, get-catalog counts the file-only template part, and templates_using() names it',
+		Array.isArray( using ) &&
+			using.includes( file.id ) &&
+			parts( rebuilt ) === 1 &&
+			rebuilt.templates === before.templates,
+		{ id: file.id, templates_using: using, before, after: rebuilt }
+	);
+
+	await php( `return unlink( ${ JSON.stringify( file.path ) } );` );
+	const usingAfter = await switchThemeHook();
+	const removed = await phoneUsedOn();
+	expect(
+		'g3 with the file removed, the next switch_theme rebuild drops it again',
+		Array.isArray( usingAfter ) &&
+			! usingAfter.includes( file.id ) &&
+			parts( removed ) === 0,
+		{ templates_using: usingAfter, before, after: removed }
+	);
+}
+
 const CHECKS = [
 	[ 'a', 'First-run notice', checkNotice ],
 	[ 'b', 'Settings > Site Data', checkSettings ],
@@ -1002,6 +1094,7 @@ const CHECKS = [
 	[ 'd', 'Placeholder hints', checkPlaceholders ],
 	[ 'e', 'Paste each pattern', checkPaste ],
 	[ 'f', 'Front end', checkFrontEnd ],
+	[ 'g', 'Theme template files', checkThemeFiles ],
 ];
 
 /**

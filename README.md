@@ -53,7 +53,7 @@ Bind core blocks to Site Data or to a page's own fields from your theme, and dri
   npm run dev
   ```
 
-- **Abilities:** seven WordPress abilities (`get-catalog`, `find-posts`, `get-post-blocks`, `insert`, `configure`, `bind`, `validate`) read the pack, find the post to change, place, configure and bind its blocks, and check markup over REST at `wp-abilities/v1`. `bind` accepts only args that `get-catalog` lists, so nothing can invent a field.
+- **Abilities:** eight WordPress abilities (`get-catalog`, `find-posts`, `get-post-blocks`, `insert`, `configure`, `bind`, `undo`, `validate`) read the pack, find the post to change, place, configure and bind its blocks, and check markup over REST at `wp-abilities/v1`. `bind` accepts only args that `get-catalog` lists, so nothing can invent a field.
 
 To work on the pack itself, read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/development.md](docs/development.md) and the starter tasks in [docs/good-first-issues.md](docs/good-first-issues.md).
 
@@ -84,7 +84,7 @@ One prompt per item:
 | Site data source | Bind the phone number in my footer to Voyager Open Blocks Site Data so it follows Settings > Site Data. |
 | Post meta source | Show the [field] of each [post type] on its page with the Voyager Open Blocks post meta source. Make the field bindable under Settings > Site Data first if it isn't yet. |
 
-**MCP access is enough.** The seven abilities are also served through the WordPress MCP Adapter. With the adapter on your site, an agent that reaches it only over MCP, with no shell and no command-line tools, can still find the page or header you name, read the catalog, insert a section or an icon inside one, bind it and check that each value resolves.
+**MCP access is enough.** The eight abilities are also served through the WordPress MCP Adapter. With the adapter on your site, an agent that reaches it only over MCP, with no shell and no command-line tools, can still find the page or header you name, read the catalog, insert a section or an icon inside one, bind it and check that each value resolves.
 
 ## Reference
 
@@ -105,7 +105,7 @@ The Playground links run [`blueprint.json`](blueprint.json) (everything) and the
 
 Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and Marquee on `core/group`. Three section styles on `core/group`, Panel, Inverted and Accent, colour a whole section from the theme's palette; [DESIGN.md](DESIGN.md) says how, and `npm run contrast` measures them.
 
-**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and seven abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
+**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and eight abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
 
 ### Other ways to install
 

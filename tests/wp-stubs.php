@@ -191,6 +191,10 @@ if ( ! class_exists( 'WP_Error' ) ) {
 		public function get_error_message(): string {
 			return $this->message;
 		}
+
+		public function get_error_data(): mixed {
+			return $this->data;
+		}
 	}
 }
 
