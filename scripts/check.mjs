@@ -30,16 +30,33 @@
  *     a test file with no tests, so that gate is shown to bite.
  * 17. No tracked file but CHANGELOG.md and bench/runs/ holds a tracker ID,
  *     and the same search finds one planted in a temporary file.
+ * 18. presets: no block in patterns/*.html sets a colour, font size, font
+ *     family, radius or shadow that is not a theme preset, uses a spacing
+ *     slug outside 20 to 60, or is core/html or HTML outside a block
+ *     (scripts/lib/presets.mjs).
+ * 19. The same gate rejects each of the seven files in tests/invalid/presets/,
+ *     one per rule, and every block in each for that file's rule alone, so
+ *     each rule is shown to bite.
+ * 20. The same gate passes tests/fixtures/presets/allowed.html, which writes
+ *     every preset form it accepts, so a rule grown to refuse a preset turns
+ *     the check red.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkMarkup, describeFinding, RULES } from './lib/presets.mjs';
 
 const root = fileURLToPath( new URL( '..', import.meta.url ) );
 const blockRunner = join(
@@ -428,5 +445,138 @@ report(
 	ids.code === 1 && plantedId.code === 0 && plantedId.lines.length === 1,
 	idDetail
 );
+
+// presets: patterns take every colour, font size, font family, radius and
+// shadow from the theme's presets, use spacing slugs 20 to 60 only, and hold
+// no raw HTML (DESIGN.md, "Do's and Don'ts"). A crash in the gate is caught
+// and fails the line it was for, so it can never read as a pass.
+function presets( file ) {
+	try {
+		return checkMarkup( readFileSync( join( root, file ), 'utf8' ) );
+	} catch ( error ) {
+		return { error: error?.message || String( error ) };
+	}
+}
+function printEach( lines ) {
+	for ( const line of lines ) {
+		console.log( `     ${ line }` );
+	}
+}
+
+const patternFiles = readdirSync( join( root, 'patterns' ) )
+	.filter( ( file ) => file.endsWith( '.html' ) )
+	.sort()
+	.map( ( file ) => `patterns/${ file }` );
+let patternBlocks = 0;
+const patternFindings = [];
+for ( const file of patternFiles ) {
+	const result = presets( file );
+	if ( result.error ) {
+		patternFindings.push(
+			`${ file }: the gate crashed: ${ result.error }`
+		);
+		continue;
+	}
+	patternBlocks += result.blocks;
+	for ( const finding of result.findings ) {
+		patternFindings.push( describeFinding( file, finding ) );
+	}
+}
+report(
+	`presets: the ${ patternFiles.length } patterns in patterns/ use only theme presets`,
+	patternFiles.length > 0 &&
+		patternBlocks > 0 &&
+		patternFindings.length === 0,
+	patternFindings.length
+		? `${ patternFindings.length } findings, below`
+		: `${ patternBlocks } blocks`
+);
+printEach( patternFindings );
+
+// Each planted file breaks its rule once in every top-level block, and
+// breaks no other rule. The gate must refuse every one of those blocks for
+// that rule, so a rule that stops biting on any one case turns this red, and
+// so does a file that loses its cases. Raise the floor when you add a case.
+const PLANTED_CASES = 39;
+const plantedDir = 'tests/invalid/presets';
+const plantedFiles = readdirSync( join( root, plantedDir ) ).filter( ( file ) =>
+	file.endsWith( '.html' )
+);
+const plantProblems = plantedFiles
+	.filter( ( file ) => ! RULES.includes( file.slice( 0, -5 ) ) )
+	.map( ( file ) => `${ plantedDir }/${ file } is named for no rule` );
+let plantedCases = 0;
+let rejected = 0;
+for ( const rule of RULES ) {
+	const file = `${ plantedDir }/${ rule }.html`;
+	const before = plantProblems.length;
+	const result = plantedFiles.includes( `${ rule }.html` )
+		? presets( file )
+		: { error: 'the file is missing' };
+	if ( result.error ) {
+		plantProblems.push( `${ file }: ${ result.error }` );
+		continue;
+	}
+	plantedCases += result.top;
+	if ( result.top === 0 ) {
+		plantProblems.push( `${ file } holds no blocks` );
+	}
+	for ( let index = 0; index < result.top; index++ ) {
+		const caught = result.findings.some(
+			( finding ) =>
+				finding.rule === rule &&
+				finding.path.split( '/' )[ 0 ] === `${ index }`
+		);
+		if ( ! caught ) {
+			plantProblems.push(
+				`${ file }: block ${ index } passes the ${ rule } rule`
+			);
+		}
+	}
+	for ( const finding of result.findings ) {
+		if ( finding.rule !== rule ) {
+			plantProblems.push(
+				`${ describeFinding( file, finding ) }, in the ${ rule } plant`
+			);
+		}
+	}
+	if ( plantProblems.length === before ) {
+		rejected++;
+	}
+}
+if ( plantedCases < PLANTED_CASES ) {
+	plantProblems.push(
+		`${ plantedCases } planted blocks, at least ${ PLANTED_CASES } expected`
+	);
+}
+report(
+	`presets: rejects ${ rejected } of ${ RULES.length } planted files in ${ plantedDir }/`,
+	rejected === RULES.length && plantProblems.length === 0,
+	plantProblems.length
+		? `${ plantProblems.length } problems, below`
+		: `${ plantedCases } planted blocks, each refused for its file's rule`
+);
+printEach( plantProblems );
+
+// The other direction: every preset form the gate accepts, written once.
+// A rule that has grown to refuse a preset reference or a slug fails here.
+const ALLOWED_CASES = 22;
+const allowedFile = 'tests/fixtures/presets/allowed.html';
+const allowed = presets( allowedFile );
+const allowedFindings = allowed.error
+	? [ `${ allowedFile }: the gate crashed: ${ allowed.error }` ]
+	: allowed.findings.map( ( finding ) =>
+			describeFinding( allowedFile, finding )
+		);
+report(
+	`presets: passes ${ allowedFile }, which uses every preset form`,
+	! allowed.error &&
+		allowed.top >= ALLOWED_CASES &&
+		allowedFindings.length === 0,
+	allowedFindings.length
+		? `${ allowedFindings.length } findings, below`
+		: `${ allowed.top } cases, at least ${ ALLOWED_CASES } expected`
+);
+printEach( allowedFindings );
 
 process.exit( failed ? 1 : 0 );
