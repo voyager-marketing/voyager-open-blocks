@@ -12,6 +12,11 @@
  * 6. The entry skill's `pack-version` matches the plugin's `Version` header.
  * 7. tests/fixtures/site-data-keys.json matches its sha256 pin.
  * 8. readme.txt says where the source of the built files is.
+ * 9. Every change note in unreleased/ is well-formed (unreleased/README.md).
+ * 10. scripts/fold-unreleased.mjs passes its known-answer test.
+ * 11. DESIGN.md lints with no errors and its sections in the format's order.
+ * 12. The same linter rejects tests/invalid/design-broken-ref.md, so that
+ *     gate is shown to bite.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -183,6 +188,91 @@ report(
 	'readme.txt says where the source of build/ is',
 	sourceNamed,
 	sourceDetail
+);
+
+// Pull requests add a note to unreleased/ instead of editing readme.txt's
+// changelog. A malformed note would only fail on the release PR, so every
+// pull request reads them all.
+const notes = run( [
+	join( root, 'scripts', 'fold-unreleased.mjs' ),
+	'--check',
+] );
+report(
+	'unreleased/ change notes are well-formed',
+	notes.code === 0,
+	notes.code === 0
+		? notes.stdout.trim().replace( /^ok\s+/, '' )
+		: notes.stderr.trim().split( '\n' )[ 0 ]
+);
+
+// A test runner that ran nothing exits 0 too, so count what it ran.
+const foldTest = run( [
+	'--test',
+	'--test-reporter=tap',
+	join( root, 'scripts', 'test-fold-unreleased.mjs' ),
+] );
+const tapCount = ( name ) =>
+	Number(
+		foldTest.stdout.match(
+			new RegExp( `^# ${ name } (\\d+)$`, 'm' )
+		)?.[ 1 ] ?? 0
+	);
+report(
+	'scripts/fold-unreleased.mjs passes its known-answer test',
+	foldTest.code === 0 && tapCount( 'tests' ) > 0 && tapCount( 'fail' ) === 0,
+	`${ tapCount( 'pass' ) }/${ tapCount( 'tests' ) } passed`
+);
+
+// DESIGN.md is linted with Google's DESIGN.md linter. Its errors fail the
+// gate, and so does a section out of the format's order, which the linter
+// only warns about. Its other warnings (no `primary` colour, no typography
+// tokens) are printed: whether the pack names a primary is a design call.
+const designLint = join(
+	root,
+	'node_modules',
+	'@google',
+	'design.md',
+	'dist',
+	'index.js'
+);
+function lintDesign( file ) {
+	const result = run( [ designLint, 'lint', '--format', 'json', file ] );
+	let parsed = {};
+	try {
+		parsed = JSON.parse( result.stdout );
+	} catch {}
+	const findings = Array.isArray( parsed.findings ) ? parsed.findings : [];
+	return {
+		code: result.code,
+		parsed: Array.isArray( parsed.findings ),
+		errors: findings.filter( ( item ) => item.severity === 'error' ),
+		order: findings.filter( ( item ) => item.rule === 'section-order' ),
+		warnings: findings.filter( ( item ) => item.severity === 'warning' ),
+	};
+}
+const design = lintDesign( 'DESIGN.md' );
+report(
+	'DESIGN.md lints clean (@google/design.md)',
+	design.code === 0 &&
+		design.parsed &&
+		design.errors.length === 0 &&
+		design.order.length === 0,
+	design.parsed
+		? [ ...design.errors, ...design.order ]
+				.map( ( item ) => item.message )
+				.join( ' ' ) ||
+				`${ design.errors.length } errors, ${ design.warnings.length } warnings`
+		: `exit ${ design.code }, no JSON report`
+);
+
+const brokenDesign = lintDesign(
+	join( 'tests', 'invalid', 'design-broken-ref.md' )
+);
+report(
+	'the DESIGN.md linter rejects tests/invalid/design-broken-ref.md',
+	brokenDesign.code === 1 &&
+		brokenDesign.errors.some( ( item ) => item.rule === 'broken-ref' ),
+	`exit ${ brokenDesign.code }, ${ brokenDesign.errors.length } errors`
 );
 
 process.exit( failed ? 1 : 0 );

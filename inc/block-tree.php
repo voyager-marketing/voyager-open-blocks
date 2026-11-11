@@ -7,7 +7,7 @@
  * top level skips the whitespace-only freeform blocks parse_blocks() makes
  * between blocks, so indices match what an editor shows.
  *
- * The abilities in inc/abilities.php are thin adapters over these functions.
+ * The abilities in inc/abilities/ are thin adapters over these functions.
  *
  * @package VoyagerOpenBlocks
  */
