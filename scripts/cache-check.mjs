@@ -4,13 +4,16 @@
  *
  *   npm run cache-check -- --plugin wp-super-cache --real
  *   npm run cache-check -- --plugin wp-super-cache --real --no-purge
+ *   npm run cache-check -- --plugin wp-super-cache --real --pages 51
  *   npm run cache-check -- --plugin dummy --spy [--stand-in] [--no-purge]
  *   npm run cache-check -- --help
  *
  * Boots WordPress Playground with this checkout as the plugin (boot() in
  * scripts/dev.mjs) and one cache, publishes a page whose paragraph is bound
  * to the `phone` Site Data key, changes the phone over REST, and looks for
- * the new number. The logic and the exit codes are in
+ * the new number. --pages publishes more pages bound to the phone first and
+ * measures the last one, so with 51 it is past the 50 pages the purge cleans
+ * one by one. The logic and the exit codes are in
  * scripts/lib/cache-check.mjs: 0 when the change reached the page, 1 when it
  * did not (stale), 2 when the harness could not tell.
  *
@@ -37,6 +40,9 @@ import {
 	PLUGINS,
 	UsageError,
 	describe,
+	flagsOf,
+	lastByIdProblem,
+	pageSlugs,
 	parseArgs,
 	realVerdict,
 	renderMarker,
@@ -73,6 +79,9 @@ Shows whether a Site Data change reaches a page a cache has already stored.
                    control: the page must go stale.
   --stand-in       Stand in for the pack's purge with the harness's own, which
                    runs contract 2 by hand. The positive control for --spy.
+  --pages <n>      Publish n pages bound to the phone and measure the last,
+                   which has the highest ID. Default 1. With 51 the measured
+                   page is past the 50 the purge cleans one by one.
   --result-file <path>
                    Write the verdict and what was observed as JSON.
   --port <n>       Port to serve on. Default 9400, or a free one.
@@ -168,6 +177,7 @@ async function measure( opts ) {
 		mode: opts.mode,
 		noPurge: opts.noPurge,
 		standIn: opts.standIn,
+		pages: opts.pages,
 		version: spec.install?.version || null,
 		outcome: 'unmeasured',
 		reason: '',
@@ -253,23 +263,49 @@ return require WP_PLUGIN_DIR . '/voyager-open-blocks/tests/fixtures/cache-check/
 			)?.voyager_site_phone;
 
 		await setPhone( PHONE_BEFORE );
-		const page = await call(
-			rest,
-			'/wp/v2/pages',
-			{
-				method: 'POST',
-				body: {
-					title: 'Cache check',
-					slug: SLUG,
-					status: 'publish',
-					content: PAGE_CONTENT,
+		// One at a time, so each page gets a higher ID than the one before
+		// and the measured page, published last, has the highest.
+		const slugs = pageSlugs( SLUG, opts.pages );
+		const pages = [];
+		for ( const [ i, slug ] of slugs.entries() ) {
+			const published = await call(
+				rest,
+				'/wp/v2/pages',
+				{
+					method: 'POST',
+					body: {
+						title:
+							slug === SLUG
+								? 'Cache check'
+								: `Cache check ${ i + 1 }`,
+						slug,
+						status: 'publish',
+						content: PAGE_CONTENT,
+					},
 				},
-			},
-			'publish the page'
-		);
-		const url = page?.link;
+				`publish page ${ i + 1 } of ${ slugs.length }`
+			);
+			pages.push( { id: published?.id, link: published?.link } );
+		}
+		const page = pages[ pages.length - 1 ];
+		const url = page.link;
 		result.observed.url = url;
-		console.log( `ok   published ${ url }, its paragraph bound to phone` );
+		result.observed.pages = {
+			count: pages.length,
+			ids: pages.map( ( published ) => published.id ),
+		};
+		const order = lastByIdProblem( pages );
+		if ( order ) {
+			result.reason = order;
+			return result;
+		}
+		console.log(
+			pages.length > 1
+				? `ok   published ${ pages.length } pages bound to phone, IDs ${
+						pages[ 0 ].id
+					} to ${ page.id }; measuring the last, ${ url }`
+				: `ok   published ${ url }, its paragraph bound to phone`
+		);
 
 		const loads = [ await visit( url ) ];
 		if ( opts.mode === 'real' ) {
@@ -372,10 +408,7 @@ function report( result ) {
 		);
 	}
 
-	const flagsUsed = `--plugin ${ result.plugin } --${ result.mode }${
-		result.noPurge ? ' --no-purge' : ''
-	}${ result.standIn ? ' --stand-in' : '' }`;
-	const title = `cache-check ${ flagsUsed }`;
+	const title = `cache-check ${ flagsOf( result ) }`;
 	if ( result.outcome === 'fresh' ) {
 		annotate( 'notice', `fresh: ${ result.reason }`, title );
 	} else if ( result.outcome === 'stale' ) {

@@ -83,7 +83,14 @@ export const PLUGINS = {
 };
 
 const BOOLEAN = [ 'real', 'spy', 'no-purge', 'stand-in', 'debug', 'help' ];
-const VALUED = [ 'plugin', 'result-file', 'port', 'wp', 'php' ];
+const VALUED = [ 'plugin', 'result-file', 'port', 'wp', 'php', 'pages' ];
+
+/**
+ * Most pages --pages publishes. The purge cleans at most 50 pages one by one
+ * (MOST_POSTS in inc/freshness/purge.php), so 51 is the case that matters,
+ * and each page is one REST call.
+ */
+export const MOST_PAGES = 200;
 
 export class UsageError extends Error {}
 
@@ -91,7 +98,7 @@ export class UsageError extends Error {}
  * Read the command line.
  *
  * @param {string[]} argv Arguments after the script name.
- * @return {{plugin: string, mode: 'real'|'spy', noPurge: boolean, standIn: boolean, resultFile: string|undefined, port: string|undefined, wp: string|undefined, php: string|undefined, debug: boolean, help: boolean}} The options.
+ * @return {{plugin: string, mode: 'real'|'spy', noPurge: boolean, standIn: boolean, pages: number, resultFile: string|undefined, port: string|undefined, wp: string|undefined, php: string|undefined, debug: boolean, help: boolean}} The options.
  * @throws {UsageError} When they make no sense together.
  */
 export function parseArgs( argv ) {
@@ -130,6 +137,7 @@ export function parseArgs( argv ) {
 		mode: undefined,
 		noPurge: opts[ 'no-purge' ] === true,
 		standIn: opts[ 'stand-in' ] === true,
+		pages: 1,
 		resultFile: opts[ 'result-file' ],
 		port: opts.port,
 		wp: opts.wp,
@@ -165,7 +173,62 @@ export function parseArgs( argv ) {
 	if ( parsed.port !== undefined && ! /^\d+$/.test( parsed.port ) ) {
 		throw new UsageError( `--port takes a number, not ${ parsed.port }.` );
 	}
+	if ( opts.pages !== undefined ) {
+		const pages = /^\d+$/.test( opts.pages ) ? Number( opts.pages ) : NaN;
+		if ( ! ( pages >= 1 && pages <= MOST_PAGES ) ) {
+			throw new UsageError(
+				`--pages takes a whole number from 1 to ${ MOST_PAGES }, not ${ opts.pages }.`
+			);
+		}
+		parsed.pages = pages;
+	}
 	return parsed;
+}
+
+/**
+ * The slugs of the pages a run publishes, in the order it publishes them.
+ * The last one is measured, and keeps the slug of a one-page run, so its URL
+ * is the same whatever --pages says.
+ *
+ * @param {string} slug  The measured page's slug.
+ * @param {number} count How many pages, from --pages.
+ * @return {string[]} One slug per page, the measured page's last.
+ */
+export function pageSlugs( slug, count ) {
+	return [
+		...Array.from(
+			{ length: Math.max( 0, count - 1 ) },
+			( _, i ) => `${ slug }-${ i + 1 }`
+		),
+		slug,
+	];
+}
+
+/**
+ * Whether the measured page, the last one published, has the highest ID of
+ * the pages the run published. The purge cleans the pages that show a field
+ * oldest ID first, so this is what puts the measured page past the first 50
+ * when a run publishes 51. Pages the site already had that show the field
+ * only push it further along.
+ *
+ * @param {{id: number}[]} pages The pages, in the order they were published.
+ * @return {string|null} What is wrong, or null when it is the last by ID.
+ */
+export function lastByIdProblem( pages ) {
+	const ids = pages.map( ( page ) => page?.id );
+	if ( ! ids.length || ids.some( ( id ) => ! Number.isInteger( id ) ) ) {
+		return `The pages came back without IDs (${ ids.join(
+			', '
+		) }), so the harness cannot tell which is past the first 50.`;
+	}
+	const last = ids[ ids.length - 1 ];
+	const higher = ids.slice( 0, -1 ).filter( ( id ) => id >= last );
+	if ( higher.length ) {
+		return `The measured page, published last, has ID ${ last }, and pages published before it have ${ higher.join(
+			', '
+		) }, so it is not the last by ID.`;
+	}
+	return null;
 }
 
 /**
@@ -410,20 +473,32 @@ export function spyVerdict( {
 }
 
 /**
+ * The options a result was measured with, as the command line spells them.
+ * --pages appears only past one page, so a one-page run reads as before.
+ *
+ * @param {Object} result What scripts/cache-check.mjs writes to --result-file.
+ * @return {string} Such as "--plugin wp-super-cache --real --pages 51".
+ */
+export function flagsOf( result ) {
+	return [
+		`--plugin ${ result.plugin }`,
+		`--${ result.mode }`,
+		result.pages > 1 ? `--pages ${ result.pages }` : '',
+		result.noPurge ? '--no-purge' : '',
+		result.standIn ? '--stand-in' : '',
+	]
+		.filter( Boolean )
+		.join( ' ' );
+}
+
+/**
  * The result as Markdown, for the job summary in GitHub Actions.
  *
  * @param {Object} result What scripts/cache-check.mjs writes to --result-file.
  * @return {string} A heading, the outcome and the reason.
  */
 export function summaryMarkdown( result ) {
-	const flagsUsed = [
-		`--plugin ${ result.plugin }`,
-		`--${ result.mode }`,
-		result.noPurge ? '--no-purge' : '',
-		result.standIn ? '--stand-in' : '',
-	]
-		.filter( Boolean )
-		.join( ' ' );
+	const flagsUsed = flagsOf( result );
 	const lines = [
 		`### npm run cache-check -- ${ flagsUsed }`,
 		'',

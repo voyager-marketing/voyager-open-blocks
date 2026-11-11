@@ -22,9 +22,16 @@ name: Cache
 #   purge calls clean_post_cache() for each page that shows the field, up
 #   to 50, and WP Super Cache 3.1.5 purges that page on clean_post_cache
 #   (wpsc_register_post_hooks() in wp-cache-phase2.php).
-# The two --no-purge rows are controls and stay stale for good. They show
-# the check can fail: emptying the URL list switches the whole purge off,
-# clean_post_cache() included.
+# - `wp-super-cache --real --pages 51`: 51 pages show the phone, and the
+#   one measured has the highest ID, so it is past the 50 the purge cleans
+#   one by one. The purge sets purge_all for it, and only a WP Super Cache
+#   adapter (inc/cache/wp-super-cache.php) turns purge_all into a clear of
+#   WP Super Cache's cache.
+# The three --no-purge rows are controls and stay stale for good. They show
+# the check can fail. On a one-page row the empty URL list switches the
+# whole purge off, clean_post_cache() included. On the 51-page row the
+# purge still cleans the first 50 pages and sets purge_all, and with no
+# adapter left nothing reaches the 51st.
 #
 # A new cache is a row in PLUGINS (scripts/lib/cache-check.mjs) and rows
 # here: --real if it serves pages from PHP inside Playground, else --spy.
@@ -61,6 +68,17 @@ jobs:
           - plugin: wp-super-cache
             mode: real
             flags: ' --no-purge'
+            expect: stale
+          # A page past the first 50 that show the field. Fresh only through
+          # the pack's WP Super Cache adapter, which hears purge_all.
+          - plugin: wp-super-cache
+            mode: real
+            flags: ' --pages 51'
+            expect: fresh
+          # Control for the row above: with the purge emptied, stale.
+          - plugin: wp-super-cache
+            mode: real
+            flags: ' --pages 51 --no-purge'
             expect: stale
           # The pack's own purge, through the dummy cache's adapter.
           - plugin: dummy
