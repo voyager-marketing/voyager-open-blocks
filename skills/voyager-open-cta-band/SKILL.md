@@ -71,7 +71,7 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
    ```
 
    Labels: `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call`. Plain text only, escaped on the way in. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels. To drop the eyebrow, pass `"omit": ["Eyebrow"]` instead of copy for it.
-4. **Keep the call button bound.** It arrives bound: `text` to `{"key": "phone"}` and `url` to `{"key": "phone_link"}`. Text you give `Click to call` in `copy` is only the fallback shown until the phone number is set. Do not `bind` it again unless you want a different field. To re-point it, take its path from the insert response (label "Click to call") and pass args copied from `get-catalog`:
+4. **Keep the call button bound.** It arrives bound: `text` to `{"key": "phone"}` and `url` to `{"key": "phone_link"}`. Never pass copy for `Click to call`, a bound slot: `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing, so change the number in Settings > Site Data instead. Do not `bind` it again unless you want a different field. To re-point it, take its path from the insert response (label "Click to call") and pass args copied from `get-catalog`:
 
    ```json
    {"post_id": 123, "path": "4/0/1/1", "attribute": "url", "source": "voyager/site-data", "args": {"key": "phone_link"}}
