@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * The rendered design checks, `contrast`, `overflow`, `motion`, `a11y` and
- * `impeccable` as DESIGN.md names them, measured on real renders of every
- * pattern in every section style.
+ * The rendered design checks, `contrast`, `overflow`, `motion`, `layout`,
+ * `a11y` and `impeccable` as DESIGN.md names them, measured on real renders
+ * of every pattern in every section style.
  *
  *   npm run design-check                boot a fresh dev site, render, measure, stop
- *   npm run design-check -- --plant     put every planted fault in the main run too, to watch it fail
+ *   npm run design-check -- --plant     every planted fault in the main run too: exit 1 when each check fails on its own plants only, else 3
  *   npm run contrast                    the contrast part alone (--checks contrast)
  *   npm run design-check -- --themes twentytwentyfive --no-variations
  *   npm run design-check -- --help      every option
@@ -55,7 +55,12 @@
  *      - motion: fails when an animation or transition is running, or when
  *        any element's box moves between two samples taken apart. Overflow is
  *        measured again, since a reduced-motion rule can change the layout;
- *   4. runs eight controls, each of which must fail its own check or the run
+ *      - layout: fails when a row of items (core/columns, or a group with the
+ *        grid layout) renders other than the columns the fixture names for
+ *        its pattern at the wide width, or more than one at a stacked width,
+ *        or when a word in a heading breaks across lines or spills out of
+ *        its box;
+ *   4. runs twelve controls, each of which must fail its own check or the run
  *      fails: the fixture's low-contrast role map, planted through the
  *      voyager_open_blocks_style_roles filter (contrast); white text on a
  *      cover with a white overlay at 50% (contrast, measured against the
@@ -63,13 +68,19 @@
  *      than 320px (overflow); a CSS animation with no reduced-motion rule
  *      (motion); an h2 followed by an h4 (a11y, on heading-order); and
  *      gradient text, a card inside a card and a 30px tall button
- *      (impeccable, each on its own rule). One more must pass: white text on
+ *      (impeccable, each on its own rule); and a grid whose cards are each
+ *      wider than half the row, columns not stacked on a phone, and a heading
+ *      word in a box narrower than itself, free to break and not (layout,
+ *      each on its own reason). One more must pass: white text on
  *      a cover with a black overlay at 80%, which reads over any image, so
  *      the cover measurement is seen to read the overlay and not the page;
  *   5. where the fixture asks, opens the page in the block editor as admin and
  *      checks the Styles panel offers Panel, Inverted and Accent and the canvas
  *      paints Inverted as the front end does;
- *   6. where the fixture lists style variations, switches each colour-bearing
+ *   6. on a theme the fixture gives site_editor_colours, saves them in the
+ *      Site Editor's global styles and checks every Panel, Inverted and
+ *      Accent section paints from them, as the fallback roles would;
+ *   7. where the fixture lists style variations, switches each colour-bearing
  *      variation the theme ships on the way the Site Editor saves one, and
  *      measures contrast at the fixture's variation widths. A pair under the
  *      floor fails unless the fixture lists it as a known failure, and a
@@ -99,9 +110,16 @@ const PATTERNS = join( repo, 'patterns' );
 const PLANT_OPTION = 'voyager_open_contrast_plant';
 const SECTION_CLASS = 'voyager-open-check--';
 const TIMEOUT_MINUTES = 25;
-const CHECKS = [ 'contrast', 'overflow', 'motion', 'a11y', 'impeccable' ];
+const CHECKS = [
+	'contrast',
+	'overflow',
+	'motion',
+	'layout',
+	'a11y',
+	'impeccable',
+];
 /** The checks that judge each section render and keep one row per render. */
-const RENDER_CHECKS = [ 'overflow', 'motion', 'a11y', 'impeccable' ];
+const RENDER_CHECKS = [ 'overflow', 'motion', 'layout', 'a11y', 'impeccable' ];
 /** The rule the impeccable check measures itself: Impeccable 4.8.2 has none for tap targets. */
 const TAP_TARGET = 'tap-target';
 /**
@@ -123,6 +141,39 @@ const COVER_PLANTS = {
 		text: '#ffffff',
 		label: 'white text on a cover with a black overlay at 80%',
 		words: 'Control: white text on a black overlay at 80%.',
+	},
+};
+/**
+ * The planted sections the layout check measures, each a fault it must fail
+ * on its own reason, at the fixture's wide width or its first stacked one:
+ * a grid whose cards are each wider than half the row (the shape of the
+ * reviews grid that rendered one column), columns kept side by side on a
+ * phone, and a heading word in a box narrower than the word, once allowed to
+ * break anywhere and once not. columns is what the row would render if it
+ * worked.
+ */
+const LAYOUT_PLANTS = {
+	columns: {
+		columns: 3,
+		at: 'wide',
+		reason: 'columns',
+		label: 'grid of three cards at least 60rem wide each, which renders one column',
+	},
+	stack: {
+		columns: 3,
+		at: 'stacked',
+		reason: 'stack',
+		label: 'row of three columns not stacked on mobile',
+	},
+	break: {
+		at: 'wide',
+		reason: 'break',
+		label: 'heading word in a box narrower than itself, free to break anywhere',
+	},
+	spill: {
+		at: 'wide',
+		reason: 'spill',
+		label: 'heading word in a box narrower than itself, not free to break',
 	},
 };
 /** What buildPages() swaps for the plugin's assets URL in the planted markup. */
@@ -210,6 +261,38 @@ function plantSections( width ) {
 			'target',
 			'<p><a href="#planted-target" style="display:inline-block;box-sizing:border-box;height:30px;line-height:28px;padding:0 16px;border:1px solid currentColor;text-decoration:none">Planted: a 30px tall button</a></p>'
 		),
+		// Core blocks, so core's layout support writes the row's CSS as it
+		// does a pattern's.
+		columns: wrap(
+			'columns',
+			`<!-- wp:group {"align":"wide","layout":{"type":"grid","columnCount":3,"minimumColumnWidth":"60rem"}} -->
+<div class="wp-block-group alignwide">${ [ 1, 2, 3 ]
+				.map(
+					( n ) =>
+						`<!-- wp:paragraph -->\n<p>Planted: card ${ n } of a grid with three columns at least 60rem wide.</p>\n<!-- /wp:paragraph -->`
+				)
+				.join( '\n' ) }</div>
+<!-- /wp:group -->`
+		),
+		stack: wrap(
+			'stack',
+			`<!-- wp:columns {"isStackedOnMobile":false,"align":"wide"} -->
+<div class="wp-block-columns alignwide is-not-stacked-on-mobile">${ [ 1, 2, 3 ]
+				.map(
+					( n ) =>
+						`<!-- wp:column -->\n<div class="wp-block-column"><!-- wp:paragraph -->\n<p>Planted: column ${ n }.</p>\n<!-- /wp:paragraph --></div>\n<!-- /wp:column -->`
+				)
+				.join( '\n' ) }</div>
+<!-- /wp:columns -->`
+		),
+		break: section(
+			'break',
+			'<h3 style="width:4em;overflow-wrap:anywhere;hyphens:manual">Installation</h3>'
+		),
+		spill: section(
+			'spill',
+			'<h3 style="width:4em;overflow-wrap:normal;word-break:normal;hyphens:manual">Installation</h3>'
+		),
 	};
 }
 
@@ -217,11 +300,12 @@ const HELP = `npm run design-check [-- options]
 
 Boots a fresh dev site (npm run dev), renders every pattern in patterns/ in
 every section style on each theme in tests/fixtures/contrast.json, loads it
-in headless Chrome at each width, and runs five checks on every render:
+in headless Chrome at each width, and runs six checks on every render:
 contrast (text under 4.5:1 against its background), overflow (the page
-scrolls sideways), motion (anything moves with reduced motion on), a11y
-(axe-core reports a violation) and impeccable (a gated Impeccable rule fires,
-or a tap target is under 44px). Then it measures contrast on each
+scrolls sideways), motion (anything moves with reduced motion on), layout (a
+row of cards renders the wrong number of columns, or a heading word breaks
+or spills), a11y (axe-core reports a violation) and impeccable (a gated
+Impeccable rule fires, or a tap target is under 44px). Then it measures contrast on each
 colour-bearing style variation the fixture lists. Text on a cover with an
 image is measured against the overlay over black and over white, and the
 lower ratio counts. Exits 1 if any check fails outside the fixture's known
@@ -230,13 +314,15 @@ its own check, or if the readable cover control does not pass.
 
   --checks <list>  Only these checks, such as --checks contrast (what
                    npm run contrast runs). Default
-                   contrast,overflow,motion,a11y,impeccable.
+                   contrast,overflow,motion,layout,a11y,impeccable.
   --plant          Put every planted fault in the main run as well: the
                    low-contrast role map, white text on a cover with a white
                    overlay at 50%, a section wider than 320px, an animation
                    with no reduced-motion rule, an h2 followed by an h4,
-                   gradient text, a card inside a card and a 30px tall
-                   button. The run must fail.
+                   gradient text, a card inside a card, a 30px tall button,
+                   and the four layout faults. Exits 1 when each check fails
+                   on its own plants and nothing else fails, and 3 when the
+                   run fails any other way or a check misses its plant.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
                    The render and pair counts are then not checked.
   --no-variations  Skip the style variations.
@@ -265,6 +351,13 @@ const KNOWN = [
 const checks = [];
 
 /**
+ * In a --plant run the plants make assertions fail on purpose, so a failure
+ * prints as a line and not as an annotation: the one that counts is
+ * plantedProblems()'s verdict on the whole run.
+ */
+let plantedRun = false;
+
+/**
  * @param {string} text
  * @param {number} length
  * @return {string} The text, cut to length.
@@ -288,6 +381,10 @@ function expect( name, ok, observed = '' ) {
 	if ( ok ) {
 		console.log(
 			`ok   ${ name }${ detail ? ` (${ clip( detail, 160 ) })` : '' }`
+		);
+	} else if ( plantedRun ) {
+		console.log(
+			`FAIL ${ name }. Observed: ${ clip( detail || 'nothing', 1800 ) }`
 		);
 	} else {
 		annotate(
@@ -610,14 +707,18 @@ function installInPage( prefix ) {
 
 	/**
 	 * Every element in a section that holds text of its own, named by kind
-	 * and text: a button (fill or outline), a link, a heading or text.
+	 * and text: a button (fill or outline), a link, a heading or text. nth
+	 * is its place among the section's targets of its kind, from 1, which
+	 * names it in the fixture's known failures, so new wording leaves the
+	 * list alone.
 	 *
 	 * @param {Element} section
-	 * @return {Array<{id: string, name: string, kind: string, hover: boolean}>} Targets.
+	 * @return {Array<{id: string, name: string, kind: string, nth: number, hover: boolean}>} Targets.
 	 */
 	const targets = ( section ) => {
 		const out = [];
 		const names = new Map();
+		const kinds = new Map();
 		for ( const el of all( section ) ) {
 			if ( el.closest( 'script, style, template, noscript, svg' ) ) {
 				continue;
@@ -644,12 +745,15 @@ function installInPage( prefix ) {
 			}"`;
 			const seen = ( names.get( base ) || 0 ) + 1;
 			names.set( base, seen );
+			const nth = ( kinds.get( kind ) || 0 ) + 1;
+			kinds.set( kind, nth );
 			const id = String( ++next );
 			byId.set( id, { el, hover: button || link } );
 			out.push( {
 				id,
 				name: seen > 1 ? `${ base } #${ seen }` : base,
 				kind,
+				nth,
 				hover: !! ( button || link ),
 			} );
 		}
@@ -825,7 +929,133 @@ function installInPage( prefix ) {
 		return { measured: found.length, small };
 	};
 
+	/** What a card row is: core/columns, or a group with the grid layout. */
+	const ROW = '.wp-block-columns, .is-layout-grid';
+
+	/**
+	 * The rows of items in a section, and how many columns each renders:
+	 * the shown children that sit beside the highest one, sharing more than
+	 * a pixel of its height. That is the first line of a row that wraps,
+	 * holds a column centred beside a taller one, and in a row that stacks
+	 * is the first child alone. A row inside another row is the outer row's
+	 * content, not a row of its own.
+	 *
+	 * @param {Element} section
+	 * @return {Array<{columns: number, widths: number[]}>} Rows, in document order, each with its columns and its first line's widths in px.
+	 */
+	const rowsOf = ( section ) =>
+		[ ...section.querySelectorAll( ROW ) ]
+			.filter( ( row ) => ! row.parentElement.closest( ROW ) )
+			.map( ( row ) => {
+				const boxes = [ ...row.children ]
+					.filter( ( child ) => shown( child ) )
+					.map( ( child ) => child.getBoundingClientRect() );
+				const highest = boxes.reduce(
+					( a, b ) => ( b.top < a.top ? b : a ),
+					boxes[ 0 ]
+				);
+				const first = boxes.filter(
+					( box ) =>
+						Math.min( box.bottom, highest.bottom ) -
+							Math.max( box.top, highest.top ) >
+						1
+				);
+				return {
+					columns: first.length,
+					widths: first.map( ( box ) => Math.round( box.width ) ),
+				};
+			} );
+
+	/**
+	 * Every word in a section's headings that breaks across lines, or
+	 * reaches past its heading's content box. A word is what sits between
+	 * two places a line may break: a space, a hyphen or dash, a soft hyphen
+	 * or a slash. One that renders on two lines broke inside itself
+	 * (overflow-wrap or hyphens let it), and one wider than its heading
+	 * spills out of the card it is in.
+	 *
+	 * @param {Element} section
+	 * @return {{headings: number, words: Array<{heading: string, word: string, problem: string}>}} Headings measured, and the words that break or spill.
+	 */
+	const wordsOf = ( section ) => {
+		const headings = [
+			...section.querySelectorAll( 'h1, h2, h3, h4, h5, h6' ),
+		].filter(
+			( el ) => shown( el ) && ! el.closest( '[aria-hidden="true"]' )
+		);
+		const words = [];
+		for ( const heading of headings ) {
+			const style = window.getComputedStyle( heading );
+			const box = heading.getBoundingClientRect();
+			const right =
+				box.right -
+				Number.parseFloat( style.paddingRight ) -
+				Number.parseFloat( style.borderRightWidth );
+			const walker = document.createTreeWalker(
+				heading,
+				window.NodeFilter.SHOW_TEXT
+			);
+			for (
+				let node = walker.nextNode();
+				node;
+				node = walker.nextNode()
+			) {
+				for ( const match of node.textContent.matchAll(
+					/[^\s\-­‐-―/]+/g
+				) ) {
+					const range = document.createRange();
+					range.setStart( node, match.index );
+					range.setEnd( node, match.index + match[ 0 ].length );
+					const rects = [ ...range.getClientRects() ].filter(
+						( r ) => r.width > 0
+					);
+					if ( ! rects.length ) {
+						continue;
+					}
+					const tops = rects.map( ( r ) => r.top );
+					let problem = '';
+					if ( Math.max( ...tops ) - Math.min( ...tops ) > 1 ) {
+						problem = `breaks over ${
+							new Set( tops.map( ( t ) => Math.round( t ) ) ).size
+						} lines`;
+					} else if (
+						Math.max( ...rects.map( ( r ) => r.right ) ) >
+						right + 1
+					) {
+						problem = `reaches ${ Math.round(
+							Math.max( ...rects.map( ( r ) => r.right ) ) - right
+						) }px past its heading`;
+					}
+					if ( problem ) {
+						words.push( {
+							heading: describe( heading ),
+							word: match[ 0 ],
+							problem,
+						} );
+					}
+				}
+			}
+		}
+		return { headings: headings.length, words };
+	};
+
 	window.voyagerOpenCheck = {
+		/**
+		 * The rows of items and the heading words in each section, for the
+		 * layout check.
+		 *
+		 * @param {string[]} keys Section keys.
+		 * @return {Array<Object|null>} One per key: {rows, headings, words}, null for one not found.
+		 */
+		layout( keys ) {
+			return keys.map( ( key ) => {
+				const section = sectionOf( key );
+				return section
+					? { rows: rowsOf( section ), ...wordsOf( section ) }
+					: null;
+			} );
+		},
+
 		/**
 		 * Run axe-core, already loaded in the page, on the measured sections
 		 * only, so the theme's own markup around them cannot fail the pack.
@@ -1301,6 +1531,8 @@ async function contrastRows( tab, scanned, context, sections ) {
 			rows.push( {
 				...where,
 				target: target.name,
+				kind: target.kind,
+				nth: target.nth,
 				state: 'rest',
 				text: target.text,
 				background: target.background,
@@ -1337,6 +1569,8 @@ async function contrastRows( tab, scanned, context, sections ) {
 			rows.push( {
 				...where,
 				target: target.name,
+				kind: target.kind,
+				nth: target.nth,
 				state: 'hover',
 				...measured,
 			} );
@@ -1344,6 +1578,99 @@ async function contrastRows( tab, scanned, context, sections ) {
 	}
 	await pointer( tab, 0, 0 );
 	return rows;
+}
+
+/**
+ * How many columns a section's rows must render at a width: the fixture's
+ * count for its pattern at the wide width, one at a stacked width, and at
+ * any other width only that the rows are there. A planted section takes its
+ * plant's count.
+ *
+ * @param {string} key      Section key.
+ * @param {Object} sections Key => {pattern, style}.
+ * @param {Object} fixture  tests/fixtures/contrast.json.
+ * @return {number|undefined} Columns at the wide width, or undefined for a section that holds no row.
+ */
+function columnsFor( key, sections, fixture ) {
+	if ( key.startsWith( 'plant--' ) ) {
+		return LAYOUT_PLANTS[ key.slice( 7 ) ]?.columns;
+	}
+	return fixture.layout.columns[ sections[ key ]?.pattern ];
+}
+
+/**
+ * The layout check on one section render: its rows of items render the
+ * columns they should, and no heading word breaks or spills.
+ *
+ * @param {Object|null}      found   From the page's layout(), null when the section was not found.
+ * @param {number|undefined} columns From columnsFor().
+ * @param {number}           width   Viewport width.
+ * @param {Object}           fixture tests/fixtures/contrast.json.
+ * @return {{ok: boolean, reasons: string[], note: string}} Result. Reasons are columns, stack, break and spill.
+ */
+function layoutVerdict( found, columns, width, fixture ) {
+	if ( ! found ) {
+		return { ok: false, reasons: [ 'missing' ], note: 'section not found' };
+	}
+	const reasons = [];
+	const notes = [];
+	const rows = found.rows.map(
+		( r ) => `${ r.columns } (${ r.widths.join( ', ' ) }px)`
+	);
+	if ( columns === undefined && found.rows.length ) {
+		reasons.push( 'columns' );
+		notes.push(
+			`${ found.rows.length } rows of items, and the fixture's layout.columns lists none for this pattern: columns ${ rows.join(
+				'; '
+			) }`
+		);
+	} else if ( columns !== undefined && ! found.rows.length ) {
+		reasons.push( 'columns' );
+		notes.push(
+			`no row of items, where the fixture lists ${ columns } columns`
+		);
+	} else if ( width === fixture.layout.wide ) {
+		if ( found.rows.some( ( r ) => r.columns !== columns ) ) {
+			reasons.push( 'columns' );
+			notes.push(
+				`columns ${ rows.join( '; ' ) }, not ${ columns } at ${ width }px`
+			);
+		}
+	} else if ( fixture.layout.stacked.includes( width ) ) {
+		if ( found.rows.some( ( r ) => r.columns !== 1 ) ) {
+			reasons.push( 'stack' );
+			notes.push(
+				`columns ${ rows.join( '; ' ) }, not stacked at ${ width }px`
+			);
+		}
+	}
+	const words = ( problem ) =>
+		found.words.filter( ( w ) => w.problem.startsWith( problem ) );
+	for ( const [ reason, problem ] of [
+		[ 'break', 'breaks' ],
+		[ 'spill', 'reaches' ],
+	] ) {
+		if ( words( problem ).length ) {
+			reasons.push( reason );
+			notes.push(
+				words( problem )
+					.map(
+						( w ) =>
+							`"${ w.word }" in ${ w.heading } ${ w.problem }`
+					)
+					.join( '; ' )
+			);
+		}
+	}
+	return {
+		ok: reasons.length === 0,
+		reasons,
+		note:
+			notes.join( '; ' ) ||
+			`${
+				found.rows.length ? `columns ${ rows.join( '; ' ) }, ` : ''
+			}no word breaks in ${ found.headings } headings`,
+	};
 }
 
 /**
@@ -1510,6 +1837,19 @@ async function impeccableScan( url, width, height, chrome ) {
 async function judge( tab, url, width, keys, want, theme, fixture, chrome ) {
 	const out = {};
 	if ( want.a11y ) {
+		// The hover pass leaves the page scrolled to its last link or button,
+		// where a row revealed on scroll can be half faded. At the top every
+		// revealed row shows in full (DESIGN.md, Motion), so axe runs there.
+		await tab.evaluate(
+			js( () => {
+				window.scrollTo( 0, 0 );
+				return new Promise( ( done ) =>
+					window.requestAnimationFrame( () =>
+						window.requestAnimationFrame( () => done( true ) )
+					)
+				);
+			} )
+		);
 		const version = await loadAxe( tab );
 		const result = version
 			? await tab.evaluate( call( 'axe', keys, fixture.a11y ) )
@@ -1632,13 +1972,23 @@ async function judge( tab, url, width, keys, want, theme, fixture, chrome ) {
 const fails = ( row, floor ) => row.ratio === null || row.ratio < floor;
 
 /**
- * @param {Object} row A contrast row.
- * @return {string} The key a known failure is listed under.
+ * The key a known failure is listed under: where the pair is, and which
+ * target by its kind and its place among the section's targets of that kind
+ * (targets() in the page). Never its text, so new Site Data or new wording
+ * in a pattern leaves the list alone.
+ *
+ * @param {Object} row A contrast row, or a known failure from the fixture.
+ * @return {string} The key.
  */
 const knownKey = ( row ) =>
-	[ row.variation, row.pattern, row.style, row.target, row.state ].join(
-		'|'
-	);
+	[
+		row.variation,
+		row.pattern,
+		row.style,
+		row.kind,
+		row.nth,
+		row.state,
+	].join( '|' );
 
 /**
  * One aligned line per contrast row.
@@ -2038,6 +2388,177 @@ return [
 }
 
 /**
+ * Save a text and background colour in the Site Editor's global styles, as
+ * Styles > Colors does (styles.color in the theme's wp_global_styles post),
+ * or clear them, and read the role map get-catalog then reports.
+ *
+ * @param {Object}                                  site    From boot().
+ * @param {{text: string, background: string}|null} colours Hex colours, or null to clear.
+ * @return {Promise<Object>} {post, roles} or {error}.
+ */
+function setSiteColours( site, colours ) {
+	return runPhp(
+		site,
+		`$colours = json_decode( ${ phpString(
+			JSON.stringify( colours )
+		) }, true );
+wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
+$post = WP_Theme_JSON_Resolver::get_user_data_from_wp_global_styles( wp_get_theme(), true );
+if ( empty( $post['ID'] ) ) {
+	return [ 'error' => 'Could not find or create the global styles post.' ];
+}
+$config = [
+	'styles'                      => (object) ( null === $colours ? [] : [ 'color' => $colours ] ),
+	'settings'                    => (object) [],
+	'isGlobalStylesUserThemeJSON' => true,
+	'version'                     => WP_Theme_JSON::LATEST_SCHEMA,
+];
+kses_remove_filters();
+$updated = wp_update_post( wp_slash( [ 'ID' => $post['ID'], 'post_content' => wp_json_encode( $config ) ] ), true );
+if ( is_wp_error( $updated ) ) {
+	return [ 'error' => $updated->get_error_message() ];
+}
+return [
+	'post'  => $post['ID'],
+	'roles' => \\VoyagerOpenBlocks\\SectionStyles\\catalog()['roles'],
+];`
+	);
+}
+
+/**
+ * What a section style must paint from the site's own text and background
+ * colours on a theme the pack has no role map for, worked out here as
+ * values() and paint() in inc/section-styles.php work them out: Inverted is
+ * the text with the background as text, Panel 5% of the text mixed into the
+ * background, and Accent the text mixed into the background at the first of
+ * 75%, 80% and so on to 100% where the background reads at 4.6:1 on it, with
+ * the background as text.
+ *
+ * @param {{text: string, background: string}} colours Hex colours.
+ * @return {Object<string, {text: string, background: string}>} Style => colours, as hex.
+ */
+function fallbackPaint( colours ) {
+	const parse = ( value ) =>
+		[ 1, 3, 5 ].map( ( i ) =>
+			Number.parseInt( value.slice( i, i + 2 ), 16 )
+		);
+	const toHex = ( rgb ) =>
+		'#' +
+		rgb
+			.map( ( v ) => Math.round( v ).toString( 16 ).padStart( 2, '0' ) )
+			.join( '' );
+	const luminance = ( rgb ) => {
+		const [ r, g, b ] = rgb.map( ( v ) => {
+			const s = v / 255;
+			return s <= 0.04045 ? s / 12.92 : ( ( s + 0.055 ) / 1.055 ) ** 2.4;
+		} );
+		return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	};
+	const ratio = ( a, b ) => {
+		const [ hi, lo ] = [ luminance( a ), luminance( b ) ].sort(
+			( x, y ) => y - x
+		);
+		return ( hi + 0.05 ) / ( lo + 0.05 );
+	};
+	const t = parse( colours.text );
+	const b = parse( colours.background );
+	const mix = ( share ) =>
+		t.map( ( v, i ) => v * share + b[ i ] * ( 1 - share ) );
+	const share =
+		[ 0.75, 0.8, 0.85, 0.9, 0.95 ].find(
+			( s ) => ratio( b, mix( s ) ) >= 4.6
+		) ?? 1;
+	return {
+		panel: { text: colours.text, background: toHex( mix( 0.05 ) ) },
+		inverted: { text: colours.background, background: colours.text },
+		accent: { text: colours.background, background: toHex( mix( share ) ) },
+	};
+}
+
+/**
+ * On a theme the pack has no role map for, a text and background colour
+ * saved in the Site Editor must reach Panel, Inverted and Accent: resolved()
+ * in inc/section-styles.php reads them through user_styles() before the
+ * theme's own (root_colors()). Saves them, loads the page and compares each
+ * styled section with what fallbackPaint() works out, then clears them.
+ *
+ * @param {Object} ctx   The run, as checkTheme() gets it.
+ * @param {Object} entry The theme's entry in the fixture.
+ * @param {string} link  The page with every pattern in every style.
+ */
+async function checkSiteColours( ctx, entry, link ) {
+	const { site, tabs, fixture, sections, keys } = ctx;
+	const { theme } = entry;
+	const colours = entry.site_editor_colours;
+	const width = fixture.controls.contrast.width;
+	const set = await setSiteColours( site, colours );
+	try {
+		if (
+			! expect(
+				`${ theme }: text ${ colours.text } and background ${ colours.background } are saved in the Site Editor, with the fallback roles still in use`,
+				! set.error && set.roles === 'fallback',
+				set.error || set.roles
+			)
+		) {
+			return;
+		}
+		await visit( tabs.visitor, link, width, fixture.height );
+		const page = await tabs.visitor.evaluate( call( 'page' ) );
+		expect(
+			`${ theme }: the page paints in the Site Editor's text and background`,
+			page.body.text === colours.text &&
+				page.body.background === colours.background,
+			page.body
+		);
+		const want = fallbackPaint( colours );
+		const near = ( a, b ) =>
+			/^#[0-9a-f]{6}$/.test( a ) &&
+			[ 1, 3, 5 ].every(
+				( i ) =>
+					Math.abs(
+						Number.parseInt( a.slice( i, i + 2 ), 16 ) -
+							Number.parseInt( b.slice( i, i + 2 ), 16 )
+					) <= 1
+			);
+		for ( const style of [ 'panel', 'inverted', 'accent' ] ) {
+			const styled = keys.base.filter(
+				( key ) => sections[ key ].style === style
+			);
+			const scanned = await tabs.visitor.evaluate(
+				call( 'scan', styled, { contrast: false, overflow: false } )
+			);
+			const off = scanned.filter(
+				( s ) =>
+					s.count !== 1 ||
+					! near( s.text, want[ style ].text ) ||
+					! near( s.background, want[ style ].background )
+			);
+			expect(
+				`${ theme }: every ${ style } section paints from the Site Editor's colours, text ${ want[ style ].text } on ${ want[ style ].background }`,
+				scanned.length === styled.length &&
+					scanned.length > 0 &&
+					off.length === 0,
+				off.length
+					? off
+							.map(
+								( s ) =>
+									`${ s.key } text ${ s.text } on ${ s.background }`
+							)
+							.join( ', ' )
+					: `${ scanned.length } sections`
+			);
+		}
+	} finally {
+		const reset = await setSiteColours( site, null );
+		expect(
+			`${ theme }: the Site Editor's colours are cleared`,
+			! reset.error,
+			reset.error || `global styles post ${ reset.post }`
+		);
+	}
+}
+
+/**
  * Log the admin page in through the login form.
  *
  * @param {Object} tab
@@ -2192,9 +2713,17 @@ async function renderAt(
 	let still = null;
 	const calm = {};
 	let motion = {};
-	if ( want.overflow || want.motion ) {
+	const laid = {};
+	if ( want.overflow || want.motion || want.layout ) {
 		await visit( tabs.still, url, width, fixture.height );
 		still = await tabs.still.evaluate( call( 'page' ) );
+		// With reduced motion, so a revealed row is measured where it rests.
+		if ( want.layout ) {
+			const found = await tabs.still.evaluate( call( 'layout', keys ) );
+			keys.forEach( ( key, i ) => {
+				laid[ key ] = found[ i ];
+			} );
+		}
 		if ( want.overflow ) {
 			for ( const s of await tabs.still.evaluate(
 				call( 'scan', keys, { contrast: false, overflow: true } )
@@ -2247,6 +2776,18 @@ async function renderAt(
 				...where,
 				ok: result.ok,
 				note: result.note || 'still',
+			} );
+		}
+		if ( want.layout ) {
+			renders.push( {
+				check: 'layout',
+				...where,
+				...layoutVerdict(
+					laid[ s.key ] ?? null,
+					columnsFor( s.key, sections, fixture ),
+					width,
+					fixture
+				),
 			} );
 		}
 		if ( want.a11y ) {
@@ -2812,6 +3353,42 @@ async function checkTheme( ctx, entry ) {
 			row ? row.note : `no ${ check } measurement of the planted section`
 		);
 	}
+	// Each layout plant must fail on its own reason, at the width it is for.
+	if ( want.layout ) {
+		const widthOf = ( at ) =>
+			at === 'wide' ? fixture.layout.wide : fixture.layout.stacked[ 0 ];
+		for ( const width of new Set(
+			Object.values( LAYOUT_PLANTS ).map( ( p ) => widthOf( p.at ) )
+		) ) {
+			const names = Object.keys( LAYOUT_PLANTS ).filter(
+				( name ) => widthOf( LAYOUT_PLANTS[ name ].at ) === width
+			);
+			const seen = await renderAt(
+				tabs,
+				pages.control.link,
+				width,
+				names.map( ( name ) => `plant--${ name }` ),
+				{ layout: true },
+				{ theme, variation: '', width },
+				sections,
+				fixture
+			);
+			for ( const name of names ) {
+				const { reason, label } = LAYOUT_PLANTS[ name ];
+				const row = seen.renders.find(
+					( r ) =>
+						r.check === 'layout' && r.key === `plant--${ name }`
+				);
+				expect(
+					`layout control on ${ theme }: the planted ${ label } fails layout on ${ reason } at ${ width }px`,
+					row && ! row.ok && row.reasons.includes( reason ),
+					row
+						? row.note
+						: 'no layout measurement of the planted section'
+				);
+			}
+		}
+	}
 	// Each of these plants must fail its check on its own rule, so a plant
 	// that fails for some other reason does not count.
 	const ruled = {
@@ -2875,6 +3452,10 @@ async function checkTheme( ctx, entry ) {
 					}
 				: null
 		);
+	}
+
+	if ( entry.site_editor_colours && want.contrast ) {
+		await checkSiteColours( ctx, entry, pages.main.link );
 	}
 
 	if ( ! want.contrast || ! entry.variations || opts[ 'no-variations' ] ) {
@@ -2955,6 +3536,7 @@ function installStep( entry ) {
  */
 async function run( opts ) {
 	const fixture = JSON.parse( readFileSync( FIXTURE, 'utf8' ) );
+	plantedRun = !! opts.plant;
 	const only = opts.themes
 		? new Set(
 				String( opts.themes )
@@ -3157,6 +3739,11 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 	const verdicts = {
 		overflow: 'overflow: no render scrolls sideways',
 		motion: 'motion: nothing moves under reduced motion',
+		layout: `layout: every row of items renders the columns the fixture names at ${
+			fixture.layout.wide
+		}px and one at ${ fixture.layout.stacked.join(
+			' and '
+		) }px, and no heading word breaks or spills`,
 		a11y: 'a11y: axe-core reports no violation in any render',
 		impeccable: `impeccable: no render breaks a gated Impeccable rule (${ fixture.impeccable.gate.join(
 			', '
@@ -3272,7 +3859,100 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 			`Failed:\n${ failed.map( ( c ) => `  ${ c.name }` ).join( '\n' ) }`
 		);
 	}
-	return failed.length ? 1 : 0;
+	if ( ! opts.plant ) {
+		return failed.length ? 1 : 0;
+	}
+	const problems = plantedProblems( out, want, verdicts, failed, fixture );
+	if ( problems.length ) {
+		annotate(
+			'error',
+			`The planted run did not fail the way it must: ${ problems.join(
+				'; '
+			) }`,
+			'npm run design-check -- --plant'
+		);
+		return 3;
+	}
+	console.log(
+		'Planted run: every check failed on its planted faults, and nothing else failed.'
+	);
+	return 1;
+}
+
+/** The planted sections each render check must fail in a --plant run. */
+const PLANTED_FAILS = {
+	overflow: [ 'plant--overflow' ],
+	motion: [ 'plant--motion' ],
+	layout: Object.keys( LAYOUT_PLANTS ).map( ( name ) => `plant--${ name }` ),
+	a11y: [ 'plant--heading' ],
+	impeccable: [ 'plant--gradient', 'plant--cards', 'plant--target' ],
+};
+
+/**
+ * What is wrong with a --plant run, which must fail every check it ran on
+ * that check's own planted faults and fail nothing else: no setup step, no
+ * count and no control. A run that crashed, or that failed for some other
+ * reason, is not a planted run that failed.
+ *
+ * @param {Object}        out      The run's rows.
+ * @param {Object}        want     Checks run.
+ * @param {Object}        verdicts Render check => the name of its verdict.
+ * @param {Array<Object>} failed   The failed assertions.
+ * @param {Object}        fixture  tests/fixtures/contrast.json.
+ * @return {string[]} Problems, none for a planted run that failed as it must.
+ */
+function plantedProblems( out, want, verdicts, failed, fixture ) {
+	const problems = [];
+	const names = new Set( failed.map( ( c ) => c.name ) );
+	for ( const check of RENDER_CHECKS ) {
+		if ( ! want[ check ] ) {
+			continue;
+		}
+		if ( ! names.has( verdicts[ check ] ) ) {
+			problems.push( `${ check } did not fail` );
+		}
+		const failing = new Set(
+			out.renders
+				.filter( ( r ) => r.check === check && ! r.ok )
+				.map( ( r ) => r.key )
+		);
+		const missed = PLANTED_FAILS[ check ].filter(
+			( key ) => ! failing.has( key )
+		);
+		if ( missed.length ) {
+			problems.push( `${ check } did not fail ${ missed.join( ', ' ) }` );
+		}
+	}
+	const contrastVerdict = ( name ) =>
+		name.startsWith( 'contrast: every pair measures' );
+	if ( want.contrast ) {
+		if ( ! failed.some( ( c ) => contrastVerdict( c.name ) ) ) {
+			problems.push( 'contrast did not fail' );
+		}
+		if (
+			! out.contrast.some(
+				( r ) =>
+					r.pattern === 'plant cover' && fails( r, fixture.floor )
+			)
+		) {
+			problems.push( 'contrast did not fail plant--cover' );
+		}
+	}
+	const planted = ( name ) =>
+		Object.values( verdicts ).includes( name ) ||
+		contrastVerdict( name ) ||
+		/: the page does not scroll sideways( with reduced motion on)?$/.test(
+			name
+		);
+	const other = failed.filter( ( c ) => ! planted( c.name ) );
+	if ( other.length ) {
+		problems.push(
+			`it failed more than its plants: ${ other
+				.map( ( c ) => c.name )
+				.join( ' | ' ) }`
+		);
+	}
+	return problems;
 }
 
 /**
@@ -3439,7 +4119,8 @@ function checkContrast( out, themes, fixture, opts, narrowed ) {
 								variation: r.variation,
 								pattern: r.pattern,
 								style: r.style,
-								target: r.target,
+								kind: r.kind,
+								nth: r.nth,
 								state: r.state,
 								ratio: r.ratio,
 							} ) }`,
@@ -3462,7 +4143,7 @@ function checkContrast( out, themes, fixture, opts, narrowed ) {
 		stale
 			.map(
 				( k ) =>
-					`${ k.theme }/${ k.variation || 'own styles' } ${ k.pattern } ${ k.style } ${ k.target } ${ k.state } no longer fails: remove it from the fixture`
+					`${ k.theme }/${ k.variation || 'own styles' } ${ k.pattern } ${ k.style } ${ k.kind } ${ k.nth } ${ k.state } no longer fails: remove it from the fixture`
 			)
 			.join( '\n' ) || `${ known.size } listed`
 	);
@@ -3473,7 +4154,7 @@ function checkContrast( out, themes, fixture, opts, narrowed ) {
 		if ( off ) {
 			annotate(
 				'warning',
-				`${ k.theme }/${ k.variation || 'own styles' } ${ k.pattern } ${ k.style } ${ k.target } ${ k.state } is listed at ${ k.ratio }:1 and measured ${ off.ratio }:1 at ${ off.width }px. Update the fixture.`,
+				`${ k.theme }/${ k.variation || 'own styles' } ${ k.pattern } ${ k.style } ${ k.kind } ${ k.nth } (${ off.target }) ${ k.state } is listed at ${ k.ratio }:1 and measured ${ off.ratio }:1 at ${ off.width }px. Update the fixture.`,
 				'Known failure ratio changed'
 			);
 		}

@@ -33,7 +33,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell or fax) whose fallback looks like a phone number, or to an email field (email or mail) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell, fax, whatsapp or telefono) whose fallback looks like a phone number, or to an email field (email, mail or correo) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -160,12 +160,16 @@ function validate( $input = null ) {
 /**
  * Name parts that make a key a phone key or an email key, such as Site Data's
  * phone, phone_link, email and email_link, or post meta like office_phone,
- * mobile or fax. Only their fallbacks can be stale copies of a phone number or
- * an email address.
+ * mobile, fax, whatsapp, telefono or correo. Only their fallbacks can be stale
+ * copies of a phone number or an email address. Words from other languages
+ * are the common ones for a phone (telefon, telefono, telefone, movil) and an
+ * email address (correo, courriel), and the messaging services a number is
+ * given for (whatsapp, sms). Each counts only as a whole part, so telegram,
+ * telefonica and correos name neither.
  */
 const CONTACT_PARTS = [
-	'phone' => [ 'phone', 'telephone', 'tel', 'mobile', 'cell', 'cellphone', 'fax' ],
-	'email' => [ 'email', 'mail' ],
+	'phone' => [ 'phone', 'telephone', 'tel', 'mobile', 'cell', 'cellphone', 'fax', 'telefon', 'telefono', 'telefone', 'movil', 'whatsapp', 'sms' ],
+	'email' => [ 'email', 'mail', 'correo', 'courriel' ],
 ];
 
 /**

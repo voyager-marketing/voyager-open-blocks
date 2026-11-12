@@ -1399,6 +1399,13 @@ const headingsIn = ( markup ) =>
 	[ ...markup.matchAll( /<h3 class="wp-block-heading">([^<]*)<\/h3>/g ) ].map(
 		( m ) => m[ 1 ]
 	);
+// The grid's cards: each item is a bordered group, straight in the grid.
+const cardsIn = ( markup ) =>
+	(
+		markup.match(
+			/<!-- wp:group \{"metadata":\{"name":"Service \d+"\},"style":\{"border"/g
+		) || []
+	).length;
 
 /**
  * Insert a services or reviews layout on a draft of its own, and validate it
@@ -1442,25 +1449,23 @@ step(
 	fourCards.placed.status === 200 &&
 		fourCards.placed.data.saved === true &&
 		fourCards.placed.data.validation?.round_trip === true &&
-		( fourMarkup.match( /<!-- wp:column \{/g ) || [] ).length === 4 &&
+		cardsIn( fourMarkup ) === 4 &&
 		( fourMarkup.match( /<!-- wp:voyager-open\/icon /g ) || [] ).length ===
 			4 &&
 		JSON.stringify( headingsIn( fourMarkup ) ) ===
 			JSON.stringify( services.slice( 0, 4 ).map( ( [ t ] ) => t ) ) &&
 		fourMarkup.includes( `<p>${ services[ 3 ][ 1 ] }</p>` ) &&
-		[
-			'Service 4',
-			'Service 4 card',
-			'Service 4 heading',
-			'Service 4 text',
-		].every( ( name ) =>
-			( fourCards.placed.data.blocks || [] ).some(
-				( b ) => b.label === name
-			)
+		[ 'Service 4', 'Service 4 heading', 'Service 4 text' ].every(
+			( name ) =>
+				( fourCards.placed.data.blocks || [] ).some(
+					( b ) => b.label === name
+				)
 		) &&
 		!! fourthIcon,
 	fourCards.placed.data.code ||
-		`${ headingsIn( fourMarkup ).join( ' | ' ) }; ${ ( fourMarkup.match( /<!-- wp:column \{/g ) || [] ).length } columns`
+		`${ headingsIn( fourMarkup ).join( ' | ' ) }; ${ cardsIn(
+			fourMarkup
+		) } cards`
 );
 step(
 	'validate passes the page with four service cards, with no warning',
@@ -1494,7 +1499,7 @@ step(
 	'insert services with one card dropped through omit: two cards, and nothing of the third',
 	twoCards.placed.status === 200 &&
 		twoCards.placed.data.saved === true &&
-		( twoMarkup.match( /<!-- wp:column \{/g ) || [] ).length === 2 &&
+		cardsIn( twoMarkup ) === 2 &&
 		JSON.stringify( headingsIn( twoMarkup ) ) ===
 			JSON.stringify( services.slice( 0, 2 ).map( ( [ t ] ) => t ) ) &&
 		! twoMarkup.includes( 'Service 3' ) &&

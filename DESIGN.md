@@ -87,7 +87,7 @@ components:
   card:
     textColor: "{colors.on-surface}"
     rounded: "{rounded.box}"
-    padding: "{spacing.50}"
+    padding: "{spacing.40}"
   eyebrow:
     typography: "{typography.label}"
   tick-list:
@@ -180,9 +180,10 @@ Spacing uses the theme's spacing presets:
 | left and right of every section | `50` |
 | between a section's heading, text and buttons | `40` |
 | between columns, and between logos | `60` |
+| between cards, and inside a card | `40` |
 | between the lines of a list of details | `20` |
 
-Use slugs `20` to `60` only. Twenty Twenty-Four stops at `60`, and a slug the theme does not define renders as no space at all.
+Use slugs `20` to `60` only. Twenty Twenty-Four stops at `60`, and a slug the theme does not define renders as no space at all. Twenty Twenty-Five defines `20` to `80` and turns off WordPress's default sizes (`defaultSpacingSizes: false`), so `10` renders as no space there.
 
 **Two adjacent sections never share a style other than Plain.**
 
@@ -197,8 +198,9 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 ## Components
 
 - **Button** (`core/button`). The fill style for the section's one main action, `is-style-outline` for a second. At most two buttons in a section, and one fill. The label says what happens ("Call us", "Get a quote"), in sentence case, with no arrow. The target is at least 44px tall, which the `impeccable` check measures. Never shrink the theme's padding. Some themes miss the target on their own: Twenty Twenty-Four's button measures 41.5px, listed as that theme's known gap.
-- **Card.** A `core/group` with a 1px border, `50` padding, no fill and no shadow, holding an optional icon, an `h3`, one or two short paragraphs and at most one link or button. A review card holds a star row, a quote, and the customer's name and one detail instead. Cards in a row sit in `core/columns` at wide width, one card to a column, and share one structure. A card never holds a card. The border sets no colour, so it takes the text colour and follows the section style. The services section's cards are the pack's first.
-  - Where a section can hold more cards than one row takes, as the reviews section's up to six, the cards sit in a `core/group` with the grid layout instead: three columns at most, each at least `21rem`, so the row wraps rather than squeeze a card. A theme with large spacing presets, such as Twenty Twenty-Four, whose `50` is about 100px at desktop, gets two cards to a row there.
+- **Card.** A `core/group` with a 1px border, `40` padding, no fill and no shadow, holding an optional icon, an `h3`, one or two short paragraphs and at most one link or button. A review card holds a star row, a quote, and the customer's name and one detail instead. A card never holds a card. The border sets no colour, so it takes the text colour and follows the section style. The services section's cards are the pack's first.
+  - Cards in a row sit in a `core/group` with the grid layout at wide width, one card to a cell, and share one structure: three columns at most, each at least `18rem`, with a `40` gap. The row wraps rather than squeeze a card, so a heading never breaks inside a word, and the cards stack on a phone. Three fit at 1280px on all three themes the checks run, Twenty Twenty-Four included, whose `40` and `50` are about 64px and 100px there. Check: `layout`.
+  - The gap is one value, never a row gap and a column gap. WordPress 7.1 writes the gap into the grid's column sizes, so a pair (`50 60`) makes core's whole `grid-template-columns` invalid, and the row falls to one column (`wp_get_layout_style()` in wp-includes/block-supports/layout.php, 7.1.4; 7.2 takes the column gap alone).
 - **Icon** (`voyager-open/icon`). A pictogram above a card's heading, or beside the text of a row in a list: one per item, from the pack's set, chosen for what the item is, never for a promise (no `star` for quality: the star appears only in a review's star row). Every icon in a section is the same size (40px in the services section). An icon that sits beside a heading saying the same thing is decorative: no label, no link and no animation, so a screen reader reads the heading. It strokes in the text colour, so it follows the section style too.
 - **Star row.** A review's own rating: five `star` icons in a row with no gap between them, 24px, then the rating in words at `small` ("Rated 5 out of 5"). The stars have no label, so each renders hidden from screen readers, and the words are the row's one accessible name. They say the rating to a sighted reader too, since the outline star cannot show a part star or tell five from none. A lower rating drops the stars above it and says the same number. The rating, like the quote, comes from the site owner, never from the agent.
 - **Quote** (`core/quote`). A customer's words and nothing else, in the theme's Plain quote style, so a theme's quote box (a fill and a radius on Twenty Twenty-Four and Ipsum) never sits inside a card or keeps a colour a section style cannot repaint. The theme still sets its type, and may add a rule or a quotation mark. The name and one detail follow it as paragraphs, outside the quotation, the detail at `small`. The single review's quote is centred at `large`.
@@ -223,19 +225,20 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 Motion is a section's one bold move, never decoration, and no content depends on it to be seen. There are two: the logo row's loop (Logo row, under Components) and the reveal. Both are CSS alone, with no script, and with motion off nothing moves.
 
 - **Reveal** (the `voyager-open-reveal` class). A block fades in and lifts 2rem into place as it enters the viewport: from no opacity to its own, over the first 20vh the page scrolls once the block's top edge is on screen (`animation-timeline: view()`, `animation-range: entry 0% entry 20vh`).
-  - **Where it goes:** the card row of each services layout (the cards' `core/columns`, and the list's group of rows) and the reviews grid's group of cards. One per section, on the row, never on each card. Nothing above the fold: never the hero, and not the CTA bands, the closing CTA or the contact section.
+  - **Where it goes:** the card row of each services layout (the grid's group of cards, and the list's group of rows) and the reviews grid's group of cards. One per section, on the row, never on each card. Nothing above the fold: never the hero, and not the CTA bands, the closing CTA or the contact section.
   - **No content depends on it.** Outside its range the block shows as it is, with no fill before or after, so a block below the first screen is at full opacity in a full-page capture, which does not scroll. A second animation, on the page's own scroll and added on top, holds every revealed block at full opacity at the top of the page and hands over to the reveal over the same first 20vh, so a block half on the first screen never shows faded at rest at the top, and nothing on screen fades as the visitor starts to scroll.
   - Only with motion on (`@media (prefers-reduced-motion: no-preference)`) in a browser with view timelines and `animation-composition` (`@supports`). Anywhere else the block shows in place with no animation. The stylesheet loads only on a page that renders a block with the class.
 
 ## Do's and Don'ts
 
-Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast`, `overflow`, `motion`, `a11y` and `impeccable` run in CI (`npm run design-check`): every pattern in each section style, Plain included, at 320, 390, 768 and 1280 px on Twenty Twenty-Five and Twenty Twenty-Four, and on Ipsum, WordPress's proposed default theme, on the fallback roles. `contrast` also measures each colour style variation the three themes ship, at 390 and 1280 px. The only pairs still under 4.5:1 are a theme's own outline button hover in a Plain section, which the pack does not paint, on Twenty Twenty-Five's Morning and Twenty Twenty-Four's Maelstrom, and the hero cover's text on Twenty Twenty-Five's Afternoon, at 4.13:1 over a white image: Afternoon's `base` and `contrast` read only 5.29:1 with nothing showing through, so no overlay that lets an image show keeps them at 4.5:1 over both extremes. They are listed in `tests/fixtures/contrast.json` as known failures, and any other pair under 4.5:1 fails. Twenty Twenty-Four's own buttons, at 41.5px tall, are listed there as the one known tap-target gap. The rest are planned and not in CI yet.
+Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast`, `overflow`, `motion`, `layout`, `a11y` and `impeccable` run in CI (`npm run design-check`): every pattern in each section style, Plain included, at 320, 390, 768 and 1280 px on Twenty Twenty-Five and Twenty Twenty-Four, and on Ipsum, WordPress's proposed default theme, on the fallback roles. `contrast` also measures each colour style variation the three themes ship, at 390 and 1280 px. The only pairs still under 4.5:1 are a theme's own outline button hover in a Plain section, which the pack does not paint, on Twenty Twenty-Five's Morning and Twenty Twenty-Four's Maelstrom, and the hero cover's text on Twenty Twenty-Five's Afternoon, at 4.13:1 over a white image: Afternoon's `base` and `contrast` read only 5.29:1 with nothing showing through, so no overlay that lets an image show keeps them at 4.5:1 over both extremes. They are listed in `tests/fixtures/contrast.json` as known failures, and any other pair under 4.5:1 fails. Twenty Twenty-Four's own buttons, at 41.5px tall, are listed there as the one known tap-target gap. The rest are planned and not in CI yet.
 
 | Check | Fails when |
 | -- | -- |
 | `lint` | this file has any lint error or warning, which includes contrast under 4.5:1 between a component's colours |
 | `contrast` | rendered text measures under 4.5:1 against its background. On a cover with an image, the background is the overlay over black and over white, and the lower ratio counts |
 | `overflow` | a render scrolls sideways |
+| `layout` | a row of cards or columns renders other than the columns listed for its pattern at 1280px, or more than one at 320 or 390px, or a word in a heading breaks across lines or spills out of its box |
 | `a11y` | axe-core reports a violation in a rendered section: the WCAG 2.0 and 2.1 A and AA rules, and `heading-order` |
 | `impeccable` | Impeccable reports line length, gradient text, nested cards or grey text on colour in a rendered section, or a tap target in it is under 44px |
 | `motion` | anything moves in a reduced-motion render, the logo loop and the reveal included: an animation or transition is running in a section, or a box in it moves between two samples 400ms apart. With motion on, the run checks it sees the logo marquee and the revealed rows of the services and reviews sections animate in every style, so a still render with motion off is their reduced-motion rule at work |
@@ -251,6 +254,7 @@ Each rule names the check that enforces it, or says judge only. `lint` and `pres
 - Do keep body copy short enough to stay under about 75 characters per line. Check: `impeccable`.
 - Do aim for tap targets at least 44px tall and wide. Check: `impeccable`, which measures the rendered size. Known gap: Twenty Twenty-Four's own button is 41.5px tall.
 - Do make every page work at 320px wide. Check: `overflow`.
+- Do give every card room for its heading: three cards across at most, never a word broken inside itself. Check: `layout`.
 - Do give every meaningful image alt text, and replace placeholders before a page goes live. Check: `validate`.
 - Do write button labels that say what happens. Judge only.
 - Don't use gradient text, or a gradient as decoration. Check: `impeccable`.

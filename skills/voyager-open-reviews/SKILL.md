@@ -40,8 +40,8 @@ voyager-open/reviews (grid)
 core/group (section, full width, constrained)          "Reviews"
   core/group (wide, text at content width, left)       "Lead"
     core/heading h2                                    "Heading"
-  core/group (wide, grid: 3 across, at least 21rem), voyager-open-reveal  "Cards"
-    core/group (1px border, padding 50)                "Review 1"
+  core/group (wide, grid: 3 across, at least 18rem, gap 40), voyager-open-reveal  "Cards"
+    core/group (1px border, padding 40)                "Review 1"
       core/group (row, wraps)                          "Review 1 rating row"
         core/group (row, no gap)                       "Review 1 stars"
           voyager-open/icon  star, 24px  x5            "Review 1 star 1" to "Review 1 star 5"
@@ -70,7 +70,7 @@ core/group (section, full width, constrained)          "Reviews"
 
 The intent trees are `patterns/intents/reviews.json` and `patterns/intents/reviews-single.json` (`intent` key). The markup is `patterns/reviews.html` and `patterns/reviews-single.html`. The star is the icon block's default icon, so its block comment carries no `icon` attribute: `<!-- wp:voyager-open/icon {"size":24,...} /-->` is a star.
 
-Every review has the same structure, and every block in a review carries the review's label: "Review 2" holds "Review 2 rating", "Review 2 quote", "Review 2 star 5" and the rest. That is what lets `repeat` copy a whole card and `omit` drop one star (see Abilities). A card is DESIGN.md's Card: a 1px border, `50` padding, no fill and no shadow, and no card holds a card. The borders take the text colour, so they follow the section style.
+Every review has the same structure, and every block in a review carries the review's label: "Review 2" holds "Review 2 rating", "Review 2 quote", "Review 2 star 5" and the rest. That is what lets `repeat` copy a whole card and `omit` drop one star (see Abilities). A card is DESIGN.md's Card: a 1px border, `40` padding, no fill and no shadow, and no card holds a card. The borders take the text colour, so they follow the section style.
 
 The grid's "Cards" group carries the class `voyager-open-reveal`: the row of cards fades and lifts into place as it scrolls into view, with motion on only, and shows in place otherwise (DESIGN.md, Motion). Keep the class on the group and off the cards. The single layout has no reveal.
 

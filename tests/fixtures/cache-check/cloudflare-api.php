@@ -17,7 +17,12 @@
  *   for no second page.
  * - GET zones/<zone>/pagerules?status=active, which
  *   Hooks::purgeCacheByRelevantURLs() in src/WordPress/Hooks.php reads when
- *   a post is published. Answered with no page rules.
+ *   a post is published. Answered with no page rules, as a site whose
+ *   owner turned the plugin's caching on has: 4.14.5 never makes one.
+ *   WordPressClientAPI::createPageRule() has no caller, and the
+ *   recommended settings (PluginActions::applyDefaultSettings() in
+ *   src/WordPress/PluginActions.php) set the zone's cache_level to
+ *   aggressive, a zone setting, not a cache-everything page rule.
  * - GET zones/<zone>/settings/always_use_https, read in the same place
  *   (Hooks::zoneSettingAlwaysUseHTTPSEnabled()). Answered `off`.
  *

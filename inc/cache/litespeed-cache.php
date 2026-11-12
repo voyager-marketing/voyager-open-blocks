@@ -8,27 +8,9 @@
  * a Site Data change refreshes no page until the cache expires.
  *
  * Written against LiteSpeed Cache 7.9.3, through its documented actions,
- * which API::init() in src/api.cls.php hooks as the plugin loads:
- *
- * - litespeed_purge_url, with a URL, runs Purge::purge_url() in
- *   src/purge.cls.php, which queues the purge of that URL's page. LiteSpeed
- *   keys pages by path, so only the path counts. It also adds a "Purge url"
- *   notice to LiteSpeed's next admin screen.
- * - litespeed_purge_all, with a reason for LiteSpeed's debug log, runs
- *   Purge::purge_all(): every page, and with them LiteSpeed's own CSS and
- *   JS files, local resources, object cache and OPcache. It is the purge
- *   LiteSpeed runs itself when a menu changes (its Purge All Hooks setting),
- *   the other change every page may show. On a multisite network LiteSpeed
- *   decides which sites' pages go.
- * - LITESPEED_ON is LiteSpeed's own test for its page cache, used before it
- *   sends any cache header: the server allows caching (LITESPEED_ALLOWED,
- *   from the X-LSCACHE server variable LiteSpeed's web server sets) and its
- *   Enable Cache setting is on (Conf::define_cache() in src/conf.cls.php).
- * - LITESPEED_DISABLE_ALL is set by its Disable All Features setting, the
- *   timed version of it, or the litespeed_disable_all action. While it is
- *   set, Core::init() in src/core.cls.php returns before LiteSpeed sends
- *   any cache header, so no page is cached; turning the setting on purges
- *   everything. The adapter is inactive then.
+ * which API::init() in src/api.cls.php hooks as the plugin loads. The class
+ * docblock names each call it makes. The ABSPATH guard stays within the
+ * first 50 lines: Plugin Check reads only those for it in a namespaced file.
  *
  * Disable All Features is LiteSpeed's nearest mode to WP Super Cache's Lock
  * Down, and the opposite of it: Lock Down keeps the cached pages, Disable
@@ -52,6 +34,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * What the adapter calls, in that version:
+ *
+ * - litespeed_purge_url, with a URL, runs Purge::purge_url() in
+ *   src/purge.cls.php, which queues the purge of that URL's page. LiteSpeed
+ *   keys pages by path, so only the path counts. It also adds a "Purge url"
+ *   notice to LiteSpeed's next admin screen.
+ * - litespeed_purge_all, with a reason for LiteSpeed's debug log, runs
+ *   Purge::purge_all(): every page, and with them LiteSpeed's own CSS and
+ *   JS files, local resources, object cache and OPcache. It is the purge
+ *   LiteSpeed runs itself when a menu changes (its Purge All Hooks setting),
+ *   the other change every page may show. On a multisite network LiteSpeed
+ *   decides which sites' pages go.
+ * - LITESPEED_ON is LiteSpeed's own test for its page cache, used before it
+ *   sends any cache header: the server allows caching (LITESPEED_ALLOWED,
+ *   from the X-LSCACHE server variable LiteSpeed's web server sets) and its
+ *   Enable Cache setting is on (Conf::define_cache() in src/conf.cls.php).
+ * - LITESPEED_DISABLE_ALL is set by its Disable All Features setting, the
+ *   timed version of it, or the litespeed_disable_all action. While it is
+ *   set, Core::init() in src/core.cls.php returns before LiteSpeed sends
+ *   any cache header, so no page is cached; turning the setting on purges
+ *   everything. The adapter is inactive then.
+ */
 final class LiteSpeed_Cache implements Adapter {
 
 	/** The reason LiteSpeed's debug log gives for a purge_all(). */

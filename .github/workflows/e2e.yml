@@ -12,9 +12,12 @@ name: E2E
 # - contrast: npm run design-check boots its own dev site and renders every
 #   pattern in every section style on each theme in tests/fixtures/contrast.json,
 #   at 320, 390, 768 and 1280px, and runs DESIGN.md's rendered checks on every
-#   render: contrast, overflow and motion. Then it measures contrast on each
-#   colour-bearing style variation each theme ships. Ipsum runs on its own
-#   site, on the WordPress beta it requires, installed from a pinned commit.
+#   render: contrast, overflow, motion, layout, a11y and impeccable. Then it
+#   measures contrast on each colour-bearing style variation each theme ships.
+#   Ipsum runs on its own site, on the WordPress beta it requires, installed
+#   from a pinned commit. A second row runs it with --plant, every planted
+#   fault in the main run, and passes only when the run fails each check on
+#   its own plants and nothing else.
 # - usage-index: npm run check:usage-index boots its own dev site, deletes the
 #   usage index, and checks that `wp voyager-open-blocks reindex` and the
 #   backfill on activation each put every row back. Two more rows plant a
@@ -134,9 +137,21 @@ jobs:
         run: npm run e2e:editor
 
   contrast:
-    name: npm run design-check (contrast, overflow and motion in headless Chrome)
+    name: npm run design-check${{ matrix.plant && ' -- --plant' || '' }} (${{ matrix.what }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - plant: ''
+            what: contrast, overflow, motion, layout, a11y and impeccable in headless Chrome
+          # The control for the run as a whole: with every plant in the main
+          # run, design-check must exit 1 and print the line that says each
+          # check failed on its own plants and nothing else did. A crash
+          # exits 1 too, so the exit code alone is not enough.
+          - plant: plant
+            what: every planted fault fails its own check
     steps:
       - uses: actions/checkout@v4
 
@@ -154,9 +169,26 @@ jobs:
       # anything that moves with reduced motion emulated. Every run also plants
       # a low-contrast role map, a section wider than 320px and an animation
       # with no reduced-motion rule, and requires each to fail its own check.
-      # ubuntu-latest ships Google Chrome; the script finds it on PATH.
-      - name: Contrast, overflow and motion on every pattern, style and width, and the planted controls
+      # layout fails a row of cards that renders the wrong number of columns,
+      # or a heading word that breaks inside itself. a11y and impeccable run
+      # axe-core and Impeccable on every section. ubuntu-latest ships Google
+      # Chrome; the script finds it on PATH.
+      - name: Every check on every pattern, style and width, and the planted controls
+        if: matrix.plant == ''
         run: npm run design-check
+
+      - name: Every planted fault in the main run, which must fail each check on its own plants and nothing else
+        if: matrix.plant != ''
+        run: |
+          set +e
+          npm run design-check -- --plant 2>&1 | tee "$RUNNER_TEMP/plant.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 1 ] || ! grep -q '^Planted run: every check failed on its planted faults, and nothing else failed\.$' "$RUNNER_TEMP/plant.log"; then
+            echo "::error title=npm run design-check -- --plant::Expected exit 1 and every check failing on its own plants and nothing else. It exited $status; the reason is in the log above."
+            exit 1
+          fi
+          echo "ok   npm run design-check -- --plant exited 1, each check failing on its own plants and nothing else"
 
   usage-index:
     name: npm run check:usage-index${{ matrix.plant && format(' --plant {0}', matrix.plant) || '' }}
