@@ -27,8 +27,11 @@ name: Cache
 #   one measured has the highest ID, so it is past the 50 the purge cleans
 #   one by one. The purge sets purge_all for it, and the WP Super Cache
 #   adapter turns purge_all into a clear of WP Super Cache's cache.
-# - `spinupwp --spy`, `nginx-helper --spy` and `litespeed-cache --spy`: the
-#   pack's adapter for each tells the plugin to purge the page's URL.
+# - `spinupwp --spy`, `nginx-helper --spy`, `litespeed-cache --spy` and
+#   `wp-rocket --spy`: the pack's adapter for each tells the plugin to purge
+#   the page's URL.
+# - `cloudflare --spy`: the pack's Cloudflare adapter tells the plugin to
+#   purge everything, and the plugin sends that purge to Cloudflare's API.
 # The --no-purge rows are controls and stay stale for good. They show
 # the check can fail. On a one-page row the empty URL list switches the
 # whole purge off, clean_post_cache() included. On the 51-page row the
@@ -138,6 +141,30 @@ jobs:
             flags: ''
             expect: fresh
           - plugin: litespeed-cache
+            mode: spy
+            flags: ' --no-purge'
+            expect: stale
+          # WP Rocket is not on WordPress.org, so a stand-in mu-plugin
+          # defines its two purge functions with WP Rocket 3.24's signatures
+          # and records each call. Fresh when the pack's WP Rocket adapter
+          # calls rocket_clean_files() with the page's URL.
+          - plugin: wp-rocket
+            mode: spy
+            flags: ''
+            expect: fresh
+          - plugin: wp-rocket
+            mode: spy
+            flags: ' --no-purge'
+            expect: stale
+          # Cloudflare 4.14.5 purges through Cloudflare's API, and the
+          # harness answers that request before it leaves the site. It has
+          # no purge by URL, so the pack's Cloudflare adapter purges
+          # everything: fresh when the request asks for purge_everything.
+          - plugin: cloudflare
+            mode: spy
+            flags: ''
+            expect: fresh
+          - plugin: cloudflare
             mode: spy
             flags: ' --no-purge'
             expect: stale
