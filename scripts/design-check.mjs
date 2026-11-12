@@ -547,6 +547,10 @@ function installInPage( prefix ) {
 			loaded: cover.loaded,
 		};
 
+		// Inside a cover, whatever is under it: the cover sets its own colours.
+		const onCover = !! el.closest(
+			'.wp-block-cover, .wp-block-cover-image'
+		);
 		const raw = window.getComputedStyle( el ).color;
 		const colour = rgba( raw );
 		if ( ! colour ) {
@@ -556,6 +560,7 @@ function installInPage( prefix ) {
 				ratio: null,
 				note: `unreadable color "${ raw }"`,
 				cover: coverRow,
+				onCover,
 			};
 		}
 		const pairs = backgrounds.map( ( background ) => {
@@ -574,6 +579,7 @@ function installInPage( prefix ) {
 			ratio: note ? null : worst.ratio,
 			note,
 			cover: coverRow,
+			onCover,
 		};
 	};
 
@@ -1301,6 +1307,7 @@ async function contrastRows( tab, scanned, context, sections ) {
 				ratio: target.ratio,
 				note: target.note,
 				cover: target.cover,
+				onCover: target.onCover,
 			} );
 		}
 		for ( const target of entry.targets.filter( ( t ) => t.hover ) ) {
@@ -2763,8 +2770,14 @@ async function checkTheme( ctx, entry ) {
 		);
 		// At rest every pair is painted from the role map. A hover can be the
 		// theme's own (Twenty Twenty-Four fills an outline button grey on
-		// hover, whatever the section), so only rest pairs must fail.
-		const rest = seen.contrast.filter( ( r ) => r.state === 'rest' );
+		// hover, whatever the section), so only rest pairs must fail. Text in
+		// a cover is not painted from the map: the cover sets its own overlay
+		// and text colours, and the colours of a button on it, so the planted
+		// map cannot reach it, and the planted covers in checkCovers() are
+		// its controls.
+		const rest = seen.contrast.filter(
+			( r ) => r.state === 'rest' && ! r.onCover
+		);
 		expect(
 			`contrast control on ${ theme }: every pair at rest in the planted ${ entry.plant.style } style fails, so the gate can fail`,
 			rest.length > 0 && rest.every( ( r ) => fails( r, floor ) ),

@@ -31,8 +31,9 @@ final class ImageWarningsTest extends TestCase {
 	/**
 	 * A pattern's blocks as parse_blocks() returns them, built from its intent.
 	 *
-	 * An image's HTML is what core/image saves for its url and alt. Every
-	 * other block keeps its attributes and inner blocks, and no HTML.
+	 * An image's HTML is what core/image saves for its url and alt. A cover's
+	 * url goes in its comment attributes, where core keeps it. Every other
+	 * block keeps its attributes and inner blocks, and no HTML.
 	 *
 	 * @param string                    $name    Pattern name, such as logo-marquee.
 	 * @param callable(string): string $url_for Rewrites each image URL, such as the token swap inc/patterns.php makes.
@@ -65,10 +66,15 @@ final class ImageWarningsTest extends TestCase {
 		$html     = 'core/image' === $name
 			? self::image_html( $url_for( (string) $node['url'] ), (string) $node['alt'] )
 			: '';
+		$attrs    = is_array( $node['attrs'] ?? null ) ? $node['attrs'] : [];
+
+		if ( 'core/cover' === $name && is_string( $node['url'] ?? null ) ) {
+			$attrs['url'] = $url_for( $node['url'] );
+		}
 
 		return [
 			'blockName'    => $name,
-			'attrs'        => is_array( $node['attrs'] ?? null ) ? $node['attrs'] : [],
+			'attrs'        => $attrs,
 			'innerBlocks'  => $inner,
 			'innerHTML'    => $html,
 			'innerContent' => array_merge( [ $html ], array_fill( 0, count( $inner ), null ) ),
@@ -340,6 +346,25 @@ final class ImageWarningsTest extends TestCase {
 
 		$this->assertCount( 6, self::coded( $found, 'placeholder' ) );
 		$this->assertCount( 6, $found );
+	}
+
+	public function test_each_hero_layout_as_shipped_gets_one_placeholder_warning_for_its_image_slot_and_nothing_else(): void {
+		$assets = plugins_url( 'assets/', VOYAGER_OPEN_BLOCKS_FILE );
+		$slots  = [
+			'hero'       => [ '0/0/1/0', 'placeholder: core/image "Image" at 0/0/1/0 shows the pack\'s placeholder image placeholders/image-4x3.svg. ' ],
+			'hero-cover' => [ '0/0', 'placeholder: core/cover "Background" at 0/0 shows the pack\'s placeholder image placeholders/image-16x9.svg as its background. ' ],
+		];
+
+		foreach ( $slots as $name => [ $path, $start ] ) {
+			// As the raw markup holds it, and as insert saves it, at the plugin's URL.
+			foreach ( [ null, static fn ( string $url ): string => str_replace( Patterns\ASSETS_TOKEN, $assets, $url ) ] as $url_for ) {
+				$found = self::warnings( self::pattern( $name, $url_for ) );
+
+				$this->assertCount( 1, $found, $name );
+				$this->assertSame( $path, $found[0]['path'], $name );
+				$this->assertStringStartsWith( $start, $found[0]['warning'], $name );
+			}
+		}
 	}
 
 	public function test_a_placeholder_is_matched_by_the_end_of_its_path_on_any_host(): void {
