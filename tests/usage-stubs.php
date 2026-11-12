@@ -6,8 +6,13 @@
  * when it is loaded, and its queue keeps post IDs in an option and runs on
  * WP-Cron. Each stub is guarded, so one tests/wp-stubs.php adds later wins.
  *
- * - voyager_test_options  option name => value, shared with get_option()
- * - voyager_test_events   WP-Cron hook => timestamp of its next single event
+ * - voyager_test_options       option name => value, shared with get_option()
+ * - voyager_test_events        WP-Cron hook => timestamp of its next single event
+ * - voyager_test_public_types  what get_post_types() returns, default post,
+ *                              page and attachment
+ *
+ * get_stylesheet() names the theme `theme`. No $wpdb is set up, so the
+ * index's own queries (Usage\select()) find nothing.
  *
  * @package VoyagerOpenBlocks
  */
@@ -54,6 +59,22 @@ if ( ! function_exists( 'wp_schedule_single_event' ) ) {
 	function wp_schedule_single_event( int $timestamp, string $hook, array $args = [], bool $wp_error = false ): bool {
 		$GLOBALS['voyager_test_events'][ $hook ] = $timestamp;
 		return true;
+	}
+}
+
+if ( ! function_exists( 'get_post_types' ) ) {
+	function get_post_types( array|string $args = [], string $output = 'names', string $operator = 'and' ): array {
+		return $GLOBALS['voyager_test_public_types'] ?? [
+			'post'       => 'post',
+			'page'       => 'page',
+			'attachment' => 'attachment',
+		];
+	}
+}
+
+if ( ! function_exists( 'get_stylesheet' ) ) {
+	function get_stylesheet(): string {
+		return 'theme';
 	}
 }
 

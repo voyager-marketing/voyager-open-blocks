@@ -126,6 +126,7 @@ final class PurgeTest extends TestCase {
 		$GLOBALS['voyager_test_switch_stack'] = [];
 		$GLOBALS['voyager_test_switches']     = [];
 		$GLOBALS['voyager_test_recurrence']   = [];
+		$GLOBALS['voyager_test_post_status']  = [];
 		$this->looked_up                      = [];
 		Purge\pending( '', 0, true );
 		Purge\running( false );
@@ -582,6 +583,156 @@ final class PurgeTest extends TestCase {
 			$this->purges(),
 			'Page 12 changed price too, and does not show it. No front page.'
 		);
+	}
+
+	/**
+	 * Services 5 and 12 and page 30 each show their own price. Page 20 lists
+	 * services in a Query Loop whose post template binds price.
+	 */
+	private function services(): void {
+		add_filter(
+			'voyager_post_meta_text_fields',
+			static fn () => [
+				'service' => [ 'price' => 'Price' ],
+				'page'    => [ 'price' => 'Price' ],
+			]
+		);
+		$GLOBALS['voyager_test_post_types']      = [
+			5  => 'service',
+			12 => 'service',
+			20 => 'page',
+			30 => 'page',
+		];
+		$GLOBALS['voyager_test_permalinks'][20] = 'https://example.com/services/';
+	}
+
+	/**
+	 * The rows each of services() shows. A list row is a row too, so page 20 shows price.
+	 *
+	 * @return callable(int): list<string>
+	 */
+	private function shows(): callable {
+		return static fn ( int $post_id ): array => in_array( $post_id, [ 5, 12, 20, 30 ], true ) ? [ 'voyager/post-meta-text:price' ] : [];
+	}
+
+	/**
+	 * The pretend list index of services(): page 20 lists price.
+	 *
+	 * @return callable(list<string>): array{posts: list<int>, templates: list<string>}
+	 */
+	private function listing(): callable {
+		return $this->lookup( [ 20 => [ 'voyager/post-meta-text:price' ] ] );
+	}
+
+	public function test_a_page_that_lists_the_field_in_a_query_loop_is_refreshed_with_the_post_that_changed(): void {
+		$this->services();
+		Purge\on_meta( 1, 5, 'price' );
+
+		$ran = Purge\run( null, $this->shows(), $this->listing() );
+
+		$this->assertSame( 1, $ran );
+		$this->assertSame(
+			[
+				[
+					[ 'https://example.com/a/', 'https://example.com/services/' ],
+					[
+						'source'    => 'voyager/post-meta-text',
+						'keys'      => [ 'price' ],
+						'post_ids'  => [ 5, 20 ],
+						'templates' => [],
+						'reason'    => 'post-meta',
+						'purge_all' => false,
+					],
+				],
+			],
+			$this->purges(),
+			'Service 5 and the page that lists services. Not service 12 or page 30, which show only their own price.'
+		);
+		$this->assertSame( [ [ 'voyager/post-meta-text:price' ] ], $this->looked_up, 'The list rows are looked up for the field that changed.' );
+		$this->assertSame( [ 5, 20 ], $GLOBALS['voyager_test_cleaned'] );
+	}
+
+	public function test_a_template_that_lists_the_field_sets_purge_all(): void {
+		$all = new SpyAdapter( 'spy' );
+		$this->offer( [ $all ] );
+		$this->services();
+		Purge\on_meta( 1, 12, 'price' );
+
+		Purge\run( null, $this->shows(), $this->lookup( [], [ 'theme//archive-service' => [ 'voyager/post-meta-text:price' ] ] ) );
+
+		$purges = $this->purges();
+		$this->assertCount( 1, $purges );
+		$this->assertSame( [ 'https://example.com/b/' ], $purges[0][0] );
+		$this->assertSame( [ 12 ], $purges[0][1]['post_ids'] );
+		$this->assertSame( [ 'theme//archive-service' ], $purges[0][1]['templates'] );
+		$this->assertTrue( $purges[0][1]['purge_all'], 'An archive that lists each service with its price may be any page.' );
+		$this->assertSame( [ 'all' ], $all->calls );
+	}
+
+	public function test_a_template_that_lists_the_field_purges_even_when_nothing_shows_its_own(): void {
+		$this->services();
+		Purge\on_meta( 1, 12, 'price' );
+
+		$ran = Purge\run( null, static fn (): array => [], $this->lookup( [], [ 'theme//archive-service' => [ 'voyager/post-meta-text:price' ] ] ) );
+
+		$this->assertSame( 1, $ran );
+		$purges = $this->purges();
+		$this->assertSame( [], $purges[0][0] );
+		$this->assertSame( [], $purges[0][1]['post_ids'] );
+		$this->assertTrue( $purges[0][1]['purge_all'] );
+	}
+
+	public function test_a_change_on_a_post_that_is_not_published_refreshes_no_list(): void {
+		$this->services();
+		$GLOBALS['voyager_test_post_status'] = [
+			5  => 'draft',
+			12 => 'private',
+			30 => 'future',
+		];
+		Purge\on_meta( 1, 5, 'price' );
+		Purge\on_meta( 2, 12, 'price' );
+		Purge\on_meta( 3, 30, 'price' );
+
+		$ran = Purge\run( null, static fn (): array => [], $this->listing() );
+
+		$this->assertSame( 0, $ran, 'A Query Loop shows a visitor published posts only.' );
+		$this->assertSame( [], $this->looked_up );
+		$this->assertSame( [], $this->purges() );
+	}
+
+	public function test_more_than_fifty_pages_that_list_the_field_lists_fifty_and_sets_purge_all(): void {
+		$this->services();
+		$list = [];
+		for ( $id = 100; $id <= 150; $id++ ) {
+			$list[ $id ]                               = [ 'voyager/post-meta-text:price' ];
+			$GLOBALS['voyager_test_permalinks'][ $id ] = "https://example.com/l{$id}/";
+		}
+		Purge\on_meta( 1, 5, 'price' );
+
+		Purge\run( null, $this->shows(), $this->lookup( $list ) );
+
+		$purges = $this->purges();
+		$this->assertCount( 1, $purges );
+		$this->assertSame( [ 5, ...range( 100, 148 ) ], $purges[0][1]['post_ids'], 'The post that changed first, then the pages that list the field, fifty in all.' );
+		$this->assertCount( 50, $purges[0][0] );
+		$this->assertTrue( $purges[0][1]['purge_all'] );
+		$this->assertSame( [ 5, ...range( 100, 148 ) ], $GLOBALS['voyager_test_cleaned'] );
+	}
+
+	public function test_past_fifty_changed_posts_the_pages_that_list_the_field_are_listed_too(): void {
+		$changes = [];
+		for ( $id = 1; $id <= 55; $id++ ) {
+			$changes[ $id ]                             = [ 'price' ];
+			$GLOBALS['voyager_test_permalinks'][ $id ] = "https://example.com/p{$id}/";
+		}
+		$GLOBALS['voyager_test_permalinks'][200] = 'https://example.com/services/';
+		$shown                                   = static fn ( int $post_id ): array => 0 === $post_id % 2 ? [ 'voyager/post-meta-text:price' ] : [];
+
+		$plan = Purge\post_meta_plan( $changes, $shown, static fn (): bool => true, $this->lookup( [ 200 => [ 'voyager/post-meta-text:price' ] ] ) );
+
+		$this->assertNotNull( $plan );
+		$this->assertSame( [ ...range( 2, 50, 2 ), 200 ], $plan['context']['post_ids'] );
+		$this->assertTrue( $plan['context']['purge_all'] );
 	}
 
 	public function test_only_allowlisted_meta_on_content_is_noted(): void {
