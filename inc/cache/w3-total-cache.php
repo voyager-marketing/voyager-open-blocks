@@ -9,7 +9,33 @@
  * so without this adapter a Site Data change refreshes no page until the
  * cache expires it.
  *
- * Written against W3 Total Cache 2.11.0, through its public functions in
+ * Written against W3 Total Cache 2.11.0. The class docblock names each
+ * function it calls, with the file and line in that version. The ABSPATH
+ * guard stays within the first 50 lines: Plugin Check reads only those for
+ * it in a namespaced file.
+ *
+ * W3 Total Cache has no mode that holds its cached pages through a change,
+ * as WP Super Cache's Lock Down does.
+ *
+ * Each call fails soft (fail-soft.php): a URL whose flush throws is
+ * reported and skipped, and the purge records the adapter as failed.
+ *
+ * A site that does not want it drops the adapter whose id() is
+ * `w3-total-cache` in a later `voyager_open_blocks_cache_adapters` filter.
+ *
+ * @package VoyagerOpenBlocks
+ */
+
+declare(strict_types=1);
+
+namespace VoyagerOpenBlocks\Cache;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * The adapter calls W3 Total Cache 2.11.0 through its public functions in
  * w3-total-cache-api.php, which w3-total-cache.php loads with the plugin:
  *
  * - w3tc_flush_url( $w3tc_url ) (line 326) flushes one URL. CacheFlush
@@ -42,27 +68,7 @@
  * CacheFlush publishes each flush to Amazon SNS instead of running it
  * itself (CacheFlush::__construct(), CacheFlush.php:40-47). The adapter
  * calls the same functions either way.
- *
- * W3 Total Cache has no mode that holds its cached pages through a change,
- * as WP Super Cache's Lock Down does.
- *
- * Each call fails soft (fail-soft.php): a URL whose flush throws is
- * reported and skipped, and the purge records the adapter as failed.
- *
- * A site that does not want it drops the adapter whose id() is
- * `w3-total-cache` in a later `voyager_open_blocks_cache_adapters` filter.
- *
- * @package VoyagerOpenBlocks
  */
-
-declare(strict_types=1);
-
-namespace VoyagerOpenBlocks\Cache;
-
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
 final class W3_Total_Cache implements Adapter {
 
 	public function id(): string {
