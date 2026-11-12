@@ -389,6 +389,88 @@ function installInPage( prefix ) {
 			.map( ( name ) => `.${ name }` )
 			.join( '' ) }>`;
 
+	const black = { r: 0, g: 0, b: 0, a: 1 };
+	const white = { r: 255, g: 255, b: 255, a: 1 };
+
+	/**
+	 * What a core/cover paints under the text inside it, from computed
+	 * styles. Core saves the overlay as a span.wp-block-cover__background (or
+	 * __gradient-background) beside the image and the inner container: its
+	 * colour comes from a has-<slug>-background-color class or an inline
+	 * style (black when it has neither), and its opacity from
+	 * has-background-dim-<n>, the dimRatio (wp-includes/blocks/cover/style.css).
+	 * Older markup paints the overlay as the cover's own ::before.
+	 *
+	 * @param {Element} cover A .wp-block-cover.
+	 * @return {{overlay: Object, opacity: number, media: string, image: string, loaded: boolean|null, note: string}} The overlay, its opacity folded into its alpha; what the cover shows under it ('img', 'video', 'embed', 'background', or '' for nothing); the image's URL and whether it loaded; and a note when the overlay cannot be measured.
+	 */
+	const coverOf = ( cover ) => {
+		const child = ( selector ) =>
+			[ ...cover.children ].find( ( c ) => c.matches( selector ) ) ||
+			null;
+		const span = child(
+			'.wp-block-cover__background, .wp-block-cover__gradient-background'
+		);
+		// eslint-disable-next-line no-nested-ternary
+		const paint = span
+			? window.getComputedStyle( span )
+			: cover.classList.contains( 'has-background-dim' )
+				? window.getComputedStyle( cover, '::before' )
+				: null;
+		const img = child( 'img.wp-block-cover__image-background' );
+		let media = '';
+		if ( img ) {
+			media = 'img';
+		} else if ( child( 'video.wp-block-cover__video-background' ) ) {
+			media = 'video';
+		} else if ( child( '.wp-block-cover__embed-background' ) ) {
+			media = 'embed';
+		} else if (
+			child( '.wp-block-cover__image-background' ) ||
+			window.getComputedStyle( cover ).backgroundImage !== 'none'
+		) {
+			media = 'background';
+		}
+		const found = {
+			overlay: { ...black, a: 0 },
+			opacity: 0,
+			media,
+			image: img ? img.currentSrc || img.src : '',
+			loaded: img ? img.complete && img.naturalWidth > 0 : null,
+			note: '',
+		};
+		if ( ! paint ) {
+			return found;
+		}
+		const colour = rgba( paint.backgroundColor );
+		if ( paint.backgroundImage !== 'none' ) {
+			found.note = `a gradient overlay on ${ describe(
+				cover
+			) } makes the pair unmeasurable`;
+		} else if ( ! colour ) {
+			found.note = `unreadable overlay background-color "${ paint.backgroundColor }"`;
+		} else {
+			const opacity = Number.parseFloat( paint.opacity );
+			found.opacity = Number.isFinite( opacity ) ? opacity : 1;
+			found.overlay = { ...colour, a: colour.a * found.opacity };
+		}
+		return found;
+	};
+
+	/**
+	 * Contrast ratio of two opaque colours, to two decimals.
+	 *
+	 * @param {Object} a
+	 * @param {Object} b
+	 * @return {number} Ratio.
+	 */
+	const ratioOf = ( a, b ) => {
+		const [ hi, lo ] = [ luminance( a ), luminance( b ) ].sort(
+			( x, y ) => y - x
+		);
+		return Math.round( ( ( hi + 0.05 ) / ( lo + 0.05 ) ) * 100 ) / 100;
+	};
+
 	/**
 	 * An element's text colour against what is behind it. The background is
 	 * the first opaque one walking up from the element, with every
@@ -396,19 +478,40 @@ function installInPage( prefix ) {
 	 * the way up is the white canvas. A background image on that path makes
 	 * the pair unmeasurable, which counts as a failure.
 	 *
+	 * A core/cover on the path is not a background image on an ancestor: its
+	 * image and overlay are children of the cover, beside the text's
+	 * container. Its overlay is a layer like any other. When the cover shows
+	 * an image or a video, nothing behind the overlay can be known, so the
+	 * layers are composited once over black and once over white, the two
+	 * extremes any image can reach, and the lower ratio counts. A cover with
+	 * no image lets the walk go on to what is behind it.
+	 *
 	 * @param {Element} el
-	 * @return {{text: string, background: string, ratio: number|null, note: string}} Measurement.
+	 * @return {{text: string, background: string, ratio: number|null, note: string, cover: Object|null}} Measurement. cover is set when the text is on a cover: its overlay, what it shows, and the two composites and ratios when it shows an image.
 	 */
 	const measure = ( el ) => {
 		const layers = [];
 		let note = '';
+		let cover = null;
 		for (
 			let node = el;
 			node && node.nodeType === 1;
 			node = node.parentElement
 		) {
 			const style = window.getComputedStyle( node );
-			if ( style.backgroundImage !== 'none' ) {
+			if ( node.matches( '.wp-block-cover, .wp-block-cover-image' ) ) {
+				cover = coverOf( node );
+				if ( cover.note ) {
+					note = cover.note;
+					break;
+				}
+				if ( cover.overlay.a > 0 ) {
+					layers.push( cover.overlay );
+				}
+				if ( cover.media || cover.overlay.a >= 1 ) {
+					break;
+				}
+			} else if ( style.backgroundImage !== 'none' ) {
 				note = `background-image on <${ node.tagName.toLowerCase() }> makes the pair unmeasurable`;
 			}
 			const bg = rgba( style.backgroundColor );
@@ -423,36 +526,54 @@ function installInPage( prefix ) {
 				break;
 			}
 		}
-		let background = { r: 255, g: 255, b: 255, a: 1 };
-		for ( let i = layers.length - 1; i >= 0; i-- ) {
-			background =
-				layers[ i ].a >= 1
-					? layers[ i ]
-					: over( layers[ i ], background );
-		}
+		const behind = ( base ) => {
+			let background = base;
+			for ( let i = layers.length - 1; i >= 0; i-- ) {
+				background =
+					layers[ i ].a >= 1
+						? layers[ i ]
+						: over( layers[ i ], background );
+			}
+			return background;
+		};
+		const overImage = !! cover?.media && ! note;
+		const bases = overImage ? [ black, white ] : [ white ];
+		const backgrounds = bases.map( behind );
+		const coverRow = cover && {
+			overlay: hex( cover.overlay ),
+			opacity: cover.opacity,
+			media: cover.media,
+			image: cover.image,
+			loaded: cover.loaded,
+		};
 
 		const raw = window.getComputedStyle( el ).color;
-		let text = rgba( raw );
-		if ( ! text ) {
+		const colour = rgba( raw );
+		if ( ! colour ) {
 			return {
 				text: raw,
-				background: hex( background ),
+				background: hex( backgrounds[ 0 ] ),
 				ratio: null,
 				note: `unreadable color "${ raw }"`,
+				cover: coverRow,
 			};
 		}
-		text = text.a < 1 ? over( text, background ) : text;
-
-		const [ hi, lo ] = [ luminance( text ), luminance( background ) ].sort(
-			( a, b ) => b - a
-		);
-		const ratio =
-			Math.round( ( ( hi + 0.05 ) / ( lo + 0.05 ) ) * 100 ) / 100;
+		const pairs = backgrounds.map( ( background ) => {
+			const text = colour.a < 1 ? over( colour, background ) : colour;
+			return { text, background, ratio: ratioOf( text, background ) };
+		} );
+		const worst = pairs.reduce( ( a, b ) => ( b.ratio < a.ratio ? b : a ) );
+		if ( overImage ) {
+			coverRow.black = hex( pairs[ 0 ].background );
+			coverRow.white = hex( pairs[ 1 ].background );
+			coverRow.ratios = [ pairs[ 0 ].ratio, pairs[ 1 ].ratio ];
+		}
 		return {
-			text: hex( text ),
-			background: hex( background ),
-			ratio: note ? null : ratio,
+			text: hex( worst.text ),
+			background: hex( worst.background ),
+			ratio: note ? null : worst.ratio,
 			note,
+			cover: coverRow,
 		};
 	};
 

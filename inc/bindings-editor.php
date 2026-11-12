@@ -207,10 +207,13 @@ function site_data_link( string $key ): ?array {
 /**
  * URLs of the pack's placeholder images, as the patterns insert them.
  *
- * inc/patterns.php swaps its assets token for plugins_url( 'assets/' ), so an
- * image the logo marquee inserted has one of these URLs. assets/editor/hints.js
- * matches an image by the end of the path (assets/placeholders/<file>), so a
- * copy made on another host or under another plugin folder still counts.
+ * Every SVG in assets/placeholders/: the logo marquee's logos (logo-<n>.svg)
+ * and the image slots' art (image-4x3.svg beside text, image-16x9.svg as a
+ * background). inc/patterns.php swaps its assets token for
+ * plugins_url( 'assets/' ), so an image a pattern inserted has one of these
+ * URLs. assets/editor/hints.js matches an image by the end of the path
+ * (assets/placeholders/<file>), so a copy made on another host or under
+ * another plugin folder still counts.
  *
  * @return list<string>
  */

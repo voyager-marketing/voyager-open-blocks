@@ -9,11 +9,13 @@
  *   the text saved in the block instead.
  * - A "Placeholder content" panel for the pack's placeholder content: an
  *   image whose URL ends in assets/placeholders/<one of the pack's files>
- *   (the logo marquee's logos), on any host and under any plugin folder, so
- *   content copied from another site still counts, and the contact section's
- *   form slot fallback (a group named "Form" in a
- *   column named "Form slot", the names patterns/intents/contact-section.json
- *   gives them). Both are found from data, never from the text on screen.
+ *   (the logo marquee's logos, and the image slots' art), on any host and
+ *   under any plugin folder, so content copied from another site still
+ *   counts, whether it is a core/image's url, a core/media-text's mediaUrl
+ *   or a core/cover's background url; and the contact section's form slot
+ *   fallback (a group named "Form" in a column named "Form slot", the names
+ *   patterns/intents/contact-section.json gives them). Both are found from
+ *   data, never from the text on screen.
  * - A "Still to fill in" panel on a selected section that holds any of the
  *   above, so a freshly inserted pattern says what is left to do.
  * - An editor-only class on those blocks in the canvas (assets/editor/hints.css
@@ -194,16 +196,59 @@
 	}
 
 	/**
+	 * Which of the pack's placeholder images a block shows: a core/image's
+	 * url, a core/media-text's mediaUrl or a core/cover's background url. A
+	 * media and text or cover block set to show the post's featured image
+	 * shows that instead, so it shows none.
+	 *
 	 * @param {string} name       Block name.
 	 * @param {Object} attributes Block attributes.
-	 * @return {boolean} Whether the block is one of the pack's placeholder images.
+	 * @return {string} `placeholders/<file>`, or '' when it shows none of them.
+	 */
+	function placeholderOf( name, attributes ) {
+		let url;
+		if ( name === 'core/image' ) {
+			url = attributes?.url;
+		} else if ( name === 'core/media-text' || name === 'core/cover' ) {
+			url = attributes?.useFeaturedImage
+				? ''
+				: attributes?.[ name === 'core/cover' ? 'url' : 'mediaUrl' ];
+		} else {
+			return '';
+		}
+		const placeholder = placeholderName( url );
+		return placeholder !== '' && placeholderNames.has( placeholder )
+			? placeholder
+			: '';
+	}
+
+	/**
+	 * @param {string} name       Block name.
+	 * @param {Object} attributes Block attributes.
+	 * @return {boolean} Whether the block shows one of the pack's placeholder images.
 	 */
 	function isPlaceholderImage( name, attributes ) {
-		if ( name !== 'core/image' ) {
-			return false;
+		return placeholderOf( name, attributes ) !== '';
+	}
+
+	/**
+	 * What a placeholder image stands in for. The logo marquee's files are
+	 * logo-<n>.svg; the rest are the image slots' art. A media and text
+	 * block and a cover crop their image, so theirs also needs a focal point.
+	 *
+	 * @param {string} name       Block name.
+	 * @param {Object} attributes Block attributes.
+	 * @return {string} 'logo', 'image', 'focal', or '' for no placeholder.
+	 */
+	function placeholderKind( name, attributes ) {
+		const placeholder = placeholderOf( name, attributes );
+		if ( placeholder === '' ) {
+			return '';
 		}
-		const placeholder = placeholderName( attributes?.url );
-		return placeholder !== '' && placeholderNames.has( placeholder );
+		if ( placeholder.startsWith( 'placeholders/logo-' ) ) {
+			return 'logo';
+		}
+		return name === 'core/image' ? 'image' : 'focal';
 	}
 
 	/**
@@ -353,19 +398,23 @@
 	 *
 	 * @param {SelectFn} select   Registry select.
 	 * @param {string}   clientId Block client ID.
-	 * @return {string} JSON `{ unset, logos, form }`, or '' when nothing is left.
+	 * @return {string} JSON `{ unset, logos, images, form }`, or '' when nothing is left.
 	 */
 	function sectionSummary( select, clientId ) {
 		const editor = select( blockEditorStore );
 		const unset = [];
 		let logos = 0;
+		let images = 0;
 		let form = false;
 
 		for ( const id of editor.getClientIdsOfDescendants( clientId ) ) {
 			const name = editor.getBlockName( id );
 			const attributes = editor.getBlockAttributes( id );
-			if ( isPlaceholderImage( name, attributes ) ) {
+			const kind = placeholderKind( name, attributes );
+			if ( kind === 'logo' ) {
 				logos++;
+			} else if ( kind ) {
+				images++;
 			} else if ( isFormFallback( select, id ) ) {
 				form = true;
 			} else if ( hasPackBinding( attributes ) ) {
@@ -384,8 +433,8 @@
 			}
 		}
 
-		return unset.length || logos || form
-			? JSON.stringify( { unset, logos, form } )
+		return unset.length || logos || images || form
+			? JSON.stringify( { unset, logos, images, form } )
 			: '';
 	}
 
@@ -733,20 +782,29 @@
 	 * The "Placeholder content" panel.
 	 *
 	 * @param {Object} props      Component props.
-	 * @param {string} props.kind 'logo' or 'form'.
+	 * @param {string} props.kind 'logo', 'image', 'focal' or 'form'.
 	 * @return {Object} Element.
 	 */
 	function PlaceholderPanel( { kind } ) {
-		const message =
-			kind === 'logo'
-				? __(
-						'Placeholder. Replace it with your own logo.',
-						'voyager-open-blocks'
-					)
-				: __(
-						'Replace this with your form block.',
-						'voyager-open-blocks'
-					);
+		const messages = {
+			logo: __(
+				'Placeholder. Replace it with your own logo.',
+				'voyager-open-blocks'
+			),
+			image: __(
+				'Placeholder. Replace it with your own image.',
+				'voyager-open-blocks'
+			),
+			focal: __(
+				'Placeholder. Replace it with your own image, then set its focal point on the subject.',
+				'voyager-open-blocks'
+			),
+			form: __(
+				'Replace this with your form block.',
+				'voyager-open-blocks'
+			),
+		};
+		const message = messages[ kind ] || messages.form;
 		return el(
 			PanelBody,
 			{
@@ -773,7 +831,7 @@
 	 * @return {Object} Element.
 	 */
 	function SummaryPanel( { summary } ) {
-		const { unset, logos, form } = JSON.parse( summary );
+		const { unset, logos, images, form } = JSON.parse( summary );
 		const items = unset.map( ( item ) =>
 			sprintf(
 				/* translators: %s: field name, for example "Phone number". */
@@ -792,6 +850,20 @@
 						'voyager-open-blocks'
 					),
 					logos
+				)
+			);
+		}
+		if ( images ) {
+			items.push(
+				sprintf(
+					/* translators: %d: number of placeholder images. */
+					_n(
+						'%d placeholder image to replace',
+						'%d placeholder images to replace',
+						images,
+						'voyager-open-blocks'
+					),
+					images
 				)
 			);
 		}
@@ -869,8 +941,9 @@
 
 		const placeholder = useSelect(
 			( select ) => {
-				if ( isPlaceholderImage( name, attributes ) ) {
-					return 'logo';
+				const kind = placeholderKind( name, attributes );
+				if ( kind ) {
+					return kind;
 				}
 				// Inside a content-only section the fallback group cannot be
 				// selected, only its blocks, so look up the parents too.
