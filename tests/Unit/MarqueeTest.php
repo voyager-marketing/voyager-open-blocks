@@ -298,10 +298,12 @@ final class MarqueeTest extends TestCase {
 		$this->assertStringContainsString( '>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}', $still );
 		$this->assertStringContainsString( '>.' . BlockStyles\MARQUEE_COPY_CLASS . '{display:none}', $still );
 
-		// The block editor renders no copy, so its row stays still and wraps too.
-		$editor = '.editor-styles-wrapper .wp-block-group.is-style-voyager-open-marquee>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}';
-		$this->assertStringContainsString( $editor, $css );
-		$this->assertStringNotContainsString( $editor, substr( $css, 0, (int) strpos( $css, $reduce ) ) );
+		// A marquee with no copy (the block editor, a REST response, a feed)
+		// keeps its row still and wrapped too, with motion on.
+		$no_copy = '.wp-block-group.is-style-voyager-open-marquee:not(:has(>.voyager-open-marquee-copy))>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}';
+		$query   = substr( $still, 0, (int) strpos( $still, '}}' ) + 2 );
+		$this->assertStringContainsString( $no_copy, $css );
+		$this->assertStringNotContainsString( $no_copy, $query, 'outside the reduced-motion query' );
 	}
 
 	public function test_the_reveal_stylesheet_loads_only_for_a_block_with_the_class(): void {

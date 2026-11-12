@@ -97,17 +97,18 @@ function ticks_css( string $list ): string {
  * rows move right instead.
  *
  * With reduced motion the copy is not displayed, and the row wraps and stays
- * still. So does the row in the block editor, which renders no copy, so that
- * an editor sees and reaches every logo.
+ * still. So does a row with no copy beside it, which is how the block editor
+ * shows it and how a REST response or a feed carries it (copy_marquee_row()),
+ * so a reader sees and reaches every logo and never a gap in a loop.
  */
 function marquee_css(): string {
 	$group = '.wp-block-group.' . MARQUEE_CLASS;
 	$rows  = $group . '>.wp-block-group';
 	$copy  = $group . '>.' . MARQUEE_COPY_CLASS;
-	$still = static fn ( string $scope ): string => $scope . $group . '{display:block}'
-		. $scope . $rows . '{animation:none;flex-wrap:wrap;width:auto}'
-		. $scope . $rows . '::after{content:none}'
-		. $scope . $copy . '{display:none}';
+	$still = static fn ( string $marquee ): string => $marquee . '{display:block}'
+		. $marquee . '>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}'
+		. $marquee . '>.wp-block-group::after{content:none}'
+		. $marquee . '>.' . MARQUEE_COPY_CLASS . '{display:none}';
 
 	return $group . '{display:flex;overflow:hidden;container-type:inline-size}'
 		. $rows . '{flex:none;flex-wrap:nowrap;width:max-content;margin-block:0;animation:voyager-open-marquee var(--voyager-open-marquee-duration,24s) linear infinite}'
@@ -116,8 +117,8 @@ function marquee_css(): string {
 		. $group . ':hover>.wp-block-group,' . $group . ':focus-within>.wp-block-group{animation-play-state:paused}'
 		. $group . ':dir(rtl)>.wp-block-group{--voyager-open-marquee-way:1}'
 		. '@keyframes voyager-open-marquee{from{transform:translateX(0)}to{transform:translateX(calc(var(--voyager-open-marquee-way,-1) * clamp(0px,(100% - 100cqw) * 10000000,100%)))}}'
-		. '@media (prefers-reduced-motion:reduce){' . $still( '' ) . '}'
-		. $still( '.editor-styles-wrapper ' );
+		. '@media (prefers-reduced-motion:reduce){' . $still( $group ) . '}'
+		. $still( $group . ':not(:has(>.' . MARQUEE_COPY_CLASS . '))' );
 }
 
 /**
@@ -195,17 +196,47 @@ function mark_marquee_row( mixed $parsed_block, mixed $source_block = null, mixe
 }
 
 /**
+ * Whether blocks are rendering for a page a visitor sees in a browser: not a
+ * REST response, a feed or an admin request. There the copy would only show
+ * each logo twice, since aria-hidden and inert mean nothing to an agent
+ * reading `content.rendered` or to a feed reader.
+ *
+ * In WordPress 7.1.4:
+ * - wp_is_rest_endpoint() (wp-includes/rest-api.php) is true for a REST
+ *   request, through wp_is_serving_rest_request() and the REST_REQUEST
+ *   constant rest_api_loaded() defines, and for a REST request dispatched
+ *   inside a page load (WP_REST_Server::is_dispatching()). The posts
+ *   controller fills `content.rendered` through the_content
+ *   (class-wp-rest-posts-controller.php).
+ * - is_feed() (wp-includes/query.php) is true for a feed, whose content
+ *   get_the_content_feed() (wp-includes/feed.php) runs through the_content.
+ *   It needs the main query, so it is asked only once that exists.
+ * - is_admin() (wp-includes/load.php) is true in the admin, and for
+ *   admin-ajax.php, which defines WP_ADMIN.
+ *
+ * wp_is_json_request() is not used: it reads the request's Accept and
+ * Content-Type headers, which say what the client wants rather than where
+ * the content goes, and every REST request it would catch is caught above.
+ */
+function is_page_render(): bool {
+	return ! wp_is_rest_endpoint()
+		&& ! is_admin()
+		&& ! ( isset( $GLOBALS['wp_query'] ) && is_feed() );
+}
+
+/**
  * Follow a marked logo row with a copy of itself, made from the row as it
- * rendered. The copy is hidden from screen readers (aria-hidden), cannot be
- * focused or clicked (inert), carries MARQUEE_COPY_CLASS, and holds no id,
- * so no id appears twice on the page.
+ * rendered, on a page render only (is_page_render()). The copy is hidden
+ * from screen readers (aria-hidden), cannot be focused or clicked (inert),
+ * carries MARQUEE_COPY_CLASS, and holds no id, so no id appears twice on
+ * the page. A marquee with no copy wraps and stays still (marquee_css()).
  *
  * @param mixed $block_content The row's HTML.
  * @param mixed $block         The row's parsed block.
  * @return mixed The HTML, followed by the copy when the row is marked.
  */
 function copy_marquee_row( mixed $block_content, mixed $block ): mixed {
-	if ( ! is_string( $block_content ) || ! is_array( $block ) || true !== ( $block[ MARQUEE_ROW_KEY ] ?? null ) ) {
+	if ( ! is_string( $block_content ) || ! is_array( $block ) || true !== ( $block[ MARQUEE_ROW_KEY ] ?? null ) || ! is_page_render() ) {
 		return $block_content;
 	}
 
