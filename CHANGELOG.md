@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.8.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.7.0...v0.8.0) (2026-11-12)
+
+
+### Features
+
+* add a cache adapter for W3 Total Cache ([#66](https://github.com/voyager-marketing/voyager-open-blocks/issues/66)) ([9e7c299](https://github.com/voyager-marketing/voyager-open-blocks/commit/9e7c2999ff880122baf3391b6aeda7106e1e151b))
+* add a hero section in two layouts ([#69](https://github.com/voyager-marketing/voyager-open-blocks/issues/69)) ([5b27f15](https://github.com/voyager-marketing/voyager-open-blocks/commit/5b27f158727d87bac42a34f0cb4f5198b70afba4))
+* add a reviews section in two layouts, quote cards with stars ([#71](https://github.com/voyager-marketing/voyager-open-blocks/issues/71)) ([3970d89](https://github.com/voyager-marketing/voyager-open-blocks/commit/3970d896940019c32821d7bfa4603c752880c9fa))
+* add a services section in two layouts, cards with icons ([#70](https://github.com/voyager-marketing/voyager-open-blocks/issues/70)) ([35c1d48](https://github.com/voyager-marketing/voyager-open-blocks/commit/35c1d48a3976c0017179e3d8001ef7da936a1ebf))
+* add cache adapters for WP Rocket and Cloudflare ([#62](https://github.com/voyager-marketing/voyager-open-blocks/issues/62)) ([5d3c5fc](https://github.com/voyager-marketing/voyager-open-blocks/commit/5d3c5fcf4637f7aa490073f8c8c16c6e3d981e19))
+* add image slot placeholders, and check covers ([#68](https://github.com/voyager-marketing/voyager-open-blocks/issues/68)) ([bcbbcef](https://github.com/voyager-marketing/voyager-open-blocks/commit/bcbbcef12cde7a6c824a28ea1676fffc59ac7957))
+* add the facts block, a list bound to a Site Data list ([#65](https://github.com/voyager-marketing/voyager-open-blocks/issues/65)) ([503e0bb](https://github.com/voyager-marketing/voyager-open-blocks/commit/503e0bbc9b83b75a160d65613ac894652bfc5f01))
+* business profile keys in Site Data ([#60](https://github.com/voyager-marketing/voyager-open-blocks/issues/60)) ([c2aff32](https://github.com/voyager-marketing/voyager-open-blocks/commit/c2aff32a2f65ec9bb27f8695ed24d4aec724f6a6))
+* loop the logo marquee seamlessly, and reveal cards on scroll ([#72](https://github.com/voyager-marketing/voyager-open-blocks/issues/72)) ([8915817](https://github.com/voyager-marketing/voyager-open-blocks/commit/8915817e7dcde057844134c287035371cdd8a32d))
+* refresh pages on SpinupWP, Nginx Helper and LiteSpeed Cache ([#59](https://github.com/voyager-marketing/voyager-open-blocks/issues/59)) ([0174da7](https://github.com/voyager-marketing/voyager-open-blocks/commit/0174da7f1c45a748b7c0808972ff29655f38b234))
+* refresh pages past the first 50 on WP Super Cache ([#55](https://github.com/voyager-marketing/voyager-open-blocks/issues/55)) ([43fc41c](https://github.com/voyager-marketing/voyager-open-blocks/commit/43fc41ca678a3075f8093495c7fedb2c044b2c07))
+* validate warns on placeholders and images without alt text ([#56](https://github.com/voyager-marketing/voyager-open-blocks/issues/56)) ([80641be](https://github.com/voyager-marketing/voyager-open-blocks/commit/80641be3bc8f0e4ff633d00f95c2250eb97a17d2))
+
+
+### Bug Fixes
+
+* card rows render three readable columns, and wave 2 cleanup ([#73](https://github.com/voyager-marketing/voyager-open-blocks/issues/73)) ([43c19a2](https://github.com/voyager-marketing/voyager-open-blocks/commit/43c19a268acea7503ed251db326777889a970107))
+* refresh pages when the site title, tagline or year changes ([#67](https://github.com/voyager-marketing/voyager-open-blocks/issues/67)) ([a33061c](https://github.com/voyager-marketing/voyager-open-blocks/commit/a33061c7555dc2aaaa754ea5d2de8008b76fb6de))
+* section styles follow the style variation a site picks ([#64](https://github.com/voyager-marketing/voyager-open-blocks/issues/64)) ([e79c03e](https://github.com/voyager-marketing/voyager-open-blocks/commit/e79c03ebc5e2732e458a1446602092eede901210))
+
 ## [0.7.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.6.1...v0.7.0) (2026-11-11)
 
 
