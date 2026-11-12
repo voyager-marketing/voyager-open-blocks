@@ -177,8 +177,8 @@ final class PatternLayoutsTest extends TestCase {
 	}
 
 	/**
-	 * The nodes of a tree, flattened, each with the boxes (groups with a
-	 * border) above it.
+	 * The nodes of a tree, flattened, each with the boxes (blocks with a
+	 * border, such as a card) above it.
 	 *
 	 * @param array<mixed> $node  An intent node.
 	 * @param int          $boxes Bordered groups above it.
@@ -186,7 +186,7 @@ final class PatternLayoutsTest extends TestCase {
 	 */
 	private static function nodes( array $node, int $boxes = 0 ): array {
 		$out   = [ [ 'node' => $node, 'boxes' => $boxes ] ];
-		$boxed = 'core/group' === ( $node['block'] ?? null ) && isset( $node['attrs']['style']['border'] );
+		$boxed = isset( $node['attrs']['style']['border'] );
 		foreach ( is_array( $node['children'] ?? null ) ? $node['children'] : [] as $child ) {
 			if ( is_array( $child ) ) {
 				array_push( $out, ...self::nodes( $child, $boxes + ( $boxed ? 1 : 0 ) ) );
