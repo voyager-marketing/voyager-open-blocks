@@ -959,15 +959,20 @@ function omit( array &$blocks, array $labels ) {
 }
 
 /**
- * Add copies of named blocks right after them, such as a fifth and sixth credential.
+ * Add copies of named blocks right after them, such as a fifth and sixth
+ * credential, or a fourth service card.
  *
  * Each key of $repeat is a label (metadata.name) and each value the labels of
  * its copies, in order. The block must be the only one with that label, sit
- * inside the pattern rather than be all of it, hold no named blocks (their
- * names would repeat) and carry no HTML anchor (an id must be unique). A copy
- * is the same block with the new label, so its text, attributes and bindings
- * are the original's until copy replaces its text. Like omit(), it relies on
- * core containers saving their inner blocks in one slot each.
+ * inside the pattern rather than be all of it, and carry no HTML anchor, nor
+ * any block inside it (an id must be unique). A named block inside it must
+ * have a label that starts with the block's own and a space, such as
+ * "Service 3 heading" inside "Service 3": in each copy that start becomes the
+ * copy's label ("Service 4 heading"), so copy can fill it. A block holding any
+ * other named block cannot repeat, since that name would repeat. A copy is the
+ * same block with the new labels, so its text, attributes and bindings are the
+ * original's until copy replaces its text. Like omit(), it relies on core
+ * containers saving their inner blocks in one slot each.
  *
  * @param array<int, Block>       $blocks Blocks, by reference. Unchanged on error.
  * @param array<string, string[]> $repeat Label => labels of the copies.
@@ -990,15 +995,10 @@ function repeat( array &$blocks, array $repeat ) {
 			return invalid_repeat( sprintf( '"%s" names more than one block.', $label ), $repeatable );
 		}
 		if ( ! in_array( $label, $repeatable, true ) ) {
-			return invalid_repeat( sprintf( '"%s" is the whole section, holds named blocks or has an HTML anchor, so it cannot be repeated.', $label ), $repeatable );
+			return invalid_repeat( sprintf( '"%s" is the whole section, holds a named block whose label does not start with "%s ", or has an HTML anchor in it, so it cannot be repeated.', $label, $label ), $repeatable );
 		}
 		if ( count( array_unique( $new_labels ) ) !== count( $new_labels ) ) {
 			return invalid_repeat( sprintf( 'The copies of "%s" need different labels.', $label ), $repeatable );
-		}
-		foreach ( $new_labels as $new_label ) {
-			if ( '' === $new_label || in_array( $new_label, $used, true ) ) {
-				return invalid_repeat( sprintf( 'A copy needs a label no block has yet, and "%s" is taken or empty.', $new_label ), $repeatable );
-			}
 		}
 
 		$indices = parse_path( $matches[0]['path'] );
@@ -1014,9 +1014,22 @@ function repeat( array &$blocks, array $repeat ) {
 
 		/** @var Block $source */
 		$source = $parent['innerBlocks'][ $index ];
+		$inner  = inner_labels( $source, $label ) ?? [];
+		foreach ( $new_labels as $new_label ) {
+			$wanted = [ $new_label ];
+			foreach ( $inner as $inner_label ) {
+				$wanted[] = $new_label . substr( $inner_label, strlen( $label ) );
+			}
+			foreach ( $wanted as $taken ) {
+				if ( '' === $new_label || in_array( $taken, $used, true ) ) {
+					return invalid_repeat( sprintf( 'A copy needs a label no block has yet, and "%s" is taken or empty.', $taken ), $repeatable );
+				}
+			}
+		}
+
 		$copies = [];
 		foreach ( $new_labels as $new_label ) {
-			$copy                              = $source;
+			$copy                              = relabel( $source, $label, $new_label );
 			$copy['attrs']['metadata']         = metadata( $source );
 			$copy['attrs']['metadata']['name'] = $new_label;
 			$copies[]                          = $copy;
@@ -1037,7 +1050,8 @@ function repeat( array &$blocks, array $repeat ) {
 
 /**
  * Labels repeat() accepts: a named block inside a section that is the only
- * one with its label, holds no named blocks and has no HTML anchor.
+ * one with its label, has no HTML anchor in it, and holds no named block
+ * whose label does not start with its own and a space.
  *
  * @param array<int, Block> $blocks Blocks.
  * @return string[]
@@ -1056,19 +1070,90 @@ function repeatable_labels( array $blocks ): array {
 		$path = parse_path( $row['path'] );
 		$copy = $blocks;
 		$node = is_wp_error( $path ) ? null : find( $copy, $path );
-		if ( null === $node || isset( $node['attrs']['anchor'] ) ) {
+		if ( null === $node || holds_anchor( $node ) ) {
 			continue;
 		}
 
-		/** @var array<int, Block> $inner */
-		$inner = $node['innerBlocks'];
-		$named = array_filter( describe( $inner ), static fn ( array $inner_row ): bool => isset( $inner_row['label'] ) );
-		if ( [] === $named ) {
+		if ( null !== inner_labels( $node, $label ) ) {
 			$out[] = $label;
 		}
 	}
 
 	return $out;
+}
+
+/**
+ * The labels of the named blocks inside a block, when each starts with the
+ * block's own label and a space, so a copy can take them under its own.
+ *
+ * @param Block  $block Parsed block.
+ * @param string $label Its label.
+ * @return string[]|null The labels, [] when it holds no named block, null when one does not start with $label and a space.
+ */
+function inner_labels( array $block, string $label ): ?array {
+	/** @var array<int, Block> $inner */
+	$inner  = $block['innerBlocks'];
+	$labels = [];
+
+	foreach ( describe( $inner ) as $row ) {
+		if ( ! isset( $row['label'] ) ) {
+			continue;
+		}
+		if ( ! str_starts_with( $row['label'], $label . ' ' ) ) {
+			return null;
+		}
+		$labels[] = $row['label'];
+	}
+
+	return $labels;
+}
+
+/**
+ * Whether a block, or any block inside it, has an HTML anchor.
+ *
+ * @param Block $block Parsed block.
+ */
+function holds_anchor( array $block ): bool {
+	if ( isset( $block['attrs']['anchor'] ) ) {
+		return true;
+	}
+
+	/** @var array<int, Block> $inner */
+	$inner = $block['innerBlocks'];
+	foreach ( $inner as $child ) {
+		if ( holds_anchor( $child ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * A copy of a block whose inner labels that start with $from and a space
+ * start with $to instead: "Service 3 heading" becomes "Service 4 heading".
+ * The block's own label is left for the caller.
+ *
+ * @param Block  $block Parsed block.
+ * @param string $from  The label the inner labels start with.
+ * @param string $to    The label they start with in the copy.
+ * @return Block
+ */
+function relabel( array $block, string $from, string $to ): array {
+	/** @var array<int, Block> $inner */
+	$inner = $block['innerBlocks'];
+
+	foreach ( $inner as $index => $child ) {
+		$name = metadata( $child )['name'] ?? null;
+		if ( is_string( $name ) && str_starts_with( $name, $from . ' ' ) ) {
+			$child['attrs']['metadata']         = metadata( $child );
+			$child['attrs']['metadata']['name'] = $to . substr( $name, strlen( $from ) );
+		}
+		$inner[ $index ] = relabel( $child, $from, $to );
+	}
+	$block['innerBlocks'] = $inner;
+
+	return $block;
 }
 
 /**

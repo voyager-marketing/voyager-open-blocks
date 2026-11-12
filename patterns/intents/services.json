@@ -1,0 +1,366 @@
+{
+	"title": "Services",
+	"section": "services",
+	"layout": "grid",
+	"description": "What a business does, as cards: a section heading, an optional line of intro, and three cards in a row at wide width, each an icon, a heading and one short line. The cards stack on a phone.",
+	"categories": [
+		"voyager-open",
+		"services"
+	],
+	"viewportWidth": 1280,
+	"keywords": [
+		"services",
+		"cards",
+		"features",
+		"icons",
+		"what we do"
+	],
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: what the business does, in a few words.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Intro": {
+			"purpose": "One line on the kind of work the business takes on, or where. Leave it out when the heading says enough.",
+			"min": 20,
+			"max": 120,
+			"required": false,
+			"claim": false
+		},
+		"Service 1 heading": {
+			"purpose": "The name of one service, in the words a customer would use.",
+			"min": 3,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Service 1 text": {
+			"purpose": "One plain line on what the service covers. No price, rating, licence or promise unless the owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Service 2 heading": {
+			"purpose": "The name of one service, in the words a customer would use.",
+			"min": 3,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Service 2 text": {
+			"purpose": "One plain line on what the service covers. No price, rating, licence or promise unless the owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Service 3 heading": {
+			"purpose": "The name of one service, in the words a customer would use.",
+			"min": 3,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Service 3 text": {
+			"purpose": "One plain line on what the service covers. No price, rating, licence or promise unless the owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Services"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|40"
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Lead"
+							},
+							"align": "wide",
+							"layout": {
+								"type": "constrained",
+								"justifyContent": "left"
+							}
+						},
+						"children": [
+							{
+								"block": "core/heading",
+								"level": 2,
+								"text": "What we do",
+								"attrs": {
+									"metadata": {
+										"name": "Heading"
+									}
+								}
+							},
+							{
+								"block": "core/paragraph",
+								"text": "One line on the kind of work you take on, and where.",
+								"attrs": {
+									"metadata": {
+										"name": "Intro"
+									}
+								}
+							}
+						]
+					},
+					{
+						"block": "core/columns",
+						"attrs": {
+							"align": "wide",
+							"metadata": {
+								"name": "Cards"
+							},
+							"style": {
+								"spacing": {
+									"blockGap": {
+										"top": "var:preset|spacing|50",
+										"left": "var:preset|spacing|60"
+									}
+								}
+							}
+						},
+						"children": [
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Service 1"
+									}
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": {
+											"metadata": {
+												"name": "Service 1 card"
+											},
+											"style": {
+												"border": {
+													"width": "1px",
+													"style": "solid"
+												},
+												"spacing": {
+													"padding": {
+														"top": "var:preset|spacing|50",
+														"bottom": "var:preset|spacing|50",
+														"left": "var:preset|spacing|50",
+														"right": "var:preset|spacing|50"
+													}
+												},
+												"dimensions": {
+													"minHeight": "100%"
+												}
+											},
+											"layout": {
+												"type": "default"
+											}
+										},
+										"children": [
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "wrench",
+													"size": 40,
+													"metadata": {
+														"name": "Service 1 icon"
+													}
+												}
+											},
+											{
+												"block": "core/heading",
+												"level": 3,
+												"text": "Repairs",
+												"attrs": {
+													"metadata": {
+														"name": "Service 1 heading"
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "We find what is wrong and fix it, from small jobs to larger ones.",
+												"attrs": {
+													"metadata": {
+														"name": "Service 1 text"
+													}
+												}
+											}
+										]
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Service 2"
+									}
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": {
+											"metadata": {
+												"name": "Service 2 card"
+											},
+											"style": {
+												"border": {
+													"width": "1px",
+													"style": "solid"
+												},
+												"spacing": {
+													"padding": {
+														"top": "var:preset|spacing|50",
+														"bottom": "var:preset|spacing|50",
+														"left": "var:preset|spacing|50",
+														"right": "var:preset|spacing|50"
+													}
+												},
+												"dimensions": {
+													"minHeight": "100%"
+												}
+											},
+											"layout": {
+												"type": "default"
+											}
+										},
+										"children": [
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "home",
+													"size": 40,
+													"metadata": {
+														"name": "Service 2 icon"
+													}
+												}
+											},
+											{
+												"block": "core/heading",
+												"level": 3,
+												"text": "Installation",
+												"attrs": {
+													"metadata": {
+														"name": "Service 2 heading"
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "We fit new equipment and check that it works before we leave.",
+												"attrs": {
+													"metadata": {
+														"name": "Service 2 text"
+													}
+												}
+											}
+										]
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Service 3"
+									}
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": {
+											"metadata": {
+												"name": "Service 3 card"
+											},
+											"style": {
+												"border": {
+													"width": "1px",
+													"style": "solid"
+												},
+												"spacing": {
+													"padding": {
+														"top": "var:preset|spacing|50",
+														"bottom": "var:preset|spacing|50",
+														"left": "var:preset|spacing|50",
+														"right": "var:preset|spacing|50"
+													}
+												},
+												"dimensions": {
+													"minHeight": "100%"
+												}
+											},
+											"layout": {
+												"type": "default"
+											}
+										},
+										"children": [
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "cog",
+													"size": 40,
+													"metadata": {
+														"name": "Service 3 icon"
+													}
+												}
+											},
+											{
+												"block": "core/heading",
+												"level": 3,
+												"text": "Maintenance",
+												"attrs": {
+													"metadata": {
+														"name": "Service 3 heading"
+													}
+												}
+											},
+											{
+												"block": "core/paragraph",
+												"text": "Regular visits that keep things running and catch problems early.",
+												"attrs": {
+													"metadata": {
+														"name": "Service 3 text"
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Two blocks, two binding sources and seven patterns, built so an agent can use them correctly without guessing.
+Two blocks, two binding sources and nine patterns, built so an agent can use them correctly without guessing.
 
 ## Tell your agent
 
@@ -29,13 +29,15 @@ Each item skill has its own prompt under "Tell your agent".
 | `voyager/post-meta-text` | binding source | `voyager-post-meta-text` | None |
 | `voyager-open/hero` | pattern (the hero, image beside text) | `voyager-open-hero` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
 | `voyager-open/hero-cover` | pattern (the hero, text over a background) | `voyager-open-hero` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
+| `voyager-open/services` | pattern (services as cards in a row) | `voyager-open-services` | `Heading`, `Intro`, `Service 1 heading`, `Service 1 text`, `Service 2 heading`, `Service 2 text`, `Service 3 heading`, `Service 3 text` |
+| `voyager-open/services-list` | pattern (services as rows) | `voyager-open-services` | `Heading`, `Intro`, `Service 1 heading`, `Service 1 text`, `Service 2 heading`, `Service 2 text`, `Service 3 heading`, `Service 3 text` |
 | `voyager-open/cta-band` | pattern | `voyager-open-cta-band` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
 | `voyager-open/proof-strip` | pattern | `voyager-open-proof-strip` | `Credential 1`, `Credential 2`, `Credential 3`, `Credential 4` |
 | `voyager-open/logo-marquee` | pattern | `voyager-open-logo-marquee` | `Eyebrow` |
 | `voyager-open/closing-cta` | pattern | `voyager-open-closing-cta` | `Heading`, `Body`, `Primary button`, `Email button` |
 | `voyager-open/contact-section` | pattern | `voyager-open-contact-section` | `Heading`, `Body`, `Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`, `Click to call`, `Form heading`, `Form body`, `Email button` |
 
-Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. Never pass copy for a bound slot: the hero's and the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels: the pattern's blocks with `copy: true`.
+Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. A copy of a block that holds labelled blocks, such as the services card `Service 3`, gives them its own label too: `Service 4 heading`, `Service 4 text`. Never pass copy for a bound slot: the hero's and the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels: the pattern's blocks with `copy: true`.
 
 ## Design rules
 
@@ -80,7 +82,7 @@ These checks run before anything is saved. When one fails, nothing is saved, and
   - Searches titles only, plus slugs for templates. A post type must be shown in REST and edited in the block editor. Templates and template parts need the right to edit the theme.
 - **insert**
   - `item` is a registered `voyager-open/*` block or pattern, the post exists, and you may edit it.
-  - `copy`, `omit` and `repeat` work only on a pattern inserted as a copy (`mode: "copy"`, the default). Each label must name a block in the pattern. A `copy` label must be on a heading, paragraph, button or list item. Its text is escaped and replaces everything between that element's tags. An `omit` label removes that block and everything inside it, but never the whole pattern. A `repeat` label must be on one block inside the pattern that holds no labelled blocks, and its new labels must be unused. `repeat` runs first, then `omit`, then `copy`.
+  - `copy`, `omit` and `repeat` work only on a pattern inserted as a copy (`mode: "copy"`, the default). Each label must name a block in the pattern. A `copy` label must be on a heading, paragraph, button or list item. Its text is escaped and replaces everything between that element's tags. An `omit` label removes that block and everything inside it, but never the whole pattern. A `repeat` label must be on one block inside the pattern, and every labelled block inside it must have a label that starts with its own and a space (`Service 3 heading` inside `Service 3`). In each copy that start becomes the new label (`Service 4 heading`). The new labels, and the ones they give the blocks inside, must be unused, and nothing in the block may have an HTML anchor. `repeat` runs first, then `omit`, then `copy`.
   - With `parent`, the block at that path must already hold at least one block, must allow the new block (its block.json `allowedBlocks`, or its own `allowedBlocks` setting), and must not be locked (`templateLock` `all`, `insert` or `contentOnly`, its own or inherited). Each new block's block.json `parent` and `ancestor` rules must hold there. A block whose `parent` rule names a container cannot go at the top level.
   - Inside a parent, the section that holds it must still survive a parse and serialize round trip (`validation.section_round_trip`). The response's `section_markup` is that whole section.
   - `attributes`, for the icon and the facts block: each must exist in its block.json and match its type and enum. `metadata` is refused. Use `bind`.

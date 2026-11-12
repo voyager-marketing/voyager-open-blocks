@@ -113,7 +113,7 @@ function register_insert(): void {
 								'minLength' => 1,
 							],
 						],
-						'description'          => 'Patterns in copy mode only. Adds copies of a named block right after it, one per new label, such as {"Credential 4": ["Credential 5", "Credential 6"]} for a proof strip with six facts. Fill the new labels with copy. Runs before omit and copy. Not for the whole pattern, a block that holds named blocks, or a label used twice.',
+						'description'          => 'Patterns in copy mode only. Adds copies of a named block right after it, one per new label, such as {"Credential 4": ["Credential 5", "Credential 6"]} for a proof strip with six facts. A block that holds named blocks repeats when their labels start with its own and a space, such as "Service 3 heading" inside "Service 3": in each copy they start with its new label ("Service 4 heading"). Fill the new labels with copy. Runs before omit and copy. Not for the whole pattern, a block holding any other named block or an HTML anchor, or a label used twice.',
 					],
 					'dry_run'    => dry_run_schema(),
 				],

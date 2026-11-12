@@ -28,7 +28,11 @@
  *      logos, the contact section's form slot and the image slot of each of
  *      the hero's two layouts (listed by get-catalog with their copy labels;
  *      one placeholder warning, and no other), each
- *      placed with insert on a draft of its own, a cover over the 16:9
+ *      placed with insert on a draft of its own, the services section's two
+ *      layouts (listed with their copy labels; a fourth card through repeat,
+ *      its icon then set with configure, one card dropped through omit, and
+ *      six rows in the list, each on a draft of its own and each passing both
+ *      validators with no warning), a cover over the 16:9
  *      placeholder at the plugin's URL (one placeholder warning, never
  *      missing_alt) and over the site's own image, and an image with and
  *      without alt text,
@@ -1184,6 +1188,219 @@ for ( const [ item, block, file ] of [
 		}; ${ warningSummary( hero.report ) }`
 	);
 }
+
+// The services section in its two layouts. Each item is a block labelled
+// "Service <n>" whose named blocks carry its label ("Service <n> heading"),
+// so repeat copies a whole card or row and gives its blocks the new label,
+// copy fills them, and omit drops an item with everything in it.
+const serviceLabels = ( count ) => [
+	'Heading',
+	'Intro',
+	...Array.from( { length: count }, ( _, i ) => [
+		`Service ${ i + 1 } heading`,
+		`Service ${ i + 1 } text`,
+	] ).flat(),
+];
+for ( const item of [
+	'voyager-open/services',
+	'voyager-open/services-list',
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } with its copy labels`,
+		JSON.stringify( labels ) === JSON.stringify( serviceLabels( 3 ) ),
+		listed ? labels.join( ', ' ) : 'not listed'
+	);
+}
+
+const services = [
+	[
+		'Leak repairs',
+		'Dripping taps, burst pipes and running toilets, found and fixed.',
+	],
+	[
+		'Water heaters',
+		'New tank and tankless heaters fitted, and old ones taken away.',
+	],
+	[
+		'Drain cleaning',
+		'Slow and blocked drains cleared, with a camera look where needed.',
+	],
+	[
+		'Bathroom refits',
+		'New fixtures, pipework and fittings for a bathroom you are redoing.',
+	],
+	[
+		'Gas lines',
+		'New gas lines run to a cooker, a dryer or a fire, then tested.',
+	],
+	[
+		'Outdoor taps',
+		'Garden taps and hose bibs fitted or moved, and frost-proofed.',
+	],
+];
+const serviceCopy = ( count ) =>
+	Object.fromEntries( [
+		[ 'Heading', 'Plumbing services' ],
+		...services.slice( 0, count ).flatMap( ( [ title, text ], i ) => [
+			[ `Service ${ i + 1 } heading`, title ],
+			[ `Service ${ i + 1 } text`, text ],
+		] ),
+	] );
+const headingsIn = ( markup ) =>
+	[ ...markup.matchAll( /<h3 class="wp-block-heading">([^<]*)<\/h3>/g ) ].map(
+		( m ) => m[ 1 ]
+	);
+
+/**
+ * Insert a services layout on a draft of its own, and validate it both ways.
+ *
+ * @param {string} label What the step checks.
+ * @param {Object} input insert's input, less post_id.
+ * @return {Promise<Object>} The insert response and validate's report on the saved page.
+ */
+async function insertServices( label, input ) {
+	const draft = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: { title: `E2E: ${ label } ${ stamp }`, status: 'draft' },
+	} );
+	placeholderPages.push( draft.data.id );
+	const placed = await run( `${ ns }/insert`, {
+		post_id: draft.data.id,
+		...input,
+	} );
+	validate( label, placed.data.markup || '' );
+	return {
+		postId: draft.data.id,
+		placed,
+		report: await checkMarkup( { post_id: draft.data.id } ),
+	};
+}
+
+// The grid with a fourth card: repeat copies "Service 3" as "Service 4", and
+// copy fills all four. The copy's icon is the third's until configure sets it.
+const fourCards = await insertServices( 'services with a fourth card', {
+	item: 'voyager-open/services',
+	repeat: { 'Service 3': [ 'Service 4' ] },
+	copy: serviceCopy( 4 ),
+} );
+const fourMarkup = fourCards.placed.data.markup || '';
+const fourthIcon = ( fourCards.placed.data.blocks || [] ).find(
+	( b ) => b.label === 'Service 4 icon'
+);
+step(
+	'insert services with a fourth card through repeat: four cards in the row, each named for its own number and filled by copy',
+	fourCards.placed.status === 200 &&
+		fourCards.placed.data.saved === true &&
+		fourCards.placed.data.validation?.round_trip === true &&
+		( fourMarkup.match( /<!-- wp:column \{/g ) || [] ).length === 4 &&
+		( fourMarkup.match( /<!-- wp:voyager-open\/icon /g ) || [] ).length ===
+			4 &&
+		JSON.stringify( headingsIn( fourMarkup ) ) ===
+			JSON.stringify( services.slice( 0, 4 ).map( ( [ t ] ) => t ) ) &&
+		fourMarkup.includes( `<p>${ services[ 3 ][ 1 ] }</p>` ) &&
+		[
+			'Service 4',
+			'Service 4 card',
+			'Service 4 heading',
+			'Service 4 text',
+		].every( ( name ) =>
+			( fourCards.placed.data.blocks || [] ).some(
+				( b ) => b.label === name
+			)
+		) &&
+		!! fourthIcon,
+	fourCards.placed.data.code ||
+		`${ headingsIn( fourMarkup ).join( ' | ' ) }; ${ ( fourMarkup.match( /<!-- wp:column \{/g ) || [] ).length } columns`
+);
+step(
+	'validate passes the page with four service cards, with no warning',
+	clean( fourCards.report ) &&
+		( fourCards.report.data.warnings || [] ).length === 0,
+	warningSummary( fourCards.report )
+);
+const fourthIconSet = fourthIcon
+	? await run( `${ ns }/configure`, {
+			post_id: fourCards.postId,
+			path: fourthIcon.path,
+			attributes: { icon: 'bolt' },
+		} )
+	: { status: 0, data: { code: 'no Service 4 icon in the response' } };
+step(
+	"configure sets the fourth card's icon, which repeat copied from the third",
+	fourthIconSet.status === 200 &&
+		fourthIconSet.data.attributes?.icon === 'bolt',
+	fourthIconSet.data.code ||
+		JSON.stringify( fourthIconSet.data.attributes ?? null )
+);
+
+// The grid with one card dropped: omit removes "Service 3" and its blocks.
+const twoCards = await insertServices( 'services with a card omitted', {
+	item: 'voyager-open/services',
+	omit: [ 'Service 3' ],
+	copy: serviceCopy( 2 ),
+} );
+const twoMarkup = twoCards.placed.data.markup || '';
+step(
+	'insert services with one card dropped through omit: two cards, and nothing of the third',
+	twoCards.placed.status === 200 &&
+		twoCards.placed.data.saved === true &&
+		( twoMarkup.match( /<!-- wp:column \{/g ) || [] ).length === 2 &&
+		JSON.stringify( headingsIn( twoMarkup ) ) ===
+			JSON.stringify( services.slice( 0, 2 ).map( ( [ t ] ) => t ) ) &&
+		! twoMarkup.includes( 'Service 3' ) &&
+		! twoMarkup.includes( 'Maintenance' ),
+	twoCards.placed.data.code || headingsIn( twoMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with two service cards, with no warning',
+	clean( twoCards.report ) &&
+		( twoCards.report.data.warnings || [] ).length === 0,
+	warningSummary( twoCards.report )
+);
+
+// The list with six rows: three copies of the third row, all filled by copy.
+const sixRows = await insertServices( 'services list with six rows', {
+	item: 'voyager-open/services-list',
+	repeat: { 'Service 3': [ 'Service 4', 'Service 5', 'Service 6' ] },
+	copy: serviceCopy( 6 ),
+} );
+const sixRowsMarkup = sixRows.placed.data.markup || '';
+step(
+	'insert the services list with six rows through repeat, each filled by copy',
+	sixRows.placed.status === 200 &&
+		sixRows.placed.data.saved === true &&
+		JSON.stringify( headingsIn( sixRowsMarkup ) ) ===
+			JSON.stringify( services.map( ( [ t ] ) => t ) ) &&
+		( sixRowsMarkup.match( /<!-- wp:voyager-open\/icon /g ) || [] )
+			.length === 6,
+	sixRows.placed.data.code || headingsIn( sixRowsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with six service rows, with no warning',
+	clean( sixRows.report ) &&
+		( sixRows.report.data.warnings || [] ).length === 0,
+	warningSummary( sixRows.report )
+);
+
+// A copy may not take a label a block already has, inside the item too.
+const takenInside = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/services',
+	dry_run: true,
+	repeat: { 'Service 3': [ 'Service 2' ] },
+} );
+step(
+	'insert refuses repeat to a label already used, for a card as for a list item',
+	takenInside.status === 400 &&
+		takenInside.data.code === 'voyager_open_blocks_invalid_repeat',
+	takenInside.data.message || takenInside.data.code
+);
 
 // A cover whose background is the pack's 16:9 placeholder at the plugin's
 // own URL. The URL comes from the site: the folder of the first logo as

@@ -4,7 +4,7 @@ Using the pack on a site: start at `skills/voyager-open-blocks/SKILL.md`. It giv
 
 Working on this repo:
 
-- A block is a folder in `src/` with a `block.json`. Run `npm run build` and commit `build/`.
+- A block is a folder in `src/` with a `block.json`. Run `npm run build` and commit `build/`. Then run `npm run patterns:build`, which rewrites `tests/fixtures/pack.context.json`, the list of the pack's blocks Block Runner is given, and commit that too.
 - A pattern is an intent in `patterns/intents/<name>.json`. Run `npm run patterns:build` and commit the generated `.html`. Never edit the `.html`.
 - An ability is a file in `inc/abilities/`: its registration (`register_<name>()`) and its callbacks. What several abilities use (permission callbacks, input schemas, `check_attributes()`, `validation()`, `locate()`, `finish()`) is in `inc/abilities/shared.php`, and `register()` there sets the order the abilities are registered in. A new ability is a new file, a `require_once` in `inc/abilities.php` and a line in `register()`.
 - Every block and pattern ships a `skills/<name>/SKILL.md`. Update it when its attributes, structure or bindings change.
