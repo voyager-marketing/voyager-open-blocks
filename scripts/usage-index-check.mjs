@@ -582,7 +582,9 @@ export function listsVerdict( onSave, rebuilds ) {
 			'the saves listed what they should',
 			...judged.map(
 				( [ name, found ] ) =>
-					`${ name } put back the list rows of all ${ found.posts } posts`
+					`${ name } put back every list row, on ${ found.posts } ${
+						found.posts === 1 ? 'post' : 'posts'
+					}`
 			),
 			...skipped,
 		].join( '; ' ),

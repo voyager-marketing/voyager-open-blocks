@@ -7,10 +7,13 @@
  * - Post meta `_voyager_open_blocks_uses`: one non-unique row per
  *   `<source>:<key>` a post's blocks bind at any depth, such as
  *   `voyager/site-data:phone`, through synced and registered patterns too.
+ * - Post meta `_voyager_open_blocks_lists`: the same, for the bindings inside
+ *   a Query Loop's core/post-template, which show each listed post's value.
+ *   Each is a row in `_voyager_open_blocks_uses` too.
  * - Post meta `_voyager_open_blocks_refs` (internal): the synced pattern IDs a
  *   post shows, so a changed pattern re-indexes them (QUEUE_OPTION, reindex()).
  * - Option `voyager_open_blocks_theme_uses`: file-only theme templates and
- *   parts, keyed by template ID (rebuild_theme()).
+ *   parts, keyed by template ID, with their rows and list rows (rebuild_theme()).
  *
  * Posts are indexed on save (on_save()), by a WP-Cron backfill (rebuild()) and
  * by `wp voyager-open-blocks reindex`. Reads are plain selects (select()).
@@ -34,6 +37,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Post meta: one row per `<source>:<key>` the post shows. */
 const META = '_voyager_open_blocks_uses';
+
+/** Post meta: one row per `<source>:<key>` the post shows for each post a Query Loop lists. */
+const LISTS = '_voyager_open_blocks_lists';
+
+/**
+ * The block whose inner blocks are list rows. core/post-template renders them
+ * once per post its Query Loop lists, with that post's postId and postType as
+ * their context (render_block_core_post_template() in
+ * wp-includes/blocks/post-template.php). core/query provides no postId.
+ */
+const LIST_BLOCK = 'core/post-template';
 
 /** Post meta: one row per synced pattern ID the post shows. */
 const REFS = '_voyager_open_blocks_refs';
@@ -104,15 +118,21 @@ function tidy( array $values ): array {
 /**
  * Walk blocks at every depth and collect what they bind.
  *
+ * What a block binds inside a core/post-template (LIST_BLOCK), at any depth,
+ * is a list row as well as a row: a pattern there lists everything it binds,
+ * and a synced pattern holding a Query Loop passes its list rows on.
+ *
  * @param array<mixed>                                                      $blocks     Parsed blocks.
  * @param callable(int): array<mixed>                                       $synced     The blocks of a synced pattern, [] when there is none.
  * @param callable(string): array{rows: list<string>, blocks: array<mixed>} $registered What a registered pattern binds: rows already known, and blocks still to walk.
  * @param list<string>                                                      $seen       Patterns being walked, so one that holds itself stops.
- * @return array{rows: list<string>, refs: list<int>} Rows sorted and unique; synced pattern IDs, nested ones included.
+ * @param bool                                                              $listed     The blocks are inside a post template.
+ * @return array{rows: list<string>, lists: list<string>, refs: list<int>} Rows and list rows, each sorted and unique; synced pattern IDs, nested ones included.
  */
-function walk( array $blocks, callable $synced, callable $registered, array $seen = [] ): array {
-	$rows = [];
-	$refs = [];
+function walk( array $blocks, callable $synced, callable $registered, array $seen = [], bool $listed = false ): array {
+	$rows  = [];
+	$lists = [];
+	$refs  = [];
 
 	foreach ( $blocks as $block ) {
 		if ( ! is_array( $block ) ) {
@@ -123,6 +143,7 @@ function walk( array $blocks, callable $synced, callable $registered, array $see
 		$attrs    = is_array( $block['attrs'] ?? null ) ? $block['attrs'] : [];
 		$metadata = is_array( $attrs['metadata'] ?? null ) ? $attrs['metadata'] : [];
 		$bindings = is_array( $metadata['bindings'] ?? null ) ? $metadata['bindings'] : [];
+		$own      = [];
 
 		foreach ( $bindings as $binding ) {
 			$source = is_array( $binding ) ? ( $binding['source'] ?? null ) : null;
@@ -130,7 +151,7 @@ function walk( array $blocks, callable $synced, callable $registered, array $see
 			$key    = is_array( $args ) ? ( $args['key'] ?? null ) : null;
 
 			if ( is_string( $source ) && in_array( $source, SOURCES, true ) && is_string( $key ) && '' !== $key ) {
-				$rows[] = row( $source, $key );
+				$own[] = row( $source, $key );
 			}
 		}
 
@@ -141,25 +162,31 @@ function walk( array $blocks, callable $synced, callable $registered, array $see
 			if ( $ref > 0 ) {
 				$refs[] = $ref;
 				if ( ! in_array( 'ref:' . $ref, $seen, true ) ) {
-					$found[] = walk( $synced( $ref ), $synced, $registered, [ ...$seen, 'ref:' . $ref ] );
+					$found[] = walk( $synced( $ref ), $synced, $registered, [ ...$seen, 'ref:' . $ref ], $listed );
 				}
 			}
 		} elseif ( 'core/pattern' === $name ) {
 			$slug = Cast\to_string( $attrs['slug'] ?? '' );
 			if ( '' !== $slug && ! in_array( 'pattern:' . $slug, $seen, true ) ) {
 				$pattern = $registered( $slug );
-				array_push( $rows, ...$pattern['rows'] );
-				$found[] = walk( $pattern['blocks'], $synced, $registered, [ ...$seen, 'pattern:' . $slug ] );
+				array_push( $own, ...$pattern['rows'] );
+				$found[] = walk( $pattern['blocks'], $synced, $registered, [ ...$seen, 'pattern:' . $slug ], $listed );
 			}
+		}
+
+		array_push( $rows, ...$own );
+		if ( $listed ) {
+			array_push( $lists, ...$own );
 		}
 
 		$inner = $block['innerBlocks'] ?? null;
 		if ( is_array( $inner ) && [] !== $inner ) {
-			$found[] = walk( $inner, $synced, $registered, $seen );
+			$found[] = walk( $inner, $synced, $registered, $seen, $listed || LIST_BLOCK === $name );
 		}
 
 		foreach ( $found as $more ) {
 			array_push( $rows, ...$more['rows'] );
+			array_push( $lists, ...$more['lists'] );
 			array_push( $refs, ...$more['refs'] );
 		}
 	}
@@ -168,8 +195,9 @@ function walk( array $blocks, callable $synced, callable $registered, array $see
 	sort( $refs );
 
 	return [
-		'rows' => tidy( $rows ),
-		'refs' => $refs,
+		'rows'  => tidy( $rows ),
+		'lists' => tidy( $lists ),
+		'refs'  => $refs,
 	];
 }
 
@@ -247,13 +275,14 @@ function registered_pattern( string $slug ): array {
  * Walk markup with the site's own patterns.
  *
  * @param string $markup Block markup.
- * @return array{rows: list<string>, refs: list<int>}
+ * @return array{rows: list<string>, lists: list<string>, refs: list<int>}
  */
 function walk_markup( string $markup ): array {
 	if ( ! str_contains( $markup, '<!-- wp:' ) ) {
 		return [
-			'rows' => [],
-			'refs' => [],
+			'rows'  => [],
+			'lists' => [],
+			'refs'  => [],
 		];
 	}
 
@@ -264,7 +293,7 @@ function walk_markup( string $markup ): array {
  * A post's rows of one meta key, sorted.
  *
  * @param int    $post_id Post ID.
- * @param string $key     META or REFS.
+ * @param string $key     META, LISTS or REFS.
  * @return list<string>
  */
 function stored( int $post_id, string $key ): array {
@@ -277,7 +306,7 @@ function stored( int $post_id, string $key ): array {
  * Replace a post's rows of one meta key, when they differ.
  *
  * @param int          $post_id Post ID.
- * @param string       $key     META or REFS.
+ * @param string       $key     META, LISTS or REFS.
  * @param list<string> $values  Rows, sorted.
  * @return bool Whether anything changed.
  */
@@ -295,12 +324,13 @@ function store( int $post_id, string $key, array $values ): bool {
 }
 
 /**
- * Index one post: the rows its blocks bind and the synced patterns it shows.
+ * Index one post: the rows its blocks bind, the ones they list in a Query
+ * Loop, and the synced patterns it shows.
  *
  * A trashed or never-saved post keeps no rows.
  *
  * @param int $post_id Post ID.
- * @return bool Whether its rows or references changed.
+ * @return bool Whether its rows, list rows or references changed.
  */
 function index_post( int $post_id ): bool {
 	$post = get_post( $post_id );
@@ -311,15 +341,17 @@ function index_post( int $post_id ): bool {
 
 	$found = in_array( $post->post_status, NOT_INDEXED, true )
 		? [
-			'rows' => [],
-			'refs' => [],
+			'rows'  => [],
+			'lists' => [],
+			'refs'  => [],
 		]
 		: walk_markup( $post->post_content );
 
-	$rows_changed = store( $post_id, META, $found['rows'] );
-	$refs_changed = store( $post_id, REFS, tidy( array_map( 'strval', $found['refs'] ) ) );
+	$rows_changed  = store( $post_id, META, $found['rows'] );
+	$lists_changed = store( $post_id, LISTS, $found['lists'] );
+	$refs_changed  = store( $post_id, REFS, tidy( array_map( 'strval', $found['refs'] ) ) );
 
-	return $rows_changed || $refs_changed;
+	return $rows_changed || $lists_changed || $refs_changed;
 }
 
 /**
@@ -330,6 +362,17 @@ function index_post( int $post_id ): bool {
  */
 function uses( int $post_id ): array {
 	return stored( $post_id, META );
+}
+
+/**
+ * The rows a post shows for each post one of its Query Loops lists, sorted
+ * and without duplicates. Each is in uses() too.
+ *
+ * @param int $post_id Post ID.
+ * @return list<string>
+ */
+function lists( int $post_id ): array {
+	return stored( $post_id, LISTS );
 }
 
 /**
@@ -387,7 +430,7 @@ function select( array $tables, string $query, mixed ...$args ): array {
 /**
  * IDs of every post, of any type and any indexed status, with one meta row.
  *
- * @param string $key   META or REFS.
+ * @param string $key   META, LISTS or REFS.
  * @param string $value The row, matched exactly.
  * @return list<int>
  */
@@ -417,6 +460,19 @@ function posts_using( string $source, string $key ): array {
 }
 
 /**
+ * Posts that list a field in a Query Loop: an exact match on the list row,
+ * never LIKE. The same posts as posts_using(): every post type and every
+ * status but trash.
+ *
+ * @param string $source Binding source.
+ * @param string $key    Binding key.
+ * @return list<int>
+ */
+function posts_listing( string $source, string $key ): array {
+	return posts_with( LISTS, row( $source, $key ) );
+}
+
+/**
  * Posts that show a synced pattern, directly or through another one.
  *
  * @param int $block_id Synced pattern (wp_block) ID.
@@ -429,11 +485,15 @@ function referrers( int $block_id ): array {
 /**
  * The file-only theme templates and parts, as stored.
  *
- * @return array<string, array{type: string, title: string, uses: list<string>}>
+ * An entry stored before list rows were recorded has no `lists`, and reads as
+ * listing nothing until the next rebuild.
+ *
+ * @return array<string, array{type: string, title: string, uses: list<string>, lists: list<string>}>
  */
 function theme_index(): array {
 	$stored = get_option( THEME_OPTION, [] );
 	$out    = [];
+	$list   = static fn ( mixed $rows ): array => tidy( array_map( Cast\to_string( ... ), is_array( $rows ) ? $rows : [] ) );
 
 	foreach ( is_array( $stored ) ? $stored : [] as $id => $entry ) {
 		if ( ! is_array( $entry ) ) {
@@ -443,7 +503,8 @@ function theme_index(): array {
 		$out[ (string) $id ] = [
 			'type'  => Cast\to_string( $entry['type'] ?? '' ),
 			'title' => Cast\to_string( $entry['title'] ?? '' ),
-			'uses'  => tidy( array_map( Cast\to_string( ... ), is_array( $entry['uses'] ?? null ) ? $entry['uses'] : [] ) ),
+			'uses'  => $list( $entry['uses'] ?? null ),
+			'lists' => $list( $entry['lists'] ?? null ),
 		];
 	}
 
@@ -468,8 +529,8 @@ function rebuild_theme(): int {
 				continue;
 			}
 
-			$rows = walk_markup( Cast\to_string( $template->content ) )['rows'];
-			if ( [] === $rows ) {
+			$found = walk_markup( Cast\to_string( $template->content ) );
+			if ( [] === $found['rows'] ) {
 				continue;
 			}
 
@@ -478,7 +539,8 @@ function rebuild_theme(): int {
 			$out[ Cast\to_string( $template->id ) ] = [
 				'type'  => $type,
 				'title' => '' !== $title ? $title : Cast\to_string( $template->slug ),
-				'uses'  => $rows,
+				'uses'  => $found['rows'],
+				'lists' => $found['lists'],
 			];
 		}
 	}
@@ -495,9 +557,10 @@ function rebuild_theme(): int {
  * A saved template replaces the file with its ID, so its rows win.
  *
  * @param list<string> $rows Rows.
- * @return list<array{id: string, title: string, type: string, uses: list<string>}> By template ID. `uses` holds the matching rows.
+ * @param string       $meta META for the templates that show them, LISTS for the ones that list them in a Query Loop.
+ * @return list<array{id: string, title: string, type: string, uses: list<string>}> By template ID. `uses` holds the matching rows, or list rows.
  */
-function templates_with( array $rows ): array {
+function templates_with( array $rows, string $meta = META ): array {
 	if ( [] === $rows ) {
 		return [];
 	}
@@ -508,7 +571,7 @@ function templates_with( array $rows ): array {
 			'id'    => $id,
 			'title' => $entry['title'],
 			'type'  => $entry['type'],
-			'uses'  => $entry['uses'],
+			'uses'  => LISTS === $meta ? $entry['lists'] : $entry['uses'],
 		];
 	}
 
@@ -517,7 +580,7 @@ function templates_with( array $rows ): array {
 	$found = select(
 		[ 'posts', 'postmeta', 'term_relationships', 'term_taxonomy', 'terms' ],
 		"SELECT p.post_name AS slug, p.post_title AS title, p.post_type AS post_type, pm.meta_value AS use_row FROM %i p INNER JOIN %i pm ON pm.post_id = p.ID INNER JOIN %i tr ON tr.object_id = p.ID INNER JOIN %i tt ON tt.term_taxonomy_id = tr.term_taxonomy_id INNER JOIN %i t ON t.term_id = tt.term_id WHERE pm.meta_key = %s AND tt.taxonomy = 'wp_theme' AND t.name = %s AND p.post_type IN ('wp_template', 'wp_template_part') AND p.post_status = 'publish'",
-		META,
+		$meta,
 		$theme
 	);
 
