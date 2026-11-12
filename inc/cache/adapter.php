@@ -10,11 +10,12 @@
  * pages that show the field, or purge_all() when every page may show it or
  * the cache cannot purge single pages.
  *
- * The pack ships six adapters, each active only when its plugin is loaded:
+ * The pack ships seven adapters, each active only when its plugin is loaded:
  * WP Super Cache (wp-super-cache.php), SpinupWP (spinupwp.php), Nginx Helper
- * (nginx-helper.php) and LiteSpeed Cache (litespeed-cache.php), each also
- * only while its page cache is on, WP Rocket (wp-rocket.php), and Cloudflare
- * (cloudflare.php), which can only purge everything.
+ * (nginx-helper.php), LiteSpeed Cache (litespeed-cache.php) and W3 Total
+ * Cache 2.11.0 (w3-total-cache.php), each also only while its page cache is
+ * on, WP Rocket (wp-rocket.php), and Cloudflare (cloudflare.php), which can
+ * only purge everything.
  *
  * @package VoyagerOpenBlocks
  */
