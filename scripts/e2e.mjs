@@ -1209,7 +1209,10 @@ const marqueePublished = await api( `/wp/v2/pages/${ marquee.id }`, {
 const marqueeFront = marqueePublished.data.link
 	? await request( marqueePublished.data.link )
 	: { status: 0, text: '' };
-const marqueeRows = childTags( marqueeFront.text, 'is-style-voyager-open-marquee' );
+const marqueeRows = childTags(
+	marqueeFront.text,
+	'is-style-voyager-open-marquee'
+);
 const [ marqueeRow = '', marqueeCopyTag = '' ] = marqueeRows.tags;
 const copyStart = marqueeCopyTag
 	? marqueeFront.text.indexOf( marqueeCopyTag )

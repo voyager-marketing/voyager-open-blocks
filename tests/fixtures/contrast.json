@@ -13,7 +13,7 @@
 	},
 	"motion": {
 		"gap_ms": 400,
-		"moves_with_motion_on": [ "logo-marquee" ]
+		"moves_with_motion_on": [ "logo-marquee", "reviews", "services", "services-list" ]
 	},
 	"controls": {
 		"contrast": { "width": 1280 },
