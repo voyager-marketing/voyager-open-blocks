@@ -52,8 +52,11 @@
  *      (the phone, and the phone through a synced pattern) and never page C
  *      (the email), with the front page; the same phone again records none;
  *      a template part with the phone sets purge_all; and bindable post meta
- *      changed on page D refreshes page D alone. Then it deletes what it
- *      created and puts the phone back.
+ *      changed on page D refreshes page D alone. Changing the Site Title
+ *      records one purge with page T (the company) and the front page, and
+ *      not page C or page G (the tagline), and changing the Tagline does the
+ *      same for page G. Then it deletes what it created and puts the phone,
+ *      the Site Title and the Tagline back.
  *  13. the facts block, a list field on a page: insert puts voyager-open/facts
  *      in a draft, bind ties its items to the services list, the services are
  *      set to three lines and the page is published, and the page shows one
@@ -2240,6 +2243,80 @@ step(
 		metaChange.records
 	) }`
 );
+
+// 12b. The Site Title and the Tagline. `company` is blogname and `tagline` is
+// blogdescription, which /wp/v2/settings names title and description. Page T
+// shows the company, page G the tagline and page C (from above) the email.
+const general = ( await api( '/wp/v2/settings' ) ).data;
+const boundSiteData = ( key, text ) =>
+	`<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/site-data","args":{"key":"${ key }"}}}}} -->\n<p>${ text }</p>\n<!-- /wp:paragraph -->`;
+const titlePage = await publish(
+	'/wp/v2/pages',
+	'E2E purge T',
+	boundSiteData( 'company', 'Example Company' )
+);
+const taglinePage = await publish(
+	'/wp/v2/pages',
+	'E2E purge G',
+	boundSiteData( 'tagline', 'Example tagline' )
+);
+step(
+	'page T (company) and page G (tagline) created',
+	titlePage.status === 201 && taglinePage.status === 201,
+	[ titlePage, taglinePage ]
+		.map( ( r ) => r.data.code || r.status )
+		.join( ' ' )
+);
+const generalChange = async ( setting, value, key, shows, hides ) => {
+	const changed = await purgesDuring( () =>
+		api( '/wp/v2/settings', {
+			method: 'POST',
+			body: { [ setting ]: value },
+		} )
+	);
+	const urls = changed.records[ 0 ]?.urls || [];
+	return {
+		ok:
+			changed.changed.status === 200 &&
+			changed.records.length === 1 &&
+			changed.records[ 0 ].context?.reason === 'site-data' &&
+			sameList( changed.records[ 0 ].context?.keys || [], [ key ] ) &&
+			urls.includes( shows ) &&
+			urls.includes( front ) &&
+			hides.every( ( link ) => ! urls.includes( link ) ),
+		detail: `${ changed.changed.data.code || changed.changed.status }; ${ described(
+			changed.records
+		) }`,
+	};
+};
+const titleChange = await generalChange(
+	'title',
+	`E2E site ${ stamp }`,
+	'company',
+	titlePage.data.link,
+	[ purgeC.data.link, taglinePage.data.link ]
+);
+step(
+	'fitness: changing the Site Title records one purge for the company, with page T and the front page, and not page C or G',
+	titleChange.ok,
+	titleChange.detail
+);
+const taglineChange = await generalChange(
+	'description',
+	`E2E tagline ${ stamp }`,
+	'tagline',
+	taglinePage.data.link,
+	[ purgeC.data.link, titlePage.data.link ]
+);
+step(
+	'fitness: changing the Tagline records one purge for the tagline, with page G and the front page, and not page C or T',
+	taglineChange.ok,
+	taglineChange.detail
+);
+await api( '/wp/v2/settings', {
+	method: 'POST',
+	body: { title: general.title, description: general.description },
+} );
 
 for ( const path of purgeCleanup ) {
 	await api( path, { method: 'DELETE', query: { force: true } } );

@@ -71,6 +71,37 @@ final class SpyAdapter implements Adapter {
 	}
 }
 
+/**
+ * Options that record each name read or written, for code that must touch none.
+ *
+ * @extends \ArrayObject<string, mixed>
+ */
+final class RecordingOptions extends \ArrayObject {
+
+	/** @var list<string> */
+	public array $touched = [];
+
+	public function offsetExists( mixed $key ): bool {
+		$this->touched[] = (string) $key;
+		return parent::offsetExists( $key );
+	}
+
+	public function offsetGet( mixed $key ): mixed {
+		$this->touched[] = (string) $key;
+		return parent::offsetGet( $key );
+	}
+
+	public function offsetSet( mixed $key, mixed $value ): void {
+		$this->touched[] = (string) $key;
+		parent::offsetSet( $key, $value );
+	}
+
+	public function offsetUnset( mixed $key ): void {
+		$this->touched[] = (string) $key;
+		parent::offsetUnset( $key );
+	}
+}
+
 final class PurgeTest extends TestCase {
 
 	private const FRONT = 'https://example.com/';
@@ -91,7 +122,11 @@ final class PurgeTest extends TestCase {
 			12 => 'https://example.com/b/',
 			30 => 'https://example.com/c/',
 		];
-		$this->looked_up                    = [];
+		$GLOBALS['voyager_test_blog_id']      = 1;
+		$GLOBALS['voyager_test_switch_stack'] = [];
+		$GLOBALS['voyager_test_switches']     = [];
+		$GLOBALS['voyager_test_recurrence']   = [];
+		$this->looked_up                      = [];
 		Purge\pending( '', 0, true );
 		Purge\running( false );
 	}
@@ -225,7 +260,8 @@ final class PurgeTest extends TestCase {
 	}
 
 	public function test_only_site_data_options_are_noted(): void {
-		Purge\on_option( 'blogname' );
+		Purge\on_option( 'admin_email' );
+		Purge\on_option( 'siteurl' );
 		Purge\on_option( 'voyager_site_' );
 		Purge\on_option( 'voyager_open_blocks_last_purge' );
 		Purge\on_option( [ 'not', 'a', 'name' ] );
@@ -234,6 +270,219 @@ final class PurgeTest extends TestCase {
 
 		Purge\on_option( 'voyager_site_address_city' );
 		$this->assertSame( [ 'address_city' ], Purge\pending()['site_data'] );
+	}
+
+	/**
+	 * Pages A to C: one shows the company, one the copyright line, one the tagline.
+	 *
+	 * @return array<int, list<string>>
+	 */
+	private function site_title_pages(): array {
+		return [
+			5  => [ 'voyager/site-data:company' ],
+			12 => [ 'voyager/site-data:copyright' ],
+			30 => [ 'voyager/site-data:tagline' ],
+		];
+	}
+
+	public function test_changing_the_site_title_refreshes_the_pages_that_show_the_company_or_the_copyright(): void {
+		Purge\on_option( 'blogname' );
+
+		$ran = Purge\run( $this->lookup( $this->site_title_pages() ) );
+
+		$this->assertSame( 1, $ran );
+		$this->assertSame( [ [ 'voyager/site-data:company', 'voyager/site-data:copyright' ] ], $this->looked_up, 'The copyright line is made from the company.' );
+		$this->assertSame(
+			[
+				[
+					[ 'https://example.com/a/', 'https://example.com/b/', self::FRONT ],
+					[
+						'source'    => 'voyager/site-data',
+						'keys'      => [ 'company' ],
+						'post_ids'  => [ 5, 12 ],
+						'templates' => [],
+						'reason'    => 'site-data',
+						'purge_all' => false,
+					],
+				],
+			],
+			$this->purges(),
+			'Page C shows the tagline only.'
+		);
+	}
+
+	public function test_changing_the_tagline_refreshes_the_pages_that_show_it(): void {
+		Purge\on_option( 'blogdescription' );
+
+		$ran = Purge\run( $this->lookup( $this->site_title_pages() ) );
+
+		$this->assertSame( 1, $ran );
+		$this->assertSame( [ [ 'voyager/site-data:tagline' ] ], $this->looked_up );
+		$this->assertSame(
+			[
+				[
+					[ 'https://example.com/c/', self::FRONT ],
+					[
+						'source'    => 'voyager/site-data',
+						'keys'      => [ 'tagline' ],
+						'post_ids'  => [ 30 ],
+						'templates' => [],
+						'reason'    => 'site-data',
+						'purge_all' => false,
+					],
+				],
+			],
+			$this->purges()
+		);
+	}
+
+	public function test_a_settings_form_that_saves_the_title_tagline_and_phone_purges_once(): void {
+		Purge\on_option( 'blogname' );
+		Purge\on_option( 'blogdescription' );
+		Purge\on_option( 'voyager_site_phone' );
+
+		$this->assertSame( 1, Purge\run( $this->lookup( $this->site_title_pages() ) ) );
+		$this->assertCount( 1, $this->looked_up );
+		$this->assertSame( [ 'company', 'phone', 'tagline' ], $this->purges()[0][1]['keys'] );
+	}
+
+	public function test_a_new_year_refreshes_the_pages_that_show_the_year_or_the_copyright_once(): void {
+		$GLOBALS['voyager_test_options'][ Purge\YEAR_OPTION ] = '2026';
+		$pages = [
+			5  => [ 'voyager/site-data:year' ],
+			12 => [ 'voyager/site-data:copyright' ],
+			30 => [ 'voyager/site-data:company' ],
+		];
+
+		$this->assertFalse( Purge\check_year( '2026' ), 'The same year: nothing to refresh.' );
+		$this->assertSame( [], Purge\pending()['site_data'] );
+
+		$this->assertTrue( Purge\check_year( '2027' ) );
+		$this->assertSame( '2027', $GLOBALS['voyager_test_options'][ Purge\YEAR_OPTION ] );
+		$this->assertSame( 1, Purge\run( $this->lookup( $pages ) ) );
+		$this->assertSame( [ [ 'voyager/site-data:copyright', 'voyager/site-data:year' ] ], $this->looked_up );
+		$this->assertSame(
+			[
+				[
+					[ 'https://example.com/a/', 'https://example.com/b/', self::FRONT ],
+					[
+						'source'    => 'voyager/site-data',
+						'keys'      => [ 'year' ],
+						'post_ids'  => [ 5, 12 ],
+						'templates' => [],
+						'reason'    => 'site-data',
+						'purge_all' => false,
+					],
+				],
+			],
+			$this->purges()
+		);
+
+		$this->assertFalse( Purge\check_year( '2027' ), 'Once: the next daily check that year refreshes nothing.' );
+		$this->assertSame( 0, Purge\run( $this->lookup( $pages ) ) );
+		$this->assertCount( 1, $this->purges() );
+	}
+
+	public function test_the_year_event_compares_the_year_now_with_the_one_it_saw(): void {
+		$GLOBALS['voyager_test_options'][ Purge\YEAR_OPTION ] = '1999';
+
+		Purge\on_year_event();
+
+		$this->assertSame( [ 'year' ], Purge\pending()['site_data'] );
+		$this->assertSame( wp_date( 'Y' ), $GLOBALS['voyager_test_options'][ Purge\YEAR_OPTION ] );
+	}
+
+	public function test_the_first_year_check_stores_the_year_and_refreshes_nothing(): void {
+		$this->assertFalse( Purge\check_year( '2026' ) );
+
+		$this->assertSame( '2026', $GLOBALS['voyager_test_options'][ Purge\YEAR_OPTION ] );
+		$this->assertSame( [], Purge\pending()['site_data'] );
+	}
+
+	public function test_the_year_check_runs_daily_and_a_normal_request_reads_no_option_for_it(): void {
+		Purge\schedule_year_check();
+
+		$first = $GLOBALS['voyager_test_events'][ Purge\YEAR_HOOK ] ?? 0;
+		$this->assertSame( 'daily', $GLOBALS['voyager_test_recurrence'][ Purge\YEAR_HOOK ] ?? null );
+		$this->assertGreaterThan( time(), $first );
+		$this->assertLessThanOrEqual( time() + 2 * 86400, $first );
+		$this->assertSame( '01:00', gmdate( 'H:i', $first ), 'Just after midnight, site time, which is UTC here.' );
+		$this->assertSame( gmdate( 'Y' ), $GLOBALS['voyager_test_options'][ Purge\YEAR_OPTION ] ?? null, 'Scheduling stores the year, so the first check can tell a new one.' );
+
+		$options                         = new RecordingOptions( $GLOBALS['voyager_test_options'] );
+		$GLOBALS['voyager_test_options'] = $options;
+
+		Purge\schedule_year_check();
+
+		$this->assertSame( [], $options->touched, 'Once scheduled, init asks wp_next_scheduled() only, which reads the autoloaded cron option.' );
+		$this->assertSame( $first, $GLOBALS['voyager_test_events'][ Purge\YEAR_HOOK ] );
+	}
+
+	public function test_a_change_made_under_switch_to_blog_purges_on_its_own_site(): void {
+		Purge\on_option( 'voyager_site_email' );
+		switch_to_blog( 3 );
+		Purge\on_option( 'voyager_site_phone' );
+		restore_current_blog();
+		$GLOBALS['voyager_test_switches'] = [];
+
+		$sites  = new \ArrayObject();
+		$spy    = new class( $sites ) implements Adapter {
+			/**
+			 * @param \ArrayObject<int, string> $sites Where it was told, and what.
+			 */
+			public function __construct( private \ArrayObject $sites ) {}
+			public function id(): string {
+				return 'site-spy';
+			}
+			public function label(): string {
+				return 'Site spy';
+			}
+			public function active(): bool {
+				return true;
+			}
+			public function supports_urls(): bool {
+				return true;
+			}
+			public function purge_urls( array $urls ): void {
+				$this->sites->append( get_current_blog_id() . ' ' . implode( ' ', $urls ) );
+			}
+			public function purge_all(): void {
+				$this->sites->append( get_current_blog_id() . ' all' );
+			}
+		};
+		$looked = [];
+		$lookup = $this->lookup(
+			[
+				5  => [ 'voyager/site-data:email' ],
+				12 => [ 'voyager/site-data:phone' ],
+			]
+		);
+		$this->offer( [ $spy ] );
+
+		$ran = Purge\run(
+			static function ( array $rows ) use ( $lookup, &$looked ): array {
+				$looked[] = get_current_blog_id() . ' ' . implode( ' ', $rows );
+				return $lookup( $rows );
+			}
+		);
+
+		$this->assertSame( 2, $ran, 'One purge for each site.' );
+		$this->assertSame(
+			[
+				'1 voyager/site-data:email voyager/site-data:email_link',
+				'3 voyager/site-data:phone voyager/site-data:phone_link',
+			],
+			$looked,
+			'Each site looks up its own change, on that site.'
+		);
+		$this->assertSame( [ 'switch 3', 'restore' ], $GLOBALS['voyager_test_switches'] );
+		$this->assertSame( 1, get_current_blog_id(), 'The purge goes back to the site it started on.' );
+		$this->assertSame( [ '1 https://example.com/a/ ' . self::FRONT, '3 https://example.com/b/ ' . self::FRONT ], $sites->getArrayCopy(), 'Adapters are told on the site that changed.' );
+		$this->assertSame( [ [ 'email' ], [ 'phone' ] ], array_map( static fn ( array $purge ): mixed => $purge[1]['keys'], $this->purges() ) );
+		$this->assertSame( [], Purge\pending()['site_data'] );
+		switch_to_blog( 3 );
+		$this->assertSame( [], Purge\pending()['site_data'], 'Site 3 is purged too, so nothing is left.' );
+		restore_current_blog();
 	}
 
 	public function test_a_form_that_saves_several_fields_purges_once_and_lists_each_page_once(): void {
