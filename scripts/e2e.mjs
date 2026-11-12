@@ -83,6 +83,17 @@
  *      used_on for the services, emptying them records a purge with the page,
  *      and the page shows the block's own items. Then it deletes the page and
  *      puts the services back.
+ *  14. the contact details block: insert puts voyager-open/contact-details in
+ *      a draft, bind ties its seven attributes to the seven Site Data keys,
+ *      the fields are set to the values in tests/fixtures/site-data-keys.json
+ *      and the page is published. Inside the block the page shows one
+ *      address holding the street, the city line, one tel: link reading the
+ *      phone and one mailto: link reading the email, and the hours after it.
+ *      The page counts in used_on for the phone, changing the phone records
+ *      a purge with the page, and with the email emptied no email line and
+ *      no mailto: link render while the rest still does. validate warns
+ *      stale_fallback on the block bound to the phone whose own phone holds
+ *      a phone number. Then it deletes the page and puts the fields back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -3146,6 +3157,278 @@ if ( factsId ) {
 if ( typeof originalServices === 'string' ) {
 	await setServices( originalServices );
 }
+await api( recorder, { method: 'DELETE' } );
+
+// 14. The contact details block. A binding fills a core paragraph's whole
+// text, so it cannot put a link around a phone number inside it. This block
+// takes the seven contact fields as attributes and prints the phone and the
+// email as links. insert puts it in a draft, bind ties each attribute to its
+// Site Data key, the fields get the fixture's values through
+// POST /wp/v2/settings, and the published page shows one address with the
+// street, the city line, a tel: link and a mailto: link, then the hours.
+const contactItem = 'voyager-open/contact-details';
+const contactKeys = {
+	phone: 'phone',
+	phoneLink: 'phone_link',
+	email: 'email',
+	emailLink: 'email_link',
+	address: 'address',
+	addressLocality: 'address_locality',
+	hours: 'hours',
+};
+const contactOptions = [
+	'voyager_site_phone',
+	'voyager_site_email',
+	'voyager_site_address',
+	'voyager_site_address_city',
+	'voyager_site_address_state',
+	'voyager_site_address_zip',
+	'voyager_site_hours',
+];
+const keysFixture = JSON.parse(
+	readFileSync(
+		join( repo, 'tests', 'fixtures', 'site-data-keys.json' ),
+		'utf8'
+	)
+);
+const contactExpected = keysFixture.expected;
+const contactType = ( catalog.data.blocks || [] ).find(
+	( b ) => b.name === contactItem
+);
+step(
+	'get-catalog lists voyager-open/contact-details with its seven attributes bindable',
+	!! contactType &&
+		sameList( contactType.bindable || [], Object.keys( contactKeys ) ),
+	contactType
+		? `bindable ${ JSON.stringify( contactType.bindable ) }`
+		: 'not in blocks'
+);
+const settingsBefore = ( await api( '/wp/v2/settings' ) ).data;
+const setContact = ( values ) =>
+	api( '/wp/v2/settings', { method: 'POST', body: values } );
+const contactFixture = await setContact(
+	Object.fromEntries(
+		contactOptions.map( ( option ) => [
+			option,
+			keysFixture.options[ option ],
+		] )
+	)
+);
+const contactDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: { title: `E2E contact ${ stamp }`, status: 'draft', content: '' },
+} );
+const contactId = contactDraft.data.id;
+const contactInsert = await run( `${ ns }/insert`, {
+	post_id: contactId,
+	item: contactItem,
+} );
+const contactPath = contactInsert.data.blocks?.[ 0 ]?.path;
+step(
+	'insert voyager-open/contact-details into a draft',
+	contactDraft.status === 201 &&
+		contactInsert.status === 200 &&
+		contactInsert.data.saved === true &&
+		contactInsert.data.blocks?.[ 0 ]?.block === contactItem,
+	contactInsert.data.message ||
+		contactInsert.data.code ||
+		`path ${ contactPath }`
+);
+const contactBinds = [];
+for ( const [ attribute, key ] of Object.entries( contactKeys ) ) {
+	contactBinds.push( [
+		attribute,
+		key,
+		await run( `${ ns }/bind`, {
+			post_id: contactId,
+			path: contactPath,
+			attribute,
+			source: 'voyager/site-data',
+			args: ( siteData?.fields || [] ).find(
+				( f ) => f.args?.key === key
+			)?.args,
+		} ),
+	] );
+}
+const contactBound = contactBinds.at( -1 )?.[ 2 ];
+step(
+	'bind each of the seven attributes to its site-data key (args copied from the catalog)',
+	contactBinds.length === 7 &&
+		contactBinds.every( ( [ , , answer ] ) => answer.status === 200 ) &&
+		Object.entries( contactKeys ).every(
+			( [ attribute, key ] ) =>
+				contactBound?.data.attributes?.metadata?.bindings?.[ attribute ]
+					?.source === 'voyager/site-data' &&
+				contactBound?.data.attributes?.metadata?.bindings?.[ attribute ]
+					?.args?.key === key
+		),
+	contactBinds
+		.filter( ( [ , , answer ] ) => answer.status !== 200 )
+		.map(
+			( [ attribute, , answer ] ) =>
+				`${ attribute }: ${ answer.data.code }`
+		)
+		.join( ', ' ) ||
+		JSON.stringify( contactBound?.data.attributes?.metadata?.bindings )
+);
+validate( 'contact details after bind', contactBound?.data.markup || '' );
+
+/**
+ * The contact details blocks on a page, each as the parts a visitor sees.
+ *
+ * @param {string} pageHtml The page.
+ * @return {Array<{html: string, addresses: number, inAddress: string, after: string}>} One per block.
+ */
+const contactBlocks = ( pageHtml ) =>
+	[
+		...pageHtml.matchAll(
+			/<div\b[^>]*\bclass="[^"]*\bwp-block-voyager-open-contact-details\b[^"]*"[^>]*>([\s\S]*?)<\/div>/g
+		),
+	].map( ( match ) => {
+		const inner = match[ 1 ];
+		const address = inner.match( /<address\b[^>]*>([\s\S]*?)<\/address>/ );
+		return {
+			html: inner,
+			addresses: ( inner.match( /<address\b/g ) || [] ).length,
+			inAddress: address ? address[ 1 ] : '',
+			after: address
+				? inner.slice( address.index + address[ 0 ].length )
+				: '',
+		};
+	} );
+const linksTo = ( markup, scheme ) =>
+	[
+		...markup.matchAll(
+			new RegExp(
+				`<a\\b[^>]*\\bhref="(${ scheme }:[^"]*)"[^>]*>([\\s\\S]*?)</a>`,
+				'g'
+			)
+		),
+	].map( ( m ) => ( { href: m[ 1 ], text: m[ 2 ].trim() } ) );
+const contactUse = 'voyager/site-data:phone';
+const contactUsedBefore = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ contactUse ];
+const contactPublished = await api( `/wp/v2/pages/${ contactId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const contactLink = contactPublished.data.link;
+const contactShown = contactLink
+	? contactBlocks( ( await request( contactLink ) ).text )
+	: [];
+const shownContact = contactShown[ 0 ];
+const tels = linksTo( shownContact?.html || '', 'tel' );
+const mails = linksTo( shownContact?.html || '', 'mailto' );
+step(
+	'fitness: bound to the seven keys and published, the block shows one address with a tel: link reading the phone and a mailto: link reading the email',
+	contactFixture.status === 200 &&
+		contactPublished.status === 200 &&
+		contactShown.length === 1 &&
+		shownContact.addresses === 1 &&
+		tels.length === 1 &&
+		tels[ 0 ].href === contactExpected.phone_link &&
+		tels[ 0 ].text === contactExpected.phone &&
+		mails.length === 1 &&
+		mails[ 0 ].href === contactExpected.email_link &&
+		mails[ 0 ].text === contactExpected.email &&
+		linksTo( shownContact.inAddress, 'tel' ).length === 1 &&
+		linksTo( shownContact.inAddress, 'mailto' ).length === 1,
+	`${ contactFixture.data.code || contactFixture.status }; ${ contactShown.length } block(s); tel ${ JSON.stringify(
+		tels
+	) }; mailto ${ JSON.stringify( mails ) }`
+);
+step(
+	'the address holds the street and the city line, and the hours follow it',
+	!! shownContact &&
+		shownContact.inAddress.includes( `>${ contactExpected.address }<` ) &&
+		shownContact.inAddress.includes(
+			`>${ contactExpected.address_locality }<`
+		) &&
+		shownContact.after.includes( `>${ contactExpected.hours }</p>` ) &&
+		! shownContact.inAddress.includes( contactExpected.hours ),
+	JSON.stringify( shownContact?.html || '' )
+);
+
+const contactUsedAfter = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ contactUse ];
+step(
+	'get-catalog used_on for the phone counts the published contact details page',
+	Number.isInteger( contactUsedBefore?.posts ) &&
+		contactUsedAfter?.posts === contactUsedBefore.posts + 1,
+	`before ${ JSON.stringify( contactUsedBefore ) }, after ${ JSON.stringify(
+		contactUsedAfter
+	) }`
+);
+
+const contactPurge = await purgesDuring( () => setPhone( '(555) 010-0177' ) );
+step(
+	'changing the phone records one purge, for the phone, with the contact details page',
+	contactPurge.changed.status === 200 &&
+		contactPurge.records.length === 1 &&
+		( contactPurge.records[ 0 ].context?.keys || [] ).includes( 'phone' ) &&
+		( contactPurge.records[ 0 ].urls || [] ).includes( contactLink ) &&
+		( contactPurge.records[ 0 ].context?.post_ids || [] ).includes(
+			contactId
+		),
+	described( contactPurge.records )
+);
+
+const noEmail = await setContact( { voyager_site_email: '' } );
+const withoutEmail = contactLink
+	? contactBlocks( ( await request( contactLink ) ).text )
+	: [];
+step(
+	'with the email empty, no email line and no mailto: link render, and the rest still does',
+	noEmail.status === 200 &&
+		withoutEmail.length === 1 &&
+		linksTo( withoutEmail[ 0 ].html, 'mailto' ).length === 0 &&
+		! withoutEmail[ 0 ].html.includes( contactExpected.email ) &&
+		! withoutEmail[ 0 ].html.includes( '__email' ) &&
+		withoutEmail[ 0 ].addresses === 1 &&
+		linksTo( withoutEmail[ 0 ].inAddress, 'tel' ).length === 1 &&
+		withoutEmail[ 0 ].inAddress.includes(
+			`>${ contactExpected.address }<`
+		) &&
+		withoutEmail[ 0 ].after.includes( `>${ contactExpected.hours }</p>` ),
+	JSON.stringify( withoutEmail[ 0 ]?.html || '' )
+);
+
+const staleContact = await run(
+	`${ ns }/validate`,
+	{
+		markup: '<!-- wp:voyager-open/contact-details {"phone":"(555) 010-0199","metadata":{"bindings":{"phone":{"source":"voyager/site-data","args":{"key":"phone"}}}}} /-->',
+	},
+	true
+);
+step(
+	'validate warns stale_fallback on the block bound to the phone whose own phone holds a number',
+	staleContact.status === 200 &&
+		( staleContact.data.warnings || [] ).some(
+			( w ) =>
+				w.startsWith( 'stale_fallback: ' ) &&
+				w.includes( contactItem ) &&
+				w.includes( '"phone"' )
+		),
+	JSON.stringify( staleContact.data.warnings || staleContact.data.code )
+);
+
+if ( contactId ) {
+	await api( `/wp/v2/pages/${ contactId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+await setContact(
+	Object.fromEntries(
+		contactOptions
+			.filter(
+				( option ) => typeof settingsBefore[ option ] === 'string'
+			)
+			.map( ( option ) => [ option, settingsBefore[ option ] ] )
+	)
+);
 await api( recorder, { method: 'DELETE' } );
 
 rmSync( scratch, { recursive: true, force: true } );
