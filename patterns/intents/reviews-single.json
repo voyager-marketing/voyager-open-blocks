@@ -1,0 +1,287 @@
+{
+	"title": "Reviews as one large quote",
+	"section": "reviews",
+	"layout": "single",
+	"description": "One strong review, large, at content width: a section heading, a star row with the rating in words, the customer's quote, their name and one detail, centred. Ships with placeholder text, never a review.",
+	"categories": [
+		"voyager-open",
+		"testimonials"
+	],
+	"viewportWidth": 1280,
+	"keywords": [
+		"review",
+		"testimonial",
+		"quote",
+		"stars",
+		"rating"
+	],
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: what the reviews are, in a few words. No count or score.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Review 1 rating": {
+			"purpose": "This review's own rating, as the customer gave it: \"Rated <n> out of 5\". Keep the same number of stars in the row.",
+			"min": 16,
+			"max": 24,
+			"required": true,
+			"claim": true
+		},
+		"Review 1 quote": {
+			"purpose": "The customer's own words, with their permission. Cut it only where the meaning stays the same; never reword it.",
+			"min": 20,
+			"max": 300,
+			"required": true,
+			"claim": true
+		},
+		"Review 1 name": {
+			"purpose": "The name the customer agreed to show, such as a first name and last initial.",
+			"min": 2,
+			"max": 40,
+			"required": true,
+			"claim": true
+		},
+		"Review 1 detail": {
+			"purpose": "One detail about the review: the service it was for, or the month and year it was given.",
+			"min": 3,
+			"max": 40,
+			"required": false,
+			"claim": true
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Reviews"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|40"
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/heading",
+						"level": 2,
+						"text": "What customers say",
+						"attrs": {
+							"metadata": {
+								"name": "Heading"
+							},
+							"style": {
+								"typography": {
+									"textAlign": "center"
+								}
+							}
+						}
+					},
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Review 1"
+							},
+							"style": {
+								"spacing": {
+									"blockGap": "var:preset|spacing|40"
+								}
+							},
+							"layout": {
+								"type": "default"
+							}
+						},
+						"children": [
+							{
+								"block": "core/group",
+								"attrs": {
+									"metadata": {
+										"name": "Review 1 rating row"
+									},
+									"style": {
+										"spacing": {
+											"blockGap": "var:preset|spacing|20"
+										}
+									},
+									"layout": {
+										"type": "flex",
+										"flexWrap": "wrap",
+										"verticalAlignment": "center",
+										"justifyContent": "center"
+									}
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": {
+											"metadata": {
+												"name": "Review 1 stars"
+											},
+											"style": {
+												"spacing": {
+													"blockGap": "0"
+												}
+											},
+											"layout": {
+												"type": "flex",
+												"flexWrap": "nowrap"
+											}
+										},
+										"children": [
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "star",
+													"size": 24,
+													"metadata": {
+														"name": "Review 1 star 1"
+													}
+												}
+											},
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "star",
+													"size": 24,
+													"metadata": {
+														"name": "Review 1 star 2"
+													}
+												}
+											},
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "star",
+													"size": 24,
+													"metadata": {
+														"name": "Review 1 star 3"
+													}
+												}
+											},
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "star",
+													"size": 24,
+													"metadata": {
+														"name": "Review 1 star 4"
+													}
+												}
+											},
+											{
+												"block": "voyager-open/icon",
+												"attrs": {
+													"icon": "star",
+													"size": 24,
+													"metadata": {
+														"name": "Review 1 star 5"
+													}
+												}
+											}
+										]
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Rated 5 out of 5",
+										"attrs": {
+											"fontSize": "small",
+											"metadata": {
+												"name": "Review 1 rating"
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/quote",
+								"attrs": {
+									"className": "is-style-plain",
+									"textAlign": "center",
+									"fontSize": "large",
+									"metadata": {
+										"name": "Review 1 quote block"
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "A real customer's words go here, as they wrote them, with their permission.",
+										"attrs": {
+											"metadata": {
+												"name": "Review 1 quote"
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/group",
+								"attrs": {
+									"metadata": {
+										"name": "Review 1 byline"
+									},
+									"style": {
+										"spacing": {
+											"blockGap": "var:preset|spacing|20"
+										}
+									},
+									"layout": {
+										"type": "default"
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Customer name",
+										"attrs": {
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											},
+											"metadata": {
+												"name": "Review 1 name"
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "The service, or the month and year",
+										"attrs": {
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											},
+											"fontSize": "small",
+											"metadata": {
+												"name": "Review 1 detail"
+											}
+										}
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

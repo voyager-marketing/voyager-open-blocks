@@ -93,6 +93,11 @@ components:
   tick-list:
     typography: "{typography.body}"
     size: 1.1em
+  star-row:
+    typography: "{typography.label}"
+    size: 24px
+  quote-single:
+    typography: "{typography.title}"
   logo:
     height: 40px
   form-slot:
@@ -133,7 +138,7 @@ The roles come from a role map that turns each role into one of the slugs of the
 
 `primary` in the front matter is the format's required name for `accent`; write `accent`. `panel` is not a role: it is `surface` with 5% of `on-surface` mixed in, so it follows the map.
 
-**Three section styles: Panel, Inverted and Accent.** Each is a block style on the section's `core/group`. `get-catalog` lists them under `styles`, `configure` sets one with its `style` input (`plain` takes it off), and the editor shows them in the group's Styles panel. Plain is no style at all. Each style sets the section's background and text colour, and the colour of the headings, links and fill buttons inside it:
+**Three section styles: Panel, Inverted and Accent.** Each is a block style on the section's `core/group`. `get-catalog` lists them under `styles`, `configure` sets one with its `style` input (`plain` takes it off), and the editor shows them in the group's Styles panel. Plain is no style at all. Each style sets the section's background and text colour, and the colour of the headings, links, quotes and fill buttons inside it:
 
 | Style | Class | Background | Text | Primary button |
 | -- | -- | -- | -- | -- |
@@ -154,17 +159,17 @@ The pack sets no font family, weight or line height. The theme's do. Each type r
 | -- | -- | -- |
 | `display` | `xx-large` | a page's first heading, the hero's `h1`, and only that |
 | `heading` | `x-large`, through the theme's `h2` style | a section heading (`h2`) |
-| `title` | `large`, through the theme's `h3` style | card and form headings (`h3`) |
+| `title` | `large`, through the theme's `h3` style | card and form headings (`h3`), and the one quote of the reviews section's single layout |
 | `body` | the theme's body size | paragraphs, list items, buttons |
 | `label` | `small` | eyebrows and fine print |
 
-Headings and body text carry no `fontSize`: the theme's element styles size them. A pattern sets `fontSize` only to `small` or `xx-large`, and only when the theme defines that slug. Core's own defaults stop at `x-large`.
+Headings and body text carry no `fontSize`: the theme's element styles size them. A pattern sets `fontSize` only to `small` or `xx-large`, and `large` on the single review's quote, and only when the theme defines that slug. Core's own defaults stop at `x-large`.
 
 One heading level per job: one `h1` per page, an `h2` for each section, `h3` inside a section.
 
 ## Layout
 
-Every section is a full-width `core/group` (`tagName: section`, `align: full`, constrained layout), so its background reaches both edges. Text sits at the theme's content width or near it (the closing CTA sets 720px). Rows of items (columns, cards, logos, ticks, the CTA band's row) go `align: wide`. A list of items one under another, such as the services list, stays at content width. Keep body copy short enough to stay under about 75 characters per line wherever it sits: the CTA band's body shares a wide row with its buttons.
+Every section is a full-width `core/group` (`tagName: section`, `align: full`, constrained layout), so its background reaches both edges. Text sits at the theme's content width or near it (the closing CTA sets 720px). Rows of items (columns, cards, logos, ticks, the CTA band's row) go `align: wide`. A list of items one under another, such as the services list, stays at content width, and so does the reviews section's single quote. Keep body copy short enough to stay under about 75 characters per line wherever it sits: the CTA band's body shares a wide row with its buttons.
 
 Spacing uses the theme's spacing presets:
 
@@ -192,8 +197,11 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 ## Components
 
 - **Button** (`core/button`). The fill style for the section's one main action, `is-style-outline` for a second. At most two buttons in a section, and one fill. The label says what happens ("Call us", "Get a quote"), in sentence case, with no arrow. The target is at least 44px tall, which the `impeccable` check measures. Never shrink the theme's padding. Some themes miss the target on their own: Twenty Twenty-Four's button measures 41.5px, listed as that theme's known gap.
-- **Card.** A `core/group` with a 1px border, `50` padding, no fill and no shadow, holding an optional icon, an `h3`, one or two short paragraphs and at most one link or button. Cards in a row sit in `core/columns` at wide width, one card to a column, and share one structure. A card never holds a card. The border sets no colour, so it takes the text colour and follows the section style. The services section's cards are the pack's first.
-- **Icon** (`voyager-open/icon`). A pictogram above a card's heading, or beside the text of a row in a list: one per item, from the pack's set, chosen for what the item is, never for a promise (no `star` for quality). Every icon in a section is the same size (40px in the services section). An icon that sits beside a heading saying the same thing is decorative: no label, no link and no animation, so a screen reader reads the heading. It strokes in the text colour, so it follows the section style too.
+- **Card.** A `core/group` with a 1px border, `50` padding, no fill and no shadow, holding an optional icon, an `h3`, one or two short paragraphs and at most one link or button. A review card holds a star row, a quote, and the customer's name and one detail instead. Cards in a row sit in `core/columns` at wide width, one card to a column, and share one structure. A card never holds a card. The border sets no colour, so it takes the text colour and follows the section style. The services section's cards are the pack's first.
+  - Where a section can hold more cards than one row takes, as the reviews section's up to six, the cards sit in a `core/group` with the grid layout instead: three columns at most, each at least `21rem`, so the row wraps rather than squeeze a card. A theme with large spacing presets, such as Twenty Twenty-Four, whose `50` is about 100px at desktop, gets two cards to a row there.
+- **Icon** (`voyager-open/icon`). A pictogram above a card's heading, or beside the text of a row in a list: one per item, from the pack's set, chosen for what the item is, never for a promise (no `star` for quality: the star appears only in a review's star row). Every icon in a section is the same size (40px in the services section). An icon that sits beside a heading saying the same thing is decorative: no label, no link and no animation, so a screen reader reads the heading. It strokes in the text colour, so it follows the section style too.
+- **Star row.** A review's own rating: five `star` icons in a row with no gap between them, 24px, then the rating in words at `small` ("Rated 5 out of 5"). The stars have no label, so each renders hidden from screen readers, and the words are the row's one accessible name. They say the rating to a sighted reader too, since the outline star cannot show a part star or tell five from none. A lower rating drops the stars above it and says the same number. The rating, like the quote, comes from the site owner, never from the agent.
+- **Quote** (`core/quote`). A customer's words and nothing else, in the theme's Plain quote style, so a theme's quote box (a fill and a radius on Twenty Twenty-Four and Ipsum) never sits inside a card or keeps a colour a section style cannot repaint. The theme still sets its type, and may add a rule or a quotation mark. The name and one detail follow it as paragraphs, outside the quotation, the detail at `small`. The single review's quote is centred at `large`.
 - **Eyebrow.** One short line at `small`, uppercase with 0.08em letter spacing: above the section heading in the CTA band, and as the section's only heading in the logo marquee. At most one per section, and only when it tells the reader something the heading does not.
 - **Tick list.** `core/list` with the Ticks style: a wrapping row that stacks into a column in a narrow container. Three to six items, each one short claim of about 40 characters or fewer, with no full stop. The ticks take the text colour. Every claim comes from the site owner or Site Data, never from the agent.
 - **Logo row.** `core/group` with the Marquee style. Five to ten logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced). The row drifts only when it is wider than the screen, pauses on hover and focus, and stays still when the visitor turns motion off.
