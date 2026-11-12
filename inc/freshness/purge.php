@@ -7,13 +7,16 @@
  *   published pages that show that Site Data field, or a field made from it
  *   (a call button bound to phone_link shows the phone), plus the front page.
  *   A field a template or template part shows sets purge_all, because every
- *   page may show it.
+ *   page may show it. The Site Title and Tagline count too (company, tagline),
+ *   and a daily WP-Cron check refreshes the pages that show the year once
+ *   it changes.
  * - An allowlisted bindable post meta field added, updated or deleted
  *   refreshes that post only, when the post or one of the theme's templates
  *   shows the field.
  *
- * Changes are collected for the whole request and purged on shutdown, so a
- * settings form that saves eleven fields purges once. A purge runs the
+ * Changes are collected for the whole request, by site, and purged on
+ * shutdown on the site they were made on, so a settings form that saves
+ * eleven fields purges once. A purge runs the
  * `voyager_open_blocks_purge_urls` filter, cleans each post's object cache
  * (clean_post_cache(), which some page caches listen to), fires
  * `voyager_open_blocks_purge`, and calls each active adapter from
@@ -61,7 +64,75 @@ const PREFIX = 'voyager_site_';
 const MOST_POSTS = 50;
 
 /**
- * Note a change, or take the changes noted in this request.
+ * Core options that hold a Site Data field: option => key. Site Data reads
+ * them through get_bloginfo( 'name' ) and get_bloginfo( 'description' ),
+ * which return get_option( 'blogname' ) and get_option( 'blogdescription' )
+ * (wp-includes/general-template.php).
+ */
+const CORE_OPTIONS = [
+	'blogname'        => 'company',
+	'blogdescription' => 'tagline',
+];
+
+/** Option: the year the last year check saw, four digits. */
+const YEAR_OPTION = 'voyager_open_blocks_year';
+
+/** WP-Cron event, daily: note `year` when the year has changed. */
+const YEAR_HOOK = 'voyager_open_blocks_year_check';
+
+/**
+ * The changes noted in this request, by the ID of the site current when each
+ * was noted, so a change made under switch_to_blog() is purged on its site.
+ *
+ * @return array<int, array{site_data: array<array-key, true>, post_meta: array<int, array<array-key, true>>}>
+ */
+function &noted(): array {
+	/** @var array<int, array{site_data: array<array-key, true>, post_meta: array<int, array<array-key, true>>}> $noted */
+	static $noted = [];
+
+	return $noted;
+}
+
+/**
+ * Note a change on one site, or take the changes noted on it in this request.
+ *
+ * @param int    $site    Site ID.
+ * @param string $key     A Site Data key, or a post meta key with $post_id. '' notes nothing.
+ * @param int    $post_id The post whose meta changed, 0 for Site Data.
+ * @param bool   $take    Return the changes and forget them.
+ * @return array{site_data: list<string>, post_meta: array<int, list<string>>} Keys sorted, without duplicates. Post meta by post ID.
+ */
+function changes( int $site, string $key = '', int $post_id = 0, bool $take = false ): array {
+	$noted = &noted();
+	$set   = $noted[ $site ] ?? [
+		'site_data' => [],
+		'post_meta' => [],
+	];
+
+	if ( '' !== $key ) {
+		if ( $post_id > 0 ) {
+			$set['post_meta'][ $post_id ][ $key ] = true;
+		} else {
+			$set['site_data'][ $key ] = true;
+		}
+	}
+
+	ksort( $set['post_meta'] );
+
+	if ( $take || ( [] === $set['site_data'] && [] === $set['post_meta'] ) ) {
+		unset( $noted[ $site ] );
+	} else {
+		$noted[ $site ] = $set;
+	}
+
+	return [
+		'site_data' => keys_of( $set['site_data'] ),
+		'post_meta' => array_map( keys_of( ... ), $set['post_meta'] ),
+	];
+}
+
+/**
+ * Note a change on the current site, or take the changes noted on it in this request.
  *
  * @param string $key     A Site Data key, or a post meta key with $post_id. '' notes nothing.
  * @param int    $post_id The post whose meta changed, 0 for Site Data.
@@ -69,31 +140,19 @@ const MOST_POSTS = 50;
  * @return array{site_data: list<string>, post_meta: array<int, list<string>>} Keys sorted, without duplicates. Post meta by post ID.
  */
 function pending( string $key = '', int $post_id = 0, bool $take = false ): array {
-	/** @var array<array-key, true> $site */
-	static $site = [];
-	/** @var array<int, array<array-key, true>> $meta */
-	static $meta = [];
+	return changes( get_current_blog_id(), $key, $post_id, $take );
+}
 
-	if ( '' !== $key ) {
-		if ( $post_id > 0 ) {
-			$meta[ $post_id ][ $key ] = true;
-		} else {
-			$site[ $key ] = true;
-		}
-	}
+/**
+ * The IDs of the sites with changes noted in this request, in order.
+ *
+ * @return list<int>
+ */
+function sites(): array {
+	$ids = array_keys( noted() );
+	sort( $ids );
 
-	ksort( $meta );
-	$out = [
-		'site_data' => keys_of( $site ),
-		'post_meta' => array_map( keys_of( ... ), $meta ),
-	];
-
-	if ( $take ) {
-		$site = [];
-		$meta = [];
-	}
-
-	return $out;
+	return $ids;
 }
 
 /**
@@ -135,7 +194,10 @@ function note( string $key, int $post_id = 0 ): void {
 }
 
 /**
- * added_option, updated_option and deleted_option: note a Site Data field.
+ * added_option, updated_option and deleted_option: note a Site Data field,
+ * from its `voyager_site_*` option or, for the company and the tagline, from
+ * the Site Title and Tagline (CORE_OPTIONS). The copyright line is made from
+ * the company, so the purge's lookup counts it (Usage\site_data_rows()).
  *
  * Core fires updated_option only when the value really changed, so saving a
  * form with the same values notes nothing.
@@ -145,9 +207,80 @@ function note( string $key, int $post_id = 0 ): void {
 function on_option( mixed $option ): void {
 	$option = Cast\to_string( $option );
 
-	if ( str_starts_with( $option, PREFIX ) && strlen( $option ) > strlen( PREFIX ) ) {
+	if ( isset( CORE_OPTIONS[ $option ] ) ) {
+		note( CORE_OPTIONS[ $option ] );
+	} elseif ( str_starts_with( $option, PREFIX ) && strlen( $option ) > strlen( PREFIX ) ) {
 		note( substr( $option, strlen( PREFIX ) ) );
 	}
+}
+
+/**
+ * Note `year` when the year has changed since the last check, once.
+ *
+ * Site Data resolves the year as wp_date( 'Y' ), in the site's time zone, and
+ * stores it nowhere, so no option change marks a new year. This check does,
+ * from a daily WP-Cron event (schedule_year_check()), and stores the year it
+ * saw in YEAR_OPTION. The first check only stores it. `year` refreshes the
+ * pages that show the year or the copyright line, which is made from it.
+ *
+ * @param string|null $now The year now. Defaults to wp_date( 'Y' ).
+ * @return bool Whether it noted `year`.
+ */
+function check_year( ?string $now = null ): bool {
+	$now  = $now ?? Cast\to_string( wp_date( 'Y' ) );
+	$seen = Cast\to_string( get_option( YEAR_OPTION, '' ) );
+
+	if ( '' === $now || $now === $seen ) {
+		return false;
+	}
+
+	update_option( YEAR_OPTION, $now, false );
+
+	if ( '' === $seen ) {
+		return false;
+	}
+
+	note( 'year' );
+
+	return true;
+}
+
+/**
+ * The daily year event. What it notes is purged on shutdown, as any change is.
+ */
+function on_year_event(): void {
+	check_year();
+}
+
+/**
+ * init: schedule the daily year check, and store the year when none is stored.
+ *
+ * Once the event is scheduled, this asks wp_next_scheduled() only. That reads
+ * the cron option, which WordPress saves with autoload on (_set_cron_array()
+ * in wp-includes/cron.php), so a normal request runs no query for the check.
+ * Core schedules its update checks on init the same way
+ * (wp_schedule_update_checks() in wp-includes/update.php).
+ *
+ * The first check runs at 01:00 site time, so it falls soon after midnight,
+ * and the hour keeps a daylight saving change from moving it before midnight.
+ */
+function schedule_year_check(): void {
+	if ( false !== wp_next_scheduled( YEAR_HOOK ) ) {
+		return;
+	}
+
+	wp_schedule_event( ( new \DateTimeImmutable( 'tomorrow 01:00', wp_timezone() ) )->getTimestamp(), 'daily', YEAR_HOOK );
+
+	if ( '' === Cast\to_string( get_option( YEAR_OPTION, '' ) ) ) {
+		update_option( YEAR_OPTION, Cast\to_string( wp_date( 'Y' ) ), false );
+	}
+}
+
+/**
+ * Deactivation: stop the year check.
+ */
+function stop(): void {
+	wp_clear_scheduled_hook( YEAR_HOOK );
 }
 
 /**
@@ -491,16 +624,23 @@ function purge( ?array $plan ): bool {
 }
 
 /**
- * Purge what this request changed, once per reason.
+ * Purge what this request changed, on each site it changed, once per reason
+ * on each.
+ *
+ * A site other than the current one is purged inside switch_to_blog(), so
+ * its index, templates, permalinks, adapters and last purge are its own.
+ * switch_to_blog() moves the database tables, the object cache and the
+ * current site ID (wp-includes/ms-blogs.php); the plugins and hooks loaded
+ * stay this request's.
  *
  * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $lookup What shows some rows, for site_data_plan().
  * @param (callable(int): list<string>)|null                                           $shown  The rows a post shows, for post_meta_plan().
  * @return int Purges run.
  */
 function run( ?callable $lookup = null, ?callable $shown = null ): int {
-	$changes = pending( '', 0, true );
+	$sites = sites();
 
-	if ( [] === $changes['site_data'] && [] === $changes['post_meta'] ) {
+	if ( [] === $sites ) {
 		return 0;
 	}
 
@@ -508,18 +648,59 @@ function run( ?callable $lookup = null, ?callable $shown = null ): int {
 	$ran = 0;
 
 	try {
-		if ( [] !== $changes['site_data'] && purge( site_data_plan( $changes['site_data'], $lookup ) ) ) {
-			++$ran;
-		}
-
-		if ( [] !== $changes['post_meta'] && purge( post_meta_plan( $changes['post_meta'], $shown ) ) ) {
-			++$ran;
+		foreach ( $sites as $site ) {
+			$changes = changes( $site, '', 0, true );
+			$ran    += on_site( $site, static fn (): int => purge_changes( $changes, $lookup, $shown ) );
 		}
 	} finally {
 		running( false );
 	}
 
 	return $ran;
+}
+
+/**
+ * Purge one site's changes, once per reason.
+ *
+ * @param array{site_data: list<string>, post_meta: array<int, list<string>>}                $changes From changes().
+ * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $lookup  What shows some rows, for site_data_plan().
+ * @param (callable(int): list<string>)|null                                           $shown   The rows a post shows, for post_meta_plan().
+ * @return int Purges run.
+ */
+function purge_changes( array $changes, ?callable $lookup, ?callable $shown ): int {
+	$ran = 0;
+
+	if ( [] !== $changes['site_data'] && purge( site_data_plan( $changes['site_data'], $lookup ) ) ) {
+		++$ran;
+	}
+
+	if ( [] !== $changes['post_meta'] && purge( post_meta_plan( $changes['post_meta'], $shown ) ) ) {
+		++$ran;
+	}
+
+	return $ran;
+}
+
+/**
+ * Run a callback with a site current: inside switch_to_blog() when it is not
+ * the current one, which only a multisite network has.
+ *
+ * @param int             $site     Site ID.
+ * @param callable(): int $callback What to run.
+ * @return int What the callback returned.
+ */
+function on_site( int $site, callable $callback ): int {
+	if ( get_current_blog_id() === $site || ! function_exists( 'switch_to_blog' ) ) {
+		return $callback();
+	}
+
+	switch_to_blog( $site );
+
+	try {
+		return $callback();
+	} finally {
+		restore_current_blog();
+	}
 }
 
 /**
@@ -622,3 +803,6 @@ add_action( 'updated_post_meta', __NAMESPACE__ . '\on_meta', 10, 3 );
 add_action( 'deleted_post_meta', __NAMESPACE__ . '\on_meta', 10, 3 );
 add_action( 'shutdown', __NAMESPACE__ . '\on_shutdown', 0 );
 add_action( 'admin_init', __NAMESPACE__ . '\add_section', 9 );
+add_action( 'init', __NAMESPACE__ . '\schedule_year_check' );
+add_action( YEAR_HOOK, __NAMESPACE__ . '\on_year_event' );
+register_deactivation_hook( VOYAGER_OPEN_BLOCKS_FILE, __NAMESPACE__ . '\stop' );
