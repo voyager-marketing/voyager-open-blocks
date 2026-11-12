@@ -260,6 +260,69 @@ test( 'every plugin row is complete, and every --spy plugin names its receivers'
 	assert.equal( PLUGINS[ 'wp-super-cache' ].install.version, '3.1.5' );
 } );
 
+test( 'each installed cache has a setup fixture that reports its version, and each spied cache is heard through its own hooks', () => {
+	const fixtures = join( scripts, '..', 'tests', 'fixtures', 'cache-check' );
+	for ( const [ name, spec ] of Object.entries( PLUGINS ) ) {
+		assert.equal(
+			typeof spec.adapter,
+			'string',
+			`${ name } names no adapter`
+		);
+		if ( spec.consts !== undefined ) {
+			assert.equal( typeof spec.consts, 'object', name );
+		}
+		for ( const file of spec.muPlugins ) {
+			assert.ok(
+				existsSync( join( fixtures, file ) ),
+				`${ name }: ${ file }`
+			);
+		}
+		if ( spec.install ) {
+			// The harness stops unless setup reports `<slug> version`.
+			const setup = join( fixtures, name, 'setup.php' );
+			assert.ok( existsSync( setup ), `${ name } has no setup fixture` );
+			assert.match(
+				readFileSync( setup, 'utf8' ),
+				new RegExp( `'${ spec.install.slug } version'` ),
+				`${ name }'s setup fixture does not report its version`
+			);
+		}
+		for ( const receiver of spec.receivers ) {
+			assert.notEqual( receiver.name, 'voyager_open_blocks_purge', name );
+			if ( receiver.kind === 'hook' ) {
+				// A receiver the harness never hooks is never recorded.
+				assert.ok(
+					spec.hooks[ receiver.name ],
+					`${ name }: ${ receiver.name } is a receiver and not in hooks`
+				);
+			}
+		}
+	}
+
+	for ( const [ name, version ] of [
+		[ 'spinupwp', '1.9.1' ],
+		[ 'nginx-helper', '2.4.1' ],
+		[ 'litespeed-cache', '7.9.3' ],
+	] ) {
+		const spec = PLUGINS[ name ];
+		assert.equal( spec.install.version, version, name );
+		assert.equal( spec.install.slug, name, name );
+		assert.equal( spec.adapter, name, name );
+		assert.equal( parseArgs( [ '--plugin', name, '--spy' ] ).mode, 'spy' );
+		assert.throws(
+			() => parseArgs( [ '--plugin', name, '--real' ] ),
+			/not --real/
+		);
+		// One receiver for a page, one for everything, both the plugin's own.
+		const kinds = spec.receivers.map(
+			( receiver ) =>
+				receiver.kind === 'hook' &&
+				Boolean( spec.hooks[ receiver.name ].all )
+		);
+		assert.deepEqual( kinds.sort(), [ false, true ], name );
+	}
+} );
+
 test( 'the render marker is read from the footer comment, and only from it', () => {
 	assert.equal( renderMarker( page( PHONE_BEFORE, 'a1b2' ).text ), 'a1b2' );
 	assert.equal( renderMarker( page( PHONE_BEFORE, '' ).text ), null );
@@ -531,6 +594,61 @@ test( '--spy: stale when nothing purges, or only the pack action fires, or the U
 		assert.equal( verdict.outcome, 'stale', name );
 		assert.match( verdict.reason, reason, name );
 	}
+} );
+
+test( "--spy: unmeasured, never stale, when the cache's own adapter judges it off", () => {
+	const observed = {
+		url: URL_,
+		receivers,
+		loads: spyLoads,
+		saved: PHONE_AFTER,
+		adapter: 'dummy',
+	};
+	const told = [
+		{ kind: 'hook', name: 'dummy_cache_purge_urls', urls: [ URL_ ] },
+	];
+
+	// Off: a setup fault, whatever was recorded.
+	for ( const records of [ [], told ] ) {
+		const off = spyVerdict( {
+			...observed,
+			records,
+			adapters: [ { id: 'dummy', active: false } ],
+		} );
+		assert.equal( off.outcome, 'unmeasured', off.reason );
+		assert.match( off.reason, /dummy adapter judged the cache off/ );
+	}
+	assert.equal(
+		spyVerdict( {
+			...observed,
+			records: [],
+			adapters: [ { id: 'dummy' } ],
+		} ).outcome,
+		'unmeasured',
+		'an adapter that does not say it is on is off'
+	);
+
+	// Not offered, as before the adapter exists: the plain verdict.
+	for ( const adapters of [
+		[],
+		[ { id: 'wp-super-cache', active: false } ],
+		undefined,
+		null,
+	] ) {
+		const verdict = spyVerdict( { ...observed, records: [], adapters } );
+		assert.equal( verdict.outcome, 'stale', String( adapters ) );
+	}
+
+	// On: the plain verdict.
+	const on = [ { id: 'dummy', active: true } ];
+	assert.equal(
+		spyVerdict( { ...observed, records: told, adapters: on } ).outcome,
+		'fresh'
+	);
+	assert.equal(
+		spyVerdict( { ...observed, records: [], adapters: on } ).outcome,
+		'stale'
+	);
 } );
 
 test( '--spy: unmeasured when the page or the change did not work', () => {
