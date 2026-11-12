@@ -251,13 +251,13 @@ Each active adapter is called once per purge: `purge_all()` when the purge is `p
 
 ### Actions
 
-`voyager_open_blocks_purge`: fired at most once per request for each reason, on `shutdown`, after a Site Data field or an allowlisted bindable post meta field changes and a published page or a template shows it. Listen to it to purge a cache that has no adapter.
+`voyager_open_blocks_purge`: fired at most once per request for each reason on each site, on `shutdown`, after a Site Data field or an allowlisted bindable post meta field changes and a published page or a template shows it. The Site Title and Tagline count as the Site Data fields `company` and `tagline`, and a new year as `year`, from a daily WP-Cron check. On a multisite network, a change made under `switch_to_blog()` is purged on its own site, inside `switch_to_blog()`. Listen to it to purge a cache that has no adapter.
 
 ```php
 do_action( 'voyager_open_blocks_purge', array $urls, array $context );
 ```
 
-- `$urls`: the pages to purge, absolute, after `voyager_open_blocks_purge_urls`. For Site Data, the published posts that show the field, or a field made from it (`phone_link` for `phone`), and the front page. For post meta, that post only.
+- `$urls`: the pages to purge, absolute, after `voyager_open_blocks_purge_urls`. For Site Data, the published posts that show the field, or a field made from it (`phone_link` for `phone`, `copyright` for `company` and `year`), and the front page. For post meta, that post only: a Query Loop or a template that lists other posts with the field is not refreshed when one of those posts changes it.
 - `$context`: `source` (`voyager/site-data` or `voyager/post-meta-text`), `keys` (the keys that changed), `post_ids`, `templates` (the active theme's templates and parts that show a key), `reason` (`site-data` or `post-meta`) and `purge_all` (bool).
 - `purge_all` is true when the URL list cannot be complete: a Site Data field shown in a template or template part, or more than 50 posts to purge, of which the list holds the first 50. An adapter then gets `purge_all()`.
 - Before the action, `clean_post_cache()` runs on each post in `post_ids`, which some page caches listen to. Only published posts of `public` post types are listed; a type registered `public => false, publicly_queryable => true` is not.
@@ -269,7 +269,7 @@ The plugin hooks these:
 
 | Hook | Priority | What runs |
 |---|---|---|
-| `init` | 10 | Registers the icon and facts blocks, the patterns and their category, and the block styles, and starts the usage index's background rebuild when the plugin version changed |
+| `init` | 10 | Registers the icon and facts blocks, the patterns and their category, and the block styles, starts the usage index's background rebuild when the plugin version changed, and schedules the daily year check, `voyager_open_blocks_year_check`, when it is not scheduled |
 | `init` | 15 | Registers the bindable post meta rows from the option |
 | `init` | 20 | Registers both binding sources, their options and the settings screen hooks |
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
@@ -278,7 +278,8 @@ The plugin hooks these:
 | `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the eight abilities |
 | `wp_after_insert_post`, `after_delete_post` | 10 | Indexes the saved post, and the posts that show a changed synced pattern |
 | `switch_theme`, `upgrader_process_complete` | 10 | Indexes the theme's template and template part files |
-| `added_option`, `updated_option`, `deleted_option`, `added_post_meta`, `updated_post_meta`, `deleted_post_meta` | 10 | Notes a Site Data or bindable post meta change for the purge |
+| `voyager_open_blocks_year_check` | 10 | Notes `year` for the purge when the year changed |
+| `added_option`, `updated_option`, `deleted_option`, `added_post_meta`, `updated_post_meta`, `deleted_post_meta` | 10 | Notes a Site Data (Site Title and Tagline included) or bindable post meta change for the purge |
 | `shutdown` | 0 | Runs the purge for the changes the request noted |
 | `cli_init` | 10 | Adds `wp voyager-open-blocks reindex` |
 

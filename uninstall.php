@@ -5,7 +5,8 @@
  * Removes only the plugin's own state: the flag that records Site Data was
  * started, each user's dismissal of the first-run notice, and the usage index
  * (the `_voyager_open_blocks_uses` and `_voyager_open_blocks_refs` post meta,
- * its options and its scheduled events), and the record of the last purge.
+ * its options and its scheduled events), the record of the last purge, and
+ * the year the purge last saw, with its daily check.
  * The index is read from the content, and activation builds it again.
  *
  * Kept on purpose:
@@ -22,7 +23,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 /**
- * Remove the onboarding state, the usage index and the last purge from the current site.
+ * Remove the onboarding state, the usage index, the last purge and the year check from the current site.
  */
 function voyager_open_blocks_uninstall_site(): void {
 	delete_option( 'voyager_open_blocks_site_data_started' );
@@ -34,9 +35,11 @@ function voyager_open_blocks_uninstall_site(): void {
 	delete_option( 'voyager_open_blocks_usage_cursor' );
 	delete_option( 'voyager_open_blocks_usage_queue' );
 	delete_option( 'voyager_open_blocks_last_purge' );
+	delete_option( 'voyager_open_blocks_year' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_backfill' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_theme' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_queue' );
+	wp_clear_scheduled_hook( 'voyager_open_blocks_year_check' );
 
 	// The dismissal is a user option, stored per site under the site's table prefix.
 	$db = $GLOBALS['wpdb'] ?? null;
