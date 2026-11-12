@@ -1,6 +1,6 @@
 ---
 name: voyager-open-services
-description: Insert or customize the services section, which says what a business does, in either of its two layouts. voyager-open/services puts a section heading, an optional line of intro and three cards in a row, each an icon, a heading and one short line. voyager-open/services-list puts the same items in rows at content width, each icon beside its text. Use on a home or services page, with three to six services.
+description: Insert or customize the services section, which says what a business does, in either of its two layouts. voyager-open/services puts a section heading, an optional line of intro and cards three across at most, each an icon, a heading and one short line. voyager-open/services-list puts the same items in rows at content width, each icon beside its text. Use on a home or services page, with three to six services.
 license: GPL-2.0-or-later
 ---
 
@@ -10,7 +10,7 @@ The services section is one section in two layouts. Each layout is its own patte
 
 | Layout | Pattern | What it is |
 |---|---|---|
-| `grid` (the first) | `voyager-open/services` | Cards in a row at wide width, each an icon, a heading and one short line. On a phone the cards stack. |
+| `grid` (the first) | `voyager-open/services` | Cards at wide width, three across at most, each an icon, a heading and one short line. The row wraps where a card would get too narrow, and on a phone the cards stack. |
 | `list` | `voyager-open/services-list` | The same items as rows at content width, each icon beside its heading and line. |
 
 Each intent names its section and layout in its `section` and `layout` keys. The first layout keeps the section's slug; the other is the slug, a hyphen and the layout's name.
@@ -37,14 +37,13 @@ core/group (section, full width, constrained)          "Services"
   core/group (wide, text at content width, left)       "Lead"
     core/heading h2                                    "Heading"
     core/paragraph                                     "Intro"
-  core/columns (wide), voyager-open-reveal             "Cards"
-    core/column                                        "Service 1"
-      core/group (1px border, padding 50)              "Service 1 card"
-        voyager-open/icon  wrench, 40px                "Service 1 icon"
-        core/heading h3                                "Service 1 heading"
-        core/paragraph                                 "Service 1 text"
-    core/column                                        "Service 2"   (home)
-    core/column                                        "Service 3"   (cog)
+  core/group (wide, grid: 3 across, at least 18rem, gap 40), voyager-open-reveal  "Cards"
+    core/group (1px border, padding 40)                "Service 1"
+      voyager-open/icon  wrench, 40px                  "Service 1 icon"
+      core/heading h3                                  "Service 1 heading"
+      core/paragraph                                   "Service 1 text"
+    core/group (card)                                  "Service 2"   (home)
+    core/group (card)                                  "Service 3"   (cog)
 
 voyager-open/services-list (list)
 core/group (section, full width, constrained)          "Services"
@@ -63,7 +62,9 @@ core/group (section, full width, constrained)          "Services"
 
 The intent trees are `patterns/intents/services.json` and `patterns/intents/services-list.json` (`intent` key). The markup is `patterns/services.html` and `patterns/services-list.html`.
 
-Every item has the same structure, and every block in an item carries the item's label: "Service 2" holds "Service 2 card", "Service 2 icon", "Service 2 heading" and "Service 2 text". That is what lets `repeat` copy a whole item (see Abilities). A card is DESIGN.md's Card: a 1px border, `50` padding, no fill and no shadow. No card holds a card. The cards' borders take the text colour, so they follow the section style.
+Every item has the same structure, and every block in an item carries the item's label: "Service 2" holds "Service 2 icon", "Service 2 heading" and "Service 2 text". That is what lets `repeat` copy a whole item (see Abilities). In the grid, an item is a card: DESIGN.md's Card, a 1px border, `40` padding, no fill and no shadow. No card holds a card. The cards' borders take the text colour, so they follow the section style.
+
+The grid puts three cards across at most, each at least `18rem` wide, with one `40` gap between them. Where three would squeeze a heading, the row wraps, and on a phone the cards stack. Keep the gap one value: on WordPress 7.1, a separate row and column gap makes core's grid columns invalid and the cards fall into one column (DESIGN.md, Card).
 
 "Cards" and "Items", the rows that hold the items, carry the class `voyager-open-reveal`: the row fades and lifts into place as it scrolls into view, with motion on only, and shows in place otherwise (DESIGN.md, Motion). Keep the class on the row and off everything else.
 
@@ -80,7 +81,7 @@ Each intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` 
 
 An item added with `repeat` takes the same rules as the one it copies: `Service 4 heading` is a service name, `Service 4 text` one plain line.
 
-No slot is a claim slot, and the shipped copy makes no claim: "Repairs", "Installation" and "Maintenance", each with one plain line about the work. Do not put a price, a rating, a licence, a guarantee or a number of years in a card unless the site owner gave it to you. Those belong in the proof strip, from Site Data. Keep each line short: in a card it wraps at about 30 characters, and two or three lines is plenty.
+No slot is a claim slot, and the shipped copy makes no claim: "Repairs", "Installation" and "Maintenance", each with one plain line about the work. Do not put a price, a rating, a licence, a guarantee or a number of years in a card unless the site owner gave it to you. Those belong in the proof strip, from Site Data. Keep each line short: in a card it wraps at about 25 to 35 characters, and two or three lines is plenty.
 
 ## Choosing icons
 
