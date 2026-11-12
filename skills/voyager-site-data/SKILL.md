@@ -40,15 +40,17 @@ Args are always `{ "key": "<key>" }`. Wesper lists this source under `bindings.s
 | `year` | Current year | Always set | `content` |
 | `copyright` | "© 2026 Company" | Settings > General > Site Title | `content` |
 | `social_facebook`, `social_instagram`, `social_linkedin`, `social_x` | Profile URLs | Settings > Site Data > Facebook URL, Instagram URL, LinkedIn URL, X URL | button `url`, icon `linkUrl` |
-| `services` | One service per line, joined with `\n`: each line trimmed, empty lines dropped | Settings > Site Data > Business profile > Services | `content` |
-| `service_area` | One town or area per line, the same way | Settings > Site Data > Business profile > Service area | `content` |
-| `credentials` | One license, certification or membership per line, the same way | Settings > Site Data > Business profile > Credentials | `content` |
+| `services` | One service per line, joined with `\n`: each line trimmed, empty lines dropped | Settings > Site Data > Business profile > Services | facts `items` |
+| `service_area` | One town or area per line, the same way | Settings > Site Data > Business profile > Service area | facts `items` |
+| `credentials` | One license, certification or membership per line, the same way | Settings > Site Data > Business profile > Credentials | facts `items` |
 | `founded` | Year founded, only when it is four digits, such as `1998` | Settings > Site Data > Business profile > Year founded | `content` |
 | `license` | License number as entered | Settings > Site Data > Business profile > License number | `content` |
 | `rating` | Average rating from 0 to 5 with one decimal, such as `4.8` | Settings > Site Data > Business profile > Rating | `content` |
 | `review_count` | Number of reviews as digits, such as `127` | Settings > Site Data > Business profile > Review count | `content` |
 | `cta_label` | Text of the main call to action | Settings > Site Data > Business profile > Main call to action text | button `text` |
 | `cta_url` | Link of the main call to action | Settings > Site Data > Business profile > Main call to action link | button `url` |
+
+The three lists are one string with a line break between items, and a binding fills an attribute with one string, so a core block shows them run together. Bind them to the `items` of a `voyager-open/facts` block, which shows one list item per line (see `voyager-open-facts`).
 
 When a binding falls back with `reason: "empty_value"`, the "Filled in at" column names the setting to fill. Tell the user that setting, not the key.
 

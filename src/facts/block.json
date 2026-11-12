@@ -1,0 +1,48 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "voyager-open/facts",
+	"version": "0.1.0",
+	"title": "Facts",
+	"category": "text",
+	"icon": "editor-ul",
+	"description": "A list of short facts, one item per line. Bind it to a Site Data list, such as your services, service area or credentials, to show that list.",
+	"keywords": [
+		"list",
+		"facts",
+		"services",
+		"service area",
+		"credentials"
+	],
+	"textdomain": "voyager-open-blocks",
+	"attributes": {
+		"items": {
+			"type": "string",
+			"default": "",
+			"role": "content"
+		}
+	},
+	"supports": {
+		"html": false,
+		"anchor": true,
+		"color": {
+			"text": true,
+			"background": true
+		},
+		"spacing": {
+			"margin": true,
+			"padding": true
+		},
+		"typography": {
+			"fontSize": true,
+			"lineHeight": true
+		}
+	},
+	"example": {
+		"attributes": {
+			"items": "Licensed and insured\nFamily owned\nSame-day service"
+		}
+	},
+	"editorScript": "file:./index.js",
+	"render": "file:./render.php"
+}
