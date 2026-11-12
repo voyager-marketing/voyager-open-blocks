@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use VoyagerOpenBlocks\BlockStyles;
 
@@ -28,6 +29,13 @@ final class MarqueeTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		$GLOBALS['voyager_test_enqueued_styles'] = [];
+		$GLOBALS['voyager_test_context']         = [];
+		$GLOBALS['wp_query']                     = new \stdClass();
+	}
+
+	protected function tearDown(): void {
+		unset( $GLOBALS['wp_query'], $GLOBALS['voyager_test_context'] );
+		parent::tearDown();
 	}
 
 	/**
@@ -239,6 +247,44 @@ final class MarqueeTest extends TestCase {
 		$this->assertIsArray( $top );
 		$this->assertArrayNotHasKey( BlockStyles\MARQUEE_ROW_KEY, $top );
 		$this->assertSame( 'unchanged', BlockStyles\copy_marquee_row( 'unchanged', self::row() ) );
+	}
+
+	/**
+	 * Where blocks render for something other than a page a visitor sees.
+	 *
+	 * @return array<string, array{array<string, true>}>
+	 */
+	public static function not_a_page(): array {
+		return [
+			'a REST response, content.rendered' => [ [ 'rest' => true ] ],
+			'an RSS or Atom feed'               => [ [ 'feed' => true ] ],
+			'an admin request, admin-ajax too'  => [ [ 'admin' => true ] ],
+		];
+	}
+
+	/**
+	 * @param array<string, true> $context voyager_test_context.
+	 */
+	#[DataProvider( 'not_a_page' )]
+	public function test_no_copy_outside_a_page_render( array $context ): void {
+		$GLOBALS['voyager_test_context'] = $context;
+		$html                            = self::render( self::group( 'is-style-voyager-open-marquee', [ self::row( 'logos' ) ] ) );
+
+		$this->assertCount( 1, self::children( $html, 'is-style-voyager-open-marquee' ), $html );
+		$this->assertStringNotContainsString( 'aria-hidden', $html );
+		$this->assertStringNotContainsString( BlockStyles\MARQUEE_COPY_CLASS, $html );
+		$this->assertSame( 3, substr_count( $html, '<img ' ), 'each logo once' );
+	}
+
+	public function test_the_copy_is_made_for_a_page_render(): void {
+		// A page, and a page rendered before the main query exists.
+		foreach ( [ 'a page' => true, 'before the query' => false ] as $label => $query ) {
+			if ( ! $query ) {
+				unset( $GLOBALS['wp_query'] );
+			}
+			$html = self::render( self::group( 'is-style-voyager-open-marquee', [ self::row() ] ) );
+			$this->assertCount( 2, self::children( $html, 'is-style-voyager-open-marquee' ), $label );
+		}
 	}
 
 	public function test_the_marquee_rules_still_everything_with_reduced_motion(): void {

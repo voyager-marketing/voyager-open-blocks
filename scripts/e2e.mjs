@@ -27,7 +27,8 @@
  *      and its placeholder and missing_alt warnings: the logo marquee's six
  *      logos (then published and fetched: its Marquee group holds the logo
  *      row and a copy of it made at render, aria-hidden and inert with no
- *      id, and validate still warns six times), the contact section's form
+ *      id, while its REST content.rendered holds the row once, and validate
+ *      still warns six times), the contact section's form
  *      slot and the image slot of each of
  *      the hero's two layouts (listed by get-catalog with their copy labels;
  *      one placeholder warning, and no other), each
@@ -1238,6 +1239,26 @@ step(
 		marqueeRows.tags.length
 	} rows in the Marquee group: ${ marqueeRows.tags.join( ' ' ) || 'none' }`
 );
+// The same page over REST: content.rendered is read by agents, not seen in a
+// browser, so it holds the logo row once, with no copy.
+const marqueeRest = await api( `/wp/v2/pages/${ marquee.id }`, {
+	query: { context: 'view' },
+} );
+const restRendered = marqueeRest.data.content?.rendered || '';
+const restRows = childTags( restRendered, 'is-style-voyager-open-marquee' );
+step(
+	'the same page over REST: content.rendered holds one logo row in the Marquee group, with the six logos and no copy',
+	marqueeRest.status === 200 &&
+		restRows.tags.length === 1 &&
+		! /\saria-hidden=|\sinert\b|voyager-open-marquee-copy/.test(
+			restRendered
+		) &&
+		( restRendered.match( /<img\b/g ) || [] ).length === 6,
+	`${ marqueeRest.status }; ${
+		restRows.tags.length
+	} rows in the Marquee group: ${ restRows.tags.join( ' ' ) || 'none' }`
+);
+
 const marqueePublishedReport = await checkMarkup( { post_id: marquee.id } );
 const publishedLogoWarnings = codedWarnings(
 	marqueePublishedReport,

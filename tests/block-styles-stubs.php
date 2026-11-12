@@ -9,6 +9,11 @@
  *
  * - WP_Block                       the two properties the Marquee's row filter reads
  * - voyager_test_enqueued_styles   wp_enqueue_style() calls, by handle
+ * - voyager_test_context           where blocks render: ['rest' => true] for a
+ *                                  REST response (wp_is_rest_endpoint()),
+ *                                  ['feed' => true] for a feed (is_feed()),
+ *                                  ['admin' => true] for an admin request
+ *                                  (is_admin()); empty for a page
  *
  * @package VoyagerOpenBlocks
  */
@@ -42,6 +47,35 @@ if ( ! class_exists( 'WP_Block' ) ) {
 				$this->inner_blocks[] = new WP_Block( is_array( $block ) ? $block : [] );
 			}
 		}
+	}
+}
+
+if ( ! function_exists( 'wp_is_rest_endpoint' ) ) {
+	/**
+	 * Whether voyager_test_context says a REST request is being handled.
+	 */
+	function wp_is_rest_endpoint(): bool {
+		return ! empty( $GLOBALS['voyager_test_context']['rest'] );
+	}
+}
+
+if ( ! function_exists( 'is_feed' ) ) {
+	/**
+	 * Whether voyager_test_context says the query is for a feed.
+	 *
+	 * @param string|string[] $feeds Feed types, ignored.
+	 */
+	function is_feed( string|array $feeds = '' ): bool {
+		return ! empty( $GLOBALS['voyager_test_context']['feed'] );
+	}
+}
+
+if ( ! function_exists( 'is_admin' ) ) {
+	/**
+	 * Whether voyager_test_context says the request is for the admin.
+	 */
+	function is_admin(): bool {
+		return ! empty( $GLOBALS['voyager_test_context']['admin'] );
 	}
 }
 
