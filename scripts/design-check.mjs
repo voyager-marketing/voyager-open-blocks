@@ -31,7 +31,11 @@
  *        background, at rest, and links and buttons hovered too, from computed
  *        styles. The background is found by walking up through transparent
  *        ancestors and compositing each translucent layer, and a background
- *        image on that path counts as a failure;
+ *        image on that path counts as a failure. Text in a core/cover that
+ *        shows an image is measured against the cover's overlay at its
+ *        opacity (its dimRatio), composited once over black and once over
+ *        white, the two extremes any image can reach, and the lower ratio
+ *        counts; a gradient overlay counts as a failure;
  *      - overflow: fails when anything in the section reaches past the right
  *        edge of the viewport with no clipping ancestor inside the section.
  *        The page as a whole fails when the document is wider than the
@@ -51,13 +55,17 @@
  *      - motion: fails when an animation or transition is running, or when
  *        any element's box moves between two samples taken apart. Overflow is
  *        measured again, since a reduced-motion rule can change the layout;
- *   4. runs seven controls, each of which must fail its own check or the run
+ *   4. runs eight controls, each of which must fail its own check or the run
  *      fails: the fixture's low-contrast role map, planted through the
- *      voyager_open_blocks_style_roles filter (contrast); a section with an
- *      element wider than 320px (overflow); a CSS animation with no
- *      reduced-motion rule (motion); an h2 followed by an h4 (a11y, on
- *      heading-order); and gradient text, a card inside a card and a 30px tall
- *      button (impeccable, each on its own rule);
+ *      voyager_open_blocks_style_roles filter (contrast); white text on a
+ *      cover with a white overlay at 50% (contrast, measured against the
+ *      overlay over black and over white); a section with an element wider
+ *      than 320px (overflow); a CSS animation with no reduced-motion rule
+ *      (motion); an h2 followed by an h4 (a11y, on heading-order); and
+ *      gradient text, a card inside a card and a 30px tall button
+ *      (impeccable, each on its own rule). One more must pass: white text on
+ *      a cover with a black overlay at 80%, which reads over any image, so
+ *      the cover measurement is seen to read the overlay and not the page;
  *   5. where the fixture asks, opens the page in the block editor as admin and
  *      checks the Styles panel offers Panel, Inverted and Accent and the canvas
  *      paints Inverted as the front end does;
@@ -96,6 +104,29 @@ const CHECKS = [ 'contrast', 'overflow', 'motion', 'a11y', 'impeccable' ];
 const RENDER_CHECKS = [ 'overflow', 'motion', 'a11y', 'impeccable' ];
 /** The rule the impeccable check measures itself: Impeccable 4.8.2 has none for tap targets. */
 const TAP_TARGET = 'tap-target';
+/**
+ * The planted sections contrast measures: two covers over the pack's 16:9
+ * placeholder, each with an overlay of its own and white text. The others
+ * are controls for the other checks, and contrast skips them.
+ */
+const COVER_PLANTS = {
+	cover: {
+		overlay: '#ffffff',
+		dim: 50,
+		text: '#ffffff',
+		label: 'white text on a cover with a white overlay at 50%',
+		words: 'Planted: white text on a white overlay at 50%.',
+	},
+	'cover-readable': {
+		overlay: '#000000',
+		dim: 80,
+		text: '#ffffff',
+		label: 'white text on a cover with a black overlay at 80%',
+		words: 'Control: white text on a black overlay at 80%.',
+	},
+};
+/** What buildPages() swaps for the plugin's assets URL in the planted markup. */
+const ASSETS_MARK = '{{voyager-open-assets}}/';
 const require = createRequire( import.meta.url );
 
 /** Loads the planted role map from an option, so a run can switch it on and off. */
@@ -117,17 +148,44 @@ add_filter(
  * The planted faults, as sections. Test markup only: patterns never use
  * core/html or an inline style, and npm run check's presets gate says so.
  *
+ * The covers are core/cover markup as core saves it (the overlay span, then
+ * the image, then the inner container; Twenty Twenty-Five's patterns hold
+ * the same), over the pack's 16:9 placeholder at the plugin's URL, which
+ * buildPages() puts in for ASSETS_MARK.
+ *
  * @param {number} width How wide the overflow plant's element is, in px.
  * @return {Object<string, string>} Plant name => block markup.
  */
 function plantSections( width ) {
-	const section = ( name, html ) =>
+	const wrap = ( name, inner ) =>
 		`<!-- wp:group {"tagName":"section","className":"${ SECTION_CLASS }plant--${ name }","align":"full","layout":{"type":"constrained"}} -->
-<section class="wp-block-group alignfull ${ SECTION_CLASS }plant--${ name }"><!-- wp:html -->
-${ html }
-<!-- /wp:html --></section>
+<section class="wp-block-group alignfull ${ SECTION_CLASS }plant--${ name }">${ inner }</section>
 <!-- /wp:group -->`;
+	const section = ( name, html ) =>
+		wrap( name, `<!-- wp:html -->\n${ html }\n<!-- /wp:html -->` );
+	const cover = ( name, { overlay, dim, text, words } ) => {
+		const image = `${ ASSETS_MARK }placeholders/image-16x9.svg`;
+		const light = overlay === '#ffffff';
+		return wrap(
+			name,
+			`<!-- wp:cover {"url":"${ image }","dimRatio":${ dim },"customOverlayColor":"${ overlay }","isUserOverlayColor":true,"focalPoint":{"x":0.5,"y":0.5},${
+				light ? '"isDark":false,' : ''
+			}"layout":{"type":"constrained"}} -->
+<div class="wp-block-cover${
+				light ? ' is-light' : ''
+			}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-${ dim } has-background-dim" style="background-color:${ overlay }"></span><img class="wp-block-cover__image-background" alt="" src="${ image }" style="object-position:50% 50%" data-object-fit="cover" data-object-position="50% 50%"/><div class="wp-block-cover__inner-container"><!-- wp:paragraph {"style":{"color":{"text":"${ text }"}}} -->
+<p class="has-text-color" style="color:${ text }">${ words }</p>
+<!-- /wp:paragraph --></div></div>
+<!-- /wp:cover -->`
+		);
+	};
 	return {
+		...Object.fromEntries(
+			Object.entries( COVER_PLANTS ).map( ( [ name, spec ] ) => [
+				name,
+				cover( name, spec ),
+			] )
+		),
 		overflow: section(
 			'overflow',
 			`<div style="width:${ width }px;min-width:${ width }px">Planted: an element ${ width }px wide.</div>`
@@ -164,17 +222,20 @@ contrast (text under 4.5:1 against its background), overflow (the page
 scrolls sideways), motion (anything moves with reduced motion on), a11y
 (axe-core reports a violation) and impeccable (a gated Impeccable rule fires,
 or a tap target is under 44px). Then it measures contrast on each
-colour-bearing style variation the fixture lists. Exits 1 if any check fails
-outside the fixture's known failures and gaps, if a scan did not run, or if
-a planted control does not fail its own check.
+colour-bearing style variation the fixture lists. Text on a cover with an
+image is measured against the overlay over black and over white, and the
+lower ratio counts. Exits 1 if any check fails outside the fixture's known
+failures and gaps, if a scan did not run, if a planted control does not fail
+its own check, or if the readable cover control does not pass.
 
   --checks <list>  Only these checks, such as --checks contrast (what
                    npm run contrast runs). Default
                    contrast,overflow,motion,a11y,impeccable.
   --plant          Put every planted fault in the main run as well: the
-                   low-contrast role map, a section wider than 320px, an
-                   animation with no reduced-motion rule, an h2 followed by
-                   an h4, gradient text, a card inside a card and a 30px tall
+                   low-contrast role map, white text on a cover with a white
+                   overlay at 50%, a section wider than 320px, an animation
+                   with no reduced-motion rule, an h2 followed by an h4,
+                   gradient text, a card inside a card and a 30px tall
                    button. The run must fail.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
                    The render and pair counts are then not checked.
@@ -1099,8 +1160,13 @@ async function visit( tab, url, width, height ) {
 async function contrastRows( tab, scanned, context, sections ) {
 	const rows = [];
 	for ( const entry of scanned ) {
-		// The planted sections are controls for the other checks.
-		if ( ! entry.targets || entry.key.startsWith( 'plant--' ) ) {
+		// The planted sections are controls for the other checks, apart
+		// from the covers.
+		if (
+			! entry.targets ||
+			( entry.key.startsWith( 'plant--' ) &&
+				! Object.hasOwn( COVER_PLANTS, entry.key.slice( 7 ) ) )
+		) {
 			continue;
 		}
 		const where = { ...context, ...sections[ entry.key ] };
@@ -1113,6 +1179,7 @@ async function contrastRows( tab, scanned, context, sections ) {
 				background: target.background,
 				ratio: target.ratio,
 				note: target.note,
+				cover: target.cover,
 			} );
 		}
 		for ( const target of entry.targets.filter( ( t ) => t.hover ) ) {
@@ -1137,6 +1204,7 @@ async function contrastRows( tab, scanned, context, sections ) {
 						background: '?',
 						ratio: null,
 						note: 'the pointer did not produce :hover',
+						cover: null,
 					};
 			rows.push( {
 				...where,
@@ -1470,9 +1538,39 @@ function contrastTable( rows, floor ) {
 				r.ratio === null
 					? `- ${ r.note }`
 					: `${ r.ratio.toFixed( 2 ) }:1`,
-			].join( '  ' )
+				coverNote( r ),
+			]
+				.filter( Boolean )
+				.join( '  ' )
 		)
 		.join( '\n' );
+}
+
+/**
+ * What a contrast row on a cover was measured against.
+ *
+ * @param {Object} row A contrast row.
+ * @return {string} '' for a row on no cover.
+ */
+function coverNote( row ) {
+	const c = row.cover;
+	if ( ! c ) {
+		return '';
+	}
+	const overlay = `cover overlay ${ c.overlay } at ${ Math.round(
+		c.opacity * 100
+	) }%`;
+	const media = {
+		img: 'an image',
+		background: 'a background image',
+		video: 'a video',
+		embed: 'an embedded video',
+	};
+	return c.ratios
+		? `(${ overlay } over ${ media[ c.media ] }: ${ c.black } over black ${ c.ratios[ 0 ].toFixed(
+				2
+			) }:1, ${ c.white } over white ${ c.ratios[ 1 ].toFixed( 2 ) }:1)`
+		: `(${ overlay }, no image)`;
 }
 
 /**
@@ -1579,6 +1677,7 @@ function buildPages( site, fixture, theme, patterns, plants, planted ) {
 			prefix: SECTION_CLASS,
 			plants: Object.values( plants ),
 			planted,
+			assets: ASSETS_MARK,
 		} )
 	);
 	return runPhp(
@@ -1588,6 +1687,8 @@ if ( ! wp_get_theme( $args['theme'] )->exists() ) {
 	return [ 'error' => 'Theme ' . $args['theme'] . ' is not installed.' ];
 }
 switch_theme( $args['theme'] );
+// The planted covers show the pack's placeholder at the plugin's own URL.
+$args['plants'] = str_replace( $args['assets'], plugins_url( 'assets/', VOYAGER_OPEN_BLOCKS_FILE ), $args['plants'] );
 $mark = static function ( array $block, string $class ): array {
 	$block['attrs']['className'] = trim( ( $block['attrs']['className'] ?? '' ) . ' ' . $class );
 	foreach ( [ 'first', 'html' ] as $part ) {
@@ -2204,6 +2305,122 @@ function printAdvisories( advisories ) {
 }
 
 /**
+ * What a planted cover must measure, worked out here from its colours with
+ * the formulas installInPage() uses: the overlay at its dim ratio
+ * composited over black and over white, and the text's ratio on each.
+ *
+ * @param {{overlay: string, dim: number, text: string}} spec From COVER_PLANTS.
+ * @return {{black: string, white: string, ratios: number[], ratio: number}} Both composites as hex, both ratios, and the lower one.
+ */
+function expectedCover( spec ) {
+	const parse = ( value ) =>
+		[ 1, 3, 5 ].map( ( i ) =>
+			Number.parseInt( value.slice( i, i + 2 ), 16 )
+		);
+	const toHex = ( rgb ) =>
+		'#' +
+		rgb
+			.map( ( v ) => Math.round( v ).toString( 16 ).padStart( 2, '0' ) )
+			.join( '' );
+	const luminance = ( rgb ) => {
+		const [ r, g, b ] = rgb.map( ( v ) => {
+			const s = v / 255;
+			return s <= 0.04045 ? s / 12.92 : ( ( s + 0.055 ) / 1.055 ) ** 2.4;
+		} );
+		return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	};
+	const ratio = ( a, b ) => {
+		const [ hi, lo ] = [ luminance( a ), luminance( b ) ].sort(
+			( x, y ) => y - x
+		);
+		return Math.round( ( ( hi + 0.05 ) / ( lo + 0.05 ) ) * 100 ) / 100;
+	};
+	const overlay = parse( spec.overlay );
+	const alpha = spec.dim / 100;
+	const on = ( base ) =>
+		overlay.map( ( v, i ) => v * alpha + base[ i ] * ( 1 - alpha ) );
+	const text = parse( spec.text );
+	const black = on( [ 0, 0, 0 ] );
+	const white = on( [ 255, 255, 255 ] );
+	const ratios = [ ratio( text, black ), ratio( text, white ) ];
+	return {
+		black: toHex( black ),
+		white: toHex( white ),
+		ratios,
+		ratio: Math.min( ...ratios ),
+	};
+}
+
+/**
+ * The cover controls on one theme: each planted cover's text is measured
+ * against its overlay over the pack's 16:9 placeholder, composited over
+ * black and over white, with the lower ratio counted. The white overlay at
+ * 50% must fail. The black overlay at 80% must pass at the ratio worked out
+ * here, which a measurement against the page behind the cover, white on
+ * every theme the fixture lists, could not give.
+ *
+ * @param {Object} ctx   The run, as checkTheme() gets it.
+ * @param {string} theme Theme slug.
+ * @param {string} link  The control page, which holds every plant.
+ */
+async function checkCovers( ctx, theme, link ) {
+	const { tabs, fixture, sections } = ctx;
+	const { floor } = fixture;
+	const { width } = fixture.controls.contrast;
+	const seen = await renderAt(
+		tabs,
+		link,
+		width,
+		Object.keys( COVER_PLANTS ).map( ( name ) => `plant--${ name }` ),
+		{ contrast: true },
+		{ theme, variation: '', width },
+		sections,
+		fixture
+	);
+	group( `Planted covers on ${ theme }` );
+	console.log( contrastTable( seen.contrast, floor ) );
+	endGroup();
+	for ( const [ name, spec ] of Object.entries( COVER_PLANTS ) ) {
+		const want = expectedCover( spec );
+		const failing = want.ratio < floor;
+		const rows = seen.contrast.filter(
+			( r ) => r.pattern === `plant ${ name }`
+		);
+		const right = ( r ) =>
+			r.cover?.media === 'img' &&
+			r.cover.loaded === true &&
+			r.cover.image.endsWith( '/assets/placeholders/image-16x9.svg' ) &&
+			r.cover.black === want.black &&
+			r.cover.white === want.white &&
+			r.ratio !== null &&
+			Math.abs( r.ratio - want.ratio ) <= 0.01 &&
+			fails( r, floor ) === failing;
+		expect(
+			`contrast ${ failing ? 'control' : 'positive control' } on ${ theme }: ${
+				spec.label
+			} ${
+				failing ? 'fails' : `passes at ${ want.ratio }:1`
+			}, measured against the overlay over black (${
+				want.black
+			}) and over white (${ want.white }) on the pack's 16:9 placeholder`,
+			rows.length > 0 && rows.every( right ),
+			rows
+				.map(
+					( r ) =>
+						`${ r.target } ${ r.state } ${
+							r.ratio === null ? r.note : `${ r.ratio }:1`
+						} ${ coverNote( r ) || 'measured on no cover' }${
+							r.cover && r.cover.loaded !== true
+								? `, image ${ r.cover.image || 'none' } did not load`
+								: ''
+						}`
+				)
+				.join( '; ' ) || 'no pair measured'
+		);
+	}
+}
+
+/**
  * Everything on one theme: the pages, every width, the controls, the editor
  * and the style variations. Adds to the run's rows as it goes.
  *
@@ -2435,6 +2652,7 @@ async function checkTheme( ctx, entry ) {
 				.map( ( r ) => `${ r.pattern } ${ r.target } ${ r.ratio }:1` )
 				.join( ', ' ) || `${ rest.length } rows fail`
 		);
+		await checkCovers( ctx, theme, pages.control.link );
 	}
 	for ( const check of [ 'overflow', 'motion' ] ) {
 		if ( ! want[ check ] ) {

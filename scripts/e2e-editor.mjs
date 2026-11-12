@@ -23,7 +23,9 @@
  *      empty, the selected "Click to call" button warns "Not set yet" and links
  *      to Settings > Site Data. With the phone set, the value shows instead.
  *   d. Placeholders: the logo marquee's images get the placeholder hint, and
- *      so do copies whose image URLs point at another host.
+ *      so do copies whose image URLs point at another host. A cover over the
+ *      16:9 image slot placeholder and a media and text block beside the 4:3
+ *      one get it too, and their section counts two images to replace.
  *   e. Paste: each pattern's registered markup, and the icon card from the
  *      demo gallery, through the editor's paste handler: the top-level blocks
  *      match and every block is valid.
@@ -91,6 +93,7 @@ const EDITOR_ONLY = [
 	'Placeholder content',
 	'Still to fill in',
 	'Replace it with your own logo',
+	'Replace it with your own image',
 ];
 
 const HELP = `npm run e2e:editor [-- options]
@@ -966,6 +969,142 @@ async function checkPlaceholders() {
 			seen( summary )
 		);
 	}
+
+	await checkImageSlots(
+		/src="([^"]*\/assets\/)placeholders\//.exec( marquee.content )?.[ 1 ] ||
+			''
+	);
+}
+
+/**
+ * In the editor: a section holding the two image slots, a cover over the
+ * 16:9 placeholder and a media and text block beside the 4:3 one, as the
+ * editor's own blocks serialize them.
+ *
+ * @param {string} assets The plugin's assets URL, ending in a slash.
+ * @return {string} Block markup.
+ */
+function imageSlotsMarkup( assets ) {
+	const { createBlock, serialize } = window.wp.blocks;
+	const focalPoint = { x: 0.5, y: 0.5 };
+	return serialize( [
+		createBlock(
+			'core/group',
+			{
+				tagName: 'section',
+				align: 'full',
+				layout: { type: 'constrained' },
+				metadata: { name: 'Image slots' },
+			},
+			[
+				createBlock(
+					'core/cover',
+					{
+						url: `${ assets }placeholders/image-16x9.svg`,
+						dimRatio: 60,
+						overlayColor: 'contrast',
+						isUserOverlayColor: true,
+						focalPoint,
+						metadata: { name: 'Background' },
+					},
+					[
+						createBlock( 'core/paragraph', {
+							content: 'Text over the background',
+						} ),
+					]
+				),
+				createBlock(
+					'core/media-text',
+					{
+						mediaUrl: `${ assets }placeholders/image-4x3.svg`,
+						mediaType: 'image',
+						mediaAlt: '',
+						imageFill: true,
+						focalPoint,
+						metadata: { name: 'Photo' },
+					},
+					[
+						createBlock( 'core/paragraph', {
+							content: 'Text beside the photo',
+						} ),
+					]
+				),
+			]
+		),
+	] );
+}
+
+/**
+ * The image slots: a cover's background and a media and text block's image
+ * holding one of the pack's placeholders get the placeholder hint, as a
+ * placeholder logo in an image block does.
+ *
+ * @param {string} assets The plugin's assets URL, from the logo marquee.
+ */
+async function checkImageSlots( assets ) {
+	if ( ! assets ) {
+		throw new Error(
+			'The logo marquee holds no image under the plugin assets URL.'
+		);
+	}
+	const markup = await admin.evaluate( js( imageSlotsMarkup, assets ) );
+	const page = await createPage( 'E2E editor: image slots', markup );
+	await openEditor( page.id );
+
+	for ( const [ name, label ] of [
+		[ 'core/cover', 'cover' ],
+		[ 'core/media-text', 'media and text block' ],
+	] ) {
+		const block = await editorBlock( { name } );
+		const hints = await selectAndRead(
+			block.clientId,
+			'Placeholder content'
+		);
+		expect(
+			`d placeholder image in a ${ label }: the inspector says to replace it and set its focal point`,
+			panel( hints, 'Placeholder content' )?.text.includes(
+				'Placeholder. Replace it with your own image, then set its focal point on the subject.'
+			),
+			seen( hints )
+		);
+	}
+
+	const selector = '.voyager-open-hint-placeholder';
+	await admin.waitFor( `${ js( countInCanvas, selector ) } === 2`, {
+		timeout: 10000,
+	} );
+	const marked = await admin.evaluate(
+		js(
+			( css ) =>
+				[
+					...(
+						document.querySelector( 'iframe[name="editor-canvas"]' )
+							?.contentDocument || document
+					).querySelectorAll( css ),
+				].map( ( el ) => el.getAttribute( 'data-type' ) ),
+			selector
+		)
+	);
+	expect(
+		'd placeholder image: the canvas marks the cover and the media and text block',
+		marked.length === 2 &&
+			marked.includes( 'core/cover' ) &&
+			marked.includes( 'core/media-text' ),
+		marked
+	);
+
+	const section = await editorBlock( { metadataName: 'Image slots' } );
+	const summary = await selectAndRead( section.clientId, 'Still to fill in' );
+	expect(
+		'd placeholder image: the selected section counts the images to replace',
+		panel( summary, 'Still to fill in' )?.text.includes(
+			'2 placeholder images to replace'
+		) &&
+			! panel( summary, 'Still to fill in' )?.text.includes(
+				'placeholder logo'
+			),
+		seen( summary )
+	);
 }
 
 async function checkPaste() {

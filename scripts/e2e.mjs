@@ -26,7 +26,9 @@
  *      its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
  *      and its placeholder and missing_alt warnings: the logo marquee's six
  *      logos and the contact section's form slot, each placed with insert on
- *      a draft of its own, and an image with and without alt text,
+ *      a draft of its own, a cover over the 16:9 placeholder at the plugin's
+ *      URL (one placeholder warning, never missing_alt) and over the site's
+ *      own image, and an image with and without alt text,
  *   6. fetches the page and checks the bound values rendered,
  *  6b. on pages of its own, trial runs and undo: insert, configure and bind
  *      return revision_id, undo with it restores the content byte for byte and
@@ -1132,6 +1134,56 @@ step(
 		formWarnings[ 0 ].startsWith( 'placeholder: core/group "Form" at ' ) &&
 		formWarnings[ 0 ].includes( '"Form slot" column' ),
 	warningSummary( contact.report )
+);
+
+// A cover whose background is the pack's 16:9 placeholder at the plugin's
+// own URL. The URL comes from the site: the folder of the first logo as
+// insert saved the marquee, with the file name swapped. A cover's
+// background is decoration, so it never gets missing_alt.
+const marqueeSaved = await api( `/wp/v2/pages/${ placeholderPages[ 0 ] }`, {
+	query: { context: 'edit' },
+} );
+const assetsUrl =
+	( marqueeSaved.data.content?.raw || '' ).match(
+		/src="([^"]*\/assets\/)placeholders\/logo-1\.svg"/
+	)?.[ 1 ] || '';
+const background = `${ assetsUrl }placeholders/image-16x9.svg`;
+const served = assetsUrl ? await request( background ) : null;
+step(
+	'the 16:9 placeholder is served at the plugin URL the patterns insert, as an SVG',
+	served?.status === 200 &&
+		/^image\/svg\+xml\b/.test( served.headers[ 'content-type' ] || '' ) &&
+		served.text.includes( 'viewBox="0 0 1600 900"' ),
+	served
+		? `${ background }: ${ served.status }, ${ served.headers[ 'content-type' ] }`
+		: 'no assets URL in the saved logo marquee'
+);
+const cover = ( url ) =>
+	`<!-- wp:cover {"url":"${ url }","dimRatio":60,"overlayColor":"contrast","isUserOverlayColor":true,"focalPoint":{"x":0.5,"y":0.5},"metadata":{"name":"Background"},"layout":{"type":"constrained"}} -->
+<div class="wp-block-cover"><span aria-hidden="true" class="wp-block-cover__background has-contrast-background-color has-background-dim-60 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${ url }" style="object-position:50% 50%" data-object-fit="cover" data-object-position="50% 50%"/><div class="wp-block-cover__inner-container"><!-- wp:paragraph -->
+<p>Text over the background</p>
+<!-- /wp:paragraph --></div></div>
+<!-- /wp:cover -->`;
+const onPlaceholder = await checkMarkup( { markup: cover( background ) } );
+const coverWarnings = onPlaceholder.data.warnings || [];
+step(
+	'validate warns placeholder once, and nothing else, on a cover whose background is the 16:9 placeholder at the plugin URL, and it stays valid',
+	!! assetsUrl &&
+		clean( onPlaceholder ) &&
+		coverWarnings.length === 1 &&
+		coverWarnings[ 0 ].startsWith(
+			'placeholder: core/cover "Background" at 0 shows the pack\'s placeholder image placeholders/image-16x9.svg as its background.'
+		) &&
+		codedWarnings( onPlaceholder, 'missing_alt' ).length === 0,
+	`${ background }: ${ warningSummary( onPlaceholder ) }`
+);
+const onOwnImage = await checkMarkup( {
+	markup: cover( 'https://example.com/wp-content/uploads/hero.jpg' ),
+} );
+step(
+	"validate warns nothing on the same cover over the site's own image, with its empty alt",
+	clean( onOwnImage ) && ( onOwnImage.data.warnings || [] ).length === 0,
+	warningSummary( onOwnImage )
 );
 
 const photo = ( alt ) =>
