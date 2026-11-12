@@ -1,0 +1,158 @@
+{
+	"title": "Hero",
+	"section": "hero",
+	"layout": "split",
+	"description": "A page's opening section: an eyebrow, the page's heading, one line of copy, a primary button and a click-to-call button bound to voyager/site-data, beside a 4:3 image slot that stacks below the text on a phone.",
+	"categories": [ "voyager-open", "banner" ],
+	"keywords": [ "hero", "banner", "intro", "headline", "image", "phone" ],
+	"viewportWidth": 1280,
+	"copy_rules": {
+		"Eyebrow": {
+			"purpose": "What the business does or where it works, in a few words. Leave it out when the heading says it already.",
+			"min": 2,
+			"max": 40,
+			"required": false,
+			"claim": false
+		},
+		"Heading": {
+			"purpose": "The page's one h1: what the business offers, and for whom or where.",
+			"min": 10,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on what the visitor gets or what happens next.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Primary button": {
+			"purpose": "The page's main action, as what happens when it is pressed, such as Get a quote.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Click to call": {
+			"purpose": "Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": { "name": "Hero" },
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						}
+					},
+					"layout": { "type": "constrained" }
+				},
+				"children": [
+					{
+						"block": "core/columns",
+						"attrs": {
+							"align": "wide",
+							"verticalAlignment": "center",
+							"metadata": { "name": "Columns" },
+							"style": {
+								"spacing": {
+									"blockGap": {
+										"top": "var:preset|spacing|50",
+										"left": "var:preset|spacing|60"
+									}
+								}
+							}
+						},
+						"children": [
+							{
+								"block": "core/column",
+								"attrs": {
+									"verticalAlignment": "center",
+									"metadata": { "name": "Text" },
+									"style": { "spacing": { "blockGap": "var:preset|spacing|40" } }
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": { "metadata": { "name": "Lead" }, "layout": { "type": "default" } },
+										"children": [
+											{
+												"block": "core/paragraph",
+												"text": "Your service and area",
+												"attrs": {
+													"metadata": { "name": "Eyebrow" },
+													"fontSize": "small",
+													"style": { "typography": { "textTransform": "uppercase", "letterSpacing": "0.08em" } }
+												}
+											},
+											{
+												"block": "core/heading",
+												"level": 1,
+												"text": "Say what you do and who it is for",
+												"attrs": { "metadata": { "name": "Heading" }, "fontSize": "xx-large" }
+											},
+											{
+												"block": "core/paragraph",
+												"text": "One line on what a visitor gets from you, and what to do next.",
+												"attrs": { "metadata": { "name": "Body" } }
+											}
+										]
+									},
+									{
+										"block": "core/buttons",
+										"children": [
+											{ "block": "core/button", "text": "Get a quote", "url": "/contact/", "attrs": { "metadata": { "name": "Primary button" } } },
+											{
+												"block": "core/button",
+												"text": "Call us",
+												"url": "/contact/",
+												"attrs": {
+													"className": "is-style-outline",
+													"metadata": {
+														"name": "Click to call",
+														"bindings": {
+															"text": { "source": "voyager/site-data", "args": { "key": "phone" } },
+															"url": { "source": "voyager/site-data", "args": { "key": "phone_link" } }
+														}
+													}
+												}
+											}
+										]
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": { "verticalAlignment": "center", "metadata": { "name": "Image column" } },
+								"children": [
+									{
+										"block": "core/image",
+										"url": "/voyager-open-blocks-assets/placeholders/image-4x3.svg",
+										"alt": "",
+										"attrs": { "aspectRatio": "4/3", "scale": "cover", "metadata": { "name": "Image" } }
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

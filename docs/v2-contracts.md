@@ -150,6 +150,22 @@ A page as an ordered list of sections, for `compose` to build.
   ```
 
 - Two sections next to each other never share a style other than `plain`.
+- **Layouts.** A section can come in more than one layout, such as the hero's image beside the text and text over a background. Each layout is its own intent file in `patterns/intents/` and its own registered pattern:
+  - The section's first layout keeps the section's slug: `patterns/intents/hero.json` is `voyager-open/hero`.
+  - Every other layout is the section's slug, a hyphen and the layout's name: `patterns/intents/hero-cover.json` is `voyager-open/hero-cover`.
+  - Each intent of a section with layouts carries two top-level keys beside `title`: `section`, the section's slug without `voyager-open/`, and `layout`, the layout's name.
+
+    ```json
+    { "title": "Hero", "section": "hero", "layout": "split" }
+    { "title": "Hero over a background", "section": "hero", "layout": "cover" }
+    ```
+
+  - An intent with no `section` key is a section with one layout, as the CTA band, proof strip, logo marquee, closing CTA and contact section are. It has no `layout` key either.
+- How a recipe section finds its layout. `pattern` names the section by its slug, and `layout` picks one of its layouts:
+  - `"pattern": "voyager-open/hero", "layout": "cover"` resolves to the intent whose `section` is `hero` and whose `layout` is `cover`, so the pattern `voyager-open/hero-cover`.
+  - `"layout": null`, or no `layout` key, is the section's first layout, the pattern that keeps the section's slug: `voyager-open/hero`.
+  - A section with one layout takes `"layout": null` only. A `layout` that no intent of the section carries names no pattern, and `compose` refuses it as it refuses an unknown pattern.
+  - `get-catalog` and `compose` read `section` and `layout` from the intent files, so a layout needs no other registration.
 
 ## 6. compose
 

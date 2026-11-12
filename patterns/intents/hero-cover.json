@@ -1,0 +1,152 @@
+{
+	"title": "Hero over a background",
+	"section": "hero",
+	"layout": "cover",
+	"description": "A page's opening section with its text over a background image: an eyebrow, the page's heading, one line of copy, a primary button and a click-to-call button bound to voyager/site-data, on a cover over a 16:9 image slot.",
+	"categories": [ "voyager-open", "banner" ],
+	"keywords": [ "hero", "banner", "cover", "intro", "headline", "background", "image", "phone" ],
+	"viewportWidth": 1280,
+	"copy_rules": {
+		"Eyebrow": {
+			"purpose": "What the business does or where it works, in a few words. Leave it out when the heading says it already.",
+			"min": 2,
+			"max": 40,
+			"required": false,
+			"claim": false
+		},
+		"Heading": {
+			"purpose": "The page's one h1: what the business offers, and for whom or where.",
+			"min": 10,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on what the visitor gets or what happens next.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Primary button": {
+			"purpose": "The page's main action, as what happens when it is pressed, such as Get a quote.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Click to call": {
+			"purpose": "Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": { "name": "Hero" },
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						}
+					},
+					"layout": { "type": "constrained" }
+				},
+				"children": [
+					{
+						"block": "core/cover",
+						"url": "/voyager-open-blocks-assets/placeholders/image-16x9.svg",
+						"alt": "",
+						"attrs": {
+							"align": "wide",
+							"dimRatio": 90,
+							"overlayColor": "contrast",
+							"isUserOverlayColor": true,
+							"focalPoint": { "x": 0.5, "y": 0.5 },
+							"textColor": "base",
+							"metadata": { "name": "Background" },
+							"style": {
+								"spacing": {
+									"padding": {
+										"top": "var:preset|spacing|60",
+										"bottom": "var:preset|spacing|60",
+										"left": "var:preset|spacing|50",
+										"right": "var:preset|spacing|50"
+									},
+									"blockGap": "var:preset|spacing|40"
+								}
+							},
+							"layout": { "type": "constrained" }
+						},
+						"children": [
+							{
+								"block": "core/group",
+								"attrs": { "metadata": { "name": "Lead" }, "layout": { "type": "default" } },
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Your service and area",
+										"attrs": {
+											"metadata": { "name": "Eyebrow" },
+											"fontSize": "small",
+											"style": { "typography": { "textTransform": "uppercase", "letterSpacing": "0.08em" } }
+										}
+									},
+									{
+										"block": "core/heading",
+										"level": 1,
+										"text": "Say what you do and who it is for",
+										"attrs": { "metadata": { "name": "Heading" }, "fontSize": "xx-large", "textColor": "base" }
+									},
+									{
+										"block": "core/paragraph",
+										"text": "One line on what a visitor gets from you, and what to do next.",
+										"attrs": { "metadata": { "name": "Body" } }
+									}
+								]
+							},
+							{
+								"block": "core/buttons",
+								"children": [
+									{
+										"block": "core/button",
+										"text": "Get a quote",
+										"url": "/contact/",
+										"attrs": { "backgroundColor": "base", "textColor": "contrast", "metadata": { "name": "Primary button" } }
+									},
+									{
+										"block": "core/button",
+										"text": "Call us",
+										"url": "/contact/",
+										"attrs": {
+											"className": "is-style-outline",
+											"textColor": "base",
+											"metadata": {
+												"name": "Click to call",
+												"bindings": {
+													"text": { "source": "voyager/site-data", "args": { "key": "phone" } },
+													"url": { "source": "voyager/site-data", "args": { "key": "phone_link" } }
+												}
+											}
+										}
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

@@ -338,10 +338,12 @@ Panel, Inverted and Accent are the section styles; a section with none is Plain.
 
 | Pattern | Also in | Named blocks (`copy` labels in bold) | Bindings |
 |---|---|---|---|
+| `voyager-open/hero` | banner | **Eyebrow**, **Heading**, **Body**, **Primary button**, **Click to call**; the image "Image" is the image slot | Click to call: `text` <- `phone`, `url` <- `phone_link` |
+| `voyager-open/hero-cover` | banner | **Eyebrow**, **Heading**, **Body**, **Primary button**, **Click to call**; the cover "Background" is the image slot | Click to call: `text` <- `phone`, `url` <- `phone_link` |
 | `voyager-open/cta-band` | call-to-action | **Eyebrow**, **Heading**, **Body**, **Primary button**, **Click to call** | Click to call: `text` <- `phone`, `url` <- `phone_link` |
 | `voyager-open/proof-strip` | about | **Credential 1** to **Credential 4** | none |
 | `voyager-open/logo-marquee` | media | **Eyebrow** | none |
 | `voyager-open/closing-cta` | call-to-action | **Heading**, **Body**, **Primary button**, **Email button** | Email button: `url` <- `email_link` |
 | `voyager-open/contact-section` | contact | **Heading**, **Body**, **Phone**, **Email**, **Street address**, **City, state, postal code**, **Hours**, **Click to call**, **Form heading**, **Form body**, **Email button**; the group "Form" is the form slot | Phone `phone`, Email `email`, Street address `address`, City line `address_locality`, Hours `hours` (all `content`); Click to call `url` <- `phone_link`; Email button `url` <- `email_link` |
 
-Every binding above uses `voyager/site-data`. Each pattern's full block tree is its intent in [`patterns/intents/`](../patterns/intents/).
+Every binding above uses `voyager/site-data`. Each pattern's full block tree is its intent in [`patterns/intents/`](../patterns/intents/). `voyager-open/hero` and `voyager-open/hero-cover` are one section, the hero, in two layouts: their intents name it in `section` (`hero`) and each layout in `layout` (`split`, `cover`), and the first layout keeps the section's slug.

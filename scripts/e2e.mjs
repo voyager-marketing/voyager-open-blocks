@@ -25,10 +25,13 @@
  *      saved page and on broken markup, including one case only block-runner catches,
  *      its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
  *      and its placeholder and missing_alt warnings: the logo marquee's six
- *      logos and the contact section's form slot, each placed with insert on
- *      a draft of its own, a cover over the 16:9 placeholder at the plugin's
- *      URL (one placeholder warning, never missing_alt) and over the site's
- *      own image, and an image with and without alt text,
+ *      logos, the contact section's form slot and the image slot of each of
+ *      the hero's two layouts (listed by get-catalog with their copy labels;
+ *      one placeholder warning, and no other), each
+ *      placed with insert on a draft of its own, a cover over the 16:9
+ *      placeholder at the plugin's URL (one placeholder warning, never
+ *      missing_alt) and over the site's own image, and an image with and
+ *      without alt text,
  *   6. fetches the page and checks the bound values rendered,
  *  6b. on pages of its own, trial runs and undo: insert, configure and bind
  *      return revision_id, undo with it restores the content byte for byte and
@@ -1138,6 +1141,49 @@ step(
 		formWarnings[ 0 ].includes( '"Form slot" column' ),
 	warningSummary( contact.report )
 );
+
+// The hero's two layouts, each as insert saves it. Each has one image slot
+// and no other placeholder: the split layout's is a core/image over the 4:3
+// placeholder, the cover layout's is the cover's background over the 16:9
+// one, so validate warns placeholder once and nothing else.
+for ( const [ item, block, file ] of [
+	[ 'voyager-open/hero', 'core/image "Image"', 'image-4x3.svg' ],
+	[ 'voyager-open/hero-cover', 'core/cover "Background"', 'image-16x9.svg' ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } with its copy labels`,
+		JSON.stringify( labels ) ===
+			JSON.stringify( [
+				'Eyebrow',
+				'Heading',
+				'Body',
+				'Primary button',
+				'Click to call',
+			] ),
+		listed ? labels.join( ', ' ) : 'not listed'
+	);
+	const hero = await validateInserted( item );
+	const warnings = hero.report.data.warnings || [];
+	step(
+		`validate warns placeholder once, for its image slot, and nothing else, on a page holding ${ item } as insert saves it`,
+		hero.placed.data.saved === true &&
+			clean( hero.report ) &&
+			warnings.length === 1 &&
+			warnings[ 0 ].startsWith( `placeholder: ${ block } at ` ) &&
+			warnings[ 0 ].includes(
+				`shows the pack's placeholder image placeholders/${ file }`
+			),
+		`${
+			hero.placed.data.code || `saved ${ hero.placed.data.saved }`
+		}; ${ warningSummary( hero.report ) }`
+	);
+}
 
 // A cover whose background is the pack's 16:9 placeholder at the plugin's
 // own URL. The URL comes from the site: the folder of the first logo as
