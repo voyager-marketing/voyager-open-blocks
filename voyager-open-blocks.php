@@ -29,6 +29,7 @@ define( 'VOYAGER_OPEN_BLOCKS_DIR', __DIR__ );
 
 require_once __DIR__ . '/inc/cast.php';
 require_once __DIR__ . '/inc/icons.php';
+require_once __DIR__ . '/inc/facts.php';
 require_once __DIR__ . '/inc/site-data.php';
 require_once __DIR__ . '/inc/post-meta-text.php';
 require_once __DIR__ . '/inc/bindings-editor.php';

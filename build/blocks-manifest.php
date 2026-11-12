@@ -1,6 +1,56 @@
 <?php
 // This file is generated. Do not modify it manually.
 return array(
+	'facts' => array(
+		'$schema' => 'https://schemas.wp.org/trunk/block.json',
+		'apiVersion' => 3,
+		'name' => 'voyager-open/facts',
+		'version' => '0.1.0',
+		'title' => 'Facts',
+		'category' => 'text',
+		'icon' => 'editor-ul',
+		'description' => 'A list of short facts, one item per line. Bind it to a Site Data list, such as your services, service area or credentials, to show that list.',
+		'keywords' => array(
+			'list',
+			'facts',
+			'services',
+			'service area',
+			'credentials'
+		),
+		'textdomain' => 'voyager-open-blocks',
+		'attributes' => array(
+			'items' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			)
+		),
+		'supports' => array(
+			'html' => false,
+			'anchor' => true,
+			'color' => array(
+				'text' => true,
+				'background' => true
+			),
+			'spacing' => array(
+				'margin' => true,
+				'padding' => true
+			),
+			'typography' => array(
+				'fontSize' => true,
+				'lineHeight' => true
+			)
+		),
+		'example' => array(
+			'attributes' => array(
+				'items' => 'Licensed and insured
+Family owned
+Same-day service'
+			)
+		),
+		'editorScript' => 'file:./index.js',
+		'render' => 'file:./render.php'
+	),
 	'icon' => array(
 		'$schema' => 'https://schemas.wp.org/trunk/block.json',
 		'apiVersion' => 3,

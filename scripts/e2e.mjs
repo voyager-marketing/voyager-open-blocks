@@ -54,6 +54,13 @@
  *      a template part with the phone sets purge_all; and bindable post meta
  *      changed on page D refreshes page D alone. Then it deletes what it
  *      created and puts the phone back.
+ *  13. the facts block, a list field on a page: insert puts voyager-open/facts
+ *      in a draft, bind ties its items to the services list, the services are
+ *      set to three lines and the page is published, and the page shows one
+ *      facts ul with those three li, in order. The page then counts in
+ *      used_on for the services, emptying them records a purge with the page,
+ *      and the page shows the block's own items. Then it deletes the page and
+ *      puts the services back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -2239,6 +2246,158 @@ for ( const path of purgeCleanup ) {
 }
 if ( typeof originalPhone === 'string' ) {
 	await setPhone( originalPhone );
+}
+await api( recorder, { method: 'DELETE' } );
+
+// 13. The facts block, a list field on a page. insert puts voyager-open/facts
+// in a draft with items of its own, bind ties items to the services list,
+// and once the services are set and the page is published it shows one ul
+// with one li per line, in order. The published page counts in used_on for
+// the services, emptying them records a purge with the page, and the page
+// then shows the block's own items again.
+const factsItem = 'voyager-open/facts';
+const factsUse = 'voyager/site-data:services';
+const factsType = ( catalog.data.blocks || [] ).find(
+	( b ) => b.name === factsItem
+);
+step(
+	'get-catalog lists voyager-open/facts with items among its bindable attributes',
+	!! factsType && ( factsType.bindable || [] ).includes( 'items' ),
+	factsType
+		? `bindable ${ JSON.stringify( factsType.bindable ) }`
+		: 'not in blocks'
+);
+const servicesField = ( siteData?.fields || [] ).find(
+	( f ) => f.args?.key === 'services'
+);
+const setServices = ( value ) =>
+	api( '/wp/v2/settings', {
+		method: 'POST',
+		body: { voyager_site_services: value },
+	} );
+const originalServices = ( await api( '/wp/v2/settings' ) ).data
+	.voyager_site_services;
+const factsLists = ( pageHtml ) =>
+	[
+		...pageHtml.matchAll(
+			/<ul\b[^>]*\bclass="[^"]*\bwp-block-voyager-open-facts\b[^"]*"[^>]*>([\s\S]*?)<\/ul>/g
+		),
+	].map( ( ul ) =>
+		[ ...ul[ 1 ].matchAll( /<li\b[^>]*>([\s\S]*?)<\/li>/g ) ].map( ( li ) =>
+			li[ 1 ].trim()
+		)
+	);
+const factsDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: { title: `E2E facts ${ stamp }`, status: 'draft', content: '' },
+} );
+const factsId = factsDraft.data.id;
+const factsInsert = await run( `${ ns }/insert`, {
+	post_id: factsId,
+	item: factsItem,
+	attributes: { items: 'Own item one\nOwn item two' },
+} );
+const factsPath = factsInsert.data.blocks?.[ 0 ]?.path;
+step(
+	'insert voyager-open/facts into a draft',
+	factsDraft.status === 201 &&
+		factsInsert.status === 200 &&
+		factsInsert.data.saved === true &&
+		factsInsert.data.blocks?.[ 0 ]?.block === factsItem,
+	factsInsert.data.message || factsInsert.data.code || `path ${ factsPath }`
+);
+const factsBound = await run( `${ ns }/bind`, {
+	post_id: factsId,
+	path: factsPath,
+	attribute: 'items',
+	source: 'voyager/site-data',
+	args: servicesField?.args,
+} );
+step(
+	'bind facts items to site-data services (args copied from the catalog)',
+	factsBound.status === 200 &&
+		factsBound.data.attributes?.metadata?.bindings?.items?.source ===
+			'voyager/site-data' &&
+		factsBound.data.attributes?.metadata?.bindings?.items?.args?.key ===
+			'services',
+	factsBound.data.code ||
+		JSON.stringify( factsBound.data.attributes?.metadata?.bindings )
+);
+validate( 'facts after bind', factsBound.data.markup || '' );
+
+const factsUsedBefore = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ factsUse ];
+const threeServices = await setServices(
+	'Drain cleaning\r\nHeating & cooling\r\nLeak detection'
+);
+const factsPublished = await api( `/wp/v2/pages/${ factsId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const factsLink = factsPublished.data.link;
+const shownBound = factsLink
+	? factsLists( ( await request( factsLink ) ).text )
+	: [];
+step(
+	'fitness: bound to services set to three lines, the published page shows one facts ul with those three li, in order',
+	threeServices.status === 200 &&
+		factsPublished.status === 200 &&
+		shownBound.length === 1 &&
+		JSON.stringify( shownBound[ 0 ] ) ===
+			JSON.stringify( [
+				'Drain cleaning',
+				'Heating &amp; cooling',
+				'Leak detection',
+			] ),
+	`${ threeServices.data.code || threeServices.status }; ${ JSON.stringify(
+		shownBound
+	) }`
+);
+
+const factsUsedAfter = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ factsUse ];
+step(
+	'get-catalog used_on for services counts the published facts page',
+	Number.isInteger( factsUsedBefore?.posts ) &&
+		factsUsedAfter?.posts === factsUsedBefore.posts + 1,
+	`before ${ JSON.stringify( factsUsedBefore ) }, after ${ JSON.stringify(
+		factsUsedAfter
+	) }`
+);
+
+const factsPurge = await purgesDuring( () => setServices( '' ) );
+step(
+	'emptying the services records one purge, for the services, with the facts page',
+	factsPurge.changed.status === 200 &&
+		factsPurge.records.length === 1 &&
+		sameList( factsPurge.records[ 0 ].context?.keys || [], [
+			'services',
+		] ) &&
+		( factsPurge.records[ 0 ].urls || [] ).includes( factsLink ) &&
+		( factsPurge.records[ 0 ].context?.post_ids || [] ).includes( factsId ),
+	described( factsPurge.records )
+);
+const shownOwn = factsLink
+	? factsLists( ( await request( factsLink ) ).text )
+	: [];
+step(
+	'with the services empty, the facts block shows its own items',
+	shownOwn.length === 1 &&
+		JSON.stringify( shownOwn[ 0 ] ) ===
+			JSON.stringify( [ 'Own item one', 'Own item two' ] ),
+	JSON.stringify( shownOwn )
+);
+
+if ( factsId ) {
+	await api( `/wp/v2/pages/${ factsId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+if ( typeof originalServices === 'string' ) {
+	await setServices( originalServices );
 }
 await api( recorder, { method: 'DELETE' } );
 
