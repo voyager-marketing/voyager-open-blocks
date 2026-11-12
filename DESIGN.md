@@ -204,7 +204,11 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 - **Quote** (`core/quote`). A customer's words and nothing else, in the theme's Plain quote style, so a theme's quote box (a fill and a radius on Twenty Twenty-Four and Ipsum) never sits inside a card or keeps a colour a section style cannot repaint. The theme still sets its type, and may add a rule or a quotation mark. The name and one detail follow it as paragraphs, outside the quotation, the detail at `small`. The single review's quote is centred at `large`.
 - **Eyebrow.** One short line at `small`, uppercase with 0.08em letter spacing: above the section heading in the CTA band, and as the section's only heading in the logo marquee. At most one per section, and only when it tells the reader something the heading does not.
 - **Tick list.** `core/list` with the Ticks style: a wrapping row that stacks into a column in a narrow container. Three to six items, each one short claim of about 40 characters or fewer, with no full stop. The ticks take the text colour. Every claim comes from the site owner or Site Data, never from the agent.
-- **Logo row.** `core/group` with the Marquee style. Five to ten logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced). The row drifts only when it is wider than the screen, pauses on hover and focus, and stays still when the visitor turns motion off.
+- **Logo row.** `core/group` with the Marquee style. Five to ten logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced).
+  - When the row is wider than the section, it loops left at a steady linear speed with no visible join. At render the row is followed by a copy of itself, hidden from screen readers (`aria-hidden="true"`) and `inert`, with any `id` dropped, and the copy starts one gap after the row's last logo. Both move left by one row's width, then start again where the copy has taken the row's place. A right-to-left page loops right.
+  - A row that fits the section stays still, and its copy is clipped away. CSS tells the two apart with no script: in the row's transform, `clamp(0px, (100% - 100cqw) * 10000000, 100%)` is the row's width when it is wider than the marquee and 0 when it fits.
+  - The stored page holds each logo once, so an editor edits one row and `validate` reports each placeholder logo once.
+  - It pauses on hover and focus. With motion off, the copy is not displayed and the row wraps and stays still.
 - **Form slot.** The contact section's second column: a `core/group` with a 1px border and `50` padding that holds an `h3`, one line of copy and an email button until a form plugin's block replaces it. The form plugin owns the fields. Choose one that shows a visible label on every field.
 - **Image slot.** Where a section shows a photo, beside its text or behind it.
   - Beside text: a `core/image` with `aspectRatio` set (`4/3` unless the section needs another) and `scale: cover`, or a `core/media-text` with `imageFill` and a `focalPoint`.
@@ -213,6 +217,15 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
   - Every slot is named in `metadata.name` and ships the pack's placeholder with empty alt text: `assets/placeholders/image-4x3.svg` beside text, `image-16x9.svg` behind it. `validate` warns `placeholder:` on each one still in place.
   - A replaced image needs alt text that says what it shows, except a cover's background, which is decoration.
   - Whoever replaces the image, an agent or a person, sets the focal point on its subject, so the crop keeps the subject in view at every width. Each section's skill says so again.
+
+## Motion
+
+Motion is a section's one bold move, never decoration, and no content depends on it to be seen. There are two: the logo row's loop (Logo row, under Components) and the reveal. Both are CSS alone, with no script, and with motion off nothing moves.
+
+- **Reveal** (the `voyager-open-reveal` class). A block fades in and lifts 2rem into place as it enters the viewport: from no opacity to its own, over the first 20vh the page scrolls once the block's top edge is on screen (`animation-timeline: view()`, `animation-range: entry 0% entry 20vh`).
+  - **Where it goes:** the card row of each services layout (the cards' `core/columns`, and the list's group of rows) and the reviews grid's group of cards. One per section, on the row, never on each card. Nothing above the fold: never the hero, and not the CTA bands, the closing CTA or the contact section.
+  - **No content depends on it.** Outside its range the block shows as it is, with no fill before or after, so a block below the first screen is at full opacity in a full-page capture, which does not scroll. A second animation, on the page's own scroll and added on top, holds every revealed block at full opacity at the top of the page and hands over to the reveal over the same first 20vh, so a block half on the first screen never shows faded at rest at the top, and nothing on screen fades as the visitor starts to scroll.
+  - Only with motion on (`@media (prefers-reduced-motion: no-preference)`) in a browser with view timelines and `animation-composition` (`@supports`). Anywhere else the block shows in place with no animation. The stylesheet loads only on a page that renders a block with the class.
 
 ## Do's and Don'ts
 
@@ -225,7 +238,7 @@ Each rule names the check that enforces it, or says judge only. `lint` and `pres
 | `overflow` | a render scrolls sideways |
 | `a11y` | axe-core reports a violation in a rendered section: the WCAG 2.0 and 2.1 A and AA rules, and `heading-order` |
 | `impeccable` | Impeccable reports line length, gradient text, nested cards or grey text on colour in a rendered section, or a tap target in it is under 44px |
-| `motion` | anything moves in a reduced-motion render |
+| `motion` | anything moves in a reduced-motion render, the logo loop and the reveal included: an animation or transition is running in a section, or a box in it moves between two samples 400ms apart. With motion on, the run checks it sees the logo marquee and the revealed rows of the services and reviews sections animate in every style, so a still render with motion off is their reduced-motion rule at work |
 | `presets` | pattern markup sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug outside `20` to `60`, or uses `core/html` or HTML outside a block |
 | `rhythm` | a recipe or a composed page breaks the Layout rule on adjacent styles |
 | `validate` | the `validate` ability reports an image with no alt text or a placeholder left in place |

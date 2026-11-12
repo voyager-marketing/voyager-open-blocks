@@ -1,17 +1,24 @@
 <?php
 /**
- * Block styles the patterns use, registered in PHP so theme.json can style them.
+ * Block styles the patterns use, registered in PHP so theme.json can style them,
+ * and the scroll reveal a few of the patterns' rows carry.
  *
  * - core/list and voyager-open/facts "Ticks": a wrapping row of checkmarked
  *   items (proof strip). In a flex group, the group becomes a size
  *   container, and the ticks stack as a column when it is narrower than
  *   32em. A section can swap a Ticks core/list for a Ticks facts block and
  *   look the same.
- * - core/group "Marquee": its first inner group drifts sideways when it is
- *   wider than the screen. Still under reduced motion, and paused on hover
- *   and focus.
+ * - core/group "Marquee": its logo row loops sideways at a steady speed when
+ *   it is wider than the marquee. At render the row is followed by a copy of
+ *   itself, hidden from screen readers and inert, so the loop has no visible
+ *   join; the stored page holds each logo once. Still under reduced motion,
+ *   and paused on hover and focus.
+ * - The `voyager-open-reveal` class: a block fades and lifts into place as it
+ *   enters the viewport, in CSS alone, and only with motion on in a browser
+ *   with scroll-driven animations. Its stylesheet loads only on a page that
+ *   renders a block carrying the class.
  *
- * Colours come from currentColor, so both follow the theme.
+ * Colours come from currentColor, so both styles follow the theme.
  *
  * @package VoyagerOpenBlocks
  */
@@ -23,6 +30,32 @@ namespace VoyagerOpenBlocks\BlockStyles;
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+/**
+ * The class the Marquee style puts on its core/group.
+ */
+const MARQUEE_CLASS = 'is-style-voyager-open-marquee';
+
+/**
+ * The class on the copy of a Marquee group's logo row.
+ */
+const MARQUEE_COPY_CLASS = 'voyager-open-marquee-copy';
+
+/**
+ * The key mark_marquee_row() puts on the parsed block of a Marquee group's
+ * logo row, for copy_marquee_row() to find.
+ */
+const MARQUEE_ROW_KEY = 'voyager_open_marquee_row';
+
+/**
+ * The class that gives a block the scroll reveal.
+ */
+const REVEAL_CLASS = 'voyager-open-reveal';
+
+/**
+ * The handle of the reveal's stylesheet: inline CSS with no file.
+ */
+const REVEAL_HANDLE = 'voyager-open-reveal';
 
 /**
  * The Ticks rules for one list block.
@@ -48,6 +81,164 @@ function ticks_css( string $list ): string {
 }
 
 /**
+ * The Marquee rules.
+ *
+ * The marquee lays its row and the row's copy side by side, and each row ends
+ * in an empty ::after, which the row's flex gap puts one gap before, so the
+ * copy starts one gap after the row's last logo. Both rows move left by their
+ * own width, linearly, then start again, where the copy has taken the row's
+ * place: the loop has no visible join.
+ *
+ * How far a row moves is clamp(0px, (100% - 100cqw) * 10000000, 100%): in a
+ * transform, 100% is the row's own width and 100cqw the marquee's, so it is
+ * the row's width when the row is wider than the marquee and 0 when it fits.
+ * The copy's clip-path uses the same sum the other way round, so a row that
+ * fits stays still and its copy is clipped away. In a right-to-left page the
+ * rows move right instead.
+ *
+ * With reduced motion the copy is not displayed, and the row wraps and stays
+ * still.
+ */
+function marquee_css(): string {
+	$group = '.wp-block-group.' . MARQUEE_CLASS;
+	$rows  = $group . '>.wp-block-group';
+	$copy  = $group . '>.' . MARQUEE_COPY_CLASS;
+
+	return $group . '{display:flex;overflow:hidden;container-type:inline-size}'
+		. $rows . '{flex:none;flex-wrap:nowrap;width:max-content;margin-block:0;animation:voyager-open-marquee var(--voyager-open-marquee-duration,24s) linear infinite}'
+		. $rows . '::after{content:""}'
+		. $copy . '{clip-path:inset(0 0 0 clamp(0px,(100cqw - 100%) * 10000000,100%))}'
+		. $group . ':hover>.wp-block-group,' . $group . ':focus-within>.wp-block-group{animation-play-state:paused}'
+		. $group . ':dir(rtl)>.wp-block-group{--voyager-open-marquee-way:1}'
+		. '@keyframes voyager-open-marquee{from{transform:translateX(0)}to{transform:translateX(calc(var(--voyager-open-marquee-way,-1) * clamp(0px,(100% - 100cqw) * 10000000,100%)))}}'
+		. '@media (prefers-reduced-motion:reduce){' . $group . '{display:block}'
+		. $rows . '{animation:none;flex-wrap:wrap;width:auto}'
+		. $rows . '::after{content:none}'
+		. $copy . '{display:none}}';
+}
+
+/**
+ * The reveal rules.
+ *
+ * Two animations, both bound to scroll, inside
+ * `@media (prefers-reduced-motion: no-preference)` and an `@supports` for
+ * view() and animation-composition, so a visitor with motion off, or a
+ * browser without them, sees the block in place:
+ *
+ * - voyager-open-reveal, on the block's view() timeline over
+ *   `entry 0% entry 20vh`: from no opacity and 2rem down to the block's own
+ *   style, over the first 20vh the page scrolls once the block's top edge
+ *   enters the viewport. Its fill mode is none, so outside that range the
+ *   block shows as it is: a block below the first screen is at full opacity
+ *   in a full-page capture, which does not scroll.
+ * - voyager-open-reveal-hold, on the scroller's own scroll() timeline over
+ *   its first 20vh, added on top: opacity 1 at the top of the page, falling
+ *   to 0 by 20vh. A block that is half on the first screen when the page
+ *   loads is held at full opacity, so it never shows faded at rest at the
+ *   top of the page, and the two ranges are the same length, so it never
+ *   fades as the visitor starts to scroll either: opacity is clamped to 1.
+ */
+function reveal_css(): string {
+	return '@media (prefers-reduced-motion:no-preference){@supports (animation-timeline:view()) and (animation-composition:add){'
+		. '.' . REVEAL_CLASS . '{animation:voyager-open-reveal 1ms linear,voyager-open-reveal-hold 1ms linear both;animation-timeline:view(),scroll();animation-range:entry 0% entry 20vh,0 20vh;animation-composition:replace,add}'
+		. '}}'
+		. '@keyframes voyager-open-reveal{from{opacity:0;translate:0 2rem}}'
+		. '@keyframes voyager-open-reveal-hold{from{opacity:1}to{opacity:0}}';
+}
+
+/**
+ * Whether a parsed block's className holds a class, as a whole word.
+ *
+ * @param mixed  $block      A parsed block.
+ * @param string $class_name The class.
+ */
+function has_class( mixed $block, string $class_name ): bool {
+	$classes = is_array( $block ) && is_array( $block['attrs'] ?? null ) ? ( $block['attrs']['className'] ?? '' ) : '';
+
+	return is_string( $classes ) && in_array( $class_name, preg_split( '/\s+/', $classes, -1, PREG_SPLIT_NO_EMPTY ) ?: [], true );
+}
+
+/**
+ * Mark a Marquee group's logo row as it renders: the first inner block of a
+ * group whose className holds the Marquee class, when it is a core/group.
+ *
+ * The Marquee group is found by its class, never by its name, which an
+ * editor can change. WP_Block::render() applies render_block_data to each
+ * inner block with the block it sits in (wp-includes/class-wp-block.php),
+ * and its render_block filter then receives the parsed block this returns.
+ * The first inner block is the one whose parsed block is the source block:
+ * by the time a later inner block renders, the first has been marked.
+ *
+ * @param mixed $parsed_block The block about to render.
+ * @param mixed $source_block The block as parsed, before any filter.
+ * @param mixed $parent_block The WP_Block it sits in, or null at the top.
+ * @return mixed The block, with MARQUEE_ROW_KEY set when it is the row.
+ */
+function mark_marquee_row( mixed $parsed_block, mixed $source_block = null, mixed $parent_block = null ): mixed {
+	if ( ! is_array( $parsed_block )
+		|| 'core/group' !== ( $parsed_block['blockName'] ?? null )
+		|| ! $parent_block instanceof \WP_Block
+		|| ! has_class( $parent_block->parsed_block, MARQUEE_CLASS ) ) {
+		return $parsed_block;
+	}
+
+	$first = $parent_block->inner_blocks[0] ?? null;
+	if ( ! $first instanceof \WP_Block || $first->parsed_block !== $source_block ) {
+		return $parsed_block;
+	}
+
+	$parsed_block[ MARQUEE_ROW_KEY ] = true;
+	return $parsed_block;
+}
+
+/**
+ * Follow a marked logo row with a copy of itself, made from the row as it
+ * rendered. The copy is hidden from screen readers (aria-hidden), cannot be
+ * focused or clicked (inert), carries MARQUEE_COPY_CLASS, and holds no id,
+ * so no id appears twice on the page.
+ *
+ * @param mixed $block_content The row's HTML.
+ * @param mixed $block         The row's parsed block.
+ * @return mixed The HTML, followed by the copy when the row is marked.
+ */
+function copy_marquee_row( mixed $block_content, mixed $block ): mixed {
+	if ( ! is_string( $block_content ) || ! is_array( $block ) || true !== ( $block[ MARQUEE_ROW_KEY ] ?? null ) ) {
+		return $block_content;
+	}
+
+	$copy = new \WP_HTML_Tag_Processor( $block_content );
+	if ( ! $copy->next_tag() ) {
+		return $block_content;
+	}
+	$copy->add_class( MARQUEE_COPY_CLASS );
+	$copy->set_attribute( 'aria-hidden', 'true' );
+	$copy->set_attribute( 'inert', true );
+	do {
+		$copy->remove_attribute( 'id' );
+	} while ( $copy->next_tag() );
+
+	return $block_content . $copy->get_updated_html();
+}
+
+/**
+ * Load the reveal's stylesheet when a block carrying the class renders.
+ *
+ * A block theme renders its template before wp_head(), so the styles print
+ * in the head; a classic theme renders the content after it, so they print
+ * in the footer (print_late_styles()).
+ *
+ * @param mixed $block_content The block's HTML, passed through.
+ * @param mixed $block         The parsed block.
+ * @return mixed The HTML, unchanged.
+ */
+function enqueue_reveal( mixed $block_content, mixed $block ): mixed {
+	if ( has_class( $block, REVEAL_CLASS ) ) {
+		wp_enqueue_style( REVEAL_HANDLE );
+	}
+	return $block_content;
+}
+
+/**
  * Register the styles.
  */
 function register(): void {
@@ -67,12 +258,21 @@ function register(): void {
 		[
 			'name'         => 'voyager-open-marquee',
 			'label'        => __( 'Marquee', 'voyager-open-blocks' ),
-			'inline_style' => '.wp-block-group.is-style-voyager-open-marquee{overflow:hidden;container-type:inline-size}'
-				. '.wp-block-group.is-style-voyager-open-marquee>.wp-block-group{flex-wrap:nowrap;width:max-content;animation:voyager-open-marquee var(--voyager-open-marquee-duration,24s) ease-in-out infinite alternate}'
-				. '.wp-block-group.is-style-voyager-open-marquee:hover>.wp-block-group,.wp-block-group.is-style-voyager-open-marquee:focus-within>.wp-block-group{animation-play-state:paused}'
-				. '@keyframes voyager-open-marquee{from{transform:translateX(0)}to{transform:translateX(min(0px,calc(100cqw - 100%)))}}'
-				. '@media (prefers-reduced-motion:reduce){.wp-block-group.is-style-voyager-open-marquee>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}}',
+			'inline_style' => marquee_css(),
 		]
 	);
 }
 add_action( 'init', __NAMESPACE__ . '\register' );
+
+/**
+ * Register the reveal's stylesheet, which enqueue_reveal() loads.
+ */
+function register_reveal(): void {
+	wp_register_style( REVEAL_HANDLE, false, [], VOYAGER_OPEN_BLOCKS_VERSION );
+	wp_add_inline_style( REVEAL_HANDLE, reveal_css() );
+}
+add_action( 'init', __NAMESPACE__ . '\register_reveal' );
+
+add_filter( 'render_block_data', __NAMESPACE__ . '\mark_marquee_row', 10, 3 );
+add_filter( 'render_block_core/group', __NAMESPACE__ . '\copy_marquee_row', 10, 2 );
+add_filter( 'render_block', __NAMESPACE__ . '\enqueue_reveal', 10, 2 );

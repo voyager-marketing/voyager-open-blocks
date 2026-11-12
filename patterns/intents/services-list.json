@@ -137,6 +137,7 @@
 							"metadata": {
 								"name": "Items"
 							},
+							"className": "voyager-open-reveal",
 							"style": {
 								"spacing": {
 									"blockGap": "var:preset|spacing|50"

@@ -37,7 +37,7 @@ core/group (section, full width, constrained)          "Services"
   core/group (wide, text at content width, left)       "Lead"
     core/heading h2                                    "Heading"
     core/paragraph                                     "Intro"
-  core/columns (wide)                                  "Cards"
+  core/columns (wide), voyager-open-reveal             "Cards"
     core/column                                        "Service 1"
       core/group (1px border, padding 50)              "Service 1 card"
         voyager-open/icon  wrench, 40px                "Service 1 icon"
@@ -51,7 +51,7 @@ core/group (section, full width, constrained)          "Services"
   core/group                                           "Lead"
     core/heading h2                                    "Heading"
     core/paragraph                                     "Intro"
-  core/group                                           "Items"
+  core/group  voyager-open-reveal                      "Items"
     core/group (row, icon beside text, top)            "Service 1"
       voyager-open/icon  wrench, 40px                  "Service 1 icon"
       core/group (fills the row)
@@ -64,6 +64,8 @@ core/group (section, full width, constrained)          "Services"
 The intent trees are `patterns/intents/services.json` and `patterns/intents/services-list.json` (`intent` key). The markup is `patterns/services.html` and `patterns/services-list.html`.
 
 Every item has the same structure, and every block in an item carries the item's label: "Service 2" holds "Service 2 card", "Service 2 icon", "Service 2 heading" and "Service 2 text". That is what lets `repeat` copy a whole item (see Abilities). A card is DESIGN.md's Card: a 1px border, `50` padding, no fill and no shadow. No card holds a card. The cards' borders take the text colour, so they follow the section style.
+
+"Cards" and "Items", the rows that hold the items, carry the class `voyager-open-reveal`: the row fades and lifts into place as it scrolls into view, with motion on only, and shows in place otherwise (DESIGN.md, Motion). Keep the class on the row and off everything else.
 
 ## Copy rules
 
