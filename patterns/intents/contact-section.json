@@ -14,6 +14,85 @@
 		"hours"
 	],
 	"viewportWidth": 1280,
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: an invitation to get in touch, in a few words.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on the ways to reach the business, or when. Leave it out when the details say enough.",
+			"min": 20,
+			"max": 120,
+			"required": false,
+			"claim": false
+		},
+		"Phone": {
+			"purpose": "Bound to the Site Data phone number. Its own text, a sample 555 number, shows only while the number is empty.",
+			"min": 2,
+			"max": 40,
+			"required": false,
+			"claim": false
+		},
+		"Email": {
+			"purpose": "Bound to the Site Data email address. Its own text, an example.com address, shows only while the address is empty.",
+			"min": 2,
+			"max": 60,
+			"required": false,
+			"claim": false
+		},
+		"Street address": {
+			"purpose": "Bound to the Site Data street address. Its own text, a sample street, shows only while the street address is empty.",
+			"min": 2,
+			"max": 80,
+			"required": false,
+			"claim": false
+		},
+		"City, state, postal code": {
+			"purpose": "Bound to the Site Data city, state or region and postal code, shown as one line. Its own text, a sample town, shows only while all three are empty.",
+			"min": 2,
+			"max": 80,
+			"required": false,
+			"claim": false
+		},
+		"Hours": {
+			"purpose": "Bound to the Site Data business hours. Its own text, sample weekday hours, shows only while the hours are empty.",
+			"min": 2,
+			"max": 80,
+			"required": false,
+			"claim": false
+		},
+		"Click to call": {
+			"purpose": "The call button's label. Its link is bound to the Site Data phone number, and its text is its own, so name the action, such as Call us, never the number. Leave it out with the Phone line.",
+			"min": 2,
+			"max": 24,
+			"required": false,
+			"claim": false
+		},
+		"Form heading": {
+			"purpose": "The form slot's h3: what the visitor can send, in a few words.",
+			"min": 3,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Form body": {
+			"purpose": "One line on what to put in the message, until a form plugin's block replaces the slot.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Email button": {
+			"purpose": "The form slot's one fill button, until a form plugin's block replaces it. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as Email us, never the address.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
 	"intent": {
 		"blocks": [
 			{
@@ -277,7 +356,7 @@
 											},
 											{
 												"block": "core/paragraph",
-												"text": "Tell us a little about what you need and the best way to reach you.",
+												"text": "Tell us a little about what you need and how to reach you.",
 												"attrs": {
 													"metadata": {
 														"name": "Form body"

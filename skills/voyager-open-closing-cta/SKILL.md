@@ -29,6 +29,19 @@ core/group (section, full width, constrained 720px)   "Closing CTA"
 
 The intent tree is `patterns/intents/closing-cta.json`. The markup is `patterns/closing-cta.html`.
 
+## Copy rules
+
+The intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` (contract 3). Lengths count characters of plain text.
+
+| Label | What goes there | Min | Max | Required |
+|---|---|---|---|---|
+| `Heading` | The page's last `h2`: one short sentence that invites the reader to get in touch. | 10 | 60 | yes |
+| `Body` | One line on how to reach the business and what happens next. | 20 | 120 | yes |
+| `Primary button` | The page's last main action, as what happens when it is pressed, such as "Book an estimate". | 2 | 24 | yes |
+| `Email button` | The second button's label. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as "Email us", never the address. | 2 | 24 | yes |
+
+No slot is a claim slot, and the shipped copy makes no claim. Do not put a licence, a rating, a guarantee or a number of years in the closing CTA unless the site owner gave it to you.
+
 ## Customizing
 
 Change the heading, the line and the primary button. Keep the heading short, one sentence that reads as an invitation. On route 2, edit the intent, then `npx block-runner assemble intent.json --json`. On route 1, use `insert` with `copy` (see Abilities). The primary button keeps `/contact/` on route 1, because no ability changes a static button's link.
