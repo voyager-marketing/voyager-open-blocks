@@ -48,9 +48,12 @@ const MARKER = /<!-- voyager-open-cache-check rendered ([0-9a-f]+)\b[^>]*-->/;
  *            The harness records every call, with the URLs in its
  *            arguments. `all` marks one that purges everything.
  * receivers: which records mean the cache itself was told to purge. --spy
- *            passes when one of them covers the page. A record of the pack's
- *            own voyager_open_blocks_purge action is not one: the action
- *            firing says nothing about whether a cache heard it.
+ *            passes when one of them covers the page: names its URL, or
+ *            purges everything (a hook marked `all`, or a request to an
+ *            `http` receiver's host whose JSON body has `purge_everything`
+ *            true). A record of the pack's own voyager_open_blocks_purge
+ *            action is not one: the action firing says nothing about
+ *            whether a cache heard it.
  * adapter:   the id() of the pack's adapter for this cache. A --spy run in
  *            which that adapter is offered and judges its cache off is
  *            unmeasured, not stale: the setup did not turn the cache on the
@@ -165,6 +168,48 @@ export const PLUGINS = {
 			{ kind: 'hook', name: 'litespeed_purged_all' },
 		],
 		adapter: 'litespeed-cache',
+		lockDown: false,
+	},
+	// WP Rocket is not on WordPress.org, so the harness cannot install it. A
+	// stand-in mu-plugin defines its two purge functions with WP Rocket
+	// 3.24's signatures (inc/functions/files.php) and records each call,
+	// cleaning nothing: tests/fixtures/cache-check/wp-rocket-stand-in.php.
+	'wp-rocket': {
+		label: 'WP Rocket (stand-in)',
+		modes: [ 'spy' ],
+		install: null,
+		muPlugins: [ 'wp-rocket-stand-in.php' ],
+		hooks: {
+			wp_rocket_stand_in_clean_files: { all: false },
+			wp_rocket_stand_in_clean_domain: { all: true },
+		},
+		receivers: [
+			{ kind: 'hook', name: 'wp_rocket_stand_in_clean_files' },
+			{ kind: 'hook', name: 'wp_rocket_stand_in_clean_domain' },
+		],
+		adapter: 'wp-rocket',
+		lockDown: false,
+	},
+	// The Cloudflare plugin tells Cloudflare's edge through its HTTP API, so
+	// it runs with --spy, and the receiver is that request: the harness
+	// answers it before it leaves the site. A purge of everything is a
+	// request whose JSON body is {"purge_everything": true}
+	// (WordPressClientAPI::zonePurgeCache() in
+	// src/WordPress/WordPressClientAPI.php). The fixtures turn its page cache
+	// on and answer the lookups it makes first: cloudflare/setup.php and
+	// cloudflare-api.php.
+	cloudflare: {
+		label: 'Cloudflare',
+		modes: [ 'spy' ],
+		install: {
+			slug: 'cloudflare',
+			version: '4.14.5',
+			file: 'cloudflare/cloudflare.php',
+		},
+		muPlugins: [ 'cloudflare-api.php' ],
+		hooks: {},
+		receivers: [ { kind: 'http', name: 'api.cloudflare.com' } ],
+		adapter: 'cloudflare',
 		lockDown: false,
 	},
 	dummy: {
@@ -473,6 +518,33 @@ export function normalizeUrl( url ) {
 }
 
 /**
+ * Whether a recorded purge was of everything: a hook marked `all`, or an
+ * HTTP request whose JSON body is an object with `purge_everything` true, the
+ * way Cloudflare's purge_cache API is asked to purge a whole zone.
+ *
+ * @param {Object} record A record from the harness mu-plugin.
+ * @return {boolean} True when it purged everything.
+ */
+export function purgesEverything( record ) {
+	if ( record?.all ) {
+		return true;
+	}
+	if ( record?.kind !== 'http' || typeof record.body !== 'string' ) {
+		return false;
+	}
+	try {
+		const body = JSON.parse( record.body );
+		return (
+			body !== null &&
+			typeof body === 'object' &&
+			body.purge_everything === true
+		);
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Whether a recorded purge covers the page.
  *
  * @param {Object} record A record from the harness mu-plugin.
@@ -480,7 +552,7 @@ export function normalizeUrl( url ) {
  * @return {boolean} True when it purged everything or named the page.
  */
 export function covers( record, url ) {
-	if ( record.all ) {
+	if ( purgesEverything( record ) ) {
 		return true;
 	}
 	const want = normalizeUrl( url );
@@ -506,7 +578,7 @@ export function covers( record, url ) {
  * @return {string} Such as "hook dummy_cache_purge_urls (2 URLs)".
  */
 export function describe( record ) {
-	if ( record.all ) {
+	if ( purgesEverything( record ) ) {
 		return `${ record.kind } ${ record.name } (everything)`;
 	}
 	const count = ( record.urls || [] ).length;
