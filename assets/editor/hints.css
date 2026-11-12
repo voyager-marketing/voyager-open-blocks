@@ -20,8 +20,12 @@
 	outline-offset: 2px;
 }
 
-/* The logo marquee clips what overflows it, so keep a logo's outline inside. */
-.block-editor-block-list__block.wp-block-image.voyager-open-hint-placeholder:not(.is-selected) {
+/*
+ * The logo marquee clips what overflows it, and a full-width cover reaches
+ * both edges of the canvas, so keep their outline inside.
+ */
+.block-editor-block-list__block.wp-block-image.voyager-open-hint-placeholder:not(.is-selected),
+.block-editor-block-list__block.wp-block-cover.voyager-open-hint-placeholder:not(.is-selected) {
 	outline-offset: -1px;
 }
 

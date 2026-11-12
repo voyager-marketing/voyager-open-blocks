@@ -197,6 +197,12 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 - **Tick list.** `core/list` with the Ticks style: a wrapping row that stacks into a column in a narrow container. Three to six items, each one short claim of about 40 characters or fewer, with no full stop. The ticks take the text colour. Every claim comes from the site owner or Site Data, never from the agent.
 - **Logo row.** `core/group` with the Marquee style. Five to ten logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced). The row drifts only when it is wider than the screen, pauses on hover and focus, and stays still when the visitor turns motion off.
 - **Form slot.** The contact section's second column: a `core/group` with a 1px border and `50` padding that holds an `h3`, one line of copy and an email button until a form plugin's block replaces it. The form plugin owns the fields. Choose one that shows a visible label on every field.
+- **Image slot.** Where a section shows a photo, beside its text or behind it.
+  - Beside text: a `core/image` with `aspectRatio` set (`4/3` unless the section needs another) and `scale: cover`, or a `core/media-text` with `imageFill` and a `focalPoint`.
+  - Behind text: a `core/cover` with a `focalPoint`, an `overlayColor` from the theme's palette, and a `dimRatio` that keeps its text at 4.5:1 over any image. The `contrast` check measures the text against the overlay at that opacity composited over black and over white, the two extremes an image can reach, and the lower ratio counts.
+  - Every slot is named in `metadata.name` and ships the pack's placeholder with empty alt text: `assets/placeholders/image-4x3.svg` beside text, `image-16x9.svg` behind it. `validate` warns `placeholder:` on each one still in place.
+  - A replaced image needs alt text that says what it shows, except a cover's background, which is decoration.
+  - Whoever replaces the image, an agent or a person, sets the focal point on its subject, so the crop keeps the subject in view at every width. Each section's skill says so again.
 
 ## Do's and Don'ts
 
@@ -205,7 +211,7 @@ Each rule names the check that enforces it, or says judge only. `lint` and `pres
 | Check | Fails when |
 | -- | -- |
 | `lint` | this file has any lint error or warning, which includes contrast under 4.5:1 between a component's colours |
-| `contrast` | rendered text measures under 4.5:1 against its background |
+| `contrast` | rendered text measures under 4.5:1 against its background. On a cover with an image, the background is the overlay over black and over white, and the lower ratio counts |
 | `overflow` | a render scrolls sideways |
 | `a11y` | axe-core reports a violation in a rendered section: the WCAG 2.0 and 2.1 A and AA rules, and `heading-order` |
 | `impeccable` | Impeccable reports line length, gradient text, nested cards or grey text on colour in a rendered section, or a tap target in it is under 44px |
