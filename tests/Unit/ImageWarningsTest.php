@@ -136,11 +136,177 @@ final class ImageWarningsTest extends TestCase {
 		$files = glob( dirname( __DIR__, 2 ) . '/assets/placeholders/*.svg' ) ?: [];
 		sort( $files );
 
-		$this->assertCount( 6, $files );
+		$this->assertCount( 8, $files );
 		$this->assertSame(
 			array_map( static fn ( string $file ): string => 'placeholders/' . basename( $file ), $files ),
 			Abilities\placeholder_names()
 		);
+		$this->assertContains( 'placeholders/image-4x3.svg', Abilities\placeholder_names() );
+		$this->assertContains( 'placeholders/image-16x9.svg', Abilities\placeholder_names() );
+	}
+
+	/**
+	 * The image slots' placeholder art: one 4:3 image for beside text, one
+	 * 16:9 for a background. Each is under 4 KB, draws shapes only (no text,
+	 * title, description or label, so it holds no words in any language),
+	 * loads nothing else, and says its size, so a slot crops it as it would
+	 * a photo.
+	 */
+	public function test_the_image_slot_placeholders_are_small_wordless_svgs_at_their_ratios(): void {
+		foreach ( [
+			'image-4x3.svg'  => 4 / 3,
+			'image-16x9.svg' => 16 / 9,
+		] as $file => $ratio ) {
+			$path = dirname( __DIR__, 2 ) . '/assets/placeholders/' . $file;
+			$svg  = file_get_contents( $path );
+			$this->assertIsString( $svg, $file );
+
+			$this->assertLessThan( 4096, strlen( $svg ), $file );
+			$this->assertSame( 1, preg_match( '/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 (\d+) (\d+)" width="\1" height="\2">/', $svg, $size ), $file );
+			$this->assertEqualsWithDelta( $ratio, (int) $size[1] / (int) $size[2], 0.0001, $file );
+			$this->assertSame( 0, preg_match( '/<(text|title|desc|tspan|textPath|foreignObject|script|style|image|use|a)\b|aria-|href|url\(|@import/i', $svg ), $file );
+
+			preg_match_all( '/<([a-zA-Z]+)\b/', $svg, $tags );
+			$this->assertSame( [], array_values( array_diff( $tags[1], [ 'svg', 'rect', 'circle', 'path' ] ) ), $file );
+			$this->assertSame( '', trim( (string) preg_replace( '/<[^>]*>/', '', $svg ) ), $file . ' holds text between its tags' );
+		}
+	}
+
+	/**
+	 * A core/cover block as core saves it: its url (and alt) in the block
+	 * comment, the overlay, the image and the inner container in its HTML.
+	 *
+	 * @param string               $url   Its background image.
+	 * @param array<string, mixed> $attrs More comment attributes.
+	 * @param array<array<mixed>>  $inner Inner blocks.
+	 * @return array<mixed>
+	 */
+	private static function cover( string $url, array $attrs = [], array $inner = [] ): array {
+		$html = sprintf(
+			"\n<div class=\"wp-block-cover\"><span aria-hidden=\"true\" class=\"wp-block-cover__background has-contrast-background-color has-background-dim-60 has-background-dim\"></span><img class=\"wp-block-cover__image-background\" alt=\"\" src=\"%s\" style=\"object-position:50%% 50%%\" data-object-fit=\"cover\" data-object-position=\"50%% 50%%\"/><div class=\"wp-block-cover__inner-container\"></div></div>\n",
+			htmlspecialchars( $url, ENT_QUOTES )
+		);
+
+		return self::block(
+			'core/cover',
+			$html,
+			[
+				'url'          => $url,
+				'dimRatio'     => 60,
+				'overlayColor' => 'contrast',
+				'focalPoint'   => [
+					'x' => 0.5,
+					'y' => 0.5,
+				],
+			] + $attrs,
+			$inner
+		);
+	}
+
+	public function test_a_cover_whose_background_is_a_placeholder_gets_one_placeholder_warning_and_no_missing_alt(): void {
+		$url   = plugins_url( 'assets/', VOYAGER_OPEN_BLOCKS_FILE ) . 'placeholders/image-16x9.svg';
+		$found = self::warnings( [ self::cover( $url, [ 'metadata' => [ 'name' => 'Background' ] ] ) ] );
+
+		$this->assertSame(
+			[
+				[
+					'path'    => '0',
+					'warning' => 'placeholder: core/cover "Background" at 0 shows the pack\'s placeholder image placeholders/image-16x9.svg as its background. Replace it in the editor with the site\'s own image and set its focal point on the subject, or remove the block.',
+				],
+			],
+			$found
+		);
+		$this->assertSame( [], self::coded( $found, 'missing_alt' ) );
+	}
+
+	public function test_every_placeholder_the_pack_ships_counts_as_a_cover_background_on_any_host(): void {
+		$urls = [
+			'https://cdn.example.org/wp-content/plugins/renamed-folder/assets/placeholders/image-16x9.svg?ver=0.8.0',
+			'https://example.com/wp-content/plugins/voyager-open-blocks/assets/placeholders/image-4x3.svg',
+			'/voyager-open-blocks-assets/placeholders/image-16x9.svg',
+			'//example.net/assets/placeholders/logo-2.svg',
+		];
+
+		foreach ( $urls as $url ) {
+			$found = self::warnings( [ self::cover( $url ) ] );
+			$this->assertCount( 1, $found, $url );
+			$this->assertCount( 1, self::coded( $found, 'placeholder' ), $url );
+		}
+	}
+
+	public function test_a_cover_never_gets_missing_alt(): void {
+		$own = [
+			'https://example.com/wp-content/uploads/hero.jpg',
+			'https://example.com/wp-content/plugins/voyager-open-blocks/assets/placeholders/image-99.svg',
+			'https://example.com/wp-content/uploads/placeholders/image-16x9.svg',
+			'https://example.com/assets/placeholder/image-16x9.svg',
+		];
+
+		foreach ( $own as $url ) {
+			$this->assertSame( [], self::warnings( [ self::cover( $url ) ] ), $url );
+			$this->assertSame( [], self::warnings( [ self::cover( $url, [ 'alt' => '' ] ) ] ), $url );
+		}
+
+		// A colour-only cover has no url at all.
+		$this->assertSame( [], self::warnings( [ self::block( 'core/cover', "\n<div class=\"wp-block-cover\"><span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-100 has-background-dim\"></span><div class=\"wp-block-cover__inner-container\"></div></div>\n", [ 'dimRatio' => 100 ] ) ] ) );
+		$this->assertSame( [], self::warnings( [ self::cover( '   ' ) ] ) );
+	}
+
+	public function test_a_cover_set_to_show_the_featured_image_is_skipped(): void {
+		$url = 'https://example.com/wp-content/plugins/voyager-open-blocks/assets/placeholders/image-16x9.svg';
+
+		$this->assertSame( [], self::warnings( [ self::cover( $url, [ 'useFeaturedImage' => true ] ) ] ) );
+		$this->assertCount( 1, self::warnings( [ self::cover( $url, [ 'useFeaturedImage' => false ] ) ] ) );
+	}
+
+	public function test_a_cover_is_found_at_its_path_and_what_it_holds_is_checked_on_its_own(): void {
+		$url     = 'https://example.com/wp-content/plugins/voyager-open-blocks/assets/placeholders/image-16x9.svg';
+		$section = self::block( 'core/group', '', [], [ self::cover( $url, [], [ self::image( 'https://example.com/wp-content/uploads/badge.png', '' ) ] ) ] );
+		$found   = self::warnings( [ $section ] );
+
+		$this->assertSame( [ '0/0', '0/0/0' ], array_column( $found, 'path' ) );
+		$this->assertStringStartsWith( 'placeholder: core/cover at 0/0 ', $found[0]['warning'] );
+		$this->assertStringStartsWith( 'missing_alt: core/image at 0/0/0 ', $found[1]['warning'] );
+	}
+
+	public function test_the_image_slot_placeholder_beside_text_is_a_placeholder_in_an_image_and_in_media_and_text(): void {
+		$url   = 'https://example.com/wp-content/plugins/voyager-open-blocks/assets/placeholders/image-4x3.svg';
+		$image = self::warnings( [ self::image( $url, '', [ 'aspectRatio' => '4/3', 'scale' => 'cover' ] ) ] );
+		$this->assertCount( 1, $image );
+		$this->assertStringStartsWith( 'placeholder: core/image at 0 shows the pack\'s placeholder image placeholders/image-4x3.svg.', $image[0]['warning'] );
+
+		$media = self::warnings(
+			[
+				self::block(
+					'core/media-text',
+					sprintf( "\n<div class=\"wp-block-media-text is-stacked-on-mobile is-image-fill-element\"><figure class=\"wp-block-media-text__media\"><img src=\"%s\" alt=\"\" style=\"object-position:50%% 50%%\"/></figure><div class=\"wp-block-media-text__content\"></div></div>\n", $url ),
+					[
+						'mediaType'  => 'image',
+						'imageFill'  => true,
+						'focalPoint' => [
+							'x' => 0.5,
+							'y' => 0.5,
+						],
+					]
+				),
+			]
+		);
+		$this->assertCount( 1, $media );
+		$this->assertStringStartsWith( 'placeholder: core/media-text at 0 shows the pack\'s placeholder image placeholders/image-4x3.svg.', $media[0]['warning'] );
+	}
+
+	public function test_a_cover_warning_never_changes_valid(): void {
+		$blocks = [ self::block( 'core/group', '', [], [ self::cover( 'https://example.com/assets/placeholders/image-16x9.svg' ) ] ) ];
+
+		foreach ( [ true, false ] as $valid ) {
+			$report = self::report( $valid );
+			$out    = Abilities\with_warnings( $report, self::warnings( $blocks ) );
+
+			$this->assertSame( $valid, $out['valid'] );
+			$this->assertSame( $report['errors'], $out['errors'] );
+			$this->assertCount( 1, $out['blocks'][1]['warnings'] );
+			$this->assertStringStartsWith( 'placeholder: core/cover at 0/0 ', $out['blocks'][1]['warnings'][0] );
+		}
 	}
 
 	public function test_the_logo_marquee_as_shipped_gets_one_placeholder_warning_per_logo_and_no_missing_alt(): void {
@@ -160,7 +326,10 @@ final class ImageWarningsTest extends TestCase {
 		$html = file_get_contents( dirname( __DIR__, 2 ) . '/patterns/logo-marquee.html' );
 		$this->assertIsString( $html );
 
-		foreach ( Abilities\placeholder_names() as $name ) {
+		$logos = array_values( array_filter( Abilities\placeholder_names(), static fn ( string $name ): bool => str_starts_with( $name, 'placeholders/logo-' ) ) );
+		$this->assertCount( 6, $logos );
+
+		foreach ( $logos as $name ) {
 			$this->assertStringContainsString( sprintf( '<img src="%s%s" alt=""', Patterns\ASSETS_TOKEN, $name ), $html );
 		}
 	}

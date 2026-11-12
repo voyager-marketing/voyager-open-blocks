@@ -33,7 +33,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell or fax) whose fallback looks like a phone number, or to an email field (email or mail) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (an image whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell or fax) whose fallback looks like a phone number, or to an email field (email or mail) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -98,7 +98,7 @@ function register_validate(): void {
 					'warnings'    => [
 						'type'        => 'array',
 						'items'       => [ 'type' => 'string' ],
-						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page) or missing_alt (an image has no alt text). A code is followed by the block and its path.',
+						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page, including a cover\'s background) or missing_alt (a core/image or core/media-text image has no alt text; a cover never gets one). A code is followed by the block and its path.',
 					],
 					'markup'      => [
 						'type'        => 'string',
@@ -434,7 +434,8 @@ function with_warnings( array $report, array $found ): array {
 
 /**
  * Blocks whose image validate checks for alt text and for the pack's
- * placeholders. core/cover is not one: its image is a background.
+ * placeholders. core/cover is not one: its image is a background, which is
+ * decoration, so it is checked for the placeholders alone (cover_url()).
  */
 const IMAGE_BLOCKS = [ 'core/image', 'core/media-text' ];
 
@@ -523,6 +524,28 @@ function image_of( array $block ): ?array {
 }
 
 /**
+ * The background image a cover block shows, read from its block comment:
+ * block.json gives core/cover's url no source, so core keeps it there and
+ * not in the saved HTML.
+ *
+ * A cover set to show the post's featured image shows that image instead,
+ * so it has none of its own to check, as image_of() treats a media and text
+ * block set the same way.
+ *
+ * @param Block $block Parsed block.
+ * @return string The URL, or '' for any other block and a cover with no image of its own.
+ */
+function cover_url( array $block ): string {
+	if ( 'core/cover' !== $block['blockName'] || true === ( $block['attrs']['useFeaturedImage'] ?? false ) ) {
+		return '';
+	}
+
+	$url = $block['attrs']['url'] ?? '';
+
+	return is_string( $url ) ? trim( $url ) : '';
+}
+
+/**
  * Whether a block is the contact section's stand-in for a form, still in place.
  *
  * The same test assets/editor/hints.js makes, from the same names
@@ -545,14 +568,15 @@ function is_form_fallback( array $block, ?array $parent ): bool {
  * Placeholders left in place and images with no alt text, as warnings, each
  * with the path of its block.
  *
- * A placeholder is one of the pack's placeholder images (an image whose URL
- * placeholder_name() reads as one of $placeholders), or the contact section's
- * form stand-in (is_form_fallback()). Both are found from data, as the editor
- * hints find them, never from the text on screen. A placeholder image gets a
- * placeholder warning only, although it ships with empty alt text. Every
- * other image (image_of()) whose alt text is empty or missing gets a
- * missing_alt warning, unless its alt is bound to a source, which then gives
- * the text.
+ * A placeholder is one of the pack's placeholder images (an image, or a
+ * cover's background (cover_url()), whose URL placeholder_name() reads as one
+ * of $placeholders), or the contact section's form stand-in
+ * (is_form_fallback()). All are found from data, as the editor hints find
+ * them, never from the text on screen. A placeholder image gets a placeholder
+ * warning only, although it ships with empty alt text. Every other image
+ * (image_of()) whose alt text is empty or missing gets a missing_alt warning,
+ * unless its alt is bound to a source, which then gives the text. A cover
+ * never does: its background is decoration.
  *
  * @param array<int, Block> $blocks       Blocks.
  * @param list<string>      $placeholders From placeholder_names().
@@ -568,11 +592,14 @@ function image_warnings( array $blocks, array $placeholders, string $prefix = ''
 		$label   = BlockTree\metadata( $block )['name'] ?? '';
 		$where   = sprintf( '%s%s at %s', (string) $block['blockName'], is_string( $label ) && '' !== $label ? sprintf( ' "%s"', $label ) : '', $path );
 		$image   = image_of( $block );
-		$name    = null === $image ? '' : placeholder_name( $image['url'] );
+		$cover   = cover_url( $block );
+		$name    = placeholder_name( null === $image ? $cover : $image['url'] );
 		$warning = null;
 
 		if ( is_form_fallback( $block, $parent ) ) {
 			$warning = sprintf( 'placeholder: %s is the stand-in for a form that the contact section ships, still in its "%s" column. Replace it with a form plugin\'s block in the editor, so visitors get a form.', $where, BindingsEditor\FORM_SLOT['slot'] );
+		} elseif ( '' !== $cover && '' !== $name && in_array( $name, $placeholders, true ) ) {
+			$warning = sprintf( 'placeholder: %s shows the pack\'s placeholder image %s as its background. Replace it in the editor with the site\'s own image and set its focal point on the subject, or remove the block.', $where, $name );
 		} elseif ( '' !== $name && in_array( $name, $placeholders, true ) ) {
 			$warning = sprintf( 'placeholder: %s shows the pack\'s placeholder image %s. Replace it in the editor with the site\'s own image, with alt text, or remove the block.', $where, $name );
 		} elseif ( null !== $image && '' === $image['alt'] && ! isset( bound_attributes( BlockTree\metadata( $block )['bindings'] ?? null )['alt'] ) ) {
