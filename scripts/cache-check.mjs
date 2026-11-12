@@ -8,6 +8,7 @@
  *   npm run cache-check -- --plugin wp-super-cache --real --lockdown
  *   npm run cache-check -- --plugin spinupwp --spy [--no-purge]
  *   npm run cache-check -- --plugin cloudflare --spy [--no-purge]
+ *   npm run cache-check -- --plugin w3-total-cache --spy [--no-purge]
  *   npm run cache-check -- --plugin dummy --spy [--stand-in] [--no-purge]
  *   npm run cache-check -- --help
  *

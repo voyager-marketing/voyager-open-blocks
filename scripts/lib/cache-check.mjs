@@ -212,6 +212,37 @@ export const PLUGINS = {
 		adapter: 'cloudflare',
 		lockDown: false,
 	},
+	// W3 Total Cache serves a cached page from its advanced-cache.php
+	// drop-in, which WordPress loads only while WP_CACHE is true, or through
+	// the web server's rewrite rules. The harness installs neither, so it
+	// runs with --spy, as for the server caches.
+	// tests/fixtures/cache-check/w3-total-cache/setup.php turns its page
+	// cache on as its settings screen saves it, into master.php, and checks
+	// that its flushes run locally (CacheFlush.php): with its message bus
+	// on, they go to Amazon SNS and the actions below never fire here.
+	'w3-total-cache': {
+		label: 'W3 Total Cache',
+		modes: [ 'spy' ],
+		install: {
+			slug: 'w3-total-cache',
+			version: '2.11.0',
+			file: 'w3-total-cache/w3-total-cache.php',
+		},
+		muPlugins: [],
+		// CacheFlush_Locally::flush_url() fires w3tc_flush_url with the URL,
+		// and CacheFlush_Locally::flush_posts() fires w3tc_flush_posts, the
+		// actions its page cache purges on (PgCache_Plugin::run()).
+		hooks: {
+			w3tc_flush_url: { all: false },
+			w3tc_flush_posts: { all: true },
+		},
+		receivers: [
+			{ kind: 'hook', name: 'w3tc_flush_url' },
+			{ kind: 'hook', name: 'w3tc_flush_posts' },
+		],
+		adapter: 'w3-total-cache',
+		lockDown: false,
+	},
 	dummy: {
 		label: 'Dummy cache (test fixture)',
 		modes: [ 'spy' ],

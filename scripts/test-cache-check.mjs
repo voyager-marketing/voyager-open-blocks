@@ -460,6 +460,108 @@ test( 'a request asking to purge everything covers every page, and nothing else 
 	}
 } );
 
+test( 'W3 Total Cache is installed at 2.11.0 and heard only through its own flush actions', () => {
+	const fixtures = join( scripts, '..', 'tests', 'fixtures', 'cache-check' );
+	const spec = PLUGINS[ 'w3-total-cache' ];
+	assert.deepEqual( spec.install, {
+		slug: 'w3-total-cache',
+		version: '2.11.0',
+		file: 'w3-total-cache/w3-total-cache.php',
+	} );
+	assert.equal( spec.adapter, 'w3-total-cache' );
+	assert.deepEqual( spec.receivers, [
+		{ kind: 'hook', name: 'w3tc_flush_url' },
+		{ kind: 'hook', name: 'w3tc_flush_posts' },
+	] );
+	assert.equal( spec.hooks.w3tc_flush_url.all, false );
+	assert.equal( spec.hooks.w3tc_flush_posts.all, true );
+	assert.equal(
+		parseArgs( [ '--plugin', 'w3-total-cache', '--spy' ] ).mode,
+		'spy'
+	);
+	assert.throws(
+		() => parseArgs( [ '--plugin', 'w3-total-cache', '--real' ] ),
+		/not --real/
+	);
+	// The fixture turns the page cache on through W3 Total Cache's own
+	// Config, and refuses a run whose flushes would go to its message bus.
+	const setup = readFileSync(
+		join( fixtures, 'w3-total-cache', 'setup.php' ),
+		'utf8'
+	);
+	assert.match( setup, /->set\( 'pgcache\.enabled', true \)/ );
+	assert.match( setup, /->save\(\)/ );
+	assert.match(
+		setup,
+		/false === \$saved->get_boolean\( 'cluster\.messagebus\.enabled' \)/
+	);
+
+	const observed = {
+		url: URL_,
+		receivers: spec.receivers,
+		loads: [ page( PHONE_BEFORE, 'aa' ), page( PHONE_AFTER, 'bb' ) ],
+		saved: PHONE_AFTER,
+		adapter: 'w3-total-cache',
+		adapters: [ { id: 'w3-total-cache', active: true } ],
+	};
+	const hook = ( name, fields = {} ) => ( {
+		kind: 'hook',
+		name,
+		urls: [],
+		all: Boolean( spec.hooks[ name ]?.all ),
+		...fields,
+	} );
+	for ( const [ name, records ] of [
+		[ 'the page URL', [ hook( 'w3tc_flush_url', { urls: [ URL_ ] } ) ] ],
+		[ 'every page', [ hook( 'w3tc_flush_posts' ) ] ],
+	] ) {
+		const verdict = spyVerdict( { ...observed, records } );
+		assert.equal(
+			verdict.outcome,
+			'fresh',
+			`${ name }: ${ verdict.reason }`
+		);
+	}
+	for ( const [ name, records ] of [
+		[
+			'another page',
+			[
+				hook( 'w3tc_flush_url', {
+					urls: [ 'http://127.0.0.1:9400/somewhere-else/' ],
+				} ),
+			],
+		],
+		// Neither is a receiver. w3tc_flush_post is W3 Total Cache flushing
+		// a saved post by ID, and w3tc_flush_all, which also empties its
+		// object, database and minify caches, is what the adapter must not
+		// call.
+		[ 'a post by ID', [ hook( 'w3tc_flush_post', { urls: [] } ) ] ],
+		[ 'everything', [ hook( 'w3tc_flush_all', { all: true } ) ] ],
+		[
+			'only the pack action',
+			[
+				{
+					kind: 'action',
+					name: 'voyager_open_blocks_purge',
+					urls: [ URL_ ],
+				},
+			],
+		],
+		[ 'nothing', [] ],
+	] ) {
+		const verdict = spyVerdict( { ...observed, records } );
+		assert.equal( verdict.outcome, 'stale', name );
+	}
+
+	// The adapter judging the page cache off is a setup fault, never stale.
+	const off = spyVerdict( {
+		...observed,
+		adapters: [ { id: 'w3-total-cache', active: false } ],
+		records: [],
+	} );
+	assert.equal( off.outcome, 'unmeasured', off.reason );
+} );
+
 test( 'the render marker is read from the footer comment, and only from it', () => {
 	assert.equal( renderMarker( page( PHONE_BEFORE, 'a1b2' ).text ), 'a1b2' );
 	assert.equal( renderMarker( page( PHONE_BEFORE, '' ).text ), null );
