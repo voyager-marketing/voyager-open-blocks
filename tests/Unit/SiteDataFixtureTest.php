@@ -2,7 +2,7 @@
 /**
  * Shared site-data key fixture.
  *
- * tests/fixtures/site-data-keys.json pins what each of the 18 voyager/site-data
+ * tests/fixtures/site-data-keys.json pins what each of the 27 voyager/site-data
  * keys resolves to for a set of untidy option values. voyager-blocks runs a
  * byte-identical copy. Options go in as stored, the way
  * scripts/site-data-fixture-check.mjs writes them with the sanitize filters
@@ -54,8 +54,8 @@ final class SiteDataFixtureTest extends TestCase {
 		}
 
 		// The hash test pins the key set. This stops a short fixture from passing
-		// with fewer than 18 checks.
-		$this->assertCount( 18, $fixture['expected'] );
+		// with fewer than 27 checks.
+		$this->assertCount( 27, $fixture['expected'] );
 
 		$year = gmdate( 'Y' );
 		$data = SiteData\values();

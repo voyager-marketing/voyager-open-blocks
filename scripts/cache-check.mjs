@@ -6,6 +6,7 @@
  *   npm run cache-check -- --plugin wp-super-cache --real --no-purge
  *   npm run cache-check -- --plugin wp-super-cache --real --pages 51
  *   npm run cache-check -- --plugin wp-super-cache --real --lockdown
+ *   npm run cache-check -- --plugin spinupwp --spy [--no-purge]
  *   npm run cache-check -- --plugin dummy --spy [--stand-in] [--no-purge]
  *   npm run cache-check -- --help
  *
@@ -204,6 +205,7 @@ async function measure( opts ) {
 					DISABLE_WP_CRON: true,
 					AUTOMATIC_UPDATER_DISABLED: true,
 					WP_HTTP_BLOCK_EXTERNAL: true,
+					...( spec.consts || {} ),
 				},
 				steps: cacheSteps( spec ),
 			} );
@@ -346,6 +348,7 @@ return require WP_PLUGIN_DIR . '/voyager-open-blocks/tests/fixtures/cache-check/
 		} ) );
 		result.observed.records = spied?.records || [];
 		result.observed.adapters = spied?.adapters || [];
+		result.observed.adapterStates = spied?.adapter_states || [];
 		result.observed.saved = saved;
 
 		const verdict =
@@ -357,6 +360,8 @@ return require WP_PLUGIN_DIR . '/voyager-open-blocks/tests/fixtures/cache-check/
 						receivers: spec.receivers,
 						loads,
 						saved,
+						adapter: spec.adapter,
+						adapters: result.observed.adapterStates,
 					} );
 		result.outcome = verdict.outcome;
 		result.reason = verdict.reason;
@@ -410,6 +415,16 @@ function report( result ) {
 			`     cache adapters: ${
 				result.observed.adapters.join( ', ' ) || 'none'
 			}`
+		);
+	}
+	if ( result.observed.adapterStates?.length ) {
+		console.log(
+			`     with --no-purge left out: ${ result.observed.adapterStates
+				.map(
+					( state ) =>
+						`${ state.id } ${ state.active ? 'on' : 'off' }`
+				)
+				.join( ', ' ) }`
 		);
 	}
 

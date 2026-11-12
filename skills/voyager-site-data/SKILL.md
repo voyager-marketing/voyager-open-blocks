@@ -1,6 +1,6 @@
 ---
 name: voyager-site-data
-description: Bind block attributes to site-wide business details (company name, phone, email, address, hours, social links, copyright line) through the voyager/site-data block bindings source. Use when a page shows contact details or a click-to-call or email button that should follow the site's settings instead of hard-coded text.
+description: Bind block attributes to site-wide business details (company name, phone, email, address, hours, social links, copyright line, and the business profile of services, service area, credentials, year founded, license number, rating, review count and main call to action) through the voyager/site-data block bindings source. Use when a page shows contact details, a click-to-call or email button, or a claim about the business (what it does, where, since when, its license or rating) that should follow the site's settings instead of hard-coded text.
 license: GPL-2.0-or-later
 ---
 
@@ -13,6 +13,7 @@ A Block Bindings source. Values are set once under **Settings > Site Data** and 
 - Contact details in a section, footer or CTA.
 - A button whose link must dial or email the business.
 - The copyright line.
+- What the business says about itself: its services, where it works, its credentials, the year it started, its license number, its rating and review count, and its main call to action.
 
 Not for per-page content. That is `voyager/post-meta-text`.
 
@@ -39,10 +40,21 @@ Args are always `{ "key": "<key>" }`. Wesper lists this source under `bindings.s
 | `year` | Current year | Always set | `content` |
 | `copyright` | "© 2026 Company" | Settings > General > Site Title | `content` |
 | `social_facebook`, `social_instagram`, `social_linkedin`, `social_x` | Profile URLs | Settings > Site Data > Facebook URL, Instagram URL, LinkedIn URL, X URL | button `url`, icon `linkUrl` |
+| `services` | One service per line, joined with `\n`: each line trimmed, empty lines dropped | Settings > Site Data > Business profile > Services | `content` |
+| `service_area` | One town or area per line, the same way | Settings > Site Data > Business profile > Service area | `content` |
+| `credentials` | One license, certification or membership per line, the same way | Settings > Site Data > Business profile > Credentials | `content` |
+| `founded` | Year founded, only when it is four digits, such as `1998` | Settings > Site Data > Business profile > Year founded | `content` |
+| `license` | License number as entered | Settings > Site Data > Business profile > License number | `content` |
+| `rating` | Average rating from 0 to 5 with one decimal, such as `4.8` | Settings > Site Data > Business profile > Rating | `content` |
+| `review_count` | Number of reviews as digits, such as `127` | Settings > Site Data > Business profile > Review count | `content` |
+| `cta_label` | Text of the main call to action | Settings > Site Data > Business profile > Main call to action text | button `text` |
+| `cta_url` | Link of the main call to action | Settings > Site Data > Business profile > Main call to action link | button `url` |
 
 When a binding falls back with `reason: "empty_value"`, the "Filled in at" column names the setting to fill. Tell the user that setting, not the key.
 
-The stored options are `voyager_site_phone`, `voyager_site_email`, `voyager_site_address`, `voyager_site_address_city`, `voyager_site_address_state`, `voyager_site_address_zip`, `voyager_site_hours` and `voyager_site_social_*`. They are registered with `show_in_rest`, so an administrator's REST client can set them at `/wp/v2/settings`.
+**Never state a business profile fact the site does not hold.** "Licensed and insured", "Serving the whole county", "Since 1998" or "4.8 stars from 127 reviews" are claims about a real business. Bind them to these keys rather than typing them, and when a key is empty, ask the owner to fill it in. The owner types the rating and review count from their own review profile: the pack calls no review service, so never fetch or estimate them. A rating that is not a number from 0 to 5, a year that is not four digits, or a count that is not digits resolves to nothing, so the authored text shows.
+
+The stored options are `voyager_site_phone`, `voyager_site_email`, `voyager_site_address`, `voyager_site_address_city`, `voyager_site_address_state`, `voyager_site_address_zip`, `voyager_site_hours`, `voyager_site_social_*`, and for the business profile `voyager_site_services`, `voyager_site_service_area`, `voyager_site_credentials`, `voyager_site_founded`, `voyager_site_license`, `voyager_site_rating`, `voyager_site_review_count`, `voyager_site_cta_label` and `voyager_site_cta_url`. Each key is its option name without `voyager_site_`. They are registered with `show_in_rest`, so an administrator's REST client can set them at `/wp/v2/settings`. Send a list as one string with a line break between items. A year, rating or count that does not resolve is refused there and the option keeps its previous value, so read the option back after you set it.
 
 ## Binding examples
 

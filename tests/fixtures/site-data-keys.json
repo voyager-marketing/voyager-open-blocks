@@ -13,7 +13,16 @@
 		"voyager_site_social_facebook": "  https://facebook.com/example plumbing  ",
 		"voyager_site_social_instagram": "  https://instagram.com/example  ",
 		"voyager_site_social_linkedin": "  https://linkedin.com/company/example  ",
-		"voyager_site_social_x": "  https://x.com/example  "
+		"voyager_site_social_x": "  https://x.com/example  ",
+		"voyager_site_services": "  Drain cleaning  \n\n  Water heater repair  \n  Leak detection  ",
+		"voyager_site_service_area": "  Springfield  \n  \n  Chatham  \n  Rochester  ",
+		"voyager_site_credentials": "  Licensed in Illinois  \r\n\r\n  Insured  \r\n  Bonded  ",
+		"voyager_site_founded": "  1998  ",
+		"voyager_site_license": "  PL-000123  ",
+		"voyager_site_rating": "  4.80  ",
+		"voyager_site_review_count": "  0127  ",
+		"voyager_site_cta_label": "  Book a visit  ",
+		"voyager_site_cta_url": "  https://example.com/book/  "
 	},
 	"expected": {
 		"company": "  Example Plumbing  ",
@@ -33,6 +42,15 @@
 		"social_facebook": "https://facebook.com/example%20plumbing",
 		"social_instagram": "https://instagram.com/example",
 		"social_linkedin": "https://linkedin.com/company/example",
-		"social_x": "https://x.com/example"
+		"social_x": "https://x.com/example",
+		"services": "Drain cleaning\nWater heater repair\nLeak detection",
+		"service_area": "Springfield\nChatham\nRochester",
+		"credentials": "Licensed in Illinois\nInsured\nBonded",
+		"founded": "1998",
+		"license": "PL-000123",
+		"rating": "4.8",
+		"review_count": "127",
+		"cta_label": "Book a visit",
+		"cta_url": "https://example.com/book/"
 	}
 }

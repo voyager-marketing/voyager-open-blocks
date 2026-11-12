@@ -27,7 +27,9 @@ name: Cache
 #   one measured has the highest ID, so it is past the 50 the purge cleans
 #   one by one. The purge sets purge_all for it, and the WP Super Cache
 #   adapter turns purge_all into a clear of WP Super Cache's cache.
-# The three --no-purge rows are controls and stay stale for good. They show
+# - `spinupwp --spy`, `nginx-helper --spy` and `litespeed-cache --spy`: the
+#   pack's adapter for each tells the plugin to purge the page's URL.
+# The --no-purge rows are controls and stay stale for good. They show
 # the check can fail. On a one-page row the empty URL list switches the
 # whole purge off, clean_post_cache() included. On the 51-page row the
 # purge still cleans the first 50 pages and sets purge_all, and with no
@@ -107,6 +109,37 @@ jobs:
           - plugin: dummy
             mode: spy
             flags: ' --stand-in --no-purge'
+            expect: stale
+          # SpinupWP 1.9.1, Nginx Helper 2.4.1 and LiteSpeed Cache 7.9.3 tell
+          # a cache in the web server, so they run with --spy: fresh when
+          # the plugin itself is told to purge the page or everything. None
+          # of them hooks clean_post_cache, so only the pack's adapter for
+          # each (inc/cache/) tells it. Each setup fixture turns the cache on
+          # as a host would, and a run whose adapter judges the cache off is
+          # unmeasured, never stale. Each has a --no-purge control.
+          - plugin: spinupwp
+            mode: spy
+            flags: ''
+            expect: fresh
+          - plugin: spinupwp
+            mode: spy
+            flags: ' --no-purge'
+            expect: stale
+          - plugin: nginx-helper
+            mode: spy
+            flags: ''
+            expect: fresh
+          - plugin: nginx-helper
+            mode: spy
+            flags: ' --no-purge'
+            expect: stale
+          - plugin: litespeed-cache
+            mode: spy
+            flags: ''
+            expect: fresh
+          - plugin: litespeed-cache
+            mode: spy
+            flags: ' --no-purge'
             expect: stale
     steps:
       - uses: actions/checkout@v4

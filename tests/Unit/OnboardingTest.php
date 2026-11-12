@@ -33,7 +33,7 @@ final class OnboardingTest extends TestCase {
 		}
 
 		$this->assertSame( $expected, Onboarding\option_names() );
-		$this->assertCount( 11, Onboarding\option_names() );
+		$this->assertCount( 20, Onboarding\option_names() );
 
 		foreach ( Onboarding\option_names() as $name ) {
 			$this->assertStringStartsWith( 'voyager_site_', $name );
