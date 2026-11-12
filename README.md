@@ -4,7 +4,7 @@
 [![Block Check](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/block-check.yml/badge.svg)](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/block-check.yml)
 [![Latest release](https://img.shields.io/github/v/release/voyager-marketing/voyager-open-blocks)](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest)
 
-Voyager Open Blocks adds five ready-made page sections, an icon block and a facts block to WordPress. The sections that show your business details, such as your phone number, email, address and hours, read them from one settings screen. Change your phone number there and every page that shows it changes too. Everything is also built so an AI agent can place it, fill it in and check it correctly.
+Voyager Open Blocks adds six ready-made page sections (the hero comes in two layouts), an icon block and a facts block to WordPress. The sections that show your business details, such as your phone number, email, address and hours, read them from one settings screen. Change your phone number there and every page that shows it changes too. Everything is also built so an AI agent can place it, fill it in and check it correctly.
 
 **See it first:** browse the [live gallery](https://demo.voyagermark.com/open-blocks/), or [open it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprint.json) with demo content and nothing to install.
 
@@ -26,6 +26,7 @@ Install the plugin, fill in one settings screen, then insert sections like any o
 
 | Section | Use it for | What you replace |
 |---|---|---|
+| Hero | The top of a page. The page heading, one line, your main button and a click-to-call button, beside an image ("Hero") or over a background image ("Hero over a background"). | The small label above the heading, the heading, the line, the main button's text and link, and the grey placeholder image, with your own photo. On the background, set the focal point on the photo's subject. The call button follows your phone number. |
 | CTA band | Asking the reader to act mid-page, after your services. A heading and one line beside your main button and a click-to-call button. | The small label above the heading, the heading, the line, and the main button's text and link. The call button follows your phone number. |
 | Proof strip | A row of three to six checkmarked facts under your hero, such as "Licensed and insured". | The four placeholder facts. Use only true ones, and delete the items you don't need. |
 | Logo marquee | A row of client, partner or certification logos. It drifts sideways when it is wider than the screen. | The six grey placeholder logos, with your own images. Set each image's alt text to the company's name. |
@@ -76,6 +77,7 @@ One prompt per item:
 
 | Item | Prompt |
 |---|---|
+| Hero | Open my home page with the Voyager Open Blocks hero, image beside text. Write the heading and the line for my business, keep the call button bound to my Site Data phone number, and tell me which image to put in the slot. |
 | CTA band | Add the Voyager Open Blocks CTA band near the end of my Services page. Write the heading and the line of copy for that page, keep the click-to-call button bound to my Site Data phone number, and check the blocks before you save. |
 | Proof strip | Add the Voyager Open Blocks proof strip under the hero on my home page with these credentials: [three to six short facts]. Use only what I give you. |
 | Logo marquee | Add the Voyager Open Blocks logo marquee to my home page and replace the placeholder logos with these images from my media library: [image names]. |
@@ -98,6 +100,8 @@ One prompt per item:
 | `voyager-open/facts` | Dynamic block: a list, one item per line, that binds to the Site Data lists (services, service area, credentials) | [skills/voyager-open-facts](skills/voyager-open-facts/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/facts.json) |
 | `voyager/site-data` | Binding source: company, phone, email, address, hours, social links | [skills/voyager-site-data](skills/voyager-site-data/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/site-data.json) |
 | `voyager/post-meta-text` | Binding source: allowlisted post meta, with JSON dot paths | [skills/voyager-post-meta-text](skills/voyager-post-meta-text/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/post-meta-text.json) |
+| `voyager-open/hero` | Pattern: the hero, image beside text | [skills/voyager-open-hero](skills/voyager-open-hero/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/hero.json) |
+| `voyager-open/hero-cover` | Pattern: the hero, text over a background | [skills/voyager-open-hero](skills/voyager-open-hero/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/hero.json) |
 | `voyager-open/cta-band` | Pattern | [skills/voyager-open-cta-band](skills/voyager-open-cta-band/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/cta-band.json) |
 | `voyager-open/proof-strip` | Pattern | [skills/voyager-open-proof-strip](skills/voyager-open-proof-strip/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/proof-strip.json) |
 | `voyager-open/logo-marquee` | Pattern | [skills/voyager-open-logo-marquee](skills/voyager-open-logo-marquee/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/logo-marquee.json) |
@@ -108,7 +112,7 @@ The Playground links run [`blueprint.json`](blueprint.json) (everything) and the
 
 Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and the facts block, and Marquee on `core/group`. Three section styles on `core/group`, Panel, Inverted and Accent, colour a whole section from the theme's palette; [DESIGN.md](DESIGN.md) says how, and `npm run contrast` measures them.
 
-**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon and facts blocks, five patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and eight abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
+**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon and facts blocks, seven patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and eight abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
 
 ### Other ways to install
 

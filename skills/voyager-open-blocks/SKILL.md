@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Two blocks, two binding sources and five patterns, built so an agent can use them correctly without guessing.
+Two blocks, two binding sources and seven patterns, built so an agent can use them correctly without guessing.
 
 ## Tell your agent
 
@@ -27,13 +27,15 @@ Each item skill has its own prompt under "Tell your agent".
 | `voyager-open/facts` | block (dynamic) | `voyager-open-facts` | None. Set `items` with `insert` or `configure`, or bind it to a Site Data list. |
 | `voyager/site-data` | binding source | `voyager-site-data` | None |
 | `voyager/post-meta-text` | binding source | `voyager-post-meta-text` | None |
+| `voyager-open/hero` | pattern (the hero, image beside text) | `voyager-open-hero` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
+| `voyager-open/hero-cover` | pattern (the hero, text over a background) | `voyager-open-hero` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
 | `voyager-open/cta-band` | pattern | `voyager-open-cta-band` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
 | `voyager-open/proof-strip` | pattern | `voyager-open-proof-strip` | `Credential 1`, `Credential 2`, `Credential 3`, `Credential 4` |
 | `voyager-open/logo-marquee` | pattern | `voyager-open-logo-marquee` | `Eyebrow` |
 | `voyager-open/closing-cta` | pattern | `voyager-open-closing-cta` | `Heading`, `Body`, `Primary button`, `Email button` |
 | `voyager-open/contact-section` | pattern | `voyager-open-contact-section` | `Heading`, `Body`, `Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`, `Click to call`, `Form heading`, `Form body`, `Email button` |
 
-Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. Never pass copy for a bound slot: the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels: the pattern's blocks with `copy: true`.
+Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. Never pass copy for a bound slot: the hero's and the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels: the pattern's blocks with `copy: true`.
 
 ## Design rules
 

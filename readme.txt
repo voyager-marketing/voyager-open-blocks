@@ -14,12 +14,13 @@ Ready-made business sections and an icon block that show your phone, email and a
 
 == Description ==
 
-Voyager Open Blocks adds five ready-made page sections, an icon block and a facts block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
+Voyager Open Blocks adds six ready-made page sections, an icon block and a facts block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
 
 You need no code and no AI agent. Insert the sections from the "Business sections (Open Blocks)" category in the pattern inserter, like any other pattern. See every section live at [demo.voyagermark.com/open-blocks](https://demo.voyagermark.com/open-blocks/).
 
 = What you get =
 
+* **Hero**: the top of a page, with its heading, one line, your main button and a click-to-call button, beside an image or over a background image. You replace the placeholder image with your own photo.
 * **CTA band**: a heading and one line beside your main button and a click-to-call button that dials your phone number. Use it mid-page.
 * **Proof strip**: a row of three to six checkmarked facts, such as "Licensed and insured", under your hero.
 * **Logo marquee**: a row of client or partner logos that drifts sideways when it is wider than the screen. You replace the placeholder logos with your own.

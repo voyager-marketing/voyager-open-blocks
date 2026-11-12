@@ -72,6 +72,8 @@ $voyager_open_seed = static function (): void {
 	$hub = $upsert( 'voyager-open', 'Voyager Open Blocks', '' );
 
 	$demos = [
+		// The hero in both layouts: image beside text, then text over a background.
+		'hero'            => [ 'Hero', '<!-- wp:pattern {"slug":"voyager-open/hero"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/hero-cover"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
