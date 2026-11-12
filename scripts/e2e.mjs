@@ -32,7 +32,13 @@
  *      layouts (listed with their copy labels; a fourth card through repeat,
  *      its icon then set with configure, one card dropped through omit, and
  *      six rows in the list, each on a draft of its own and each passing both
- *      validators with no warning), a cover over the 16:9
+ *      validators with no warning), the reviews section's two layouts
+ *      (listed with their copy labels; the grid as shipped, published and
+ *      fetched, shows three star rows, each five stars hidden from screen
+ *      readers and one name, "Rated 5 out of 5"; a fourth card through
+ *      repeat with a four-star review through omit, and the single quote,
+ *      each filled by copy and passing both validators with no warning),
+ *      a cover over the 16:9
  *      placeholder at the plugin's URL (one placeholder warning, never
  *      missing_alt) and over the site's own image, and an image with and
  *      without alt text,
@@ -1258,7 +1264,8 @@ const headingsIn = ( markup ) =>
 	);
 
 /**
- * Insert a services layout on a draft of its own, and validate it both ways.
+ * Insert a services or reviews layout on a draft of its own, and validate it
+ * both ways.
  *
  * @param {string} label What the step checks.
  * @param {Object} input insert's input, less post_id.
@@ -1400,6 +1407,212 @@ step(
 	takenInside.status === 400 &&
 		takenInside.data.code === 'voyager_open_blocks_invalid_repeat',
 	takenInside.data.message || takenInside.data.code
+);
+
+// The reviews section in its two layouts. Each review is a block labelled
+// "Review <n>" whose named blocks carry its label: a rating row of five
+// stars and the rating in words ("Review <n> rating"), the customer's quote,
+// their name and one detail. The stars have no label, so the icon block
+// renders each one aria-hidden and the words are the row's one name.
+const reviewLabels = ( count ) => [
+	'Heading',
+	...Array.from( { length: count }, ( _, i ) =>
+		[ 'rating', 'quote', 'name', 'detail' ].map(
+			( part ) => `Review ${ i + 1 } ${ part }`
+		)
+	).flat(),
+];
+for ( const [ item, count ] of [
+	[ 'voyager-open/reviews', 3 ],
+	[ 'voyager-open/reviews-single', 1 ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } with its copy labels`,
+		JSON.stringify( labels ) === JSON.stringify( reviewLabels( count ) ),
+		listed ? labels.join( ', ' ) : 'not listed'
+	);
+}
+
+/**
+ * The star rows in rendered HTML, each with what a screen reader is given
+ * for it: a run of icons in one group, then the paragraph beside them in
+ * the same row. A name is the aria-label of an icon that is not hidden, or
+ * the text of the paragraph.
+ *
+ * @param {string} html A rendered page.
+ * @return {Array<{stars: number, hidden: number, names: string[]}>} One entry per row.
+ */
+function starRows( html ) {
+	const rows = [];
+	const row =
+		/<div class="wp-block-group\b[^"]*">((?:\s*<div class="wp-block-voyager-open-icon\b[^"]*"[^>]*>\s*<svg\b[^>]*>[\s\S]*?<\/svg>\s*<\/div>)+)\s*<\/div>\s*<p\b([^>]*)>([\s\S]*?)<\/p>/g;
+	for ( const [ , icons, pAttrs, pText ] of html.matchAll( row ) ) {
+		const svgs = [ ...icons.matchAll( /<svg\b([^>]*)>/g ) ].map(
+			( m ) => m[ 1 ]
+		);
+		const hidden = ( attrs ) =>
+			/\baria-hidden="true"/.test( attrs ) && ! /\brole=/.test( attrs );
+		const spoken = [
+			...svgs
+				.filter( ( attrs ) => ! hidden( attrs ) )
+				.map(
+					( attrs ) =>
+						attrs.match( /\baria-label="([^"]*)"/ )?.[ 1 ] ?? ''
+				),
+			...( /\baria-hidden="true"/.test( pAttrs )
+				? []
+				: [ pText.replace( /<[^>]*>/g, '' ).trim() ] ),
+		].filter( ( name ) => name !== '' );
+		rows.push( {
+			stars: svgs.length,
+			hidden: svgs.filter( hidden ).length,
+			names: spoken,
+		} );
+	}
+	return rows;
+}
+const rowSummary = ( rows ) =>
+	`${ rows.length } star rows: ${
+		rows
+			.map(
+				( r ) =>
+					`${ r.hidden }/${ r.stars } stars hidden, names ${ JSON.stringify( r.names ) }`
+			)
+			.join( '; ' ) || 'none'
+	}`;
+
+// The fitness check: the grid as insert saves it, published and fetched as a
+// visitor. Three star rows, each five stars hidden from screen readers and
+// exactly one name, the rating in words.
+const reviewsPage = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: { title: `E2E: reviews ${ stamp }`, status: 'draft' },
+} );
+placeholderPages.push( reviewsPage.data.id );
+const reviewsPlaced = await run( `${ ns }/insert`, {
+	post_id: reviewsPage.data.id,
+	item: 'voyager-open/reviews',
+} );
+validate( 'reviews as insert saves it', reviewsPlaced.data.markup || '' );
+const reviewsPublished = await api( `/wp/v2/pages/${ reviewsPage.data.id }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const reviewsFront = reviewsPublished.data.link
+	? await request( reviewsPublished.data.link )
+	: { status: 0, text: '' };
+const shownRows = starRows( reviewsFront.text );
+step(
+	'fitness: insert voyager-open/reviews, publish and fetch it: three star rows, each with five stars hidden from screen readers and exactly one accessible name, matching "Rated 5 out of 5"',
+	reviewsPlaced.data.saved === true &&
+		reviewsFront.status === 200 &&
+		shownRows.length === 3 &&
+		shownRows.every(
+			( r ) =>
+				r.stars === 5 &&
+				r.hidden === 5 &&
+				r.names.length === 1 &&
+				/^Rated 5 out of 5$/.test( r.names[ 0 ] )
+		),
+	`${
+		reviewsPlaced.data.code || `saved ${ reviewsPlaced.data.saved }`
+	}; ${ reviewsFront.status }; ${ rowSummary( shownRows ) }`
+);
+const reviewsReport = await checkMarkup( { post_id: reviewsPage.data.id } );
+step(
+	'validate passes the page holding the reviews grid as shipped, with no warning',
+	clean( reviewsReport ) &&
+		( reviewsReport.data.warnings || [] ).length === 0,
+	warningSummary( reviewsReport )
+);
+
+// Four real reviews in the grid: repeat copies "Review 3" as "Review 4", omit
+// drops the fifth star of the four-star review, and copy fills every slot.
+const reviewCopy = ( count ) =>
+	Object.fromEntries( [
+		[ 'Heading', 'What our customers say' ],
+		...Array.from( { length: count }, ( _, i ) => [
+			[
+				`Review ${ i + 1 } rating`,
+				i === 1 ? 'Rated 4 out of 5' : 'Rated 5 out of 5',
+			],
+			[
+				`Review ${ i + 1 } quote`,
+				`E2E review ${ i + 1 }: the words the customer wrote.`,
+			],
+			[ `Review ${ i + 1 } name`, `E2E customer ${ i + 1 }` ],
+			[ `Review ${ i + 1 } detail`, `E2E service ${ i + 1 }` ],
+		] ).flat(),
+	] );
+const fourReviews = await insertServices( 'reviews with a fourth card', {
+	item: 'voyager-open/reviews',
+	repeat: { 'Review 3': [ 'Review 4' ] },
+	omit: [ 'Review 2 star 5' ],
+	copy: reviewCopy( 4 ),
+} );
+const fourReviewsMarkup = fourReviews.placed.data.markup || '';
+const fourReviewsLabels = ( fourReviews.placed.data.blocks || [] ).map(
+	( b ) => b.label
+);
+step(
+	'insert reviews with a fourth card through repeat and a four-star review through omit, filled by copy',
+	fourReviews.placed.status === 200 &&
+		fourReviews.placed.data.saved === true &&
+		fourReviews.placed.data.validation?.round_trip === true &&
+		( fourReviewsMarkup.match( /<!-- wp:voyager-open\/icon /g ) || [] )
+			.length === 19 &&
+		( fourReviewsMarkup.match( /<!-- wp:quote /g ) || [] ).length === 4 &&
+		fourReviewsMarkup.includes( '>Rated 4 out of 5</p>' ) &&
+		fourReviewsMarkup.includes( '>E2E customer 4</p>' ) &&
+		! fourReviewsMarkup.includes( 'Customer name' ) &&
+		! fourReviewsLabels.includes( 'Review 2 star 5' ) &&
+		[
+			'Review 4',
+			'Review 4 star 5',
+			'Review 4 rating',
+			'Review 4 quote',
+			'Review 4 name',
+			'Review 4 detail',
+		].every( ( name ) => fourReviewsLabels.includes( name ) ),
+	fourReviews.placed.data.code ||
+		`${ ( fourReviewsMarkup.match( /<!-- wp:voyager-open\/icon /g ) || [] ).length } stars`
+);
+step(
+	'validate passes the page with four reviews, with no warning',
+	clean( fourReviews.report ) &&
+		( fourReviews.report.data.warnings || [] ).length === 0,
+	warningSummary( fourReviews.report )
+);
+
+// One large quote, filled by copy.
+const oneReview = await insertServices( 'reviews as one large quote', {
+	item: 'voyager-open/reviews-single',
+	copy: reviewCopy( 1 ),
+} );
+const oneReviewMarkup = oneReview.placed.data.markup || '';
+step(
+	'insert the reviews section as one large quote, filled by copy',
+	oneReview.placed.status === 200 &&
+		oneReview.placed.data.saved === true &&
+		( oneReviewMarkup.match( /<!-- wp:voyager-open\/icon /g ) || [] )
+			.length === 5 &&
+		oneReviewMarkup.includes(
+			'>E2E review 1: the words the customer wrote.</p>'
+		) &&
+		! oneReviewMarkup.includes( 'Customer name' ),
+	oneReview.placed.data.code || `saved ${ oneReview.placed.data.saved }`
+);
+step(
+	'validate passes the page with one large quote, with no warning',
+	clean( oneReview.report ) &&
+		( oneReview.report.data.warnings || [] ).length === 0,
+	warningSummary( oneReview.report )
 );
 
 // A cover whose background is the pack's 16:9 placeholder at the plugin's

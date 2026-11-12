@@ -709,7 +709,10 @@ function paint( string $style, array $values ): array {
  *
  * Headings and links take the section's text colour, so a theme that colours
  * them itself (Twenty Twenty-Four sets every heading to contrast) cannot put
- * dark text on Inverted. The fill button takes the style's button colours at
+ * dark text on Inverted. So do quotes and their citations: a style variation
+ * can colour core/quote for its own background (Twenty Twenty-Five's Dusk
+ * sets it to black, Sunrise to accent-2), which reads 1.19:1 on Dusk's
+ * Accent. The fill button takes the style's button colours at
  * rest, on hover and on focus, where hover underlines the label rather than
  * changing a colour the theme chose for another background. An outline
  * button needs nothing here at rest: core's outline style draws it in
@@ -746,6 +749,14 @@ function style_data( string $style, array $values ): array {
 					'typography' => [ 'textDecoration' => 'underline' ],
 				],
 				':focus' => [ 'color' => $button ],
+			],
+		],
+		'blocks'   => [
+			'core/quote' => [
+				'color'    => $text,
+				'elements' => [
+					'cite' => [ 'color' => $text ],
+				],
 			],
 		],
 	];
