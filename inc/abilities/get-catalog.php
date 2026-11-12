@@ -26,7 +26,7 @@ function register_get_catalog(): void {
 		CATEGORY . '/get-catalog',
 		[
 			'label'               => __( 'Get the Voyager Open Blocks catalog', 'voyager-open-blocks' ),
-			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite) and the binding fields available for a post type, each with the exact args to bind it. used_on counts, for each Site Data and bindable post meta field, the published posts, templates and template parts that show it, keyed "<source>:<key>". styles lists the section styles a core/group can take (Panel, Inverted and Accent; Plain is none), each with the class configure\'s style input sets, and which role map the theme\'s colours come from.', 'voyager-open-blocks' ),
+			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite; section and layout, null for a section with one layout; and copy_rules, each copy label\'s purpose, min and max characters, and whether it is required or a claim the site owner must supply) and the binding fields available for a post type, each with the exact args to bind it. used_on counts, for each Site Data and bindable post meta field, the published posts, templates and template parts that show it, keyed "<source>:<key>". styles lists the section styles a core/group can take (Panel, Inverted and Accent; Plain is none), each with the class configure\'s style input sets, and which role map the theme\'s colours come from.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
