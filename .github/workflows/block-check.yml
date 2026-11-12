@@ -18,3 +18,4 @@ jobs:
       - uses: voyager-marketing/voyager-block-check@v1
         with:
           paths: patterns/*.html patterns/**/*.html
+          wesper-manifest: tests/fixtures/pack.context.json
