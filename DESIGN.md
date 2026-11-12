@@ -200,7 +200,7 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 
 ## Do's and Don'ts
 
-Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast` runs in CI for the section styles today (`npm run contrast`: the CTA band in each style at 1280 px on Twenty Twenty-Five, Twenty Twenty-Four and Twenty Twenty-Three, the last on the fallback roles). The rest are planned and not in CI yet. The rendered ones (`contrast`, `overflow`, `a11y`, `impeccable`, `motion`) will render every pattern and style at 320, 390, 768 and 1280 px on public themes.
+Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast`, `overflow` and `motion` run in CI (`npm run design-check`): every pattern in each section style, Plain included, at 320, 390, 768 and 1280 px on Twenty Twenty-Five and Twenty Twenty-Four, and on Ipsum, WordPress's proposed default theme, on the fallback roles. `contrast` also measures each colour style variation the three themes ship, at 390 and 1280 px. The pairs under 4.5:1 that a variation, or Ipsum's own outline button hover, brings are listed in `tests/fixtures/contrast.json` as known failures, and any other pair under 4.5:1 fails. The rest are planned and not in CI yet. The other rendered ones, `a11y` and `impeccable`, will render the same way.
 
 | Check | Fails when |
 | -- | -- |

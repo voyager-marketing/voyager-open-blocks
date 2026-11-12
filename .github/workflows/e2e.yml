@@ -9,8 +9,12 @@ name: E2E
 # - editor: npm run e2e:editor boots its own fresh dev site and checks the
 #   first-run notice, Settings > Site Data, the editor hints, pasting each
 #   pattern and the front end, logged in as admin.
-# - contrast: npm run contrast boots its own dev site and measures text contrast
-#   in each section style on each theme in tests/fixtures/contrast.json.
+# - contrast: npm run design-check boots its own dev site and renders every
+#   pattern in every section style on each theme in tests/fixtures/contrast.json,
+#   at 320, 390, 768 and 1280px, and runs DESIGN.md's rendered checks on every
+#   render: contrast, overflow and motion. Then it measures contrast on each
+#   colour-bearing style variation each theme ships. Ipsum runs on its own
+#   site, on the WordPress beta it requires, installed from a pinned commit.
 # - usage-index: npm run check:usage-index boots its own dev site, deletes the
 #   usage index, and checks that `wp voyager-open-blocks reindex` and the
 #   backfill on activation each put every row back. Two more rows plant a
@@ -130,7 +134,7 @@ jobs:
         run: npm run e2e:editor
 
   contrast:
-    name: npm run contrast (section style contrast in headless Chrome)
+    name: npm run design-check (contrast, overflow and motion in headless Chrome)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -143,13 +147,16 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
-      # Boots its own dev site, renders the CTA band in each section style on
-      # each theme in tests/fixtures/contrast.json at 1280px, and measures text
-      # against its background from computed styles. Every run also plants a
-      # low-contrast role map and requires it to fail. ubuntu-latest ships
-      # Google Chrome; the script finds it on PATH.
-      - name: Measure every section style on every theme, and the planted control
-        run: npm run contrast
+      # Boots its own dev site, renders every pattern in each section style on
+      # each theme in tests/fixtures/contrast.json, and loads the page at each
+      # width: contrast measures text against its background from computed
+      # styles, overflow fails a render that scrolls sideways, and motion fails
+      # anything that moves with reduced motion emulated. Every run also plants
+      # a low-contrast role map, a section wider than 320px and an animation
+      # with no reduced-motion rule, and requires each to fail its own check.
+      # ubuntu-latest ships Google Chrome; the script finds it on PATH.
+      - name: Contrast, overflow and motion on every pattern, style and width, and the planted controls
+        run: npm run design-check
 
   usage-index:
     name: npm run check:usage-index${{ matrix.plant && format(' --plant {0}', matrix.plant) || '' }}
