@@ -86,7 +86,7 @@ The abilities list and insert only the pack's `voyager-open/*` patterns, so your
 
 ## API reference
 
-The plugin is pre-1.0. The supported surface is the helper function, the two binding sources and their args, the options, the filters, the abilities, the icon block, the block styles and the pattern slugs. Functions under the `VoyagerOpenBlocks\` namespace work and are listed where a theme might call them, but they can change in a minor release.
+The plugin is pre-1.0. The supported surface is the helper function, the two binding sources and their args, the options, the filters, the abilities, the icon and facts blocks, the block styles and the pattern slugs. Functions under the `VoyagerOpenBlocks\` namespace work and are listed where a theme might call them, but they can change in a minor release.
 
 ### Binding sources
 
@@ -138,11 +138,11 @@ Both return `null` when there is nothing to show, and WordPress then keeps the a
 | `cta_label` | Text of the main call to action | `voyager_site_cta_label` |
 | `cta_url` | Link of the main call to action, through `esc_url_raw()` | `voyager_site_cta_url` |
 
-Stored values are trimmed before use. A list splits on `\r\n`, `\r` or `\n`. The site owner types the rating and review count in from their own review profile: the pack calls no review service. A value the rule does not accept resolves to `''`, so the authored text shows.
+Stored values are trimmed before use. A list splits on `\r\n`, `\r` or `\n`. A binding fills an attribute with one string, so show a list with the `items` of a [`voyager-open/facts`](#block-styles-and-patterns) block, which prints one list item per line. The site owner types the rating and review count in from their own review profile: the pack calls no review service. A value the rule does not accept resolves to `''`, so the authored text shows.
 
 ### Bindable attributes
 
-WordPress decides which attributes take a binding. The ones the pack's patterns use: `content` on `core/paragraph` and `core/heading`, `text` and `url` on `core/button`. The plugin adds `label` and `linkUrl` on `voyager-open/icon`. For any other block, ask WordPress with `get_block_bindings_supported_attributes( 'core/list-item' )`, or read `bindings.supportedAttributes` in a Wesper manifest.
+WordPress decides which attributes take a binding. The ones the pack's patterns use: `content` on `core/paragraph` and `core/heading`, `text` and `url` on `core/button`. The plugin adds `label` and `linkUrl` on `voyager-open/icon`, and `items` on `voyager-open/facts`. For any other block, ask WordPress with `get_block_bindings_supported_attributes( 'core/list-item' )`, or read `bindings.supportedAttributes` in a Wesper manifest.
 
 ### Functions
 
@@ -212,6 +212,8 @@ apply_filters( 'voyager_post_meta_text_fields', array $fields );
 
 `block_bindings_supported_attributes_voyager-open/icon`: the core filter the plugin hooks to add `label` and `linkUrl`.
 
+`block_bindings_supported_attributes_voyager-open/facts`: the core filter the plugin hooks to add `items`.
+
 `voyager_open_blocks_style_roles`: the colour preset each role of the [section styles](#block-styles-and-patterns) uses, role => palette slug. The roles are `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`. The plugin passes its built-in map when your palette matches Twenty Twenty-Five, Twenty Twenty-Four or the Voyager design system, else `[]`. A slug your theme does not declare, and a role not in the list, are dropped. A role the map leaves out is mixed from the site's own text and background colours with `color-mix()`: the ones saved in the Site Editor's Global Styles, else `styles.color` in your theme.json.
 
 ```php
@@ -267,7 +269,7 @@ The plugin hooks these:
 
 | Hook | Priority | What runs |
 |---|---|---|
-| `init` | 10 | Registers the icon block, the patterns and their category, and the block styles, and starts the usage index's background rebuild when the plugin version changed |
+| `init` | 10 | Registers the icon and facts blocks, the patterns and their category, and the block styles, and starts the usage index's background rebuild when the plugin version changed |
 | `init` | 15 | Registers the bindable post meta rows from the option |
 | `init` | 20 | Registers both binding sources, their options and the settings screen hooks |
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
@@ -317,11 +319,13 @@ A path is the list of indices from the top level down, such as `2/0/1`. Errors a
 
 **`voyager-open/icon`** is a dynamic block that saves no HTML. Attributes: `icon` (one of 35 names, default `star`), `size` (pixels, default `48`, clamped to 8 to 512), `label` (accessible name, empty means decorative), `linkUrl`, `linkTarget` (boolean), `animation` (`bounce`, `pulse`, `spin`, `float`, `wiggle`, `fade-in`, `zoom-in`), `animationTrigger` (`hover`, `scroll` or `always`, default `hover`). It supports text and background colour, margin, padding, anchor and left, center or right alignment. The icon strokes with `currentColor`. The names are the `icon` enum in [`src/icon/block.json`](../src/icon/block.json). A link with no label takes the icon's name as its accessible name.
 
+**`voyager-open/facts`** is a dynamic block that saves no HTML. One attribute, `items` (string, default `''`, bindable): one item per line. It prints a `ul` with the block's wrapper attributes and one `li` per line, each line trimmed and empty lines dropped. Each item is decoded once and escaped once, so a value that arrives escaped, as voyager-blocks returns Site Data, prints the same as one that arrives raw. With no items it prints nothing. Bound to a Site Data list that is empty, it shows its own `items`: the source returns `null`, and WordPress keeps the stored value. It supports text and background colour, font size, line height, margin, padding and anchor.
+
 **Block styles:**
 
 | Block | Style | Class | What it does |
 |---|---|---|---|
-| `core/list` | Ticks | `is-style-voyager-open-ticks` | Checkmarked items in one wrapping row. In a flex group narrower than 32em, they stack. |
+| `core/list`, `voyager-open/facts` | Ticks | `is-style-voyager-open-ticks` | Checkmarked items in one wrapping row. In a flex group narrower than 32em, they stack. |
 | `core/group` | Marquee | `is-style-voyager-open-marquee` | The group inside it drifts sideways when it is wider than the marquee, then back. Paused on hover and focus. Still and wrapped under reduced motion. Set `--voyager-open-marquee-duration` to change the speed (default `24s`). |
 | `core/group` | Panel | `is-style-voyager-open-panel` | A section on a quiet tint of the page's background, with its headings, links and buttons coloured to match. |
 | `core/group` | Inverted | `is-style-voyager-open-inverted` | A section in the page's text colour, with the page's background colour as its text. |

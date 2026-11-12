@@ -2277,14 +2277,14 @@ const setServices = ( value ) =>
 	} );
 const originalServices = ( await api( '/wp/v2/settings' ) ).data
 	.voyager_site_services;
-const factsLists = ( html ) =>
+const factsLists = ( pageHtml ) =>
 	[
-		...html.matchAll(
+		...pageHtml.matchAll(
 			/<ul\b[^>]*\bclass="[^"]*\bwp-block-voyager-open-facts\b[^"]*"[^>]*>([\s\S]*?)<\/ul>/g
 		),
-	].map( ( list ) =>
-		[ ...list[ 1 ].matchAll( /<li\b[^>]*>([\s\S]*?)<\/li>/g ) ].map(
-			( li ) => li[ 1 ].trim()
+	].map( ( ul ) =>
+		[ ...ul[ 1 ].matchAll( /<li\b[^>]*>([\s\S]*?)<\/li>/g ) ].map( ( li ) =>
+			li[ 1 ].trim()
 		)
 	);
 const factsDraft = await api( '/wp/v2/pages', {
@@ -2304,9 +2304,7 @@ step(
 		factsInsert.status === 200 &&
 		factsInsert.data.saved === true &&
 		factsInsert.data.blocks?.[ 0 ]?.block === factsItem,
-	factsInsert.data.message ||
-		factsInsert.data.code ||
-		`path ${ factsPath }`
+	factsInsert.data.message || factsInsert.data.code || `path ${ factsPath }`
 );
 const factsBound = await run( `${ ns }/bind`, {
 	post_id: factsId,
