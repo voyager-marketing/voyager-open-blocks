@@ -42,6 +42,13 @@
  *      readers and one name, "Rated 5 out of 5"; a fourth card through
  *      repeat with a four-star review through omit, and the single quote,
  *      each filled by copy and passing both validators with no warning),
+ *      the copy rules (get-catalog's section, layout and copy_rules for the
+ *      hero and the CTA band; insert refusing a 61-character hero heading as
+ *      too_long, a review quote given as a plain string as a claim, omit of
+ *      the hero's heading as required, and a too-long heading, copy for the
+ *      bound call button and omit of the body in one call, with and without
+ *      dry_run, the page unchanged each time; then the quote saving as text
+ *      the site owner gave),
  *      a cover over the 16:9
  *      placeholder at the plugin's URL (one placeholder warning, never
  *      missing_alt) and over the site's own image, and an image with and
@@ -567,13 +574,15 @@ step(
 );
 
 // The proof strip with three facts: copy fills three items, omit drops the fourth.
+// Credentials are facts the site owner gives, so the copy is the object form,
+// which a slot takes whether or not its pattern has copy rules yet.
 const strip = await run( `${ ns }/insert`, {
 	post_id: postId,
 	item: 'voyager-open/proof-strip',
 	copy: {
-		'Credential 1': 'Licensed in three states',
-		'Credential 2': 'Family owned since 1998',
-		'Credential 3': 'Written quotes',
+		'Credential 1': { text: 'Licensed in three states', source: 'user' },
+		'Credential 2': { text: 'Family owned since 1998', source: 'user' },
+		'Credential 3': { text: 'Written quotes', source: 'user' },
 	},
 	omit: [ 'Credential 4' ],
 } );
@@ -609,7 +618,10 @@ const six = await run( `${ ns }/insert`, {
 	item: 'voyager-open/proof-strip',
 	repeat: { 'Credential 4': [ 'Credential 5', 'Credential 6' ] },
 	copy: Object.fromEntries(
-		sixFacts.map( ( fact, i ) => [ `Credential ${ i + 1 }`, fact ] )
+		sixFacts.map( ( fact, i ) => [
+			`Credential ${ i + 1 }`,
+			{ text: fact, source: 'user' },
+		] )
 	),
 } );
 const sixMarkup = six.data.markup || '';
@@ -1676,20 +1688,31 @@ step(
 
 // Four real reviews in the grid: repeat copies "Review 3" as "Review 4", omit
 // drops the fifth star of the four-star review, and copy fills every slot.
+// A review's rating, quote, name and detail are claim slots, so their copy is
+// text the site owner gave: the object form, with "source": "user".
+const fromOwner = ( text ) => ( { text, source: 'user' } );
 const reviewCopy = ( count ) =>
 	Object.fromEntries( [
 		[ 'Heading', 'What our customers say' ],
 		...Array.from( { length: count }, ( _, i ) => [
 			[
 				`Review ${ i + 1 } rating`,
-				i === 1 ? 'Rated 4 out of 5' : 'Rated 5 out of 5',
+				fromOwner( i === 1 ? 'Rated 4 out of 5' : 'Rated 5 out of 5' ),
 			],
 			[
 				`Review ${ i + 1 } quote`,
-				`E2E review ${ i + 1 }: the words the customer wrote.`,
+				fromOwner(
+					`E2E review ${ i + 1 }: the words the customer wrote.`
+				),
 			],
-			[ `Review ${ i + 1 } name`, `E2E customer ${ i + 1 }` ],
-			[ `Review ${ i + 1 } detail`, `E2E service ${ i + 1 }` ],
+			[
+				`Review ${ i + 1 } name`,
+				fromOwner( `E2E customer ${ i + 1 }` ),
+			],
+			[
+				`Review ${ i + 1 } detail`,
+				fromOwner( `E2E service ${ i + 1 }` ),
+			],
 		] ).flat(),
 	] );
 const fourReviews = await insertServices( 'reviews with a fourth card', {
@@ -1755,6 +1778,219 @@ step(
 	clean( oneReview.report ) &&
 		( oneReview.report.data.warnings || [] ).length === 0,
 	warningSummary( oneReview.report )
+);
+
+// Copy rules (contract 3). get-catalog gives each pattern its section, its
+// layout and its copy_rules, read from its intent. insert refuses copy and
+// omit that break them before anything is saved, dry run or not, and lists
+// every refused slot in data.refused.
+const listedPattern = ( name ) =>
+	( catalog.data.patterns || [] ).find( ( p ) => p.name === name );
+const heroListed = listedPattern( 'voyager-open/hero' );
+const bandListed = listedPattern( 'voyager-open/cta-band' );
+const bandIntent = JSON.parse(
+	readFileSync( join( repo, 'patterns', 'intents', 'cta-band.json' ), 'utf8' )
+);
+step(
+	'get-catalog lists voyager-open/hero with section "hero", layout "split" and copy_rules.Heading.max 60',
+	heroListed?.section === 'hero' &&
+		heroListed?.layout === 'split' &&
+		heroListed?.copy_rules?.Heading?.max === 60,
+	heroListed
+		? JSON.stringify( {
+				section: heroListed.section,
+				layout: heroListed.layout,
+				Heading: heroListed.copy_rules?.Heading,
+			} )
+		: 'not listed'
+);
+step(
+	'get-catalog lists voyager-open/cta-band with section and layout null, and copy_rules as its intent holds them, as an object',
+	bandListed?.section === null &&
+		bandListed?.layout === null &&
+		!! bandListed?.copy_rules &&
+		typeof bandListed.copy_rules === 'object' &&
+		! Array.isArray( bandListed.copy_rules ) &&
+		JSON.stringify( bandListed.copy_rules ) ===
+			JSON.stringify( bandIntent.copy_rules || {} ),
+	bandListed
+		? JSON.stringify( {
+				section: bandListed.section,
+				layout: bandListed.layout,
+				copy_rules: bandListed.copy_rules,
+			} )
+		: 'not listed'
+);
+
+// One draft that holds a paragraph, so "unchanged" compares real content.
+const rulesPage = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E: copy rules ${ stamp }`,
+		status: 'draft',
+		content:
+			'<!-- wp:paragraph -->\n<p>Kept as it was.</p>\n<!-- /wp:paragraph -->',
+	},
+} );
+placeholderPages.push( rulesPage.data.id );
+const rulesContent = async () =>
+	(
+		await api( `/wp/v2/pages/${ rulesPage.data.id }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw ?? null;
+const refusedRows = ( response ) => response.data.data?.refused || [];
+const refusedAs = ( response ) =>
+	refusedRows( response ).map( ( r ) => `${ r.slot } ${ r.reason }` );
+const refusalSummary = ( response ) =>
+	response.data.code
+		? `${ response.status } ${ response.data.code }: ${ refusedAs(
+				response
+			).join( ', ' ) }`
+		: `${ response.status }, saved ${ response.data.saved }`;
+const insertInto = ( input ) =>
+	run( `${ ns }/insert`, { post_id: rulesPage.data.id, ...input } );
+const beforeRules = await rulesContent();
+
+// The fitness check: the hero's Heading allows 60 characters.
+const longHeading =
+	'Same-day plumbing repairs for every home and business in town';
+const tooLong = await insertInto( {
+	item: 'voyager-open/hero',
+	copy: { Heading: longHeading },
+} );
+step(
+	'fitness: insert voyager-open/hero with a 61-character Heading is refused with a 400 whose data.refused holds { slot: "Heading", reason: "too_long" }, and the page is unchanged',
+	longHeading.length === 61 &&
+		tooLong.status === 400 &&
+		tooLong.data.code === 'voyager_open_blocks_copy_rules' &&
+		refusedRows( tooLong ).some(
+			( r ) =>
+				r.slot === 'Heading' &&
+				r.reason === 'too_long' &&
+				r.max === 60 &&
+				r.length === 61
+		) &&
+		!! beforeRules &&
+		( await rulesContent() ) === beforeRules,
+	refusalSummary( tooLong )
+);
+
+// A review's quote is a claim: the site owner's words, never the agent's.
+const ownerQuote = 'They came the same day and fixed the leak for good.';
+const plainClaim = await insertInto( {
+	item: 'voyager-open/reviews',
+	copy: { 'Review 1 quote': ownerQuote },
+} );
+step(
+	'insert of voyager-open/reviews with a plain string for "Review 1 quote" is refused with reason claim, and the page is unchanged',
+	plainClaim.status === 400 &&
+		plainClaim.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify( refusedAs( plainClaim ) ) ===
+			JSON.stringify( [ 'Review 1 quote claim' ] ) &&
+		( refusedRows( plainClaim )[ 0 ]?.message || '' ).includes(
+			'"source": "user"'
+		) &&
+		( await rulesContent() ) === beforeRules,
+	refusalSummary( plainClaim )
+);
+
+// A review repeat adds keeps the rule of the one it copies, so it is a claim too.
+const repeatedClaim = await insertInto( {
+	item: 'voyager-open/reviews',
+	repeat: { 'Review 3': [ 'Review 4' ] },
+	copy: { 'Review 4 quote': ownerQuote },
+	dry_run: true,
+} );
+step(
+	'insert of voyager-open/reviews with a fourth review through repeat refuses a plain string for "Review 4 quote" with reason claim',
+	repeatedClaim.status === 400 &&
+		JSON.stringify( refusedAs( repeatedClaim ) ) ===
+			JSON.stringify( [ 'Review 4 quote claim' ] ) &&
+		( await rulesContent() ) === beforeRules,
+	refusalSummary( repeatedClaim )
+);
+
+const omitHeading = await insertInto( {
+	item: 'voyager-open/hero',
+	omit: [ 'Heading' ],
+} );
+step(
+	'insert of voyager-open/hero with omit ["Heading"] is refused with reason required, and the page is unchanged',
+	omitHeading.status === 400 &&
+		omitHeading.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify( refusedAs( omitHeading ) ) ===
+			JSON.stringify( [ 'Heading required' ] ) &&
+		( await rulesContent() ) === beforeRules,
+	refusalSummary( omitHeading )
+);
+
+// Three faults at once: too long, a bound slot and a required slot left out.
+// The bound slot comes first, and keeps its own row shape.
+const threeFaults = {
+	item: 'voyager-open/hero',
+	copy: { Heading: longHeading, 'Click to call': '(555) 555-0113' },
+	omit: [ 'Body' ],
+};
+const three = await insertInto( threeFaults );
+const threeTrial = await insertInto( { ...threeFaults, dry_run: true } );
+const threeRows = [
+	'Click to call bound',
+	'Heading too_long',
+	'Body required',
+];
+step(
+	'one insert with three faults (a 61-character Heading, copy for the bound "Click to call", omit ["Body"]) is refused with all three in data.refused, and the page is unchanged',
+	three.status === 400 &&
+		three.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify( refusedAs( three ) ) === JSON.stringify( threeRows ) &&
+		refusedRows( three )[ 0 ]?.key === 'phone' &&
+		( await rulesContent() ) === beforeRules,
+	refusalSummary( three )
+);
+step(
+	'with dry_run, the same three faults are refused the same way, and the page is unchanged',
+	threeTrial.status === 400 &&
+		threeTrial.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify( refusedRows( threeTrial ) ) ===
+			JSON.stringify( refusedRows( three ) ) &&
+		( await rulesContent() ) === beforeRules,
+	refusalSummary( threeTrial )
+);
+
+// The object form takes text and source "user", and nothing else.
+for ( const [ label, value ] of [
+	[ 'a source other than "user"', { text: ownerQuote, source: 'agent' } ],
+	[
+		'a key other than text and source',
+		{ text: ownerQuote, source: 'user', verified: true },
+	],
+	[ 'an empty text', { text: '', source: 'user' } ],
+] ) {
+	const refused = await insertInto( {
+		item: 'voyager-open/reviews',
+		copy: { 'Review 1 quote': value },
+		dry_run: true,
+	} );
+	step(
+		`insert refuses a copy value with ${ label }`,
+		refused.status === 400 && ( await rulesContent() ) === beforeRules,
+		`${ refused.status } ${ refused.data.code || '' }`
+	);
+}
+
+// Last, as it saves: the same quote as text the site owner gave.
+const ownerClaim = await insertInto( {
+	item: 'voyager-open/reviews',
+	copy: { 'Review 1 quote': { text: ownerQuote, source: 'user' } },
+} );
+step(
+	'the same quote as { text, source: "user" } saves, and the page holds it',
+	ownerClaim.status === 200 &&
+		ownerClaim.data.saved === true &&
+		( ownerClaim.data.markup || '' ).includes( ownerQuote ) &&
+		( ( await rulesContent() ) || '' ).includes( ownerQuote ),
+	ownerClaim.data.code || `saved ${ ownerClaim.data.saved }`
 );
 
 // A cover whose background is the pack's 16:9 placeholder at the plugin's
