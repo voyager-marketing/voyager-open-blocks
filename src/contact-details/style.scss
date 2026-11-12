@@ -1,0 +1,30 @@
+/**
+ * voyager-open/contact-details: front end and editor.
+ *
+ * Layout and tap targets only. Colour and type come from the theme and the
+ * block's own supports. Each line of the address is a line of its own, and
+ * each link is at least 44px tall and wide, so a thumb can hit it.
+ */
+.wp-block-voyager-open-contact-details {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+
+	> * {
+		margin-block: 0;
+	}
+}
+
+.wp-block-voyager-open-contact-details__address {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	font-style: inherit;
+}
+
+.wp-block-voyager-open-contact-details__link {
+	display: inline-flex;
+	align-items: center;
+	min-block-size: 44px;
+	min-inline-size: 44px;
+}
