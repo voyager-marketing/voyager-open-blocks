@@ -14,6 +14,8 @@
  * - voyager_test_registered_meta  keys registered through register_post_meta()
  * - voyager_test_binding_sources  source name => true, read by get_block_bindings_source()
  * - voyager_test_caps           capability => true or a list of IDs, read by current_user_can(). Unset grants everything.
+ * - voyager_test_settings       option name => register_setting() args, with the group under `group`
+ * - voyager_test_settings_errors  add_settings_error() calls: setting, code, message, type
  *
  * @package VoyagerOpenBlocks
  */
@@ -89,9 +91,10 @@ if ( ! function_exists( 'is_email' ) ) {
 if ( ! function_exists( 'esc_url_raw' ) ) {
 	/**
 	 * An allowed protocol survives, any other yields '', and a space becomes %20 as in esc_url().
+	 * Like esc_url(), it trims only the left, so a trailing space becomes %20 too.
 	 */
 	function esc_url_raw( string $url ): string {
-		$url = trim( $url );
+		$url = ltrim( $url );
 		if ( '' === $url ) {
 			return '';
 		}
@@ -113,6 +116,67 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 			$text = (string) preg_replace( '/[\r\n\t ]+/', ' ', $text );
 		}
 		return trim( $text );
+	}
+}
+
+if ( ! function_exists( '_sanitize_text_fields' ) ) {
+	/**
+	 * As core's _sanitize_text_fields(), less the UTF-8 check: strips tags, joins
+	 * the lines into one unless $keep_newlines, trims, and drops %-encoded octets.
+	 */
+	function _sanitize_text_fields( string $str, bool $keep_newlines = false ): string {
+		if ( str_contains( $str, '<' ) ) {
+			$str = wp_strip_all_tags( $str );
+		}
+		if ( ! $keep_newlines ) {
+			$str = (string) preg_replace( '/[\r\n\t ]+/', ' ', $str );
+		}
+		$str   = trim( $str );
+		$found = false;
+		while ( preg_match( '/%[a-f0-9]{2}/i', $str, $match ) ) {
+			$str   = str_replace( $match[0], '', $str );
+			$found = true;
+		}
+		return $found ? trim( (string) preg_replace( '/ +/', ' ', $str ) ) : $str;
+	}
+}
+
+if ( ! function_exists( 'sanitize_text_field' ) ) {
+	function sanitize_text_field( string $str ): string {
+		return _sanitize_text_fields( $str, false );
+	}
+}
+
+if ( ! function_exists( 'sanitize_textarea_field' ) ) {
+	function sanitize_textarea_field( string $str ): string {
+		return _sanitize_text_fields( $str, true );
+	}
+}
+
+if ( ! function_exists( 'sanitize_email' ) ) {
+	function sanitize_email( string $email ): string {
+		$email = trim( $email );
+		return false !== filter_var( $email, FILTER_VALIDATE_EMAIL ) ? $email : '';
+	}
+}
+
+if ( ! function_exists( 'register_setting' ) ) {
+	/**
+	 * Records each registration in voyager_test_settings: option name => args.
+	 *
+	 * @param array<string, mixed> $args Setting args.
+	 */
+	function register_setting( string $option_group, string $option_name, array $args = [] ): void {
+		$GLOBALS['voyager_test_settings'][ $option_name ] = $args + [ 'group' => $option_group ];
+	}
+}
+
+if ( ! function_exists( 'add_settings_error' ) ) {
+	/**
+	 * Records each error in voyager_test_settings_errors.
+	 */
+	function add_settings_error( string $setting, string $code, string $message, string $type = 'error' ): void {
+		$GLOBALS['voyager_test_settings_errors'][] = compact( 'setting', 'code', 'message', 'type' );
 	}
 }
 

@@ -32,7 +32,8 @@ const SOURCE = 'voyager/site-data';
 /**
  * Field definitions: binding key => label, value type and stored option.
  *
- * Keys without an option are derived from other fields or from core.
+ * Keys without an option are derived from other fields or from core. A
+ * `list` holds one item per line.
  *
  * @return array<string, array{label: string, type: string, option?: string}>
  */
@@ -56,8 +57,22 @@ function fields(): array {
 		'social_instagram' => [ 'label' => __( 'Instagram URL', 'voyager-open-blocks' ), 'type' => 'url', 'option' => 'voyager_site_social_instagram' ],
 		'social_linkedin'  => [ 'label' => __( 'LinkedIn URL', 'voyager-open-blocks' ), 'type' => 'url', 'option' => 'voyager_site_social_linkedin' ],
 		'social_x'         => [ 'label' => __( 'X URL', 'voyager-open-blocks' ), 'type' => 'url', 'option' => 'voyager_site_social_x' ],
+		'services'         => [ 'label' => __( 'Services', 'voyager-open-blocks' ), 'type' => 'list', 'option' => 'voyager_site_services' ],
+		'service_area'     => [ 'label' => __( 'Service area', 'voyager-open-blocks' ), 'type' => 'list', 'option' => 'voyager_site_service_area' ],
+		'credentials'      => [ 'label' => __( 'Credentials', 'voyager-open-blocks' ), 'type' => 'list', 'option' => 'voyager_site_credentials' ],
+		'founded'          => [ 'label' => __( 'Year founded', 'voyager-open-blocks' ), 'type' => 'text', 'option' => 'voyager_site_founded' ],
+		'license'          => [ 'label' => __( 'License number', 'voyager-open-blocks' ), 'type' => 'text', 'option' => 'voyager_site_license' ],
+		'rating'           => [ 'label' => __( 'Rating', 'voyager-open-blocks' ), 'type' => 'text', 'option' => 'voyager_site_rating' ],
+		'review_count'     => [ 'label' => __( 'Review count', 'voyager-open-blocks' ), 'type' => 'text', 'option' => 'voyager_site_review_count' ],
+		'cta_label'        => [ 'label' => __( 'Main call to action text', 'voyager-open-blocks' ), 'type' => 'text', 'option' => 'voyager_site_cta_label' ],
+		'cta_url'          => [ 'label' => __( 'Main call to action link', 'voyager-open-blocks' ), 'type' => 'url', 'option' => 'voyager_site_cta_url' ],
 	];
 }
+
+/**
+ * The keys shown under "Business profile" on Settings > Site Data, in order.
+ */
+const BUSINESS_PROFILE = [ 'services', 'service_area', 'credentials', 'founded', 'license', 'rating', 'review_count', 'cta_label', 'cta_url' ];
 
 /**
  * Keys that values() composes from other keys: derived key => the keys it is made from.
@@ -143,6 +158,24 @@ function help( string $key ): string {
 			return __( 'Also called a ZIP code. A blank part is left out of the city line, with its comma.', 'voyager-open-blocks' );
 		case 'hours':
 			return __( 'One line, written the way you want it shown, for example Monday to Friday, 9am to 5pm.', 'voyager-open-blocks' );
+		case 'services':
+			return __( 'One service per line, for example Drain cleaning. Blank lines are skipped.', 'voyager-open-blocks' );
+		case 'service_area':
+			return __( 'One town, county or area per line, for example Springfield. Blank lines are skipped.', 'voyager-open-blocks' );
+		case 'credentials':
+			return __( 'One per line: licenses, insurance, certifications and memberships you can show proof of, for example Licensed and insured.', 'voyager-open-blocks' );
+		case 'founded':
+			return __( 'The four-digit year the business started, for example 1998.', 'voyager-open-blocks' );
+		case 'license':
+			return __( 'As it is printed on the license, for example PL-000123.', 'voyager-open-blocks' );
+		case 'rating':
+			return __( 'Your average rating from 0 to 5, for example 4.8. Type it by hand from your own review profile and update it when it changes: the pack calls no review service.', 'voyager-open-blocks' );
+		case 'review_count':
+			return __( 'How many reviews that rating comes from, as a whole number with no commas, for example 127. Typed by hand from the same review profile: the pack calls no review service.', 'voyager-open-blocks' );
+		case 'cta_label':
+			return __( 'The words on the button you most want visitors to press, for example Book a visit.', 'voyager-open-blocks' );
+		case 'cta_url':
+			return __( 'Where that button goes: a full address starting with https://, for example https://example.com/contact/, or a tel: link.', 'voyager-open-blocks' );
 	}
 
 	return str_starts_with( $key, 'social_' )
@@ -190,7 +223,66 @@ function values(): array {
 		'social_instagram' => esc_url_raw( $opt( 'voyager_site_social_instagram' ) ),
 		'social_linkedin'  => esc_url_raw( $opt( 'voyager_site_social_linkedin' ) ),
 		'social_x'         => esc_url_raw( $opt( 'voyager_site_social_x' ) ),
+		'services'         => resolve_list( $opt( 'voyager_site_services' ) ),
+		'service_area'     => resolve_list( $opt( 'voyager_site_service_area' ) ),
+		'credentials'      => resolve_list( $opt( 'voyager_site_credentials' ) ),
+		'founded'          => resolve_year( $opt( 'voyager_site_founded' ) ),
+		'license'          => $opt( 'voyager_site_license' ),
+		'rating'           => resolve_rating( $opt( 'voyager_site_rating' ) ),
+		'review_count'     => resolve_count( $opt( 'voyager_site_review_count' ) ),
+		'cta_label'        => $opt( 'voyager_site_cta_label' ),
+		'cta_url'          => esc_url_raw( $opt( 'voyager_site_cta_url' ) ),
 	];
+}
+
+/**
+ * A list: one item per line, each line trimmed, empty lines dropped, joined with "\n".
+ *
+ * Splits on \r\n, \r and \n, so a list saved from a form (which sends \r\n) reads the same.
+ *
+ * @param string $value Stored value.
+ */
+function resolve_list( string $value ): string {
+	$lines = array_map( 'trim', preg_split( '/\r\n|\r|\n/', $value ) ?: [] );
+
+	return implode( "\n", array_filter( $lines, static fn ( string $line ): bool => '' !== $line ) );
+}
+
+/**
+ * A year: the trimmed value when it is four digits, else ''.
+ *
+ * @param string $value Stored value.
+ */
+function resolve_year( string $value ): string {
+	$value = trim( $value );
+
+	return 1 === preg_match( '/^[0-9]{4}$/D', $value ) ? $value : '';
+}
+
+/**
+ * A rating: a number from 0 to 5 with one decimal, such as 4.8, else ''.
+ *
+ * @param string $value Stored value.
+ */
+function resolve_rating( string $value ): string {
+	$value = trim( $value );
+
+	if ( ! is_numeric( $value ) || (float) $value < 0 || (float) $value > 5 ) {
+		return '';
+	}
+
+	return number_format( (float) $value, 1, '.', '' );
+}
+
+/**
+ * A count: the trimmed value when it is digits only, as an integer string, else ''.
+ *
+ * @param string $value Stored value.
+ */
+function resolve_count( string $value ): string {
+	$value = trim( $value );
+
+	return 1 === preg_match( '/^[0-9]+$/D', $value ) ? (string) (int) $value : '';
 }
 
 /**
@@ -307,11 +399,76 @@ function register_options(): void {
 				'type'              => 'string',
 				'description'       => $field['label'],
 				'default'           => '',
-				'sanitize_callback' => 'url' === $field['type'] ? 'esc_url_raw' : ( 'email' === $key ? 'sanitize_email' : 'sanitize_text_field' ),
+				'sanitize_callback' => static fn ( mixed $value ): string => sanitize( $key, $value ),
 				'show_in_rest'      => true,
 			]
 		);
 	}
+}
+
+/**
+ * Sanitize a value for a stored key, on the Settings form and over REST alike.
+ *
+ * URLs are trimmed and go through esc_url_raw(), the email through
+ * sanitize_email() and a list through sanitize_textarea_field(), which keeps
+ * its line breaks. sanitize_text_field() would join the lines into one. The
+ * other text goes through sanitize_text_field(). The year, rating and
+ * count are saved in the form values() resolves them to. A value that is not
+ * a year, a rating or a count is refused as core refuses a bad option in
+ * sanitize_option(): the option keeps its previous value, and the Settings
+ * screen says why.
+ *
+ * @param string $key   Binding key of a stored field.
+ * @param mixed  $value Submitted value.
+ */
+function sanitize( string $key, mixed $value ): string {
+	$type  = fields()[ $key ]['type'] ?? 'text';
+	$value = Cast\to_string( $value );
+
+	if ( 'url' === $type ) {
+		// esc_url() trims only the left, and turns a trailing space into %20.
+		return esc_url_raw( trim( $value ) );
+	}
+
+	if ( 'list' === $type ) {
+		return sanitize_textarea_field( $value );
+	}
+
+	if ( 'email' === $key ) {
+		return sanitize_email( $value );
+	}
+
+	$value = sanitize_text_field( $value );
+
+	switch ( $key ) {
+		case 'founded':
+			$clean = resolve_year( $value );
+			$error = __( 'Year founded must be a four-digit year, such as 1998. The previous value was kept.', 'voyager-open-blocks' );
+			break;
+		case 'rating':
+			$clean = resolve_rating( $value );
+			$error = __( 'Rating must be a number from 0 to 5, such as 4.8. The previous value was kept.', 'voyager-open-blocks' );
+			break;
+		case 'review_count':
+			$clean = resolve_count( $value );
+			$error = __( 'Review count must be a whole number with no commas, such as 127. The previous value was kept.', 'voyager-open-blocks' );
+			break;
+		default:
+			return $value;
+	}
+
+	if ( '' === $value || '' !== $clean ) {
+		return $clean;
+	}
+
+	$option = 'voyager_site_' . $key;
+
+	// add_settings_error() is admin-only, so a REST request keeps the value without a message.
+	if ( function_exists( 'add_settings_error' ) ) {
+		add_settings_error( $option, "invalid_{$option}", $error );
+	}
+
+	return Cast\to_string( get_option( $option, '' ) );
 }
 
 /**
@@ -325,6 +482,13 @@ function register_settings(): void {
 		'voyager-site-data'
 	);
 
+	add_settings_section(
+		'voyager_site_business',
+		__( 'Business profile', 'voyager-open-blocks' ),
+		__NAMESPACE__ . '\render_business_intro',
+		'voyager-site-data'
+	);
+
 	foreach ( fields() as $key => $field ) {
 		if ( ! isset( $field['option'] ) ) {
 			continue;
@@ -335,11 +499,11 @@ function register_settings(): void {
 			$field['label'],
 			__NAMESPACE__ . '\render_field',
 			'voyager-site-data',
-			'voyager_site_data',
+			in_array( $key, BUSINESS_PROFILE, true ) ? 'voyager_site_business' : 'voyager_site_data',
 			[
 				'label_for' => $field['option'],
 				'key'       => $key,
-				'type'      => 'url' === $field['type'] ? 'url' : ( 'email' === $key ? 'email' : 'text' ),
+				'type'      => control( $key ),
 			]
 		);
 	}
@@ -474,6 +638,32 @@ function render_intro(): void {
 }
 
 /**
+ * The intro under the Business profile heading on Settings > Site Data.
+ */
+function render_business_intro(): void {
+	echo '<p>' . esc_html__( 'What your pages can say about the business: what it does, where, since when, and what backs it up. Fill in only what you can show proof of. A blank field leaves the section\'s placeholder text in place.', 'voyager-open-blocks' ) . '</p>';
+}
+
+/**
+ * The form control for a stored key on Settings > Site Data: an input type, or `textarea` for a list.
+ *
+ * @param string $key Binding key.
+ */
+function control( string $key ): string {
+	$type = fields()[ $key ]['type'] ?? 'text';
+
+	if ( 'list' === $type ) {
+		return 'textarea';
+	}
+
+	if ( 'url' === $type ) {
+		return 'url';
+	}
+
+	return 'email' === $key ? 'email' : 'text';
+}
+
+/**
  * Render one settings input with its help, the patterns that use it, the
  * pages and templates that show it (inc/freshness/usage.php) and its binding
  * underneath.
@@ -490,11 +680,33 @@ function render_field( array $args ): void {
 		$used = sprintf( __( 'Used by: %s', 'voyager-open-blocks' ), implode( ', ', $titles ) );
 	}
 
+	$value = Cast\to_string( get_option( $id, '' ) );
+
+	if ( 'textarea' === $args['type'] ) {
+		printf(
+			'<textarea id="%1$s" name="%1$s" rows="5" class="large-text" aria-describedby="%1$s-help %1$s-used %1$s-shown">%2$s</textarea>',
+			esc_attr( $id ),
+			esc_textarea( $value )
+		);
+	} else {
+		$mode = [
+			'founded'      => 'numeric',
+			'rating'       => 'decimal',
+			'review_count' => 'numeric',
+		][ $args['key'] ] ?? '';
+
+		printf(
+			'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text"%4$s aria-describedby="%2$s-help %2$s-used %2$s-shown" />',
+			esc_attr( $args['type'] ),
+			esc_attr( $id ),
+			esc_attr( $value ),
+			'' === $mode ? '' : ' inputmode="' . esc_attr( $mode ) . '"'
+		);
+	}
+
 	printf(
-		'<input type="%1$s" id="%2$s" name="%2$s" value="%3$s" class="regular-text" aria-describedby="%2$s-help %2$s-used %2$s-shown" /><p class="description" id="%2$s-help">%4$s</p><p class="description" id="%2$s-used">%5$s</p>',
-		esc_attr( $args['type'] ),
+		'<p class="description" id="%1$s-help">%2$s</p><p class="description" id="%1$s-used">%3$s</p>',
 		esc_attr( $id ),
-		esc_attr( Cast\to_string( get_option( $id, '' ) ) ),
 		esc_html( help( $args['key'] ) ),
 		esc_html( $used )
 	);
