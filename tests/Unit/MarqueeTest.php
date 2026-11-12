@@ -251,6 +251,11 @@ final class MarqueeTest extends TestCase {
 		$this->assertStringContainsString( $reduce, $css );
 		$this->assertStringContainsString( '>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}', $still );
 		$this->assertStringContainsString( '>.' . BlockStyles\MARQUEE_COPY_CLASS . '{display:none}', $still );
+
+		// The block editor renders no copy, so its row stays still and wraps too.
+		$editor = '.editor-styles-wrapper .wp-block-group.is-style-voyager-open-marquee>.wp-block-group{animation:none;flex-wrap:wrap;width:auto}';
+		$this->assertStringContainsString( $editor, $css );
+		$this->assertStringNotContainsString( $editor, substr( $css, 0, (int) strpos( $css, $reduce ) ) );
 	}
 
 	public function test_the_reveal_stylesheet_loads_only_for_a_block_with_the_class(): void {

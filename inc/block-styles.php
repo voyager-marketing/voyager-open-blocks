@@ -97,12 +97,17 @@ function ticks_css( string $list ): string {
  * rows move right instead.
  *
  * With reduced motion the copy is not displayed, and the row wraps and stays
- * still.
+ * still. So does the row in the block editor, which renders no copy, so that
+ * an editor sees and reaches every logo.
  */
 function marquee_css(): string {
 	$group = '.wp-block-group.' . MARQUEE_CLASS;
 	$rows  = $group . '>.wp-block-group';
 	$copy  = $group . '>.' . MARQUEE_COPY_CLASS;
+	$still = static fn ( string $scope ): string => $scope . $group . '{display:block}'
+		. $scope . $rows . '{animation:none;flex-wrap:wrap;width:auto}'
+		. $scope . $rows . '::after{content:none}'
+		. $scope . $copy . '{display:none}';
 
 	return $group . '{display:flex;overflow:hidden;container-type:inline-size}'
 		. $rows . '{flex:none;flex-wrap:nowrap;width:max-content;margin-block:0;animation:voyager-open-marquee var(--voyager-open-marquee-duration,24s) linear infinite}'
@@ -111,10 +116,8 @@ function marquee_css(): string {
 		. $group . ':hover>.wp-block-group,' . $group . ':focus-within>.wp-block-group{animation-play-state:paused}'
 		. $group . ':dir(rtl)>.wp-block-group{--voyager-open-marquee-way:1}'
 		. '@keyframes voyager-open-marquee{from{transform:translateX(0)}to{transform:translateX(calc(var(--voyager-open-marquee-way,-1) * clamp(0px,(100% - 100cqw) * 10000000,100%)))}}'
-		. '@media (prefers-reduced-motion:reduce){' . $group . '{display:block}'
-		. $rows . '{animation:none;flex-wrap:wrap;width:auto}'
-		. $rows . '::after{content:none}'
-		. $copy . '{display:none}}';
+		. '@media (prefers-reduced-motion:reduce){' . $still( '' ) . '}'
+		. $still( '.editor-styles-wrapper ' );
 }
 
 /**
