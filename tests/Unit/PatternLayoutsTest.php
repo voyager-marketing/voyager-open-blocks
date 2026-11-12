@@ -27,6 +27,16 @@ final class PatternLayoutsTest extends TestCase {
 	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|star|years?\b|since|established|guarantee|warrant|best|top|leading|#|\d/i';
 
 	/**
+	 * What each part of a review ships as: what goes there, never a review.
+	 */
+	private const REVIEW_PLACEHOLDERS = [
+		'rating' => 'Rated 5 out of 5',
+		'quote'  => "A real customer's words go here, as they wrote them, with their permission.",
+		'name'   => 'Customer name',
+		'detail' => 'The service, or the month and year',
+	];
+
+	/**
 	 * Every intent file, by pattern name.
 	 *
 	 * @return array<string, array<string, mixed>>
@@ -122,22 +132,32 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'list', $intents['services-list']['layout'] ?? null );
 	}
 
+	public function test_reviews_comes_in_two_layouts_grid_first_then_single(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'reviews', $intents['reviews']['section'] ?? null );
+		$this->assertSame( 'grid', $intents['reviews']['layout'] ?? null );
+		$this->assertSame( 'reviews', $intents['reviews-single']['section'] ?? null );
+		$this->assertSame( 'single', $intents['reviews-single']['layout'] ?? null );
+	}
+
 	/**
 	 * The blocks labelled "Service <n>" in an intent, the items insert's
 	 * repeat and omit work on, by label.
 	 *
 	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @param string               $word   What the items are called: "Service" or "Review".
 	 * @return array<string, array<string, mixed>>
 	 */
-	private static function service_items( array $intent ): array {
+	private static function service_items( array $intent, string $word = 'Service' ): array {
 		$out  = [];
-		$walk = static function ( array $nodes ) use ( &$walk, &$out ): void {
+		$walk = static function ( array $nodes ) use ( &$walk, &$out, $word ): void {
 			foreach ( $nodes as $node ) {
 				if ( ! is_array( $node ) ) {
 					continue;
 				}
 				$label = $node['attrs']['metadata']['name'] ?? null;
-				if ( is_string( $label ) && 1 === preg_match( '/^Service \d+$/', $label ) ) {
+				if ( is_string( $label ) && 1 === preg_match( '/^' . preg_quote( $word, '/' ) . ' \d+$/', $label ) ) {
 					/** @var array<string, mixed> $node */
 					$out[ $label ] = $node;
 					continue;
@@ -164,7 +184,7 @@ final class PatternLayoutsTest extends TestCase {
 		unset( $node['text'] );
 		$label = $node['attrs']['metadata']['name'] ?? null;
 		if ( is_string( $label ) && is_array( $node['attrs'] ) ) {
-			$node['attrs']['metadata']['name'] = 'Service #' . substr( $label, strlen( $prefix ) );
+			$node['attrs']['metadata']['name'] = '#' . substr( $label, strlen( $prefix ) );
 		}
 		if ( 'voyager-open/icon' === ( $node['block'] ?? null ) && is_array( $node['attrs'] ) ) {
 			unset( $node['attrs']['icon'] );
@@ -236,9 +256,134 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertCount( 1, array_unique( $sizes ), 'every icon is the same size, in both layouts' );
 	}
 
+	/**
+	 * The one node in a tree carrying a label, or null.
+	 *
+	 * @param array<mixed> $node  An intent node.
+	 * @param string       $label A metadata.name.
+	 * @return array<mixed>|null
+	 */
+	private static function labelled( array $node, string $label ): ?array {
+		foreach ( self::nodes( $node ) as $row ) {
+			if ( $label === ( $row['node']['attrs']['metadata']['name'] ?? null ) ) {
+				return $row['node'];
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Labels in a tree, in order.
+	 *
+	 * @param array<mixed> $node An intent node.
+	 * @return list<string>
+	 */
+	private static function labels_in( array $node ): array {
+		$out = [];
+		foreach ( self::nodes( $node ) as $row ) {
+			$label = $row['node']['attrs']['metadata']['name'] ?? null;
+			if ( is_string( $label ) ) {
+				$out[] = $label;
+			}
+		}
+
+		return $out;
+	}
+
+	public function test_every_review_shows_five_hidden_stars_its_rating_in_words_a_quote_and_who_gave_it(): void {
+		$sizes = [];
+
+		foreach ( [ 'reviews' => 3, 'reviews-single' => 1 ] as $name => $count ) {
+			$items = self::service_items( self::intents()[ $name ], 'Review' );
+			$this->assertSame( array_map( static fn ( int $n ): string => "Review {$n}", range( 1, $count ) ), array_keys( $items ), $name );
+
+			$first = null;
+			foreach ( $items as $label => $item ) {
+				$at    = "{$name} \"{$label}\"";
+				$shape = self::shape( $item, $label );
+				$first = $first ?? $shape;
+				$this->assertSame( $first, $shape, "{$at} is built differently from \"Review 1\"" );
+
+				// The rating row: the five stars together, then the rating in words.
+				$row = self::labelled( $item, "{$label} rating row" );
+				$this->assertIsArray( $row, "{$at} has no rating row" );
+				$parts = is_array( $row['children'] ?? null ) ? $row['children'] : [];
+				$this->assertCount( 2, $parts, "{$at}: the rating row is the stars, then the words" );
+				$this->assertSame( "{$label} stars", $parts[0]['attrs']['metadata']['name'] ?? null, $at );
+				$this->assertSame( 'core/paragraph', $parts[1]['block'] ?? null, $at );
+				$this->assertSame( "{$label} rating", $parts[1]['attrs']['metadata']['name'] ?? null, $at );
+
+				$stars = is_array( $parts[0]['children'] ?? null ) ? $parts[0]['children'] : [];
+				$this->assertCount( 5, $stars, "{$at}: a star row has five stars" );
+				foreach ( array_values( $stars ) as $index => $star ) {
+					$this->assertSame( 'voyager-open/icon', $star['block'] ?? null, $at );
+					$attrs = is_array( $star['attrs'] ?? null ) ? $star['attrs'] : [];
+					// No label, so inc/icons.php renders it aria-hidden: the words carry the rating.
+					$this->assertSame( [ 'icon', 'metadata', 'size' ], self::sorted_keys( $attrs ), "{$at}: a star has no label, link or animation" );
+					$this->assertSame( 'star', $attrs['icon'], $at );
+					$this->assertSame( "{$label} star " . ( $index + 1 ), $attrs['metadata']['name'] ?? null, $at );
+					$sizes[] = $attrs['size'];
+				}
+				$kinds = array_map( static fn ( array $node_row ): string => (string) ( $node_row['node']['block'] ?? '' ), self::nodes( $item ) );
+				$this->assertSame( 5, count( array_keys( $kinds, 'voyager-open/icon', true ) ), "{$at}: the stars are the only icons" );
+				$this->assertSame( [], array_keys( $kinds, 'core/heading', true ), "{$at}: a review holds no heading" );
+
+				// The quote holds the customer's words and nothing else. Who gave
+				// it follows the quote, outside it, as HTML keeps attribution.
+				$quotes = array_keys( $kinds, 'core/quote', true );
+				$this->assertCount( 1, $quotes, "{$at} holds one quote" );
+				$quote = self::labelled( $item, "{$label} quote block" );
+				$this->assertIsArray( $quote, $at );
+				$this->assertSame( 'is-style-plain', $quote['attrs']['className'] ?? null, "{$at}: the quote takes the theme's Plain quote, so no box sits in the card" );
+				$this->assertSame( [ "{$label} quote block", "{$label} quote" ], self::labels_in( $quote ), "{$at}: the quote holds the customer's words only" );
+				$order = self::labels_in( $item );
+				foreach ( [ 'rating', 'quote', 'name', 'detail' ] as $part ) {
+					$this->assertContains( "{$label} {$part}", $order, $at );
+				}
+				$this->assertLessThan( array_search( "{$label} name", $order, true ), array_search( "{$label} quote", $order, true ), "{$at}: the name follows the quote" );
+				$this->assertLessThan( array_search( "{$label} detail", $order, true ), array_search( "{$label} name", $order, true ), "{$at}: the detail follows the name" );
+
+				foreach ( self::nodes( $item ) as $node_row ) {
+					$this->assertLessThanOrEqual( 1, $node_row['boxes'] + ( isset( $node_row['node']['attrs']['style']['border'] ) ? 1 : 0 ), "{$at}: a card holds a card" );
+				}
+			}
+		}
+
+		$this->assertCount( 1, array_unique( $sizes ), 'every star is the same size, in both layouts' );
+	}
+
+	public function test_each_part_of_a_review_is_a_claim_and_ships_as_a_placeholder_never_a_review(): void {
+		foreach ( [ 'reviews' => 3, 'reviews-single' => 1 ] as $name => $count ) {
+			$intent = self::intents()[ $name ];
+			$texts  = self::text_blocks( $intent );
+			$parts  = [];
+
+			foreach ( $intent['copy_rules'] as $label => $rule ) {
+				$at = "{$name} \"{$label}\"";
+				if ( 1 !== preg_match( '/^Review (\d+) (rating|quote|name|detail)$/', (string) $label, $match ) ) {
+					$this->assertFalse( $rule['claim'], $at );
+					$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $texts[ (string) $label ], $at );
+					continue;
+				}
+				$parts[] = $match[2] . ' ' . $match[1];
+				$this->assertTrue( $rule['claim'], "{$at} is part of a review, so its text must come from the site owner" );
+				$this->assertSame( self::REVIEW_PLACEHOLDERS[ $match[2] ], $texts[ (string) $label ], "{$at} must say what goes there, not read as a review" );
+			}
+
+			$expected = [];
+			foreach ( range( 1, $count ) as $n ) {
+				foreach ( array_keys( self::REVIEW_PLACEHOLDERS ) as $part ) {
+					$expected[] = "{$part} {$n}";
+				}
+			}
+			$this->assertEqualsCanonicalizing( $expected, $parts, "{$name}: every review has a rating, a quote, a name and a detail" );
+		}
+	}
+
 	public function test_copy_rules_cover_every_named_text_block_and_its_default_copy_fits(): void {
 		$intents = self::intents();
-		foreach ( [ 'hero', 'hero-cover', 'services', 'services-list' ] as $name ) {
+		foreach ( [ 'hero', 'hero-cover', 'services', 'services-list', 'reviews', 'reviews-single' ] as $name ) {
 			$this->assertArrayHasKey( 'copy_rules', $intents[ $name ], $name );
 		}
 

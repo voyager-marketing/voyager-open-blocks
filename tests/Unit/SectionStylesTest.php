@@ -509,7 +509,7 @@ final class SectionStylesTest extends TestCase {
 	}
 
 	#[DataProvider( 'styles' )]
-	public function test_each_style_paints_its_section_headings_links_and_buttons_by_role( string $style, string $background, string $text, string $button, string $button_text ): void {
+	public function test_each_style_paints_its_section_headings_links_quotes_and_buttons_by_role( string $style, string $background, string $text, string $button, string $button_text ): void {
 		$values = [
 			'surface'    => 'S',
 			'on-surface' => 'T',
@@ -523,6 +523,9 @@ final class SectionStylesTest extends TestCase {
 		$this->assertSame( [ 'background' => $background, 'text' => $text ], $data['color'] );
 		$this->assertSame( [ 'text' => $text ], $data['elements']['heading']['color'] );
 		$this->assertSame( [ 'text' => $text ], $data['elements']['link']['color'] );
+		// A style variation can colour quotes for its own background (Twenty Twenty-Five's Dusk: black).
+		$this->assertSame( [ 'text' => $text ], $data['blocks']['core/quote']['color'] ?? null, 'a quote takes the section text colour' );
+		$this->assertSame( [ 'text' => $text ], $data['blocks']['core/quote']['elements']['cite']['color'] ?? null, 'and so does its citation' );
 		$this->assertSame( [ 'background' => $button, 'text' => $button_text ], $data['elements']['button']['color'] );
 		$this->assertSame( [ 'background' => $button, 'text' => $button_text ], $data['elements']['button'][':hover']['color'], 'hover keeps the colours' );
 	}
