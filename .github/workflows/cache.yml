@@ -27,9 +27,9 @@ name: Cache
 #   one measured has the highest ID, so it is past the 50 the purge cleans
 #   one by one. The purge sets purge_all for it, and the WP Super Cache
 #   adapter turns purge_all into a clear of WP Super Cache's cache.
-# - `spinupwp --spy`, `nginx-helper --spy`, `litespeed-cache --spy` and
-#   `wp-rocket --spy`: the pack's adapter for each tells the plugin to purge
-#   the page's URL.
+# - `spinupwp --spy`, `nginx-helper --spy`, `litespeed-cache --spy`,
+#   `wp-rocket --spy` and `w3-total-cache --spy`: the pack's adapter for
+#   each tells the plugin to purge the page's URL.
 # - `cloudflare --spy`: the pack's Cloudflare adapter tells the plugin to
 #   purge everything, and the plugin sends that purge to Cloudflare's API.
 # The --no-purge rows are controls and stay stale for good. They show
@@ -165,6 +165,19 @@ jobs:
             flags: ''
             expect: fresh
           - plugin: cloudflare
+            mode: spy
+            flags: ' --no-purge'
+            expect: stale
+          # W3 Total Cache 2.11.0, installed, with its page cache on as its
+          # settings screen saves it. It does not hook clean_post_cache, so
+          # only the pack's W3 Total Cache adapter tells it: fresh when its
+          # own flush fires w3tc_flush_url with the page's URL, or
+          # w3tc_flush_posts.
+          - plugin: w3-total-cache
+            mode: spy
+            flags: ''
+            expect: fresh
+          - plugin: w3-total-cache
             mode: spy
             flags: ' --no-purge'
             expect: stale

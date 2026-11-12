@@ -4,7 +4,7 @@
 [![Block Check](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/block-check.yml/badge.svg)](https://github.com/voyager-marketing/voyager-open-blocks/actions/workflows/block-check.yml)
 [![Latest release](https://img.shields.io/github/v/release/voyager-marketing/voyager-open-blocks)](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest)
 
-Voyager Open Blocks adds five ready-made page sections and an icon block to WordPress. The sections that show your business details, such as your phone number, email, address and hours, read them from one settings screen. Change your phone number there and every page that shows it changes too. Everything is also built so an AI agent can place it, fill it in and check it correctly.
+Voyager Open Blocks adds five ready-made page sections, an icon block and a facts block to WordPress. The sections that show your business details, such as your phone number, email, address and hours, read them from one settings screen. Change your phone number there and every page that shows it changes too. Everything is also built so an AI agent can place it, fill it in and check it correctly.
 
 **See it first:** browse the [live gallery](https://demo.voyagermark.com/open-blocks/), or [open it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprint.json) with demo content and nothing to install.
 
@@ -22,7 +22,7 @@ Install the plugin, fill in one settings screen, then insert sections like any o
 
 1. **Install.** Download `voyager-open-blocks.zip` from the [latest release](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest). In wp-admin, go to Plugins > Add New Plugin > Upload Plugin, choose the zip, then activate it.
 2. **Add your details.** Go to Settings > Site Data. Fill in your phone, email, address, hours and social links. Your company name and tagline come from Site Title and Tagline under Settings > General.
-3. **Insert a section.** In the block editor, open the inserter, choose Patterns, then the "Business sections (Open Blocks)" category. The icon block is in the block list as "Icon".
+3. **Insert a section.** In the block editor, open the inserter, choose Patterns, then the "Business sections (Open Blocks)" category. The icon and facts blocks are in the block list as "Icon" and "Facts".
 
 | Section | Use it for | What you replace |
 |---|---|---|
@@ -32,6 +32,7 @@ Install the plugin, fill in one settings screen, then insert sections like any o
 | Closing CTA | The last section before your footer. A heading, one line, your main button and an email button. | The heading, the line, and the main button's text and link. The email button follows your email address. |
 | Contact section | Your contact page. Phone, email, address and hours beside a form slot. | The form slot: put your form plugin's block inside the group named "Form". Until you do, it holds an email button. |
 | Icon block | One of 35 outline icons, with an optional link and animation. | The icon. Give it a label when it means something or is a link. |
+| Facts block | A list of short facts, one per line. Connected to your services, service area or credentials, it shows that list from Site Data. | Its items, which visitors see while the connected list is empty. |
 
 The main buttons link to `/contact/` as shipped. Point them at a page your site has.
 
@@ -81,6 +82,7 @@ One prompt per item:
 | Closing CTA | End my About page with the Voyager Open Blocks closing CTA. Rewrite the heading and the line for that page, and keep the email button bound to my Site Data email. |
 | Contact section | Add the Voyager Open Blocks contact section to my Contact page. Keep the phone, email, address and hours bound to Site Data, and tell me which Site Data fields are still empty. |
 | Icon | Add a Voyager Open Blocks phone icon next to the call button in my header, linked to my Site Data phone number. |
+| Facts | Add a Voyager Open Blocks facts list of my services to my Services page, bound to my Site Data services. Tell me if the services are still empty. |
 | Site data source | Bind the phone number in my footer to Voyager Open Blocks Site Data so it follows Settings > Site Data. |
 | Post meta source | Show the [field] of each [post type] on its page with the Voyager Open Blocks post meta source. Make the field bindable under Settings > Site Data first if it isn't yet. |
 
@@ -93,6 +95,7 @@ One prompt per item:
 | Item | Kind | Skill | Try it |
 |---|---|---|---|
 | `voyager-open/icon` | Dynamic block: 35 outline icons, optional link, CSS-only animation | [skills/voyager-open-icon](skills/voyager-open-icon/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/icon.json) |
+| `voyager-open/facts` | Dynamic block: a list, one item per line, that binds to the Site Data lists (services, service area, credentials) | [skills/voyager-open-facts](skills/voyager-open-facts/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/facts.json) |
 | `voyager/site-data` | Binding source: company, phone, email, address, hours, social links | [skills/voyager-site-data](skills/voyager-site-data/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/site-data.json) |
 | `voyager/post-meta-text` | Binding source: allowlisted post meta, with JSON dot paths | [skills/voyager-post-meta-text](skills/voyager-post-meta-text/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/post-meta-text.json) |
 | `voyager-open/cta-band` | Pattern | [skills/voyager-open-cta-band](skills/voyager-open-cta-band/SKILL.md) | [Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/voyager-marketing/voyager-open-blocks/main/blueprints/cta-band.json) |
@@ -103,9 +106,9 @@ One prompt per item:
 
 The Playground links run [`blueprint.json`](blueprint.json) (everything) and the per-item blueprints in [`blueprints/`](blueprints/). They install the plugin from this repository's `main` branch and add demo content.
 
-Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and Marquee on `core/group`. Three section styles on `core/group`, Panel, Inverted and Accent, colour a whole section from the theme's palette; [DESIGN.md](DESIGN.md) says how, and `npm run contrast` measures them.
+Patterns use core blocks and the active theme's presets only, so the theme decides how they look. The pack also registers two block styles the patterns use: Ticks on `core/list` and the facts block, and Marquee on `core/group`. Three section styles on `core/group`, Panel, Inverted and Accent, colour a whole section from the theme's palette; [DESIGN.md](DESIGN.md) says how, and `npm run contrast` measures them.
 
-**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon block, five patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and eight abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
+**Without the CLIs.** On a plain WordPress 6.9+ site the pack gives you the icon and facts blocks, five patterns, the Ticks and Marquee block styles, the Panel, Inverted and Accent section styles, the two binding sources, Settings > Site Data and eight abilities. [Wesper](https://github.com/humanmade/wesper) and [Block Runner](https://github.com/humanmade/block-runner) only add the agent loop that reads the site and checks the markup it writes. Each skill teaches that loop: read the site with Wesper, author native blocks with Block Runner, then bind them to real data.
 
 ### Other ways to install
 

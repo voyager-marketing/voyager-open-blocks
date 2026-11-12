@@ -38,6 +38,9 @@ $voyager_open_seed = static function (): void {
 		'voyager_site_social_instagram' => 'https://instagram.com/example',
 		'voyager_site_social_linkedin'  => 'https://www.linkedin.com/company/example',
 		'voyager_site_social_x'         => 'https://x.com/example',
+		'voyager_site_services'         => "Drain cleaning\nWater heater repair\nLeak detection",
+		'voyager_site_service_area'     => "Springfield\nRiverside\nFairview",
+		'voyager_site_credentials'      => "Licensed and insured\nBackground-checked technicians\nOne-year workmanship guarantee",
 	];
 	foreach ( $site_data as $option => $value ) {
 		update_option( $option, $value );
@@ -87,6 +90,23 @@ $voyager_open_seed = static function (): void {
 					'<!-- wp:voyager-open/icon {"icon":"chat-bubble","size":48,"linkUrl":"/contact/","label":"Contact us"} /-->',
 					'<!-- wp:voyager-open/icon {"icon":"globe","size":48,"linkUrl":"https://example.com/","label":"Company","metadata":{"bindings":{"label":{"source":"voyager/site-data","args":{"key":"company"}},"linkUrl":{"source":"voyager/site-data","args":{"key":"social_x"}}}}} /-->',
 					'</div><!-- /wp:group -->',
+				]
+			),
+		],
+		'facts'           => [
+			'Facts',
+			implode(
+				"\n\n",
+				[
+					'<!-- wp:paragraph --><p>Each list is a facts block. The first three show a voyager/site-data list, one item per line: the services, the service area and, in the Ticks style, the credentials. The last one shows items of its own. Change the lists under Settings, Site Data.</p><!-- /wp:paragraph -->',
+					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Services</h3><!-- /wp:heading -->',
+					'<!-- wp:voyager-open/facts {"items":"Your first service\nYour second service","metadata":{"bindings":{"items":{"source":"voyager/site-data","args":{"key":"services"}}}}} /-->',
+					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Service area</h3><!-- /wp:heading -->',
+					'<!-- wp:voyager-open/facts {"items":"Your town","metadata":{"bindings":{"items":{"source":"voyager/site-data","args":{"key":"service_area"}}}}} /-->',
+					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Credentials</h3><!-- /wp:heading -->',
+					'<!-- wp:voyager-open/facts {"items":"Licensed and insured","className":"is-style-voyager-open-ticks","metadata":{"bindings":{"items":{"source":"voyager/site-data","args":{"key":"credentials"}}}}} /-->',
+					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Its own items</h3><!-- /wp:heading -->',
+					'<!-- wp:voyager-open/facts {"items":"Free estimates\nWeekend appointments\nNo call-out fee"} /-->',
 				]
 			),
 		],

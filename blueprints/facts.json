@@ -1,0 +1,36 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Facts block",
+		"description": "voyager-open/facts: the services, service area and credentials from Site Data as lists, one in the Ticks style, and a list with items of its own.",
+		"author": "voyager-marketing",
+		"categories": [
+			"Blocks"
+		]
+	},
+	"landingPage": "/voyager-open/facts/",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "git:directory",
+				"url": "https://github.com/voyager-marketing/voyager-open-blocks",
+				"ref": "main",
+				"refType": "branch"
+			},
+			"options": {
+				"activate": true,
+				"targetFolderName": "voyager-open-blocks"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; require WP_PLUGIN_DIR . '/voyager-open-blocks/playground/seed.php';"
+		}
+	]
+}
