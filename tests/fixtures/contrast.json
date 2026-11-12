@@ -18,10 +18,31 @@
 	"controls": {
 		"contrast": { "width": 1280 },
 		"overflow": { "width": 320, "element_width": 400 },
-		"motion": { "width": 1280 }
+		"motion": { "width": 1280 },
+		"a11y": { "width": 1280 },
+		"impeccable": { "width": 1280 }
 	},
 	"variations": {
 		"widths": [ 390, 1280 ]
+	},
+	"a11y": {
+		"$comment": "a11y runs axe-core on every section render: the rules tagged with these WCAG 2.0 and 2.1 A and AA tags, plus rules, which names heading-order because axe tags it best-practice. The context is the sections, so the theme's own markup cannot fail the pack, and page-level rules do not run. Any violation fails the render; incomplete results are printed as advisories.",
+		"tags": [ "wcag2a", "wcag2aa", "wcag21a", "wcag21aa" ],
+		"rules": [ "heading-order" ]
+	},
+	"impeccable": {
+		"$comment": "impeccable runs impeccable detect --json --no-config on the page at each width and places each finding in the section its selector matches. gate is the Impeccable 4.8.2 rule ids (impeccable detect --list-rules) a finding in a section fails on; every other finding, and a gated one in the theme's own markup, is printed as an advisory. Impeccable 4.8.2 has no tap-target rule, so the check measures tap targets itself: every link, button and form control in a section must be tap_target.min px tall and wide, apart from a link in a run of text. known_gaps lists, per theme, a kind of target the theme draws under the minimum and the height measured; a target of that kind within tolerance px of it passes, and a listed gap that is no longer measured fails.",
+		"gate": [ "line-length", "gradient-text", "nested-cards", "gray-on-color" ],
+		"tap_target": {
+			"min": 44,
+			"tolerance": 0.5,
+			"known_gaps": {
+				"twentytwentyfour": [
+					{ "kind": "button", "height": 41.5 },
+					{ "kind": "outline button", "height": 41.5 }
+				]
+			}
+		}
 	},
 	"themes": [
 		{
