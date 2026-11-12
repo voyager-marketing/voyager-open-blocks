@@ -52,17 +52,19 @@ function purge_each( Adapter $adapter, array $urls, callable $purge ): void {
 }
 
 /**
- * Purge everything through a cache plugin, reporting a failure.
+ * Purge through a cache plugin in one call, reporting a failure: everything,
+ * or a list of pages the plugin takes at once.
  *
- * @param Adapter    $adapter The adapter calling.
- * @param callable(): void $purge Purges everything.
+ * @param Adapter          $adapter The adapter calling.
+ * @param callable(): void $purge   Purges everything, or the pages.
+ * @param string           $what    What it purges, for the report.
  * @throws \Throwable What the purge threw, after reporting it.
  */
-function purge_once( Adapter $adapter, callable $purge ): void {
+function purge_once( Adapter $adapter, callable $purge, string $what = 'every page' ): void {
 	try {
 		$purge();
 	} catch ( \Throwable $error ) {
-		report( $adapter, 'every page', $error );
+		report( $adapter, $what, $error );
 		throw $error;
 	}
 }

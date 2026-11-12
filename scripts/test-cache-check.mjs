@@ -36,6 +36,7 @@ import {
 	normalizeUrl,
 	pageSlugs,
 	parseArgs,
+	purgesEverything,
 	realVerdict,
 	renderMarker,
 	rowVerdict,
@@ -320,6 +321,142 @@ test( 'each installed cache has a setup fixture that reports its version, and ea
 				Boolean( spec.hooks[ receiver.name ].all )
 		);
 		assert.deepEqual( kinds.sort(), [ false, true ], name );
+	}
+} );
+
+test( 'WP Rocket runs through a stand-in with its signatures, and Cloudflare is heard at its API', () => {
+	const fixtures = join( scripts, '..', 'tests', 'fixtures', 'cache-check' );
+
+	// WP Rocket is not on WordPress.org: nothing to install, a stand-in instead.
+	const rocket = PLUGINS[ 'wp-rocket' ];
+	assert.equal( rocket.install, null );
+	assert.equal( rocket.adapter, 'wp-rocket' );
+	assert.deepEqual( rocket.muPlugins, [ 'wp-rocket-stand-in.php' ] );
+	assert.equal(
+		parseArgs( [ '--plugin', 'wp-rocket', '--spy' ] ).mode,
+		'spy'
+	);
+	assert.throws(
+		() => parseArgs( [ '--plugin', 'wp-rocket', '--real' ] ),
+		/not --real/
+	);
+	const standIn = readFileSync(
+		join( fixtures, 'wp-rocket-stand-in.php' ),
+		'utf8'
+	);
+	// WP Rocket 3.24's signatures, inc/functions/files.php.
+	assert.match(
+		standIn,
+		/function rocket_clean_files\( \$urls, \$filesystem = null, \$run_actions = true \)/
+	);
+	assert.match(
+		standIn,
+		/function rocket_clean_domain\( \$lang = '', \$filesystem = null \)/
+	);
+	for ( const receiver of rocket.receivers ) {
+		assert.match(
+			standIn,
+			new RegExp( `do_action\\( '${ receiver.name }'` ),
+			`the stand-in never fires ${ receiver.name }`
+		);
+	}
+	assert.deepEqual(
+		rocket.receivers
+			.map( ( receiver ) => Boolean( rocket.hooks[ receiver.name ].all ) )
+			.sort(),
+		[ false, true ],
+		'one receiver for a page, one for everything'
+	);
+
+	// Cloudflare: installed, pinned, and heard only through its API request.
+	const cloudflare = PLUGINS.cloudflare;
+	assert.equal( cloudflare.install.slug, 'cloudflare' );
+	assert.equal( cloudflare.install.version, '4.14.5' );
+	assert.equal( cloudflare.adapter, 'cloudflare' );
+	assert.deepEqual( cloudflare.receivers, [
+		{ kind: 'http', name: 'api.cloudflare.com' },
+	] );
+	assert.deepEqual( cloudflare.muPlugins, [ 'cloudflare-api.php' ] );
+	assert.ok( existsSync( join( fixtures, 'cloudflare', 'setup.php' ) ) );
+	assert.throws(
+		() => parseArgs( [ '--plugin', 'cloudflare', '--real' ] ),
+		/not --real/
+	);
+} );
+
+test( 'a request asking to purge everything covers every page, and nothing else does', () => {
+	const request = ( body, extra = {} ) => ( {
+		kind: 'http',
+		name: 'api.cloudflare.com',
+		urls: [],
+		method: 'DELETE',
+		url: 'https://api.cloudflare.com/client/v4/zones/z/purge_cache',
+		body,
+		...extra,
+	} );
+	assert.ok( purgesEverything( request( '{"purge_everything":true}' ) ) );
+	assert.ok( covers( request( '{"purge_everything":true}' ), URL_ ) );
+	assert.ok( purgesEverything( { kind: 'hook', all: true } ) );
+	for ( const body of [
+		'{"purge_everything":false}',
+		'{"purge_everything":"true"}',
+		'{"purge_everything":1}',
+		'"purge_everything"',
+		'[{"purge_everything":true}]',
+		'{"files":["http://127.0.0.1:9400/somewhere-else/"]}',
+		'purge_everything=true',
+		'null',
+		'',
+	] ) {
+		assert.equal( purgesEverything( request( body ) ), false, body );
+		assert.equal( covers( request( body ), URL_ ), false, body );
+	}
+	// Only a request carries a body: a hook that is not marked `all` is one page.
+	assert.equal(
+		purgesEverything( {
+			kind: 'hook',
+			name: 'x',
+			urls: [],
+			body: '{"purge_everything":true}',
+		} ),
+		false
+	);
+	assert.equal( purgesEverything( null ), false );
+
+	const observed = {
+		url: URL_,
+		receivers: PLUGINS.cloudflare.receivers,
+		loads: [ page( PHONE_BEFORE, 'aa' ), page( PHONE_AFTER, 'bb' ) ],
+		saved: PHONE_AFTER,
+		adapter: 'cloudflare',
+		adapters: [ { id: 'cloudflare', active: true } ],
+	};
+	const lookup = request( '', {
+		method: 'GET',
+		url: 'https://api.cloudflare.com/client/v4/zones/?name=127.0.0.1&status=active',
+	} );
+	const fresh = spyVerdict( {
+		...observed,
+		records: [ lookup, request( '{"purge_everything":true}' ) ],
+	} );
+	assert.equal( fresh.outcome, 'fresh', fresh.reason );
+	assert.match( fresh.reason, /http api\.cloudflare\.com \(everything\)/ );
+
+	for ( const [ name, records ] of [
+		[ 'only the zone lookup', [ lookup ] ],
+		[
+			'purge_everything sent to another host',
+			[
+				{
+					...request( '{"purge_everything":true}' ),
+					name: 'api.cdn.example',
+				},
+			],
+		],
+		[ 'nothing', [] ],
+	] ) {
+		const verdict = spyVerdict( { ...observed, records } );
+		assert.equal( verdict.outcome, 'stale', name );
 	}
 } );
 
