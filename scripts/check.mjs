@@ -47,6 +47,14 @@
  * 20. The same gate passes tests/fixtures/presets/allowed.html, which writes
  *     every preset form it accepts, so a rule grown to refuse a preset turns
  *     the check red.
+ * 21. npm run check:usage-index's verdict (run() in
+ *     scripts/usage-index-check.mjs) passes its known-answer test, all of its
+ *     12 cases at least: a crash planted before or after the paths are
+ *     measured never exits 0, and the script run with --plant crash exits 2.
+ * 22. Each known failure in tests/fixtures/contrast.json names its pair by
+ *     where it is, the kind of target and its place among the section's
+ *     targets of that kind, never by its text, and the same rule refuses a
+ *     planted entry keyed on text.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -621,7 +629,7 @@ printEach( patternFindings );
 // breaks no other rule. The gate must refuse every one of those blocks for
 // that rule, so a rule that stops biting on any one case turns this red, and
 // so does a file that loses its cases. Raise the floor when you add a case.
-const PLANTED_CASES = 39;
+const PLANTED_CASES = 41;
 const plantedDir = 'tests/invalid/presets';
 const plantedFiles = readdirSync( join( root, plantedDir ) ).filter( ( file ) =>
 	file.endsWith( '.html' )
@@ -702,5 +710,116 @@ report(
 		: `${ allowed.top } cases, at least ${ ALLOWED_CASES } expected`
 );
 printEach( allowedFindings );
+
+// npm run check:usage-index needs Playground too. How it turns what it saw
+// into an exit code does not, and a crash must never come out as a pass.
+const usageIndexTest = knownAnswer(
+	join( root, 'scripts', 'test-usage-index-check.mjs' ),
+	12
+);
+report(
+	"npm run check:usage-index's verdict passes its known-answer test, planted crashes included",
+	usageIndexTest.ok,
+	usageIndexTest.detail
+);
+
+// npm run design-check lists the contrast pairs it lets through under the
+// floor in tests/fixtures/contrast.json. Each names its pair by where it is,
+// the kind of target and its place among the section's targets of that kind
+// (knownKey() there), never by its text: a list keyed on text is renamed
+// whole by a Site Data or wording change. The same rule must refuse a
+// planted entry keyed on text.
+const KNOWN_FIELDS = [
+	'kind',
+	'nth',
+	'pattern',
+	'ratio',
+	'state',
+	'style',
+	'variation',
+];
+const TARGET_KINDS = [ 'button', 'outline button', 'link', 'heading', 'text' ];
+function knownFailureProblems( entry, styles, patterns ) {
+	const problems = [];
+	const keys = Object.keys( entry ?? {} ).sort();
+	if ( JSON.stringify( keys ) !== JSON.stringify( KNOWN_FIELDS ) ) {
+		problems.push(
+			`has ${ keys.join( ', ' ) }, not ${ KNOWN_FIELDS.join( ', ' ) }`
+		);
+	}
+	if ( ! TARGET_KINDS.includes( entry?.kind ) ) {
+		problems.push( `kind ${ JSON.stringify( entry?.kind ) }` );
+	}
+	if ( ! Number.isInteger( entry?.nth ) || entry.nth < 1 ) {
+		problems.push( `nth ${ JSON.stringify( entry?.nth ) }` );
+	}
+	if ( ! [ 'rest', 'hover' ].includes( entry?.state ) ) {
+		problems.push( `state ${ JSON.stringify( entry?.state ) }` );
+	}
+	if ( typeof entry?.ratio !== 'number' ) {
+		problems.push( `ratio ${ JSON.stringify( entry?.ratio ) }` );
+	}
+	if ( ! styles.includes( entry?.style ) ) {
+		problems.push( `style ${ JSON.stringify( entry?.style ) }` );
+	}
+	if ( ! patterns.includes( entry?.pattern ) ) {
+		problems.push( `pattern ${ JSON.stringify( entry?.pattern ) }` );
+	}
+	if ( typeof entry?.variation !== 'string' ) {
+		problems.push( `variation ${ JSON.stringify( entry?.variation ) }` );
+	}
+	return problems;
+}
+let knownCount = 0;
+const knownProblems = [];
+let plantedKnown = [];
+try {
+	const contrast = JSON.parse(
+		readFileSync(
+			join( root, 'tests', 'fixtures', 'contrast.json' ),
+			'utf8'
+		)
+	);
+	const names = readdirSync( join( root, 'patterns' ) )
+		.filter( ( file ) => file.endsWith( '.html' ) )
+		.map( ( file ) => file.slice( 0, -5 ) );
+	for ( const theme of contrast.themes ) {
+		for ( const entry of theme.known_failures || [] ) {
+			knownCount++;
+			const found = knownFailureProblems( entry, contrast.styles, names );
+			if ( found.length ) {
+				knownProblems.push(
+					`${ theme.theme } ${ JSON.stringify( entry ) }: ${ found.join(
+						'; '
+					) }`
+				);
+			}
+		}
+	}
+	plantedKnown = knownFailureProblems(
+		{
+			variation: '',
+			pattern: 'cta-band',
+			style: 'plain',
+			target: 'outline button "(555) 010-0199"',
+			state: 'rest',
+			ratio: 4.23,
+		},
+		contrast.styles,
+		names
+	);
+} catch ( error ) {
+	knownProblems.push( `the gate crashed: ${ error?.message || error }` );
+}
+report(
+	"design-check's known failures name each pair by kind and position, never by its text, and an entry keyed on text is refused",
+	knownProblems.length === 0 && plantedKnown.length > 0,
+	knownProblems.length
+		? `${ plural( knownProblems.length, 'problem' ) }, below`
+		: `${ knownCount } listed${
+				plantedKnown.length ? '' : ', but the planted text key passed'
+			}`
+);
+printEach( knownProblems.slice( 0, 10 ) );
 
 process.exit( failed ? 1 : 0 );

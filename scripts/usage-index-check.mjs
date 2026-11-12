@@ -6,6 +6,7 @@
  *   npm run check:usage-index
  *   npm run check:usage-index -- --plant activation
  *   npm run check:usage-index -- --plant reindex
+ *   npm run check:usage-index -- --plant crash
  *   npm run check:usage-index -- --help
  *
  * blueprints/dev.json activates the plugin before it seeds the demo pages, so
@@ -31,11 +32,17 @@
  * the check fails that path and passes the others: `activation` takes the
  * backfill off the activation hook, and `reindex` replaces the command with
  * one that reports success and indexes nothing. CI runs all three
- * (.github/workflows/e2e.yml).
+ * (.github/workflows/e2e.yml). `crash` makes the harness throw before it boots
+ * the site, and the run must exit 2: a crash is never a pass
+ * (scripts/test-usage-index-check.mjs, which npm run check runs).
  *
  * Exit codes: 0 every path passed (with --plant, the planted fault was
- * caught), 1 a path did not do what it should, 2 the harness could not tell.
+ * caught), 1 a path did not do what it should, 2 the harness could not tell,
+ * which a crash anywhere is, whatever the paths measured before it.
  */
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { boot, phpLog, reportPhpLog, runPhp } from './dev.mjs';
 import { annotate, endGroup, group } from './lib/log.mjs';
 import { nodeVersionProblem } from './lib/node-version.mjs';
@@ -93,6 +100,13 @@ add_action(
 `,
 };
 
+/**
+ * Every --plant: a fault the mu-plugin puts in a path, or crash, which makes
+ * the harness throw before it boots the site, as a crash anywhere would, so
+ * the run must exit 2.
+ */
+const PLANT_NAMES = [ ...Object.keys( PLANTS ), 'crash' ];
+
 const HELP = `npm run check:usage-index [-- options]
 
 Checks that the usage index's backfill on activation and
@@ -101,7 +115,9 @@ Playground site.
 
   --plant <fault>  Plant a fault and pass only when the check catches it:
                    activation (no backfill on activation) or reindex (a
-                   reindex command that indexes nothing).
+                   reindex command that indexes nothing). crash makes the
+                   harness throw before it boots the site, and the run must
+                   exit 2.
   --port <n>       Port to serve on. Default 9400, or a free one.
   --wp <version>   WordPress version. Default latest.
   --php <version>  PHP version. Default 8.3.
@@ -362,6 +378,9 @@ function verdict( found ) {
  */
 async function measure( opts, results ) {
 	let site;
+	if ( opts.plant === 'crash' ) {
+		throw new Error( 'planted crash (--plant crash)' );
+	}
 
 	try {
 		group( 'Boot the dev site' );
@@ -379,7 +398,7 @@ async function measure( opts, results ) {
 				},
 				// The wp-cli step makes Playground fetch WP-CLI, and shows it runs.
 				steps: [
-					...( opts.plant
+					...( PLANTS[ opts.plant ]
 						? [
 								{
 									step: 'mkdir',
@@ -507,7 +526,7 @@ async function measure( opts, results ) {
  * @param {string|null}                                      plant
  * @return {number} 0, 1 or 2.
  */
-function report( results, plant ) {
+export function report( results, plant ) {
 	let wrong = 0;
 	let unmeasured = 0;
 	for ( const [ path, result ] of Object.entries( results ) ) {
@@ -532,37 +551,115 @@ function report( results, plant ) {
 	return unmeasured ? 2 : 0;
 }
 
-async function main() {
-	const problem = nodeVersionProblem();
-	if ( problem ) {
-		console.error( problem );
-		process.exit( 2 );
-	}
-	const opts = flags( process.argv.slice( 2 ) );
-	if ( opts.help ) {
-		console.log( HELP );
-		return;
-	}
-	const known = [ '_', 'plant', 'port', 'wp', 'php', 'debug' ];
-	const unknown = Object.keys( opts ).find(
-		( key ) => ! known.includes( key )
-	);
-	if ( unknown || opts._.length ) {
-		console.error(
-			`Unknown option ${
-				unknown ? `--${ unknown }` : opts._[ 0 ]
-			}. Run npm run check:usage-index -- --help for the options.`
+/**
+ * The whole run, as an exit code. It never throws, and a crash never passes:
+ * a crash in measure() keeps what the paths measured before it and exits 2
+ * where they would otherwise give 0, and a crash anywhere else exits 2.
+ * Node's own code for an uncaught exception is 1, so the entry point below
+ * catches those too. scripts/test-usage-index-check.mjs plants crashes in
+ * each step to show it.
+ *
+ * @param {string[]}                                         argv            Arguments after the script name.
+ * @param {Object}                                           [steps]         Stand-ins for the steps, for the known-answer test.
+ * @param {(opts: Object, results: Object) => Promise<void>} [steps.measure] Boots the site and fills in results. Default measure().
+ * @param {(results: Object, plant: string|null) => number}  [steps.report]  Prints the verdicts. Default report().
+ * @return {Promise<number>} 0 pass (with --plant: the fault was caught), 1 fail, 2 the harness could not tell.
+ */
+export async function run( argv, steps = {} ) {
+	const { measure: doMeasure = measure, report: doReport = report } = steps;
+	try {
+		const problem = nodeVersionProblem();
+		if ( problem ) {
+			console.error( problem );
+			return 2;
+		}
+		const opts = flags( argv );
+		if ( opts.help ) {
+			console.log( HELP );
+			return 0;
+		}
+		const known = [ '_', 'plant', 'port', 'wp', 'php', 'debug' ];
+		const unknown = Object.keys( opts ).find(
+			( key ) => ! known.includes( key )
 		);
-		process.exit( 2 );
-	}
-	if ( opts.plant !== undefined && ! PLANTS[ opts.plant ] ) {
-		console.error(
-			`--plant takes ${ Object.keys( PLANTS ).join( ' or ' ) }.`
-		);
-		process.exit( 2 );
-	}
-	opts.plant = opts.plant ?? null;
+		if ( unknown || opts._.length ) {
+			console.error(
+				`Unknown option ${
+					unknown ? `--${ unknown }` : opts._[ 0 ]
+				}. Run npm run check:usage-index -- --help for the options.`
+			);
+			return 2;
+		}
+		if (
+			opts.plant !== undefined &&
+			! PLANT_NAMES.includes( opts.plant )
+		) {
+			console.error( `--plant takes ${ PLANT_NAMES.join( ', ' ) }.` );
+			return 2;
+		}
+		opts.plant = opts.plant ?? null;
 
+		const results = {
+			reindex: { status: 'unmeasured', detail: '' },
+			activation: { status: 'unmeasured', detail: '' },
+			order: { status: 'unmeasured', detail: '' },
+		};
+		try {
+			await doMeasure( opts, results );
+		} catch ( error ) {
+			annotate(
+				'error',
+				`The harness could not tell: ${ error?.message || error }`,
+				'usage index'
+			);
+			if ( opts.debug ) {
+				console.error( error?.stack );
+			}
+		}
+		return doReport( results, opts.plant );
+	} catch ( error ) {
+		annotate(
+			'error',
+			`npm run check:usage-index crashed, so it measured nothing: ${
+				error?.stack || error
+			}`,
+			'usage index'
+		);
+		return 2;
+	}
+}
+
+/**
+ * True when this file is the script node was asked to run, not an import.
+ *
+ * @return {boolean} Whether to run run().
+ */
+function isMain() {
+	if ( ! process.argv[ 1 ] ) {
+		return false;
+	}
+	const self = fileURLToPath( import.meta.url );
+	const invoked = resolve( process.argv[ 1 ] );
+	return process.platform === 'win32'
+		? self.toLowerCase() === invoked.toLowerCase()
+		: self === invoked;
+}
+
+if ( isMain() ) {
+	// Whatever escapes run(), such as an error a Playground worker throws
+	// after the fact, exits 2 too, never Node's 1.
+	const crashed = ( error ) => {
+		annotate(
+			'error',
+			`npm run check:usage-index crashed, so it measured nothing: ${
+				error?.stack || error
+			}`,
+			'usage index'
+		);
+		process.exit( 2 );
+	};
+	process.on( 'uncaughtException', crashed );
+	process.on( 'unhandledRejection', crashed );
 	setTimeout(
 		() => {
 			annotate(
@@ -575,24 +672,5 @@ async function main() {
 		TIMEOUT_MINUTES * 60 * 1000
 	).unref();
 
-	const results = {
-		reindex: { status: 'unmeasured', detail: '' },
-		activation: { status: 'unmeasured', detail: '' },
-		order: { status: 'unmeasured', detail: '' },
-	};
-	try {
-		await measure( opts, results );
-	} catch ( error ) {
-		annotate(
-			'error',
-			`The harness could not tell: ${ error.message }`,
-			'usage index'
-		);
-		if ( opts.debug ) {
-			console.error( error.stack );
-		}
-	}
-	process.exit( report( results, opts.plant ) );
+	process.exit( await run( process.argv.slice( 2 ) ) );
 }
-
-await main();
