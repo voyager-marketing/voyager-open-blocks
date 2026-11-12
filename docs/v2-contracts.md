@@ -123,6 +123,7 @@ How a section's background and text colours follow the active theme.
 - Block style variations on `core/group`: `voyager-open-panel`, `voyager-open-inverted` and `voyager-open-accent`. A section with no style is plain.
 - Roles: `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`.
 - The filter `voyager_open_blocks_style_roles` returns role => colour preset slug. The pack ships maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system v2 slugs, and, for any other theme, a fallback built from `currentColor` and `color-mix()` on the site's text and background colours: the ones saved in the Site Editor's Global Styles, else the theme's `styles.color` in theme.json.
+- How a map is chosen. The palette in use is the theme's, or the one a style variation chosen in the Site Editor saved, which replaces it. The built-in map is the one whose slugs that palette declares, else the one whose slugs the theme declares. Each role keeps its slug only where the palette in use declares it, in pairs (`surface` with `on-surface`, `accent` with `on-accent`), and `on-accent` moves to the map's `surface` or `on-surface` slug when its own reads under 4.6:1 on `accent`. The filter gets the built-in map and the slugs of the palette in use, and a map it changes is used as it returns it. The fallback's `accent` mixes 75% of the text into the background, or more in steps of 5% until the background reads at 4.6:1 on it.
 
 ## 5. Recipes
 
