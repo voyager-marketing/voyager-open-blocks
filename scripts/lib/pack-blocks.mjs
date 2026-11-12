@@ -16,12 +16,37 @@
  *   it a core block in each pack block's place and writes the pack block's own
  *   comment there afterwards.
  *
- * The list is built from build/ every run, so a block added to src/ and built
- * needs no list edited here.
+ * The context is tests/fixtures/pack.context.json, a Wesper site context
+ * (site-context-v1, collector "fixture") that lists the pack's blocks and
+ * nothing else. It is written from every block.json under build/: `npm run
+ * patterns:build` rewrites it, and `npm run check` fails while it differs
+ * from what build/ gives, so a block added to src/ and built needs no list
+ * edited by hand. It is committed so the Block Check workflow can pass it to
+ * Block Runner as a manifest too.
  */
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+
+/** The committed site context of the pack's blocks, from the repo root. */
+export const PACK_CONTEXT = 'tests/fixtures/pack.context.json';
+
+/**
+ * A fixture is not collected from a site, so its collection time is fixed:
+ * the file changes only when the blocks do.
+ */
+const COLLECTED_AT = '1970-01-01T00:00:00Z';
+
+/** The Wesper surfaces the context does not hold: all but site and blocks. */
+const UNCOLLECTED = [
+	'wordpress',
+	'theme',
+	'plugins',
+	'bindings',
+	'contentModel',
+	'patterns',
+	'media',
+];
 
 /**
  * Every block.json under a folder, at any depth.
@@ -60,16 +85,23 @@ export function packBlocks( root ) {
 }
 
 /**
- * Write a Wesper-shaped site context that lists the pack's blocks, the way
- * `wesper collect` writes a plugin's block: name, API version, title,
- * category, attributes and supports, with source "plugin".
+ * The site context of the pack's blocks, as the text of PACK_CONTEXT: a
+ * Wesper site context (contextVersion 1) whose blocks are written the way
+ * `wesper collect` writes a plugin's block (name, API version, title,
+ * category, attributes and supports, source "plugin"). It is partial, since
+ * it lists the pack's blocks and none of core's. The source hash covers each
+ * block.json's path and content.
  *
- * @param {{name: string, json: Object}[]} blocks The pack's blocks.
- * @return {{file: string, dir: string}} The context file, in a new temporary folder.
+ * @param {{name: string, file: string, json: Object}[]} blocks The pack's blocks.
+ * @return {string} JSON, tab-indented, with a final newline.
  */
-export function writePackContext( blocks ) {
-	const dir = mkdtempSync( join( tmpdir(), 'voyager-open-pack-context-' ) );
-	const file = join( dir, 'site.context.json' );
+export function packContextText( blocks ) {
+	const hash = createHash( 'sha256' );
+	for ( const { file, json } of blocks ) {
+		hash.update(
+			`${ file.split( '\\' ).join( '/' ) }\0${ JSON.stringify( json ) }\0`
+		);
+	}
 	const types = blocks.map( ( { name, json } ) => ( {
 		name,
 		apiVersion: json.apiVersion ?? 1,
@@ -81,11 +113,33 @@ export function writePackContext( blocks ) {
 		parent: json.parent ?? null,
 		ancestor: json.ancestor ?? null,
 	} ) );
-	writeFileSync(
-		file,
-		`${ JSON.stringify( { blocks: { types } }, null, '\t' ) }\n`
-	);
-	return { file, dir };
+	const context = {
+		contextVersion: 1,
+		site: {
+			name: "Voyager Open Blocks: the pack's own blocks",
+			environment: 'unknown',
+			isMultisite: false,
+		},
+		provenance: {
+			collectedAt: COLLECTED_AT,
+			collector: 'fixture',
+			collectorVersion: 'scripts/lib/pack-blocks.mjs',
+			sourceHash: `sha256:${ hash.digest( 'hex' ) }`,
+			partial: true,
+		},
+		// Every surface but the blocks is declared unavailable, at info, so
+		// `wesper validate` reads the gaps as known and exits 0.
+		warnings: UNCOLLECTED.map( ( surface ) => ( {
+			code: `${ surface }.absent_evidence`,
+			severity: 'info',
+			surface,
+			message:
+				"This context lists the pack's own blocks only. It was not collected from a site.",
+			coverage: 'unavailable',
+		} ) ),
+		blocks: { types },
+	};
+	return `${ JSON.stringify( context, null, '\t' ) }\n`;
 }
 
 /**
@@ -165,7 +219,7 @@ export function attributeProblems( json, attrs ) {
 
 /**
  * A block comment's attributes, written as serializeAttributes() in
- * @wordpress/blocks 17.0.0 (src/api/serializer.tsx) writes them, so the
+ * `@wordpress/blocks` 17.0.0 (src/api/serializer.tsx) writes them, so the
  * markup reads the same as the editor's.
  *
  * @param {Object} attrs Attributes.

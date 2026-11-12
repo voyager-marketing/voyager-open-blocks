@@ -1,0 +1,210 @@
+{
+	"contextVersion": 1,
+	"site": {
+		"name": "Voyager Open Blocks: the pack's own blocks",
+		"environment": "unknown",
+		"isMultisite": false
+	},
+	"provenance": {
+		"collectedAt": "1970-01-01T00:00:00Z",
+		"collector": "fixture",
+		"collectorVersion": "scripts/lib/pack-blocks.mjs",
+		"sourceHash": "sha256:c538104d6126cf549400cec3fd951d05cb11464e529219ac046c6873ae7a9e1f",
+		"partial": true
+	},
+	"warnings": [
+		{
+			"code": "wordpress.absent_evidence",
+			"severity": "info",
+			"surface": "wordpress",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		},
+		{
+			"code": "theme.absent_evidence",
+			"severity": "info",
+			"surface": "theme",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		},
+		{
+			"code": "plugins.absent_evidence",
+			"severity": "info",
+			"surface": "plugins",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		},
+		{
+			"code": "bindings.absent_evidence",
+			"severity": "info",
+			"surface": "bindings",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		},
+		{
+			"code": "contentModel.absent_evidence",
+			"severity": "info",
+			"surface": "contentModel",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		},
+		{
+			"code": "patterns.absent_evidence",
+			"severity": "info",
+			"surface": "patterns",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		},
+		{
+			"code": "media.absent_evidence",
+			"severity": "info",
+			"surface": "media",
+			"message": "This context lists the pack's own blocks only. It was not collected from a site.",
+			"coverage": "unavailable"
+		}
+	],
+	"blocks": {
+		"types": [
+			{
+				"name": "voyager-open/facts",
+				"apiVersion": 3,
+				"title": "Facts",
+				"category": "text",
+				"attributes": {
+					"items": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					}
+				},
+				"supports": {
+					"html": false,
+					"anchor": true,
+					"color": {
+						"text": true,
+						"background": true
+					},
+					"spacing": {
+						"margin": true,
+						"padding": true
+					},
+					"typography": {
+						"fontSize": true,
+						"lineHeight": true
+					}
+				},
+				"source": "plugin",
+				"parent": null,
+				"ancestor": null
+			},
+			{
+				"name": "voyager-open/icon",
+				"apiVersion": 3,
+				"title": "Icon",
+				"category": "design",
+				"attributes": {
+					"icon": {
+						"type": "string",
+						"enum": [
+							"arrow-down",
+							"arrow-left",
+							"arrow-right",
+							"arrow-up",
+							"bolt",
+							"building-office",
+							"chart-bar",
+							"chat-bubble",
+							"check-circle",
+							"chevron-down",
+							"chevron-right",
+							"clock",
+							"cog",
+							"cursor-arrow-click",
+							"document",
+							"envelope",
+							"exclamation-triangle",
+							"globe",
+							"heart",
+							"home",
+							"information-circle",
+							"light-bulb",
+							"link",
+							"map-pin",
+							"phone",
+							"photo",
+							"play-circle",
+							"rocket-launch",
+							"shield-check",
+							"sparkles",
+							"star",
+							"users",
+							"video-camera",
+							"wrench",
+							"x-circle"
+						],
+						"default": "star"
+					},
+					"size": {
+						"type": "number",
+						"default": 48
+					},
+					"label": {
+						"type": "string",
+						"default": ""
+					},
+					"linkUrl": {
+						"type": "string",
+						"default": ""
+					},
+					"linkTarget": {
+						"type": "boolean",
+						"default": false
+					},
+					"animation": {
+						"type": "string",
+						"enum": [
+							"",
+							"bounce",
+							"pulse",
+							"spin",
+							"float",
+							"wiggle",
+							"fade-in",
+							"zoom-in"
+						],
+						"default": ""
+					},
+					"animationTrigger": {
+						"type": "string",
+						"enum": [
+							"hover",
+							"scroll",
+							"always"
+						],
+						"default": "hover"
+					}
+				},
+				"supports": {
+					"html": false,
+					"anchor": true,
+					"align": [
+						"left",
+						"center",
+						"right"
+					],
+					"color": {
+						"text": true,
+						"background": true
+					},
+					"spacing": {
+						"margin": true,
+						"padding": true
+					}
+				},
+				"source": "plugin",
+				"parent": null,
+				"ancestor": null
+			}
+		]
+	}
+}

@@ -5,10 +5,11 @@
  *   npm run check
  *
  * 1. patterns/*.html match their intents (`patterns:build --check`).
- * 2. `block-runner validate --strict` passes on every pattern, given a site
- *    context that lists the pack's own blocks, read from every block.json
- *    under build/ (scripts/lib/pack-blocks.mjs), and no block in them warns
- *    unregistered-block. Without the context the pack's blocks warn and
+ * 2. tests/fixtures/pack.context.json, the site context that lists the pack's
+ *    own blocks, is what every block.json under build/ gives
+ *    (scripts/lib/pack-blocks.mjs), and Wesper validates it.
+ *    `block-runner validate --strict` passes on every pattern given that
+ *    context, and no block in them warns unregistered-block. Without the context the pack's blocks warn and
  *    nothing else changes, so the context is shown to pass only them.
  * 3. The same command fails on tests/invalid/, so the gate is shown to bite,
  *    and on tests/invalid/blocks/, whose block no plugin registers, so the
@@ -62,7 +63,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { packBlocks, writePackContext } from './lib/pack-blocks.mjs';
+import {
+	PACK_CONTEXT,
+	packBlocks,
+	packContextText,
+} from './lib/pack-blocks.mjs';
 import { checkMarkup, describeFinding, RULES } from './lib/presets.mjs';
 
 const root = fileURLToPath( new URL( '..', import.meta.url ) );
@@ -73,6 +78,7 @@ const blockRunner = join(
 	'dist',
 	'cli.js'
 );
+const wesper = join( root, 'node_modules', 'wesper', 'dist', 'cli.js' );
 let failed = 0;
 
 function run( args ) {
@@ -107,24 +113,41 @@ report(
 );
 
 // Block Runner knows only core's blocks. A site context that lists the pack's
-// own blocks, built from every block.json under build/, tells validate they
-// are registered on the target (scripts/lib/pack-blocks.mjs). A crash here
-// fails the line and leaves the context empty, so the gates below fail too.
+// own blocks tells validate they are registered on the target
+// (scripts/lib/pack-blocks.mjs). It is committed, so it must be what every
+// block.json under build/ gives now, and Wesper must accept it, as the Block
+// Check action does before it uses a manifest. A crash here fails the line
+// and points the gates below at no context, so they fail too.
 let pack = [];
 let packContext = null;
+let contextDetail = '';
 try {
 	pack = packBlocks( root );
-	packContext = writePackContext( pack );
+	const committed = readFileSync( join( root, PACK_CONTEXT ), 'utf8' );
+	const schema = run( [ wesper, 'validate', PACK_CONTEXT ] );
+	if ( committed !== packContextText( pack ) ) {
+		contextDetail = `${ PACK_CONTEXT } is stale, run npm run patterns:build`;
+	} else if ( schema.code !== 0 ) {
+		contextDetail = `wesper validate refuses ${ PACK_CONTEXT }: ${ (
+			schema.stdout + schema.stderr
+		)
+			.trim()
+			.split( '\n' )
+			.join( '; ' ) }`;
+	} else {
+		packContext = join( root, PACK_CONTEXT );
+	}
 } catch ( error ) {
 	pack = [];
-	packContext = null;
-	console.log( `     ${ error?.message || String( error ) }` );
+	contextDetail = error?.message || String( error );
 }
 const packNames = new Set( pack.map( ( block ) => block.name ) );
 report(
-	"the pack's own blocks, read from every block.json under build/",
+	`${ PACK_CONTEXT } lists the pack's own blocks, from every block.json under build/, and Wesper validates it`,
 	packContext !== null && pack.length > 0,
-	pack.map( ( block ) => block.name ).join( ', ' ) || 'none found'
+	contextDetail ||
+		pack.map( ( block ) => block.name ).join( ', ' ) ||
+		'none found'
 );
 
 /**
@@ -138,7 +161,7 @@ report(
 function validateGlob( glob, withContext = true ) {
 	const args = [ blockRunner, 'validate', glob, '--strict', '--json' ];
 	if ( withContext ) {
-		args.push( '--context', packContext ? packContext.file : 'missing' );
+		args.push( '--context', packContext ?? 'missing' );
 	}
 	const result = run( args );
 	let parsed = {};
@@ -225,9 +248,6 @@ report(
 		strangerStray.map( ( item ) => item.block ).join( ', ' ) || 'nothing'
 	}, ${ strangerKnown.length } pack blocks passed`
 );
-if ( packContext ) {
-	rmSync( packContext.dir, { recursive: true, force: true } );
-}
 
 const inspect = run( [ blockRunner, 'plugin', 'inspect', '.', '--json' ] );
 const profile = JSON.parse( inspect.stdout || '{}' );

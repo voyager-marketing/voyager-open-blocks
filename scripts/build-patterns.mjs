@@ -18,8 +18,10 @@
  * while it assembles, and the pack block's own comment goes back in its place
  * after. A pack block's attributes must fit its block.json, an icon name from
  * the set included. A pattern that holds one is then validated again with
- * `block-runner validate --strict --context`, given a site context that lists
- * the pack's blocks, so the markup written is the markup checked.
+ * `block-runner validate --strict --context`, given the site context that
+ * lists the pack's blocks, so the markup written is the markup checked. That
+ * context, tests/fixtures/pack.context.json, is written here from build/ too,
+ * and --check fails while the committed one differs.
  *
  *   npm run patterns:build            write every pattern
  *   npm run patterns:build -- --check fail if any written file is stale
@@ -38,10 +40,11 @@ import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+	PACK_CONTEXT,
 	packBlocks,
+	packContextText,
 	restorePackBlocks,
 	standInPackBlocks,
-	writePackContext,
 } from './lib/pack-blocks.mjs';
 
 const root = fileURLToPath( new URL( '..', import.meta.url ) );
@@ -76,9 +79,23 @@ function repeatedLabels( nodes ) {
 const scratch = mkdtempSync( join( tmpdir(), 'voyager-open-patterns-' ) );
 let failed = 0;
 
+// The site context of the pack's blocks, written from build/ so it is never
+// out of date here; --check fails while the committed one is.
 const pack = packBlocks( root );
 const byName = new Map( pack.map( ( block ) => [ block.name, block.json ] ) );
-const context = writePackContext( pack );
+const context = join( root, PACK_CONTEXT );
+const contextText = packContextText( pack );
+const contextCurrent =
+	existsSync( context ) && readFileSync( context, 'utf8' ) === contextText;
+if ( check && ! contextCurrent ) {
+	failed++;
+	console.error(
+		`x ${ PACK_CONTEXT } is stale: it is not what build/ gives, run npm run patterns:build`
+	);
+} else if ( ! contextCurrent ) {
+	writeFileSync( context, contextText );
+	console.log( `ok ${ PACK_CONTEXT } (${ pack.length } blocks, written)` );
+}
 
 /**
  * `block-runner validate --strict --json --context` on markup.
@@ -101,7 +118,7 @@ function validateWithPack( name, markup ) {
 					'--strict',
 					'--json',
 					'--context',
-					context.file,
+					context,
 				],
 				{ encoding: 'utf8', stdio: [ 'ignore', 'pipe', 'ignore' ] }
 			)
@@ -235,5 +252,4 @@ for ( const file of readdirSync( intents )
 }
 
 rmSync( scratch, { recursive: true, force: true } );
-rmSync( context.dir, { recursive: true, force: true } );
 process.exit( failed ? 1 : 0 );
