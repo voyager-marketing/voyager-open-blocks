@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * The rendered design checks, `contrast`, `overflow`, `motion`, `a11y` and
- * `impeccable` as DESIGN.md names them, measured on real renders of every
- * pattern in every section style.
+ * The rendered design checks, `contrast`, `overflow`, `motion`, `layout`,
+ * `a11y` and `impeccable` as DESIGN.md names them, measured on real renders
+ * of every pattern in every section style.
  *
  *   npm run design-check                boot a fresh dev site, render, measure, stop
- *   npm run design-check -- --plant     put every planted fault in the main run too, to watch it fail
+ *   npm run design-check -- --plant     every planted fault in the main run too: exit 1 when each check fails on its own plants only, else 3
  *   npm run contrast                    the contrast part alone (--checks contrast)
  *   npm run design-check -- --themes twentytwentyfive --no-variations
  *   npm run design-check -- --help      every option
@@ -55,7 +55,12 @@
  *      - motion: fails when an animation or transition is running, or when
  *        any element's box moves between two samples taken apart. Overflow is
  *        measured again, since a reduced-motion rule can change the layout;
- *   4. runs eight controls, each of which must fail its own check or the run
+ *      - layout: fails when a row of items (core/columns, or a group with the
+ *        grid layout) renders other than the columns the fixture names for
+ *        its pattern at the wide width, or more than one at a stacked width,
+ *        or when a word in a heading breaks across lines or spills out of
+ *        its box;
+ *   4. runs twelve controls, each of which must fail its own check or the run
  *      fails: the fixture's low-contrast role map, planted through the
  *      voyager_open_blocks_style_roles filter (contrast); white text on a
  *      cover with a white overlay at 50% (contrast, measured against the
@@ -63,13 +68,19 @@
  *      than 320px (overflow); a CSS animation with no reduced-motion rule
  *      (motion); an h2 followed by an h4 (a11y, on heading-order); and
  *      gradient text, a card inside a card and a 30px tall button
- *      (impeccable, each on its own rule). One more must pass: white text on
+ *      (impeccable, each on its own rule); and a grid whose cards are each
+ *      wider than half the row, columns not stacked on a phone, and a heading
+ *      word in a box narrower than itself, free to break and not (layout,
+ *      each on its own reason). One more must pass: white text on
  *      a cover with a black overlay at 80%, which reads over any image, so
  *      the cover measurement is seen to read the overlay and not the page;
  *   5. where the fixture asks, opens the page in the block editor as admin and
  *      checks the Styles panel offers Panel, Inverted and Accent and the canvas
  *      paints Inverted as the front end does;
- *   6. where the fixture lists style variations, switches each colour-bearing
+ *   6. on a theme the fixture gives site_editor_colours, saves them in the
+ *      Site Editor's global styles and checks every Panel, Inverted and
+ *      Accent section paints from them, as the fallback roles would;
+ *   7. where the fixture lists style variations, switches each colour-bearing
  *      variation the theme ships on the way the Site Editor saves one, and
  *      measures contrast at the fixture's variation widths. A pair under the
  *      floor fails unless the fixture lists it as a known failure, and a
@@ -289,11 +300,12 @@ const HELP = `npm run design-check [-- options]
 
 Boots a fresh dev site (npm run dev), renders every pattern in patterns/ in
 every section style on each theme in tests/fixtures/contrast.json, loads it
-in headless Chrome at each width, and runs five checks on every render:
+in headless Chrome at each width, and runs six checks on every render:
 contrast (text under 4.5:1 against its background), overflow (the page
-scrolls sideways), motion (anything moves with reduced motion on), a11y
-(axe-core reports a violation) and impeccable (a gated Impeccable rule fires,
-or a tap target is under 44px). Then it measures contrast on each
+scrolls sideways), motion (anything moves with reduced motion on), layout (a
+row of cards renders the wrong number of columns, or a heading word breaks
+or spills), a11y (axe-core reports a violation) and impeccable (a gated
+Impeccable rule fires, or a tap target is under 44px). Then it measures contrast on each
 colour-bearing style variation the fixture lists. Text on a cover with an
 image is measured against the overlay over black and over white, and the
 lower ratio counts. Exits 1 if any check fails outside the fixture's known
@@ -302,13 +314,15 @@ its own check, or if the readable cover control does not pass.
 
   --checks <list>  Only these checks, such as --checks contrast (what
                    npm run contrast runs). Default
-                   contrast,overflow,motion,a11y,impeccable.
+                   contrast,overflow,motion,layout,a11y,impeccable.
   --plant          Put every planted fault in the main run as well: the
                    low-contrast role map, white text on a cover with a white
                    overlay at 50%, a section wider than 320px, an animation
                    with no reduced-motion rule, an h2 followed by an h4,
-                   gradient text, a card inside a card and a 30px tall
-                   button. The run must fail.
+                   gradient text, a card inside a card, a 30px tall button,
+                   and the four layout faults. Exits 1 when each check fails
+                   on its own plants and nothing else fails, and 3 when the
+                   run fails any other way or a check misses its plant.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
                    The render and pair counts are then not checked.
   --no-variations  Skip the style variations.
@@ -1823,6 +1837,19 @@ async function impeccableScan( url, width, height, chrome ) {
 async function judge( tab, url, width, keys, want, theme, fixture, chrome ) {
 	const out = {};
 	if ( want.a11y ) {
+		// The hover pass leaves the page scrolled to its last link or button,
+		// where a row revealed on scroll can be half faded. At the top every
+		// revealed row shows in full (DESIGN.md, Motion), so axe runs there.
+		await tab.evaluate(
+			js( () => {
+				window.scrollTo( 0, 0 );
+				return new Promise( ( done ) =>
+					window.requestAnimationFrame( () =>
+						window.requestAnimationFrame( () => done( true ) )
+					)
+				);
+			} )
+		);
 		const version = await loadAxe( tab );
 		const result = version
 			? await tab.evaluate( call( 'axe', keys, fixture.a11y ) )

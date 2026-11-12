@@ -214,7 +214,7 @@ apply_filters( 'voyager_post_meta_text_fields', array $fields );
 
 `block_bindings_supported_attributes_voyager-open/facts`: the core filter the plugin hooks to add `items`.
 
-`voyager_open_blocks_style_roles`: the colour preset each role of the [section styles](#block-styles-and-patterns) uses, role => palette slug. The roles are `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`. The plugin passes its built-in map when your palette matches Twenty Twenty-Five, Twenty Twenty-Four or the Voyager design system, else `[]`. A slug your theme does not declare, and a role not in the list, are dropped. A role the map leaves out is mixed from the site's own text and background colours with `color-mix()`: the ones saved in the Site Editor's Global Styles, else `styles.color` in your theme.json.
+`voyager_open_blocks_style_roles`: the colour preset each role of the [section styles](#block-styles-and-patterns) uses, role => palette slug. The roles are `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`. The plugin passes its built-in map when your palette matches Twenty Twenty-Five, Twenty Twenty-Four or the Voyager design system, else `[]`. The second argument is the slugs of the palette the site paints with: a style variation's, when one chosen in the Site Editor brings its own palette, else your theme's. A map the filter changes is used as it returns it, kept only to the known roles and to slugs in that palette, with no pairing or contrast choice made for it. A map it returns unchanged is the built-in one, which the plugin keeps to the roles the palette can paint, in pairs. A role the map leaves out is mixed from the site's own text and background colours with `color-mix()`: the ones saved in the Site Editor's Global Styles, else `styles.color` in your theme.json.
 
 ```php
 apply_filters( 'voyager_open_blocks_style_roles', array $map, array $palette_slugs );
@@ -327,7 +327,7 @@ A path is the list of indices from the top level down, such as `2/0/1`. Errors a
 | Block | Style | Class | What it does |
 |---|---|---|---|
 | `core/list`, `voyager-open/facts` | Ticks | `is-style-voyager-open-ticks` | Checkmarked items in one wrapping row. In a flex group narrower than 32em, they stack. |
-| `core/group` | Marquee | `is-style-voyager-open-marquee` | The group inside it drifts sideways when it is wider than the marquee, then back. Paused on hover and focus. Still and wrapped under reduced motion. Set `--voyager-open-marquee-duration` to change the speed (default `24s`). |
+| `core/group` | Marquee | `is-style-voyager-open-marquee` | The group inside it loops sideways at a steady speed when it is wider than the marquee, right in a right-to-left page. On a page render it is followed by a copy of itself, hidden from screen readers and inert, so the loop has no visible join. Paused on hover and focus. Still and wrapped under reduced motion, and in the editor, REST responses and feeds, which carry no copy. Set `--voyager-open-marquee-duration` to change the speed (default `24s`). |
 | `core/group` | Panel | `is-style-voyager-open-panel` | A section on a quiet tint of the page's background, with its headings, links and buttons coloured to match. |
 | `core/group` | Inverted | `is-style-voyager-open-inverted` | A section in the page's text colour, with the page's background colour as its text. |
 | `core/group` | Accent | `is-style-voyager-open-accent` | A section in the theme's accent colour, with the text colour the theme pairs with it. |

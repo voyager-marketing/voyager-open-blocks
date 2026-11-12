@@ -7,28 +7,9 @@
  * clean_post_cache, so without this adapter a Site Data change refreshes no
  * page until the cache expires.
  *
- * Written against Nginx Helper 2.4.1:
- *
- * - The global $nginx_purger is the purger for the cache method chosen
- *   under Settings > Nginx Helper: a FastCGI_Purger, a PhpRedis_Purger or a
- *   Predis_Purger, all subclasses of Purger (admin/class-purger.php).
- *   Nginx_Helper::define_admin_hooks() in includes/class-nginx-helper.php
- *   creates it, with the global $nginx_helper_admin, as the plugin loads.
- * - Purger::purge_url( $url, $feed = true ) drops one URL, by the purge
- *   method set: a GET to /purge/<path>, deleting the cache file, or deleting
- *   the Redis key. With $feed true, FastCGI_Purger also drops the URL's
- *   feed, atom and rdf URLs. The adapter passes false: those are a page's
- *   comment feeds, which show no blocks, and each costs one more request or
- *   file lookup per page.
- * - Purger::purge_all() drops the whole cache: FastCGI_Purger empties
- *   RT_WP_NGINX_HELPER_CACHE_PATH, which holds every site's pages on a
- *   multisite network, and the Redis purgers delete this site's keys.
- * - Enable Purge, the `enable_purge` setting in
- *   $nginx_helper_admin->options, is Nginx Helper's own switch: while it is
- *   off, each of its own purges returns first (Purger::purge_post()), and
- *   its admin bar has no Purge link. The adapter is inactive while it is
- *   off, so the pack does not purge a cache the site has told Nginx Helper
- *   to leave alone.
+ * Written against Nginx Helper 2.4.1. The class docblock names each call it
+ * makes. The ABSPATH guard stays within the first 50 lines: Plugin Check
+ * reads only those for it in a namespaced file.
  *
  * Nginx Helper has no mode that holds its cached pages through a change, as
  * WP Super Cache's Lock Down does. It skips its own purge-everything during
@@ -52,6 +33,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * What the adapter calls, in that version:
+ *
+ * - The global $nginx_purger is the purger for the cache method chosen
+ *   under Settings > Nginx Helper: a FastCGI_Purger, a PhpRedis_Purger or a
+ *   Predis_Purger, all subclasses of Purger (admin/class-purger.php).
+ *   Nginx_Helper::define_admin_hooks() in includes/class-nginx-helper.php
+ *   creates it, with the global $nginx_helper_admin, as the plugin loads.
+ * - Purger::purge_url( $url, $feed = true ) drops one URL, by the purge
+ *   method set: a GET to /purge/<path>, deleting the cache file, or deleting
+ *   the Redis key. With $feed true, FastCGI_Purger also drops the URL's
+ *   feed, atom and rdf URLs. The adapter passes false: those are a page's
+ *   comment feeds, which show no blocks, and each costs one more request or
+ *   file lookup per page.
+ * - Purger::purge_all() drops the whole cache: FastCGI_Purger empties
+ *   RT_WP_NGINX_HELPER_CACHE_PATH, which holds every site's pages on a
+ *   multisite network, and the Redis purgers delete this site's keys.
+ * - Enable Purge, the `enable_purge` setting in
+ *   $nginx_helper_admin->options, is Nginx Helper's own switch: while it is
+ *   off, each of its own purges returns first (Purger::purge_post()), and
+ *   its admin bar has no Purge link. The adapter is inactive while it is
+ *   off, so the pack does not purge a cache the site has told Nginx Helper
+ *   to leave alone.
+ */
 final class Nginx_Helper implements Adapter {
 
 	public function id(): string {
