@@ -18,7 +18,9 @@
  *    PLUGINS in scripts/lib/cache-check.mjs), and every outgoing HTTP request
  *    through pre_http_request. Requests to other hosts are answered with a
  *    fake 200 and never leave the site. GET and DELETE
- *    /wp-json/voyager-open-cache-check/v1/records read and clear them.
+ *    /wp-json/voyager-open-cache-check/v1/records read and clear them. GET
+ *    also names the pack's cache adapters, and whether each judges its
+ *    cache on.
  * 4. With stand_in set (--stand-in), runs a purge of its own beside the
  *    pack's (inc/freshness/purge.php): when a voyager_site_* option changes,
  *    it finds the published posts whose blocks bind that key, and on shutdown
@@ -213,6 +215,40 @@ function adapter_ids(): array {
 	return $ids;
 }
 
+/**
+ * The adapters the pack would use with --no-purge's filter left out, and
+ * whether each judges its cache on. The harness reads it to tell a cache the
+ * setup left off from one that was never told: an adapter that judges its
+ * cache off never purges, so the page going stale would prove nothing, with
+ * --no-purge or without.
+ *
+ * @return list<array{id: string, active: bool}>
+ */
+function adapter_states(): array {
+	$no_purge = config()['no_purge'];
+	if ( $no_purge ) {
+		remove_filter( 'voyager_open_blocks_cache_adapters', '__return_empty_array', PHP_INT_MAX );
+	}
+	try {
+		$found = (array) apply_filters( 'voyager_open_blocks_cache_adapters', [] );
+	} finally {
+		if ( $no_purge ) {
+			add_filter( 'voyager_open_blocks_cache_adapters', '__return_empty_array', PHP_INT_MAX );
+		}
+	}
+
+	$states = [];
+	foreach ( $found as $adapter ) {
+		if ( is_object( $adapter ) && method_exists( $adapter, 'id' ) ) {
+			$states[] = [
+				'id'     => (string) $adapter->id(),
+				'active' => method_exists( $adapter, 'active' ) && true === $adapter->active(),
+			];
+		}
+	}
+	return $states;
+}
+
 add_action(
 	'rest_api_init',
 	static function (): void {
@@ -229,8 +265,9 @@ add_action(
 					'callback'            => static function (): array {
 						$records = get_option( RECORDS, [] );
 						return [
-							'records'  => is_array( $records ) ? $records : [],
-							'adapters' => adapter_ids(),
+							'records'        => is_array( $records ) ? $records : [],
+							'adapters'       => adapter_ids(),
+							'adapter_states' => adapter_states(),
 						];
 					},
 				],

@@ -41,6 +41,10 @@ require_once __DIR__ . '/inc/freshness/usage.php';
 require_once __DIR__ . '/inc/cache/adapter.php';
 require_once __DIR__ . '/inc/freshness/purge.php';
 require_once __DIR__ . '/inc/cache/wp-super-cache.php';
+require_once __DIR__ . '/inc/cache/fail-soft.php';
+require_once __DIR__ . '/inc/cache/spinupwp.php';
+require_once __DIR__ . '/inc/cache/nginx-helper.php';
+require_once __DIR__ . '/inc/cache/litespeed-cache.php';
 require_once __DIR__ . '/inc/abilities.php';
 require_once __DIR__ . '/inc/onboarding.php';
 

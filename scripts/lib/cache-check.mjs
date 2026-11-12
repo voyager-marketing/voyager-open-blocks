@@ -38,14 +38,23 @@ const MARKER = /<!-- voyager-open-cache-check rendered ([0-9a-f]+)\b[^>]*-->/;
  *            points are recorded instead).
  * install:   a wordpress.org plugin, pinned. Playground downloads
  *            https://downloads.wordpress.org/plugin/<slug>.<version>.zip.
+ *            Its setup fixture, tests/fixtures/cache-check/<name>/setup.php,
+ *            reports the version installed, and the harness stops if it is
+ *            another.
+ * consts:    constants written into wp-config.php before WordPress first
+ *            loads, the way the host would write them. Optional.
  * muPlugins: files from tests/fixtures/cache-check/ to install as mu-plugins.
- * hooks:     actions that are the cache's purge entry points. The harness
- *            records every call, with the URLs in its arguments. `all` marks
- *            one that purges everything.
+ * hooks:     actions and filters the cache plugin itself runs as it purges.
+ *            The harness records every call, with the URLs in its
+ *            arguments. `all` marks one that purges everything.
  * receivers: which records mean the cache itself was told to purge. --spy
  *            passes when one of them covers the page. A record of the pack's
  *            own voyager_open_blocks_purge action is not one: the action
  *            firing says nothing about whether a cache heard it.
+ * adapter:   the id() of the pack's adapter for this cache. A --spy run in
+ *            which that adapter is offered and judges its cache off is
+ *            unmeasured, not stale: the setup did not turn the cache on the
+ *            way a host would, so the page going stale proves nothing.
  * lockDown:  whether the harness can turn on the cache's Lock Down, a mode
  *            in which it keeps its cached pages through a traffic spike.
  *
@@ -66,9 +75,97 @@ export const PLUGINS = {
 		// Recorded for the report only: in --real mode the page decides.
 		hooks: { wp_cache_cleared: { all: true } },
 		receivers: [],
+		adapter: 'wp-super-cache',
 		// WPLOCKDOWN, written into wp-cache-config.php the way its settings
 		// page does (tests/fixtures/cache-check/wp-super-cache/setup.php).
 		lockDown: true,
+	},
+	// SpinupWP's page cache is nginx's FastCGI cache, on the server, so it
+	// runs with --spy. Its own test for the page cache is
+	// Cache::is_page_cache_enabled() in src/Cache.php: SPINUPWP_CACHE_PATH
+	// is a constant or an environment variable.
+	spinupwp: {
+		label: 'SpinupWP',
+		modes: [ 'spy' ],
+		install: {
+			slug: 'spinupwp',
+			version: '1.9.1',
+			file: 'spinupwp/spinupwp.php',
+		},
+		consts: {
+			SPINUPWP_CACHE_PATH: '/wordpress/wp-content/cache/spinupwp',
+		},
+		muPlugins: [],
+		// Cache::purge_url() fires spinupwp_url_purged with the URL once for
+		// each of its cache files, deleted or not, and
+		// Cache::purge_page_cache() fires spinupwp_site_purged after deleting
+		// the whole cache.
+		hooks: {
+			spinupwp_url_purged: { all: false },
+			spinupwp_site_purged: { all: true },
+		},
+		receivers: [
+			{ kind: 'hook', name: 'spinupwp_url_purged' },
+			{ kind: 'hook', name: 'spinupwp_site_purged' },
+		],
+		adapter: 'spinupwp',
+		lockDown: false,
+	},
+	// Nginx Helper tells nginx's FastCGI cache, on the server, so it runs
+	// with --spy. tests/fixtures/cache-check/nginx-helper/setup.php turns on
+	// Enable Purge and its "Delete local server cache files" method.
+	'nginx-helper': {
+		label: 'Nginx Helper',
+		modes: [ 'spy' ],
+		install: {
+			slug: 'nginx-helper',
+			version: '2.4.1',
+			file: 'nginx-helper/nginx-helper.php',
+		},
+		consts: {
+			RT_WP_NGINX_HELPER_CACHE_PATH: '/wordpress/wp-content/cache/nginx',
+		},
+		muPlugins: [],
+		// Every purger's purge_url() runs the filter rt_nginx_helper_purge_url
+		// on the URL it was given, first (admin/class-fastcgi-purger.php).
+		// FastCGI_Purger::purge_all() fires
+		// rt_nginx_helper_after_fastcgi_purge_all when it is done.
+		hooks: {
+			rt_nginx_helper_purge_url: { all: false },
+			rt_nginx_helper_after_fastcgi_purge_all: { all: true },
+		},
+		receivers: [
+			{ kind: 'hook', name: 'rt_nginx_helper_purge_url' },
+			{ kind: 'hook', name: 'rt_nginx_helper_after_fastcgi_purge_all' },
+		],
+		adapter: 'nginx-helper',
+		lockDown: false,
+	},
+	// LiteSpeed Cache tells the LiteSpeed web server, so it runs with --spy.
+	'litespeed-cache': {
+		label: 'LiteSpeed Cache',
+		modes: [ 'spy' ],
+		install: {
+			slug: 'litespeed-cache',
+			version: '7.9.3',
+			file: 'litespeed-cache/litespeed-cache.php',
+		},
+		// The server variable LiteSpeed's web server sets when its cache is
+		// on, which the plugin reads before it turns its own cache on.
+		muPlugins: [ 'litespeed-server.php' ],
+		// Purge::purge_url() fires litespeed_purged_link with the URL once it
+		// has queued the page's purge tag, and Purge::purge_all() fires
+		// litespeed_purged_all when it is done (src/purge.cls.php).
+		hooks: {
+			litespeed_purged_link: { all: false },
+			litespeed_purged_all: { all: true },
+		},
+		receivers: [
+			{ kind: 'hook', name: 'litespeed_purged_link' },
+			{ kind: 'hook', name: 'litespeed_purged_all' },
+		],
+		adapter: 'litespeed-cache',
+		lockDown: false,
 	},
 	dummy: {
 		label: 'Dummy cache (test fixture)',
@@ -84,6 +181,7 @@ export const PLUGINS = {
 			{ kind: 'hook', name: 'dummy_cache_purge_all' },
 			{ kind: 'http', name: 'api.cdn.example' },
 		],
+		adapter: 'dummy',
 		lockDown: false,
 	},
 };
@@ -421,11 +519,13 @@ export function describe( record ) {
  * The verdict of --spy, from what the harness recorded during the change.
  *
  * @param {Object}                           observed
- * @param {string}                           observed.url       The page's URL.
- * @param {Object[]}                         observed.records   What the harness mu-plugin recorded.
- * @param {Object[]}                         observed.receivers The plugin's receivers, from PLUGINS.
- * @param {{status: number, text: string}[]} observed.loads     The page before the change and after it. No cache is in front of it, so both are rendered.
- * @param {string}                           observed.saved     The number the settings endpoint returned after the change.
+ * @param {string}                           observed.url        The page's URL.
+ * @param {Object[]}                         observed.records    What the harness mu-plugin recorded.
+ * @param {Object[]}                         observed.receivers  The plugin's receivers, from PLUGINS.
+ * @param {{status: number, text: string}[]} observed.loads      The page before the change and after it. No cache is in front of it, so both are rendered.
+ * @param {string}                           observed.saved      The number the settings endpoint returned after the change.
+ * @param {string}                           [observed.adapter]  The id of the pack's adapter for the cache, from PLUGINS.
+ * @param {{id: string, active: boolean}[]}  [observed.adapters] The adapters the pack offered, with --no-purge's filter left out, and whether each judged its cache on.
  * @param {string}                           [observed.before]
  * @param {string}                           [observed.after]
  * @return {{outcome: 'fresh'|'stale'|'unmeasured', reason: string, purges: Object[]}} The verdict, why, and the purges that reached the cache.
@@ -436,6 +536,8 @@ export function spyVerdict( {
 	receivers,
 	loads,
 	saved,
+	adapter,
+	adapters = [],
 	before = PHONE_BEFORE,
 	after = PHONE_AFTER,
 } ) {
@@ -468,6 +570,21 @@ export function spyVerdict( {
 		return verdict(
 			'unmeasured',
 			`With no cache in front of it, the page should show ${ after } after the change, and it answered ${ last?.status } without it.`
+		);
+	}
+
+	// The pack's adapter for this cache is loaded and says the cache is off,
+	// so it was never going to purge: a stale page would be a setup fault
+	// read as a result. No adapter at all is a plain stale.
+	const own = adapter
+		? ( Array.isArray( adapters ) ? adapters : [] ).find(
+				( offered ) => offered?.id === adapter
+			)
+		: undefined;
+	if ( own && own.active !== true ) {
+		return verdict(
+			'unmeasured',
+			`The pack's ${ adapter } adapter judged the cache off, so the setup did not turn it on as a host would, and no purge could reach it.`
 		);
 	}
 
