@@ -129,6 +129,152 @@ final class RepeatTest extends TestCase {
 		$this->assertSame( self::strip(), $blocks );
 	}
 
+	/**
+	 * A block as parse_blocks() returns it, holding inner blocks in one slot each.
+	 *
+	 * @param array<string, mixed>             $attrs Attributes.
+	 * @param array<int, array<string, mixed>> $inner Inner blocks.
+	 * @return array<string, mixed>
+	 */
+	private static function holder( string $name, array $attrs, array $inner ): array {
+		$content = [ "\n<div>" ];
+		foreach ( array_keys( $inner ) as $index ) {
+			if ( $index > 0 ) {
+				$content[] = "\n\n";
+			}
+			$content[] = null;
+		}
+		$content[] = "</div>\n";
+
+		return [
+			'blockName'    => $name,
+			'attrs'        => $attrs,
+			'innerBlocks'  => $inner,
+			'innerHTML'    => implode( '', array_filter( $content, 'is_string' ) ),
+			'innerContent' => $content,
+		];
+	}
+
+	/**
+	 * A text block with a label.
+	 *
+	 * @param array<string, mixed> $attrs More attributes.
+	 * @return array<string, mixed>
+	 */
+	private static function text( string $label, array $attrs = [] ): array {
+		return [
+			'blockName'    => 'core/paragraph',
+			'attrs'        => [ 'metadata' => [ 'name' => $label ] ] + $attrs,
+			'innerBlocks'  => [],
+			'innerHTML'    => "\n<p>{$label}</p>\n",
+			'innerContent' => [ "\n<p>{$label}</p>\n" ],
+		];
+	}
+
+	/**
+	 * A card in a column, shaped like the services grid: the column "Card N"
+	 * holds the group "Card N box", which holds "Card N heading" and "Card N text".
+	 *
+	 * @param array<int, array<string, mixed>> $more More blocks in the box.
+	 * @return array<string, mixed>
+	 */
+	private static function card( int $number, array $more = [] ): array {
+		$label = "Card {$number}";
+
+		return self::holder(
+			'core/column',
+			[ 'metadata' => [ 'name' => $label ] ],
+			[ self::holder( 'core/group', [ 'metadata' => [ 'name' => "{$label} box" ] ], [ self::text( "{$label} heading" ), self::text( "{$label} text" ), ...$more ] ) ]
+		);
+	}
+
+	/**
+	 * A section holding a row of cards.
+	 *
+	 * @param array<int, array<string, mixed>>|null $cards Columns, three cards by default.
+	 * @param array<int, array<string, mixed>>      $after Blocks after the row.
+	 * @return array<int, array{blockName: string|null, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>}>
+	 */
+	private static function cards( ?array $cards = null, array $after = [] ): array {
+		$cards = $cards ?? [ self::card( 1 ), self::card( 2 ), self::card( 3 ) ];
+		/** @var array{blockName: string|null, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>} $section */
+		$section = self::holder( 'core/group', [ 'metadata' => [ 'name' => 'Section' ] ], [ self::holder( 'core/columns', [ 'metadata' => [ 'name' => 'Row' ] ], $cards ), ...$after ] );
+
+		return [ $section ];
+	}
+
+	/**
+	 * Every label in a tree, in document order.
+	 *
+	 * @param array<int, array<string, mixed>> $blocks Blocks.
+	 * @return string[]
+	 */
+	private static function all_labels( array $blocks ): array {
+		/** @var array<int, array{blockName: string|null, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>}> $blocks */
+		return array_values( array_column( array_filter( BlockTree\describe( $blocks ), static fn ( array $row ): bool => isset( $row['label'] ) ), 'label' ) );
+	}
+
+	public function test_a_card_repeats_with_the_labels_inside_it_under_the_new_label(): void {
+		$blocks = self::cards();
+
+		$this->assertContains( 'Card 3', BlockTree\repeatable_labels( $blocks ) );
+		$this->assertTrue( BlockTree\repeat( $blocks, [ 'Card 3' => [ 'Card 4', 'Card 5' ] ] ) );
+		$this->assertSame(
+			[
+				'Section',
+				'Row',
+				'Card 1', 'Card 1 box', 'Card 1 heading', 'Card 1 text',
+				'Card 2', 'Card 2 box', 'Card 2 heading', 'Card 2 text',
+				'Card 3', 'Card 3 box', 'Card 3 heading', 'Card 3 text',
+				'Card 4', 'Card 4 box', 'Card 4 heading', 'Card 4 text',
+				'Card 5', 'Card 5 box', 'Card 5 heading', 'Card 5 text',
+			],
+			self::all_labels( $blocks )
+		);
+
+		// A copy keeps the original's HTML; only the labels in its comments change.
+		$row = $blocks[0]['innerBlocks'][0];
+		$this->assertIsArray( $row );
+		$this->assertSame( "\n<p>Card 3 heading</p>\n", $row['innerBlocks'][3]['innerBlocks'][0]['innerBlocks'][0]['innerHTML'] ?? null );
+		$this->assertSame( self::holder( 'core/columns', [], array_fill( 0, 5, [] ) )['innerContent'], $row['innerContent'] );
+	}
+
+	public function test_a_card_and_omit_give_a_row_of_two(): void {
+		$blocks = self::cards();
+
+		$this->assertTrue( BlockTree\omit( $blocks, [ 'Card 2' ] ) );
+		$this->assertSame( [ 'Section', 'Row', 'Card 1', 'Card 1 box', 'Card 1 heading', 'Card 1 text', 'Card 3', 'Card 3 box', 'Card 3 heading', 'Card 3 text' ], self::all_labels( $blocks ) );
+	}
+
+	public function test_a_block_holding_a_label_that_does_not_start_with_its_own_and_a_space_cannot_repeat(): void {
+		$stray  = self::holder( 'core/column', [ 'metadata' => [ 'name' => 'Card 1' ] ], [ self::text( 'Heading' ) ] );
+		$prefix = self::holder( 'core/column', [ 'metadata' => [ 'name' => 'Card 2' ] ], [ self::text( 'Card 20 heading' ) ] );
+		$blocks = self::cards( [ $stray, $prefix, self::card( 3 ) ] );
+
+		$this->assertStringContainsString( 'does not start with "Card 1 "', $this->refused( BlockTree\repeat( $blocks, [ 'Card 1' => [ 'Card 4' ] ] ) ) );
+		$this->refused( BlockTree\repeat( $blocks, [ 'Card 2' => [ 'Card 4' ] ] ) );
+		$this->assertNotContains( 'Card 1', BlockTree\repeatable_labels( $blocks ) );
+		$this->assertNotContains( 'Card 2', BlockTree\repeatable_labels( $blocks ) );
+		$this->assertContains( 'Card 3', BlockTree\repeatable_labels( $blocks ) );
+		$this->assertSame( self::cards( [ $stray, $prefix, self::card( 3 ) ] ), $blocks );
+	}
+
+	public function test_a_label_a_copy_would_give_an_inner_block_must_be_unused(): void {
+		$blocks = self::cards( null, [ self::text( 'Card 4 heading' ) ] );
+
+		$this->assertStringContainsString( '"Card 4 heading" is taken', $this->refused( BlockTree\repeat( $blocks, [ 'Card 3' => [ 'Card 4' ] ] ) ) );
+		$this->assertSame( self::cards( null, [ self::text( 'Card 4 heading' ) ] ), $blocks );
+	}
+
+	public function test_an_anchor_inside_a_block_stops_it_repeating(): void {
+		$anchored = self::card( 2, [ self::text( 'Card 2 note', [ 'anchor' => 'note' ] ) ] );
+		$blocks   = self::cards( [ self::card( 1 ), $anchored, self::card( 3 ) ] );
+
+		$this->refused( BlockTree\repeat( $blocks, [ 'Card 2' => [ 'Card 4' ] ] ) );
+		$this->assertNotContains( 'Card 2', BlockTree\repeatable_labels( $blocks ) );
+		$this->assertContains( 'Card 1', BlockTree\repeatable_labels( $blocks ) );
+	}
+
 	public function test_the_whole_section_and_a_block_holding_named_blocks_cannot_repeat(): void {
 		$blocks = self::strip();
 

@@ -113,10 +113,134 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
+	public function test_services_comes_in_two_layouts_grid_first_then_list(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'services', $intents['services']['section'] ?? null );
+		$this->assertSame( 'grid', $intents['services']['layout'] ?? null );
+		$this->assertSame( 'services', $intents['services-list']['section'] ?? null );
+		$this->assertSame( 'list', $intents['services-list']['layout'] ?? null );
+	}
+
+	/**
+	 * The blocks labelled "Service <n>" in an intent, the items insert's
+	 * repeat and omit work on, by label.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return array<string, array<string, mixed>>
+	 */
+	private static function service_items( array $intent ): array {
+		$out  = [];
+		$walk = static function ( array $nodes ) use ( &$walk, &$out ): void {
+			foreach ( $nodes as $node ) {
+				if ( ! is_array( $node ) ) {
+					continue;
+				}
+				$label = $node['attrs']['metadata']['name'] ?? null;
+				if ( is_string( $label ) && 1 === preg_match( '/^Service \d+$/', $label ) ) {
+					/** @var array<string, mixed> $node */
+					$out[ $label ] = $node;
+					continue;
+				}
+				$walk( is_array( $node['children'] ?? null ) ? $node['children'] : [] );
+			}
+		};
+
+		$blocks = $intent['intent']['blocks'] ?? [];
+		$walk( is_array( $blocks ) ? $blocks : [] );
+
+		return $out;
+	}
+
+	/**
+	 * An item with what may differ between items taken out: the number in its
+	 * labels, its text and which icon it shows.
+	 *
+	 * @param array<mixed> $node   An intent node.
+	 * @param string       $prefix The item's label, such as "Service 2".
+	 * @return array<mixed>
+	 */
+	private static function shape( array $node, string $prefix ): array {
+		unset( $node['text'] );
+		$label = $node['attrs']['metadata']['name'] ?? null;
+		if ( is_string( $label ) && is_array( $node['attrs'] ) ) {
+			$node['attrs']['metadata']['name'] = 'Service #' . substr( $label, strlen( $prefix ) );
+		}
+		if ( 'voyager-open/icon' === ( $node['block'] ?? null ) && is_array( $node['attrs'] ) ) {
+			unset( $node['attrs']['icon'] );
+		}
+		if ( is_array( $node['children'] ?? null ) ) {
+			$node['children'] = array_map( static fn ( mixed $child ): mixed => is_array( $child ) ? self::shape( $child, $prefix ) : $child, $node['children'] );
+		}
+
+		return $node;
+	}
+
+	/**
+	 * The nodes of a tree, flattened, each with the boxes (groups with a
+	 * border) above it.
+	 *
+	 * @param array<mixed> $node  An intent node.
+	 * @param int          $boxes Bordered groups above it.
+	 * @return list<array{node: array<mixed>, boxes: int}>
+	 */
+	private static function nodes( array $node, int $boxes = 0 ): array {
+		$out   = [ [ 'node' => $node, 'boxes' => $boxes ] ];
+		$boxed = 'core/group' === ( $node['block'] ?? null ) && isset( $node['attrs']['style']['border'] );
+		foreach ( is_array( $node['children'] ?? null ) ? $node['children'] : [] as $child ) {
+			if ( is_array( $child ) ) {
+				array_push( $out, ...self::nodes( $child, $boxes + ( $boxed ? 1 : 0 ) ) );
+			}
+		}
+
+		return $out;
+	}
+
+	public function test_every_service_item_shares_one_structure_with_one_plain_icon_and_no_card_holds_a_card(): void {
+		$sizes = [];
+
+		foreach ( [ 'services', 'services-list' ] as $name ) {
+			$items = self::service_items( self::intents()[ $name ] );
+			$this->assertSame( [ 'Service 1', 'Service 2', 'Service 3' ], array_keys( $items ), $name );
+
+			$first = null;
+			$icons = [];
+			foreach ( $items as $label => $item ) {
+				$shape = self::shape( $item, $label );
+				$first = $first ?? $shape;
+				$this->assertSame( $first, $shape, "{$name} \"{$label}\" is built differently from \"Service 1\"" );
+
+				$nodes = self::nodes( $item );
+				$kinds = array_map( static fn ( array $row ): string => (string) ( $row['node']['block'] ?? '' ), $nodes );
+				$this->assertSame( 1, count( array_keys( $kinds, 'voyager-open/icon', true ) ), "{$name} \"{$label}\" holds one icon" );
+				$this->assertSame( 1, count( array_keys( $kinds, 'core/paragraph', true ) ), "{$name} \"{$label}\" holds one short line" );
+
+				foreach ( $nodes as $row ) {
+					$node = $row['node'];
+					$this->assertLessThanOrEqual( 1, $row['boxes'] + ( isset( $node['attrs']['style']['border'] ) ? 1 : 0 ), "{$name} \"{$label}\": a card holds a card" );
+					if ( 'core/heading' === ( $node['block'] ?? null ) ) {
+						$this->assertSame( 3, $node['level'] ?? null, "{$name} \"{$label}\": an item's heading is an h3" );
+					}
+					if ( 'voyager-open/icon' === ( $node['block'] ?? null ) ) {
+						$attrs = is_array( $node['attrs'] ?? null ) ? $node['attrs'] : [];
+						$this->assertSame( [ 'icon', 'metadata', 'size' ], self::sorted_keys( $attrs ), "{$name} \"{$label}\": the icon has no label, link or animation" );
+						$icons[] = $attrs['icon'];
+						$sizes[] = $attrs['size'];
+					}
+				}
+			}
+
+			$this->assertSame( [ 'wrench', 'home', 'cog' ], $icons, "{$name}: one icon per item, chosen for its copy" );
+		}
+
+		$this->assertCount( 1, array_unique( $sizes ), 'every icon is the same size, in both layouts' );
+	}
+
 	public function test_copy_rules_cover_every_named_text_block_and_its_default_copy_fits(): void {
 		$intents = self::intents();
-		$this->assertArrayHasKey( 'copy_rules', $intents['hero'] );
-		$this->assertArrayHasKey( 'copy_rules', $intents['hero-cover'] );
+		foreach ( [ 'hero', 'hero-cover', 'services', 'services-list' ] as $name ) {
+			$this->assertArrayHasKey( 'copy_rules', $intents[ $name ], $name );
+		}
 
 		foreach ( $intents as $name => $intent ) {
 			if ( ! array_key_exists( 'copy_rules', $intent ) ) {
@@ -149,8 +273,8 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
-	public function test_the_hero_default_copy_makes_no_claim(): void {
-		foreach ( [ 'hero', 'hero-cover' ] as $name ) {
+	public function test_the_hero_and_services_default_copy_makes_no_claim(): void {
+		foreach ( [ 'hero', 'hero-cover', 'services', 'services-list' ] as $name ) {
 			$intent = self::intents()[ $name ];
 
 			foreach ( self::text_blocks( $intent ) as $label => $text ) {
