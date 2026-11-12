@@ -604,9 +604,11 @@ export async function run( argv, steps = {} ) {
 			activation: { status: 'unmeasured', detail: '' },
 			order: { status: 'unmeasured', detail: '' },
 		};
+		let crashed = false;
 		try {
 			await doMeasure( opts, results );
 		} catch ( error ) {
+			crashed = true;
 			annotate(
 				'error',
 				`The harness could not tell: ${ error?.message || error }`,
@@ -616,7 +618,9 @@ export async function run( argv, steps = {} ) {
 				console.error( error?.stack );
 			}
 		}
-		return doReport( results, opts.plant );
+		const code = doReport( results, opts.plant );
+		// A crash after paths that passed is still a run that could not tell.
+		return crashed && code === 0 ? 2 : code;
 	} catch ( error ) {
 		annotate(
 			'error',
