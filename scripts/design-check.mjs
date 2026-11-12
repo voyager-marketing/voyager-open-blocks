@@ -1,0 +1,2393 @@
+#!/usr/bin/env node
+/**
+ * The rendered design checks, `contrast`, `overflow` and `motion` as DESIGN.md
+ * names them, measured on real renders of every pattern in every section style.
+ *
+ *   npm run design-check                boot a fresh dev site, render, measure, stop
+ *   npm run design-check -- --plant     put all three planted faults in the main run too, to watch it fail
+ *   npm run contrast                    the contrast part alone (--checks contrast)
+ *   npm run design-check -- --themes twentytwentyfive --no-variations
+ *   npm run design-check -- --help      every option
+ *
+ * Boots the dev site the way npm run dev does (WordPress Playground with this
+ * checkout as the plugin), once for each WordPress version the themes in
+ * tests/fixtures/contrast.json name, with a theme the fixture pins to a
+ * commit installed from GitHub. Then, for each theme:
+ *
+ *   1. switches to it and builds one page that holds every pattern in
+ *      patterns/ once per section style (plain, panel, inverted, accent), the
+ *      style put on through SectionStyles\apply() (what configure calls), and
+ *      a second page that holds the planted faults. A pattern added later is
+ *      picked up with no fixture change;
+ *   2. checks it is measuring the right thing: every pattern file is
+ *      registered, get-catalog's role map is the one the fixture names, each
+ *      styled section carries the instance class WordPress adds when it renders
+ *      a style's style_data, and Inverted is painted in the theme's own text
+ *      colour with its own background colour as text;
+ *   3. at each width loads the page in headless Chrome as a visitor and, per
+ *      section:
+ *      - contrast: measures every element that holds text against its
+ *        background, at rest, and links and buttons hovered too, from computed
+ *        styles. The background is found by walking up through transparent
+ *        ancestors and compositing each translucent layer, and a background
+ *        image on that path counts as a failure;
+ *      - overflow: fails when anything in the section reaches past the right
+ *        edge of the viewport with no clipping ancestor inside the section.
+ *        The page as a whole fails when the document is wider than the
+ *        viewport, so it scrolls sideways;
+ *      then loads it again with prefers-reduced-motion: reduce emulated and,
+ *      per section:
+ *      - motion: fails when an animation or transition is running, or when
+ *        any element's box moves between two samples taken apart. Overflow is
+ *        measured again, since a reduced-motion rule can change the layout;
+ *   4. runs three controls, each of which must fail its own check or the run
+ *      fails: the fixture's low-contrast role map, planted through the
+ *      voyager_open_blocks_style_roles filter (contrast); a section with an
+ *      element wider than 320px (overflow); and a CSS animation with no
+ *      reduced-motion rule (motion);
+ *   5. where the fixture asks, opens the page in the block editor as admin and
+ *      checks the Styles panel offers Panel, Inverted and Accent and the canvas
+ *      paints Inverted as the front end does;
+ *   6. where the fixture lists style variations, switches each colour-bearing
+ *      variation the theme ships on the way the Site Editor saves one, and
+ *      measures contrast at the fixture's variation widths. A pair under the
+ *      floor fails unless the fixture lists it as a known failure, and a
+ *      listed failure that no longer fails fails too.
+ *
+ * The run fails when any check fails outside the known failures, when fewer
+ * renders or pairs were measured than the fixture expects, when a positive
+ * control or a planted control fails, or on a PHP fatal error.
+ *
+ * Needs Chrome, Chromium or Edge (set CHROME_PATH to pick one) and the Node
+ * in .nvmrc. The first run downloads WordPress; later runs reuse it.
+ */
+import { appendFileSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { boot, parseFlags, phpLog, reportPhpLog, runPhp } from './dev.mjs';
+import { findChrome, launch } from './lib/chrome.mjs';
+import { annotate, endGroup, group } from './lib/log.mjs';
+import { nodeVersionProblem } from './lib/node-version.mjs';
+import { repo } from './lib/site.mjs';
+
+const FIXTURE = join( repo, 'tests', 'fixtures', 'contrast.json' );
+const PATTERNS = join( repo, 'patterns' );
+const PLANT_OPTION = 'voyager_open_contrast_plant';
+const SECTION_CLASS = 'voyager-open-check--';
+const TIMEOUT_MINUTES = 25;
+const CHECKS = [ 'contrast', 'overflow', 'motion' ];
+
+/** Loads the planted role map from an option, so a run can switch it on and off. */
+const PLANT_PLUGIN = `<?php
+/**
+ * Written by scripts/design-check.mjs into a throwaway dev site.
+ * Merges the role map in the ${ PLANT_OPTION } option over the pack's.
+ */
+add_filter(
+	'voyager_open_blocks_style_roles',
+	static function ( $map ) {
+		$plant = get_option( '${ PLANT_OPTION }' );
+		return is_array( $plant ) ? array_merge( (array) $map, $plant ) : $map;
+	}
+);
+`;
+
+/**
+ * The planted faults, as sections. Test markup only: patterns never use
+ * core/html or an inline style, and npm run check's presets gate says so.
+ *
+ * @param {number} width How wide the overflow plant's element is, in px.
+ * @return {Object<string, string>} Plant name => block markup.
+ */
+function plantSections( width ) {
+	const section = ( name, html ) =>
+		`<!-- wp:group {"tagName":"section","className":"${ SECTION_CLASS }plant--${ name }","align":"full","layout":{"type":"constrained"}} -->
+<section class="wp-block-group alignfull ${ SECTION_CLASS }plant--${ name }"><!-- wp:html -->
+${ html }
+<!-- /wp:html --></section>
+<!-- /wp:group -->`;
+	return {
+		overflow: section(
+			'overflow',
+			`<div style="width:${ width }px;min-width:${ width }px">Planted: an element ${ width }px wide.</div>`
+		),
+		motion: section(
+			'motion',
+			'<style>@keyframes voyager-open-check-drift{to{transform:translateY(8px)}}.voyager-open-check-drift{display:inline-block;animation:voyager-open-check-drift 1s linear infinite alternate}</style>\n<p class="voyager-open-check-drift">Planted: a CSS animation with no reduced-motion rule.</p>'
+		),
+	};
+}
+
+const HELP = `npm run design-check [-- options]
+
+Boots a fresh dev site (npm run dev), renders every pattern in patterns/ in
+every section style on each theme in tests/fixtures/contrast.json, loads it
+in headless Chrome at each width, and runs three checks on every render:
+contrast (text under 4.5:1 against its background), overflow (the page
+scrolls sideways) and motion (anything moves with reduced motion on). Then it
+measures contrast on each colour-bearing style variation the fixture lists.
+Exits 1 if any check fails outside the fixture's known failures, or if a
+planted control does not fail its own check.
+
+  --checks <list>  Only these checks, such as --checks contrast (what
+                   npm run contrast runs). Default contrast,overflow,motion.
+  --plant          Put the three planted faults in the main run as well: the
+                   low-contrast role map, a section wider than 320px and an
+                   animation with no reduced-motion rule. The run must fail.
+  --themes <list>  Only these themes, such as --themes twentytwentyfive.
+                   The render and pair counts are then not checked.
+  --no-variations  Skip the style variations.
+  --port <n>       Port to serve on. Default 9400, or a free port if 9400 is taken.
+  --wp <version>   WordPress version for every theme, such as 7.1.4. Default
+                   each theme's wp in the fixture.
+  --php <version>  PHP version, such as 8.1. Default 8.3.
+  --debug          Print Playground's debug output and error stacks.
+  --help           Show this help.
+
+Set CHROME_PATH to use a particular Chrome, Chromium or Edge binary.`;
+
+const KNOWN = [
+	'checks',
+	'plant',
+	'themes',
+	'no-variations',
+	'port',
+	'wp',
+	'php',
+	'debug',
+	'help',
+];
+
+/** @type {Array<{name: string, ok: boolean, observed: string}>} */
+const checks = [];
+
+/**
+ * @param {string} text
+ * @param {number} length
+ * @return {string} The text, cut to length.
+ */
+function clip( text, length ) {
+	return text.length > length ? `${ text.slice( 0, length ) }...` : text;
+}
+
+/**
+ * Record one assertion: print it, and annotate it when it fails.
+ *
+ * @param {string}  name     What is asserted.
+ * @param {unknown} ok       Truthy when it holds.
+ * @param {unknown} observed What was seen.
+ * @return {boolean} Whether it held.
+ */
+function expect( name, ok, observed = '' ) {
+	const detail =
+		typeof observed === 'string' ? observed : JSON.stringify( observed );
+	checks.push( { name, ok: !! ok, observed: detail } );
+	if ( ok ) {
+		console.log(
+			`ok   ${ name }${ detail ? ` (${ clip( detail, 160 ) })` : '' }`
+		);
+	} else {
+		annotate(
+			'error',
+			`${ name }. Observed: ${ clip( detail || 'nothing', 1800 ) }`,
+			name
+		);
+	}
+	return !! ok;
+}
+
+/**
+ * @param {string} value
+ * @return {string} A single-quoted PHP string literal.
+ */
+function phpString( value ) {
+	return `'${ String( value ).replace( /[\\']/g, '\\$&' ) }'`;
+}
+
+/**
+ * An expression that calls a function in the page with JSON arguments. The
+ * function must not use anything from this module's scope.
+ *
+ * @param {(...args: unknown[]) => unknown} fn   Function to run in the page.
+ * @param {...unknown}                      args Its arguments.
+ * @return {string} An expression for Runtime.evaluate.
+ */
+function js( fn, ...args ) {
+	return `(${ fn.toString() })(${ args
+		.map( ( arg ) => JSON.stringify( arg ) )
+		.join( ', ' ) })`;
+}
+
+/**
+ * An expression that calls one of the helpers installInPage() put in the page.
+ *
+ * @param {string}     name Helper name.
+ * @param {...unknown} args Its arguments.
+ * @return {string} An expression for Runtime.evaluate.
+ */
+function call( name, ...args ) {
+	return `window.voyagerOpenCheck.${ name }(${ args
+		.map( ( arg ) => JSON.stringify( arg ) )
+		.join( ', ' ) })`;
+}
+
+/**
+ * In the page: put the measuring helpers on window.voyagerOpenCheck, so each
+ * later call is short and the page keeps what it found between calls.
+ *
+ * Every colour is turned into sRGB by Chrome itself (a 1x1 canvas), so
+ * color(), color-mix() results, oklch() and named colours all read the same
+ * way.
+ *
+ * @param {string} prefix The class prefix every measured section carries.
+ * @return {boolean} True once installed.
+ */
+function installInPage( prefix ) {
+	const canvas = document.createElement( 'canvas' );
+	canvas.width = 1;
+	canvas.height = 1;
+	const ctx = canvas.getContext( '2d', { willReadFrequently: true } );
+	const rgba = ( value ) => {
+		ctx.clearRect( 0, 0, 1, 1 );
+		ctx.fillStyle = '#010203';
+		ctx.fillStyle = value;
+		if (
+			ctx.fillStyle === '#010203' &&
+			value.replace( /\s/g, '' ) !== 'rgb(1,2,3)'
+		) {
+			return null;
+		}
+		ctx.fillRect( 0, 0, 1, 1 );
+		const [ r, g, b, a ] = ctx.getImageData( 0, 0, 1, 1 ).data;
+		return { r, g, b, a: a / 255 };
+	};
+	const over = ( top, base ) => ( {
+		r: top.r * top.a + base.r * ( 1 - top.a ),
+		g: top.g * top.a + base.g * ( 1 - top.a ),
+		b: top.b * top.a + base.b * ( 1 - top.a ),
+		a: 1,
+	} );
+	const hex = ( c ) =>
+		'#' +
+		[ c.r, c.g, c.b ]
+			.map( ( v ) => Math.round( v ).toString( 16 ).padStart( 2, '0' ) )
+			.join( '' );
+	const luminance = ( c ) => {
+		const ch = ( v ) => {
+			const s = v / 255;
+			return s <= 0.04045 ? s / 12.92 : ( ( s + 0.055 ) / 1.055 ) ** 2.4;
+		};
+		return 0.2126 * ch( c.r ) + 0.7152 * ch( c.g ) + 0.0722 * ch( c.b );
+	};
+	const describe = ( el ) =>
+		`<${ el.tagName.toLowerCase() }${ [ ...el.classList ]
+			.filter( ( name ) => ! name.startsWith( prefix ) )
+			.slice( 0, 2 )
+			.map( ( name ) => `.${ name }` )
+			.join( '' ) }>`;
+
+	/**
+	 * An element's text colour against what is behind it. The background is
+	 * the first opaque one walking up from the element, with every
+	 * translucent layer on the way composited over it; nothing opaque all
+	 * the way up is the white canvas. A background image on that path makes
+	 * the pair unmeasurable, which counts as a failure.
+	 *
+	 * @param {Element} el
+	 * @return {{text: string, background: string, ratio: number|null, note: string}} Measurement.
+	 */
+	const measure = ( el ) => {
+		const layers = [];
+		let note = '';
+		for (
+			let node = el;
+			node && node.nodeType === 1;
+			node = node.parentElement
+		) {
+			const style = window.getComputedStyle( node );
+			if ( style.backgroundImage !== 'none' ) {
+				note = `background-image on <${ node.tagName.toLowerCase() }> makes the pair unmeasurable`;
+			}
+			const bg = rgba( style.backgroundColor );
+			if ( ! bg ) {
+				note = `unreadable background-color "${ style.backgroundColor }"`;
+				break;
+			}
+			if ( bg.a > 0 ) {
+				layers.push( bg );
+			}
+			if ( bg.a >= 1 ) {
+				break;
+			}
+		}
+		let background = { r: 255, g: 255, b: 255, a: 1 };
+		for ( let i = layers.length - 1; i >= 0; i-- ) {
+			background =
+				layers[ i ].a >= 1
+					? layers[ i ]
+					: over( layers[ i ], background );
+		}
+
+		const raw = window.getComputedStyle( el ).color;
+		let text = rgba( raw );
+		if ( ! text ) {
+			return {
+				text: raw,
+				background: hex( background ),
+				ratio: null,
+				note: `unreadable color "${ raw }"`,
+			};
+		}
+		text = text.a < 1 ? over( text, background ) : text;
+
+		const [ hi, lo ] = [ luminance( text ), luminance( background ) ].sort(
+			( a, b ) => b - a
+		);
+		const ratio =
+			Math.round( ( ( hi + 0.05 ) / ( lo + 0.05 ) ) * 100 ) / 100;
+		return {
+			text: hex( text ),
+			background: hex( background ),
+			ratio: note ? null : ratio,
+			note,
+		};
+	};
+
+	const shown = ( el ) => {
+		const style = window.getComputedStyle( el );
+		return (
+			style.display !== 'none' &&
+			style.visibility === 'visible' &&
+			el.getClientRects().length > 0
+		);
+	};
+	const ownText = ( el ) =>
+		[ ...el.childNodes ]
+			.filter( ( node ) => node.nodeType === 3 )
+			.map( ( node ) => node.textContent )
+			.join( ' ' )
+			.replace( /\s+/g, ' ' )
+			.trim();
+	const sectionOf = ( key ) => {
+		const found = document.querySelectorAll( `.${ prefix }${ key }` );
+		return found.length === 1 ? found[ 0 ] : null;
+	};
+	const all = ( section ) => [ section, ...section.querySelectorAll( '*' ) ];
+
+	/** Target id => the element holding the text, and what to hover. */
+	const byId = new Map();
+	let next = 0;
+
+	/**
+	 * Every element in a section that holds text of its own, named by kind
+	 * and text: a button (fill or outline), a link, a heading or text.
+	 *
+	 * @param {Element} section
+	 * @return {Array<{id: string, name: string, kind: string, hover: boolean}>} Targets.
+	 */
+	const targets = ( section ) => {
+		const out = [];
+		const names = new Map();
+		for ( const el of all( section ) ) {
+			if ( el.closest( 'script, style, template, noscript, svg' ) ) {
+				continue;
+			}
+			const text = ownText( el );
+			if ( ! text || ! shown( el ) ) {
+				continue;
+			}
+			const anchor = el.closest( 'a' );
+			const link = anchor && section.contains( anchor ) ? anchor : null;
+			const button = el.closest( '.wp-block-button__link' );
+			let kind = 'text';
+			if ( button ) {
+				kind = button.closest( '.wp-block-button.is-style-outline' )
+					? 'outline button'
+					: 'button';
+			} else if ( link ) {
+				kind = 'link';
+			} else if ( /^H[1-6]$/.test( el.tagName ) ) {
+				kind = 'heading';
+			}
+			const base = `${ kind } "${
+				text.length > 32 ? `${ text.slice( 0, 32 ) }...` : text
+			}"`;
+			const seen = ( names.get( base ) || 0 ) + 1;
+			names.set( base, seen );
+			const id = String( ++next );
+			byId.set( id, { el, hover: button || link } );
+			out.push( {
+				id,
+				name: seen > 1 ? `${ base } #${ seen }` : base,
+				kind,
+				hover: !! ( button || link ),
+			} );
+		}
+		return out;
+	};
+
+	/**
+	 * Whether anything in a section reaches past the viewport's right edge
+	 * with no ancestor inside the section to clip it. An element with
+	 * visible overflow reaches as far as its content does (scrollWidth),
+	 * so a long word that spills out of its box counts too.
+	 *
+	 * @param {Element} section
+	 * @return {{ok: boolean, note: string}} Result.
+	 */
+	const overflow = ( section ) => {
+		const viewport = document.documentElement.clientWidth;
+		let worst = null;
+		for ( const el of all( section ) ) {
+			const rects = el.getClientRects();
+			if ( ! rects.length ) {
+				continue;
+			}
+			const style = window.getComputedStyle( el );
+			const rect = el.getBoundingClientRect();
+			const left = rect.left + window.scrollX;
+			const reach =
+				style.overflowX === 'visible'
+					? left + Math.max( rect.width, el.scrollWidth )
+					: left + rect.width;
+			if ( reach <= viewport + 1 ) {
+				continue;
+			}
+			let clipped = false;
+			for (
+				let up = el.parentElement;
+				up && section.contains( up );
+				up = up.parentElement
+			) {
+				if ( window.getComputedStyle( up ).overflowX !== 'visible' ) {
+					clipped = true;
+					break;
+				}
+			}
+			if ( ! clipped && ( ! worst || reach > worst.reach ) ) {
+				worst = { reach, el };
+			}
+		}
+		return worst
+			? {
+					ok: false,
+					note: `${ describe( worst.el ) } reaches ${ Math.round(
+						worst.reach
+					) }px in a ${ viewport }px viewport`,
+				}
+			: { ok: true, note: '' };
+	};
+
+	/**
+	 * One motion sample of a section: what animates, and where every box is.
+	 *
+	 * @param {Element} section
+	 * @return {{running: string[], boxes: number[][]}} Sample.
+	 */
+	const sampleOf = ( section ) => ( {
+		running: section
+			.getAnimations( { subtree: true } )
+			.filter( ( a ) => a.playState === 'running' )
+			.map( ( a ) => {
+				const name =
+					a.animationName ||
+					( a.transitionProperty
+						? `transition of ${ a.transitionProperty }`
+						: 'a script animation' );
+				const target = a.effect?.target;
+				return `${ name } on ${ target ? describe( target ) : 'an element' }`;
+			} ),
+		boxes: all( section ).map( ( el ) => {
+			const r = el.getBoundingClientRect();
+			return [
+				r.left + window.scrollX,
+				r.top + window.scrollY,
+				r.width,
+				r.height,
+			].map( ( v ) => Math.round( v * 10 ) / 10 );
+		} ),
+	} );
+
+	window.voyagerOpenCheck = {
+		/**
+		 * Load every image now (a lazy one far down the page would load, and
+		 * move what is below it, only when scrolled to), then wait for fonts
+		 * and two frames.
+		 *
+		 * @return {Promise<boolean>} Ready.
+		 */
+		async ready() {
+			const images = [ ...document.images ];
+			for ( const img of images ) {
+				if ( img.loading === 'lazy' ) {
+					img.loading = 'eager';
+				}
+			}
+			await Promise.all(
+				images.map( ( img ) =>
+					img.complete
+						? null
+						: new Promise( ( done ) => {
+								img.addEventListener( 'load', done, {
+									once: true,
+								} );
+								img.addEventListener( 'error', done, {
+									once: true,
+								} );
+								setTimeout( done, 10000 );
+							} )
+				)
+			);
+			await document.fonts.ready;
+			await new Promise( ( done ) => {
+				setTimeout( done, 250 );
+				window.requestAnimationFrame( () =>
+					window.requestAnimationFrame( done )
+				);
+			} );
+			return true;
+		},
+
+		/**
+		 * The page as a whole.
+		 *
+		 * @return {Object} Width, scroll width, and the reduced-motion query.
+		 */
+		page() {
+			return {
+				clientWidth: document.documentElement.clientWidth,
+				scrollWidth: document.documentElement.scrollWidth,
+				reducedMotion: window.matchMedia(
+					'(prefers-reduced-motion: reduce)'
+				).matches,
+				body: {
+					text: hex(
+						rgba( window.getComputedStyle( document.body ).color )
+					),
+					background: hex(
+						rgba(
+							window.getComputedStyle( document.body )
+								.backgroundColor
+						)
+					),
+				},
+			};
+		},
+
+		/**
+		 * Each section: whether it is there once, its classes and colours,
+		 * and what the asked checks see in it, at rest.
+		 *
+		 * @param {string[]}                               keys Section keys.
+		 * @param {{contrast: boolean, overflow: boolean}} want Checks to run.
+		 * @return {Array<Object>} One entry per key.
+		 */
+		scan( keys, want ) {
+			return keys.map( ( key ) => {
+				const section = sectionOf( key );
+				if ( ! section ) {
+					return {
+						key,
+						count: document.querySelectorAll(
+							`.${ prefix }${ key }`
+						).length,
+					};
+				}
+				const style = window.getComputedStyle( section );
+				const found = want.contrast ? targets( section ) : [];
+				return {
+					key,
+					count: 1,
+					className: section.className,
+					text: hex( rgba( style.color ) ),
+					background: hex( rgba( style.backgroundColor ) ),
+					targets: found.map( ( target ) => ( {
+						...target,
+						...measure( byId.get( target.id ).el ),
+					} ) ),
+					overflow: want.overflow ? overflow( section ) : null,
+				};
+			} );
+		},
+
+		/**
+		 * Scroll a target's link or button into view, and say where its centre is.
+		 *
+		 * @param {string} id Target id from scan().
+		 * @return {{x: number, y: number}|null} Centre in the viewport.
+		 */
+		centre( id ) {
+			const hover = byId.get( id )?.hover;
+			if ( ! hover ) {
+				return null;
+			}
+			hover.scrollIntoView( { block: 'center', inline: 'nearest' } );
+			// A link that wraps is two boxes, and the middle of the box
+			// around both can be in neither: aim at its widest line.
+			const rect = [ ...hover.getClientRects() ].reduce(
+				( best, r ) => ( r.width > best.width ? r : best ),
+				{ width: -1 }
+			);
+			if ( rect.width < 0 ) {
+				return null;
+			}
+			return {
+				x: rect.left + rect.width / 2,
+				y: rect.top + rect.height / 2,
+			};
+		},
+
+		/**
+		 * @param {string} id
+		 * @return {boolean} Whether the target's link or button matches :hover.
+		 */
+		hovered( id ) {
+			return !! byId.get( id )?.hover?.matches( ':hover' );
+		},
+
+		/** @return {boolean} Whether no CSS transition is running, so a hover colour has landed. */
+		settled() {
+			return document
+				.getAnimations()
+				.every(
+					( a ) =>
+						a.playState !== 'running' ||
+						! ( 'transitionProperty' in a )
+				);
+		},
+
+		/**
+		 * @param {string} id
+		 * @return {Object} The target's measurement now.
+		 */
+		measure( id ) {
+			return measure( byId.get( id ).el );
+		},
+
+		/**
+		 * @param {string[]} keys Section keys.
+		 * @return {Array<Object|null>} A motion sample of each, null for one not found.
+		 */
+		sample( keys ) {
+			return keys.map( ( key ) => {
+				const section = sectionOf( key );
+				return section ? sampleOf( section ) : null;
+			} );
+		},
+
+		/**
+		 * The colours the page's palette custom properties hold, against a
+		 * palette expected from a style variation.
+		 *
+		 * @param {Array<{slug: string, color: string}>} palette Expected.
+		 * @return {string[]} One line per slug that differs.
+		 */
+		paletteMismatches( palette ) {
+			const root = window.getComputedStyle( document.documentElement );
+			const key = ( c ) =>
+				c ? `${ hex( c ) }/${ c.a.toFixed( 2 ) }` : 'none';
+			return palette
+				.map( ( { slug, color } ) => {
+					const raw = root
+						.getPropertyValue( `--wp--preset--color--${ slug }` )
+						.trim();
+					const got = raw ? key( rgba( raw ) ) : 'unset';
+					const want = key( rgba( color ) );
+					return got === want
+						? ''
+						: `${ slug }: ${ got }, not ${ want }`;
+				} )
+				.filter( Boolean );
+		},
+	};
+	return true;
+}
+
+/**
+ * In the editor: whether the post's blocks are loaded.
+ *
+ * @return {boolean} Ready.
+ */
+function editorReadyInPage() {
+	const data = window.wp?.data;
+	const canvas = document.querySelector( 'iframe[name="editor-canvas"]' );
+	return !! (
+		data &&
+		data.select( 'core/block-editor' ).getBlockCount() > 0 &&
+		( ! canvas ||
+			canvas.contentDocument?.querySelector(
+				'.is-style-voyager-open-inverted'
+			) )
+	);
+}
+
+/**
+ * In the editor: select the first section.
+ *
+ * @return {string} The clientId selected.
+ */
+function selectSectionInPage() {
+	const { select, dispatch } = window.wp.data;
+	const [ first ] = select( 'core/block-editor' ).getBlocks();
+	dispatch( 'core/block-editor' ).selectBlock( first.clientId );
+	return first.clientId;
+}
+
+/**
+ * In the editor: open the inspector's Styles tab, if it has tabs.
+ *
+ * @return {boolean} Whether a Styles tab was clicked.
+ */
+function openStylesTabInPage() {
+	const tab = [
+		...document.querySelectorAll(
+			'.block-editor-block-inspector [role="tab"]'
+		),
+	].find( ( el ) =>
+		/styles/i.test(
+			el.textContent || el.getAttribute( 'aria-label' ) || ''
+		)
+	);
+	if ( tab && tab.getAttribute( 'aria-selected' ) !== 'true' ) {
+		tab.click();
+	}
+	return !! tab;
+}
+
+/**
+ * In the editor: the style buttons the Styles panel shows, and what the
+ * blocks store holds for core/group.
+ *
+ * @return {{panel: string[], registered: Array<{name: string, label: string}>}} Labels.
+ */
+function stylesInPage() {
+	const panel = [
+		...document.querySelectorAll(
+			'.block-editor-block-styles__variants button, .block-editor-block-styles__variants [role="radio"]'
+		),
+	].map( ( el ) =>
+		( el.textContent || el.getAttribute( 'aria-label' ) || '' ).trim()
+	);
+	const registered = (
+		window.wp.data.select( 'core/blocks' ).getBlockStyles( 'core/group' ) ||
+		[]
+	).map( ( s ) => ( { name: s.name, label: s.label } ) );
+	return { panel, registered };
+}
+
+/**
+ * In the editor canvas: the first Inverted section's colours.
+ *
+ * @return {{text: string, background: string}|null} Colours, as hex.
+ */
+function canvasInvertedInPage() {
+	const doc =
+		document.querySelector( 'iframe[name="editor-canvas"]' )
+			?.contentDocument || document;
+	const el = doc.querySelector( '.is-style-voyager-open-inverted' );
+	if ( ! el ) {
+		return null;
+	}
+	const canvas = document.createElement( 'canvas' );
+	canvas.width = 1;
+	canvas.height = 1;
+	const ctx = canvas.getContext( '2d', { willReadFrequently: true } );
+	const hex = ( value ) => {
+		ctx.clearRect( 0, 0, 1, 1 );
+		ctx.fillStyle = value;
+		ctx.fillRect( 0, 0, 1, 1 );
+		const [ r, g, b ] = ctx.getImageData( 0, 0, 1, 1 ).data;
+		return (
+			'#' +
+			[ r, g, b ]
+				.map( ( v ) => v.toString( 16 ).padStart( 2, '0' ) )
+				.join( '' )
+		);
+	};
+	const style = el.ownerDocument.defaultView.getComputedStyle( el );
+	return {
+		text: hex( style.color ),
+		background: hex( style.backgroundColor ),
+	};
+}
+
+/**
+ * @param {Object} tab A page from launch().newPage().
+ * @param {number} x
+ * @param {number} y
+ */
+async function pointer( tab, x, y ) {
+	await tab.call( 'Input.dispatchMouseEvent', {
+		type: 'mouseMoved',
+		x,
+		y,
+		button: 'none',
+	} );
+}
+
+/**
+ * Load a URL at a width, after checking it answers 200, and install the
+ * measuring helpers.
+ *
+ * @param {Object} tab
+ * @param {string} url
+ * @param {number} width  Viewport width in CSS pixels.
+ * @param {number} height Viewport height in CSS pixels.
+ */
+async function visit( tab, url, width, height ) {
+	const response = await fetch( url );
+	const body = await response.text();
+	if ( response.status !== 200 ) {
+		const title = /<title>([^<]*)<\/title>/i.exec( body )?.[ 1 ] || '';
+		throw new Error(
+			`${ url } answered ${ response.status } (at ${ response.url })${
+				title ? `: ${ title }` : ''
+			}`
+		);
+	}
+	await tab.call( 'Emulation.setDeviceMetricsOverride', {
+		width,
+		height,
+		deviceScaleFactor: 1,
+		mobile: false,
+	} );
+	await tab.call( 'Page.bringToFront' );
+	await tab.goto( url );
+	await tab.evaluate( js( installInPage, SECTION_CLASS ) );
+	await tab.evaluate( call( 'ready' ) );
+	await pointer( tab, 0, 0 );
+}
+
+/**
+ * Measure contrast in sections already scanned: the rest pairs the scan
+ * measured, then each link and button hovered.
+ *
+ * @param {Object}        tab      The page.
+ * @param {Array<Object>} scanned  From scan(), with contrast on.
+ * @param {Object}        context  Fields every row carries: theme, variation, width.
+ * @param {Object}        sections Key => {pattern, style}.
+ * @return {Promise<Array<Object>>} One row per target and state.
+ */
+async function contrastRows( tab, scanned, context, sections ) {
+	const rows = [];
+	for ( const entry of scanned ) {
+		// The planted sections are controls for the other checks.
+		if ( ! entry.targets || entry.key.startsWith( 'plant--' ) ) {
+			continue;
+		}
+		const where = { ...context, ...sections[ entry.key ] };
+		for ( const target of entry.targets ) {
+			rows.push( {
+				...where,
+				target: target.name,
+				state: 'rest',
+				text: target.text,
+				background: target.background,
+				ratio: target.ratio,
+				note: target.note,
+			} );
+		}
+		for ( const target of entry.targets.filter( ( t ) => t.hover ) ) {
+			await pointer( tab, 0, 0 );
+			const at = await tab.evaluate( call( 'centre', target.id ) );
+			if ( at ) {
+				await pointer( tab, at.x, at.y );
+			}
+			const hovered = at
+				? await tab.evaluate( call( 'hovered', target.id ) )
+				: false;
+			if ( hovered ) {
+				await tab.waitFor( call( 'settled' ), {
+					timeout: 1500,
+					interval: 50,
+				} );
+			}
+			const measured = hovered
+				? await tab.evaluate( call( 'measure', target.id ) )
+				: {
+						text: '?',
+						background: '?',
+						ratio: null,
+						note: 'the pointer did not produce :hover',
+					};
+			rows.push( {
+				...where,
+				target: target.name,
+				state: 'hover',
+				...measured,
+			} );
+		}
+	}
+	await pointer( tab, 0, 0 );
+	return rows;
+}
+
+/**
+ * Motion in sections: two samples gapMs apart, with reduced motion on.
+ *
+ * @param {Object}   tab   A page with reduced motion emulated.
+ * @param {string[]} keys  Section keys.
+ * @param {number}   gapMs Milliseconds between the samples.
+ * @return {Promise<Object<string, {ok: boolean, note: string}>>} Key => result.
+ */
+async function motionResults( tab, keys, gapMs ) {
+	const first = await tab.evaluate( call( 'sample', keys ) );
+	await new Promise( ( done ) => setTimeout( done, gapMs ) );
+	const second = await tab.evaluate( call( 'sample', keys ) );
+	const out = {};
+	keys.forEach( ( key, i ) => {
+		const a = first[ i ];
+		const b = second[ i ];
+		if ( ! a || ! b ) {
+			out[ key ] = { ok: false, note: 'section not found' };
+			return;
+		}
+		const running = [ ...new Set( [ ...a.running, ...b.running ] ) ];
+		const moved = a.boxes.filter(
+			( box, j ) =>
+				! b.boxes[ j ] ||
+				box.some( ( v, k ) => Math.abs( v - b.boxes[ j ][ k ] ) > 0.5 )
+		).length;
+		const notes = [];
+		if ( running.length ) {
+			notes.push( `running: ${ running.join( '; ' ) }` );
+		}
+		if ( moved || a.boxes.length !== b.boxes.length ) {
+			notes.push(
+				`${ moved } of ${ a.boxes.length } boxes moved in ${ gapMs }ms`
+			);
+		}
+		out[ key ] = { ok: notes.length === 0, note: notes.join( '; ' ) };
+	} );
+	return out;
+}
+
+/**
+ * @param {Object} row   A contrast measurement.
+ * @param {number} floor
+ * @return {boolean} Whether it fails: unmeasured, or under the floor.
+ */
+const fails = ( row, floor ) => row.ratio === null || row.ratio < floor;
+
+/**
+ * @param {Object} row A contrast row.
+ * @return {string} The key a known failure is listed under.
+ */
+const knownKey = ( row ) =>
+	[ row.variation, row.pattern, row.style, row.target, row.state ].join(
+		'|'
+	);
+
+/**
+ * One aligned line per contrast row.
+ *
+ * @param {Array<Object>} rows
+ * @param {number}        floor
+ * @return {string} Table.
+ */
+function contrastTable( rows, floor ) {
+	return rows
+		.map( ( r ) =>
+			[
+				// eslint-disable-next-line no-nested-ternary
+				fails( r, floor ) ? ( r.known ? 'known' : 'FAIL ' ) : 'ok   ',
+				`${ r.theme }${ r.variation ? `/${ r.variation }` : '' }`.padEnd(
+					28
+				),
+				String( r.width ).padStart( 4 ),
+				r.pattern.padEnd( 15 ),
+				r.style.padEnd( 8 ),
+				clip( r.target, 44 ).padEnd( 47 ),
+				r.state.padEnd( 5 ),
+				`text ${ r.text }`,
+				`on ${ r.background }`,
+				r.ratio === null
+					? `- ${ r.note }`
+					: `${ r.ratio.toFixed( 2 ) }:1`,
+			].join( '  ' )
+		)
+		.join( '\n' );
+}
+
+/**
+ * One aligned line per overflow or motion row.
+ *
+ * @param {Array<Object>} rows
+ * @return {string} Table.
+ */
+function renderTable( rows ) {
+	return rows
+		.map( ( r ) =>
+			[
+				r.ok ? 'ok   ' : 'FAIL ',
+				r.check.padEnd( 8 ),
+				r.theme.padEnd( 18 ),
+				String( r.width ).padStart( 4 ),
+				r.pattern.padEnd( 15 ),
+				r.style.padEnd( 8 ),
+				r.note,
+			].join( '  ' )
+		)
+		.join( '\n' );
+}
+
+/**
+ * Append Markdown to the job summary, when there is one.
+ *
+ * @param {string[]} lines
+ */
+function summary( lines ) {
+	if ( process.env.GITHUB_STEP_SUMMARY ) {
+		appendFileSync(
+			process.env.GITHUB_STEP_SUMMARY,
+			`${ lines.join( '\n' ) }\n\n`
+		);
+	}
+}
+
+/**
+ * Contrast rows as a Markdown table, at most 300 of them.
+ *
+ * @param {string}        title
+ * @param {Array<Object>} rows
+ * @param {number}        floor
+ */
+function summarizeContrast( title, rows, floor ) {
+	summary( [
+		`### ${ title }`,
+		'',
+		'| | Theme | Width | Pattern | Style | Target | State | Text | Background | Ratio |',
+		'|---|---|---|---|---|---|---|---|---|---|',
+		...rows
+			.slice( 0, 300 )
+			.map(
+				( r ) =>
+					`| ${ fails( r, floor ) ? 'FAIL' : 'ok' } | ${ r.theme }${
+						r.variation ? `/${ r.variation }` : ''
+					} | ${ r.width } | ${ r.pattern } | ${ r.style } | ${ r.target.replace(
+						/\|/g,
+						'\\|'
+					) } | ${ r.state } | \`${ r.text }\` | \`${ r.background }\` | ${
+						r.ratio === null
+							? r.note
+							: `${ r.ratio.toFixed( 2 ) }:1`
+					} |`
+			),
+		rows.length > 300
+			? `\n${ rows.length - 300 } more in the job log.`
+			: '',
+	] );
+}
+
+/**
+ * The patterns in patterns/, by file name.
+ *
+ * @return {string[]} Names, such as cta-band, sorted.
+ */
+function patternFiles() {
+	return readdirSync( PATTERNS )
+		.filter( ( file ) => file.endsWith( '.html' ) )
+		.map( ( file ) => file.slice( 0, -5 ) )
+		.sort();
+}
+
+/**
+ * Switch theme and build the two pages: every pattern in every style, and
+ * the planted faults.
+ *
+ * @param {Object}   site     From boot().
+ * @param {Object}   fixture  tests/fixtures/contrast.json.
+ * @param {string}   theme    Theme slug.
+ * @param {string[]} patterns Pattern names.
+ * @param {Object}   plants   Plant name => markup, from plantSections().
+ * @param {boolean}  planted  Whether the main page carries the plants too.
+ * @return {Promise<Object>} {main, control, stylesheet, version, catalog, registered} or {error}.
+ */
+function buildPages( site, fixture, theme, patterns, plants, planted ) {
+	const args = phpString(
+		JSON.stringify( {
+			theme,
+			patterns,
+			styles: fixture.styles,
+			link: fixture.link,
+			prefix: SECTION_CLASS,
+			plants: Object.values( plants ),
+			planted,
+		} )
+	);
+	return runPhp(
+		site,
+		`$args = json_decode( ${ args }, true );
+if ( ! wp_get_theme( $args['theme'] )->exists() ) {
+	return [ 'error' => 'Theme ' . $args['theme'] . ' is not installed.' ];
+}
+switch_theme( $args['theme'] );
+$mark = static function ( array $block, string $class ): array {
+	$block['attrs']['className'] = trim( ( $block['attrs']['className'] ?? '' ) . ' ' . $class );
+	foreach ( [ 'first', 'html' ] as $part ) {
+		$html = 'first' === $part ? $block['innerContent'][0] : $block['innerHTML'];
+		$tags = new WP_HTML_Tag_Processor( $html );
+		$tags->next_tag();
+		$tags->add_class( $class );
+		if ( 'first' === $part ) {
+			$block['innerContent'][0] = $tags->get_updated_html();
+		} else {
+			$block['innerHTML'] = $tags->get_updated_html();
+		}
+	}
+	return $block;
+};
+$registry = WP_Block_Patterns_Registry::get_instance();
+$sections = [];
+foreach ( $args['patterns'] as $name ) {
+	$pattern = $registry->get_registered( 'voyager-open/' . $name );
+	if ( ! $pattern ) {
+		return [ 'error' => 'voyager-open/' . $name . ' is not registered.' ];
+	}
+	$groups = array_values(
+		array_filter(
+			parse_blocks( $pattern['content'] ),
+			static fn ( $block ) => 'core/group' === $block['blockName']
+		)
+	);
+	if ( 1 !== count( $groups ) ) {
+		return [ 'error' => 'voyager-open/' . $name . ' has ' . count( $groups ) . ' top-level groups, not one section.' ];
+	}
+	foreach ( $args['styles'] as $style ) {
+		$styled = \\VoyagerOpenBlocks\\SectionStyles\\apply( $groups[0], $style );
+		if ( is_wp_error( $styled ) ) {
+			return [ 'error' => $name . ' ' . $style . ': ' . $styled->get_error_message() ];
+		}
+		$markup = serialize_block( $mark( $styled, $args['prefix'] . $name . '--' . $style ) );
+		if ( $args['link']['pattern'] === $name ) {
+			$link   = '<a href="' . esc_url( $args['link']['href'] ) . '">' . esc_html( $args['link']['text'] ) . '</a>';
+			$count  = 0;
+			$markup = str_replace( $args['link']['text'], $link, $markup, $count );
+			if ( 1 !== $count ) {
+				return [ 'error' => 'The link text appears ' . $count . ' times in the ' . $name . ' ' . $style . ' section, not once.' ];
+			}
+		}
+		$sections[] = $markup;
+	}
+}
+kses_remove_filters();
+$pages = [];
+foreach ( [
+	'main'    => array_merge( $sections, $args['planted'] ? $args['plants'] : [] ),
+	'control' => $args['plants'],
+] as $key => $content ) {
+	$id = wp_insert_post(
+		wp_slash(
+			[
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_title'   => 'Design check ' . $key . ': ' . $args['theme'],
+				'post_content' => implode( "\\n\\n", $content ),
+			]
+		),
+		true
+	);
+	if ( is_wp_error( $id ) ) {
+		return [ 'error' => $id->get_error_message() ];
+	}
+	$pages[ $key ] = [ 'id' => $id, 'link' => get_permalink( $id ) ];
+}
+$registered = [];
+foreach ( $registry->get_all_registered() as $pattern ) {
+	if ( str_starts_with( $pattern['name'], 'voyager-open/' ) ) {
+		$registered[] = substr( $pattern['name'], strlen( 'voyager-open/' ) );
+	}
+}
+sort( $registered );
+return [
+	'main'       => $pages['main'],
+	'control'    => $pages['control'],
+	'stylesheet' => get_stylesheet(),
+	'version'    => get_bloginfo( 'version' ),
+	'catalog'    => \\VoyagerOpenBlocks\\SectionStyles\\catalog(),
+	'registered' => $registered,
+];`
+	);
+}
+
+/**
+ * Set or clear the planted role map, and read the catalog it gives.
+ *
+ * @param {Object}      site From boot().
+ * @param {Object|null} map  Role => slug, or null to clear it.
+ * @return {Promise<Object>} The catalog after the change.
+ */
+function plant( site, map ) {
+	return runPhp(
+		site,
+		map
+			? `update_option( '${ PLANT_OPTION }', json_decode( ${ phpString(
+					JSON.stringify( map )
+				) }, true ) );
+return \\VoyagerOpenBlocks\\SectionStyles\\catalog();`
+			: `delete_option( '${ PLANT_OPTION }' );
+return \\VoyagerOpenBlocks\\SectionStyles\\catalog();`
+	);
+}
+
+/**
+ * The active theme's style variations, in the order the Site Editor gets
+ * them (WP_Theme_JSON_Resolver::get_style_variations()), with the ones that
+ * set a colour marked.
+ *
+ * A theme can ship a full variation and a colours-only one under the same
+ * title, as Twenty Twenty-Five does (styles/ and styles/colors/), so each is
+ * named by its title, and a colours-only one, which the Site Editor offers
+ * under Colors, gets "(colors)" after it. Colours-only is the Site Editor's
+ * test, isVariationWithProperties( variation, [ 'color' ] ): the variation
+ * equals itself with everything but its color keys filtered out.
+ *
+ * @param {Object} site From boot().
+ * @return {Promise<Array<{index: number, title: string, name: string, colour: boolean, palette: Array<{slug: string, color: string}>}>>} Variations.
+ */
+function listVariations( site ) {
+	return runPhp(
+		site,
+		`$only = static function ( $data, array $keys ) use ( &$only ) {
+	$out = [];
+	foreach ( (array) $data as $key => $value ) {
+		if ( in_array( $key, $keys, true ) ) {
+			$out[ $key ] = $value;
+		} elseif ( is_array( $value ) ) {
+			$kept = $only( $value, $keys );
+			if ( [] !== $kept ) {
+				$out[ $key ] = $kept;
+			}
+		}
+	}
+	return $out;
+};
+$out = [];
+foreach ( WP_Theme_JSON_Resolver::get_style_variations() as $index => $variation ) {
+	$styles   = (array) ( $variation['styles'] ?? [] );
+	$settings = (array) ( $variation['settings'] ?? [] );
+	$colours  = [ $only( $styles, [ 'color' ] ), $only( $settings, [ 'color' ] ) ];
+	$palette  = $settings['color']['palette'] ?? [];
+	$entries  = is_array( $palette ) ? ( $palette['theme'] ?? ( isset( $palette[0] ) ? $palette : [] ) ) : [];
+	$title    = (string) ( $variation['title'] ?? '' );
+	$out[]    = [
+		'index'   => $index,
+		'title'   => $title,
+		'name'    => $title . ( $colours[0] == $styles && $colours[1] == $settings ? ' (colors)' : '' ),
+		'colour'  => [] !== $colours[0] || [] !== $colours[1],
+		'palette' => array_map(
+			static fn ( $entry ) => [ 'slug' => (string) $entry['slug'], 'color' => (string) $entry['color'] ],
+			$entries
+		),
+	];
+}
+return $out;`
+	);
+}
+
+/**
+ * Switch a style variation on, or back to the theme's own styles, the way
+ * the Site Editor saves one. Picking a variation sets the user's global
+ * styles to its settings and styles: edit-site's Variation calls
+ * setUserConfig( variation ), and for a colours-only one the variation is
+ * first merged over the user's styles without their colours, which from the
+ * theme's own styles is the variation alone. The global styles REST
+ * controller then writes settings and styles to the theme's wp_global_styles
+ * post with isGlobalStylesUserThemeJSON and the schema version
+ * (prepare_item_for_database()).
+ *
+ * @param {Object}      site      From boot().
+ * @param {Object|null} variation From listVariations(), or null for none.
+ * @return {Promise<Object>} {post, roles} or {error}.
+ */
+function switchVariation( site, variation ) {
+	return runPhp(
+		site,
+		`$want   = json_decode( ${ phpString(
+			JSON.stringify(
+				variation
+					? { index: variation.index, title: variation.title }
+					: null
+			)
+		) }, true );
+$chosen = null;
+if ( null !== $want ) {
+	$chosen = WP_Theme_JSON_Resolver::get_style_variations()[ $want['index'] ] ?? null;
+	if ( ! $chosen || ( $chosen['title'] ?? '' ) !== $want['title'] ) {
+		return [ 'error' => 'Style variation ' . $want['index'] . ' is not ' . $want['title'] . '.' ];
+	}
+}
+// As admin: wp_insert_post() sets the post's wp_theme term, which the
+// resolver finds the post by, only for a user who can assign terms.
+wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
+$post = WP_Theme_JSON_Resolver::get_user_data_from_wp_global_styles( wp_get_theme(), true );
+if ( empty( $post['ID'] ) ) {
+	return [ 'error' => 'Could not find or create the global styles post.' ];
+}
+$config = [
+	'styles'                      => (object) ( $chosen['styles'] ?? [] ),
+	'settings'                    => (object) ( $chosen['settings'] ?? [] ),
+	'isGlobalStylesUserThemeJSON' => true,
+	'version'                     => WP_Theme_JSON::LATEST_SCHEMA,
+];
+kses_remove_filters();
+$updated = wp_update_post( wp_slash( [ 'ID' => $post['ID'], 'post_content' => wp_json_encode( $config ) ] ), true );
+if ( is_wp_error( $updated ) ) {
+	return [ 'error' => $updated->get_error_message() ];
+}
+return [
+	'post'  => $post['ID'],
+	'roles' => \\VoyagerOpenBlocks\\SectionStyles\\catalog()['roles'],
+];`
+	);
+}
+
+/**
+ * Log the admin page in through the login form.
+ *
+ * @param {Object} tab
+ * @param {string} base Site URL.
+ */
+async function logIn( tab, base ) {
+	await tab.goto( `${ base }/wp-admin/` );
+	if (
+		( await tab.evaluate( 'location.pathname' ) ).endsWith(
+			'/wp-login.php'
+		)
+	) {
+		await tab.navigate(
+			js(
+				( user, pass ) => {
+					document.getElementById( 'user_login' ).value = user;
+					document.getElementById( 'user_pass' ).value = pass;
+					setTimeout( () =>
+						document.getElementById( 'loginform' ).submit()
+					);
+					return true;
+				},
+				'admin',
+				'password'
+			)
+		);
+	}
+	const inAdmin = await tab.evaluate(
+		"document.body.classList.contains( 'wp-admin' )"
+	);
+	if ( ! inAdmin ) {
+		throw new Error(
+			`Could not log in as admin: landed on ${ await tab.evaluate(
+				'location.pathname'
+			) }`
+		);
+	}
+}
+
+/**
+ * Open the page in the editor and check the Styles panel and the canvas.
+ *
+ * @param {Object} admin  A logged-in page.
+ * @param {string} base   Site URL.
+ * @param {string} theme  Theme slug.
+ * @param {number} postId Fixture page.
+ * @param {Object} front  The front end's first Inverted section's colours.
+ */
+async function checkEditor( admin, base, theme, postId, front ) {
+	await admin.goto(
+		`${ base }/wp-admin/post.php?post=${ postId }&action=edit`
+	);
+	const ready = await admin.waitFor( js( editorReadyInPage ), {
+		timeout: 120000,
+	} );
+	if (
+		! expect(
+			`${ theme }: the block editor loads the fixture page`,
+			ready.ok,
+			ready.error
+		)
+	) {
+		return;
+	}
+
+	await admin.evaluate( js( selectSectionInPage ) );
+	await admin.waitFor( js( openStylesTabInPage ), { timeout: 15000 } );
+	const shown = await admin.waitFor(
+		`(${ stylesInPage.toString() })().panel.length > 0`,
+		{ timeout: 15000 }
+	);
+	const styles = await admin.evaluate( js( stylesInPage ) );
+	const labels = [ 'Panel', 'Inverted', 'Accent' ];
+	expect(
+		`${ theme }: the editor's Styles panel offers Panel, Inverted and Accent for the section`,
+		shown.ok && labels.every( ( label ) => styles.panel.includes( label ) ),
+		styles.panel
+	);
+	expect(
+		`${ theme }: the blocks store holds the three styles with their names`,
+		[
+			'voyager-open-panel',
+			'voyager-open-inverted',
+			'voyager-open-accent',
+		].every( ( name ) =>
+			styles.registered.some( ( s ) => s.name === name )
+		),
+		styles.registered
+	);
+
+	const canvas = await admin.evaluate( js( canvasInvertedInPage ) );
+	expect(
+		`${ theme }: the editor canvas paints Inverted as the front end does`,
+		canvas &&
+			canvas.text === front.text &&
+			canvas.background === front.background,
+		{ editor: canvas, front }
+	);
+}
+
+/**
+ * Load a page at one width and run the asked checks on each section: as a
+ * visitor for contrast and overflow, and again with reduced motion emulated
+ * for motion, and for overflow once more, since a reduced-motion rule can
+ * change the layout.
+ *
+ * @param {Object}   tabs     {visitor, still}: pages from launch().newPage(), still with reduced motion emulated.
+ * @param {string}   url      Page to load.
+ * @param {number}   width    Viewport width.
+ * @param {string[]} keys     Sections to measure.
+ * @param {Object}   want     Checks to run: {contrast, overflow, motion}.
+ * @param {Object}   context  Fields every row carries: theme, variation, width.
+ * @param {Object}   sections Key => {pattern, style}.
+ * @param {Object}   fixture  tests/fixtures/contrast.json.
+ * @return {Promise<{page: Object, still: Object|null, scanned: Array<Object>, contrast: Array<Object>, renders: Array<Object>}>} What it saw.
+ */
+async function renderAt(
+	tabs,
+	url,
+	width,
+	keys,
+	want,
+	context,
+	sections,
+	fixture
+) {
+	await visit( tabs.visitor, url, width, fixture.height );
+	const page = await tabs.visitor.evaluate( call( 'page' ) );
+	const scanned = await tabs.visitor.evaluate(
+		call( 'scan', keys, {
+			contrast: !! want.contrast,
+			overflow: !! want.overflow,
+		} )
+	);
+	const contrast = want.contrast
+		? await contrastRows( tabs.visitor, scanned, context, sections )
+		: [];
+
+	let still = null;
+	const calm = {};
+	let motion = {};
+	if ( want.overflow || want.motion ) {
+		await visit( tabs.still, url, width, fixture.height );
+		still = await tabs.still.evaluate( call( 'page' ) );
+		if ( want.overflow ) {
+			for ( const s of await tabs.still.evaluate(
+				call( 'scan', keys, { contrast: false, overflow: true } )
+			) ) {
+				calm[ s.key ] = s.overflow;
+			}
+		}
+		if ( want.motion ) {
+			motion = await motionResults(
+				tabs.still,
+				keys,
+				fixture.motion.gap_ms
+			);
+		}
+	}
+
+	const renders = [];
+	for ( const s of scanned ) {
+		const where = {
+			theme: context.theme,
+			width,
+			key: s.key,
+			...sections[ s.key ],
+		};
+		if ( want.overflow ) {
+			const results = [
+				[ '', s.overflow ],
+				[ 'with reduced motion: ', calm[ s.key ] ],
+			];
+			const notes = results
+				.filter( ( [ , r ] ) => ! r?.ok )
+				.map(
+					( [ label, r ] ) =>
+						`${ label }${ r?.note || 'not measured' }`
+				);
+			renders.push( {
+				check: 'overflow',
+				...where,
+				ok: notes.length === 0,
+				note: notes.join( '; ' ) || 'stays inside the viewport',
+			} );
+		}
+		if ( want.motion ) {
+			const result = motion[ s.key ] || {
+				ok: false,
+				note: 'not measured',
+			};
+			renders.push( {
+				check: 'motion',
+				...where,
+				ok: result.ok,
+				note: result.note || 'still',
+			} );
+		}
+	}
+	return { page, still, scanned, contrast, renders };
+}
+
+/**
+ * Everything on one theme: the pages, every width, the controls, the editor
+ * and the style variations. Adds to the run's rows as it goes.
+ *
+ * @param {Object} ctx   The run: site, browser, tabs, fixture, opts, want, sections, keys, plants and the row lists.
+ * @param {Object} entry The theme's entry in the fixture.
+ */
+async function checkTheme( ctx, entry ) {
+	const { site, tabs, fixture, opts, want, sections, keys, out } = ctx;
+	const { theme } = entry;
+	const { floor, widths } = fixture;
+
+	await plant( site, null );
+	const pages = await buildPages(
+		site,
+		fixture,
+		theme,
+		ctx.patterns,
+		ctx.plants,
+		!! opts.plant
+	);
+	if (
+		! expect(
+			`${ theme }: the pages are built`,
+			! pages.error && pages.main?.id > 0,
+			pages.error || pages.main.link
+		)
+	) {
+		return;
+	}
+	out.versions[ theme ] = pages.version;
+	expect(
+		`${ theme }: runs on WordPress ${ ctx.wp }`,
+		! /^\d/.test( ctx.wp ) ||
+			pages.version === ctx.wp ||
+			pages.version.startsWith( `${ ctx.wp }-` ),
+		`${ pages.version }${
+			entry.install
+				? `, ${ theme } from ${ entry.install.repo } at ${ entry.install.sha }`
+				: ''
+		}`
+	);
+	expect(
+		`${ theme }: it is the active theme`,
+		pages.stylesheet === theme,
+		pages.stylesheet
+	);
+	expect(
+		`${ theme }: every pattern in patterns/ is registered, and no other voyager-open pattern`,
+		JSON.stringify( pages.registered ) === JSON.stringify( ctx.patterns ),
+		{ files: ctx.patterns, registered: pages.registered }
+	);
+	expect(
+		`${ theme }: get-catalog lists the three styles`,
+		[ 'panel', 'inverted', 'accent' ].every( ( style ) =>
+			pages.catalog.styles.some(
+				( s ) =>
+					s.style === style &&
+					s.class === `is-style-voyager-open-${ style }`
+			)
+		),
+		pages.catalog.styles
+	);
+	expect(
+		`${ theme }: the colours come from the ${ entry.roles } role map`,
+		pages.catalog.roles === entry.roles,
+		pages.catalog.roles
+	);
+
+	if ( opts.plant ) {
+		await plant( site, entry.plant.map );
+	}
+	const mainKeys = opts.plant ? [ ...keys.base, ...keys.plant ] : keys.base;
+	let firstInverted = null;
+	for ( const width of widths ) {
+		const seen = await renderAt(
+			tabs,
+			pages.main.link,
+			width,
+			mainKeys,
+			want,
+			{ theme, variation: '', width },
+			sections,
+			fixture
+		);
+		const base = seen.scanned.filter( ( s ) =>
+			keys.base.includes( s.key )
+		);
+		out.renderCount += base.filter( ( s ) => s.count === 1 ).length;
+		out.contrast.push( ...seen.contrast );
+		out.renders.push( ...seen.renders );
+		const at = `${ theme } at ${ width }px`;
+		expect(
+			`${ at }: all ${ keys.base.length } sections render, each once`,
+			base.every( ( s ) => s.count === 1 ),
+			base
+				.filter( ( s ) => s.count !== 1 )
+				.map( ( s ) => `${ s.key } found ${ s.count } times` )
+				.join( ', ' ) || `${ base.length } sections`
+		);
+		const unstyled = base.filter(
+			( s ) =>
+				sections[ s.key ].style !== 'plain' &&
+				! new RegExp(
+					`\\bis-style-voyager-open-${ sections[ s.key ].style }--\\d+\\b`
+				).test( s.className || '' )
+		);
+		expect(
+			`${ at }: each styled section carries its style's instance class`,
+			unstyled.length === 0,
+			unstyled.map( ( s ) => s.key ).join( ', ' ) || 'all of them'
+		);
+		const inverted = base.filter(
+			( s ) => sections[ s.key ].style === 'inverted'
+		);
+		firstInverted ??= inverted[ 0 ] || null;
+		expect(
+			`${ at }: Inverted is painted in the theme's own text colour, with its background colour as text`,
+			inverted.length > 0 &&
+				inverted.every(
+					( s ) =>
+						s.background === seen.page.body.text &&
+						s.text === seen.page.body.background
+				),
+			{
+				body: seen.page.body,
+				inverted: inverted.map( ( s ) => ( {
+					key: s.key,
+					text: s.text,
+					background: s.background,
+				} ) ),
+			}
+		);
+		if ( want.contrast ) {
+			expect(
+				`${ at }: every section has text to measure`,
+				base.every( ( s ) => s.targets?.length > 0 ),
+				base
+					.map( ( s ) => `${ s.key } ${ s.targets?.length ?? 0 }` )
+					.join( ', ' )
+			);
+		}
+		if ( seen.still ) {
+			expect(
+				`${ at }: the reduced-motion page matches prefers-reduced-motion: reduce, and the visitor's does not`,
+				seen.still.reducedMotion && ! seen.page.reducedMotion,
+				{
+					still: seen.still.reducedMotion,
+					visitor: seen.page.reducedMotion,
+				}
+			);
+		}
+		if ( want.overflow ) {
+			for ( const [ label, page ] of [
+				[ '', seen.page ],
+				[ ' with reduced motion on', seen.still ],
+			] ) {
+				expect(
+					`${ at }: the page does not scroll sideways${ label }`,
+					page.scrollWidth <= page.clientWidth,
+					`document ${ page.scrollWidth }px wide in a ${ page.clientWidth }px viewport`
+				);
+			}
+		}
+	}
+
+	if ( want.motion ) {
+		// A pattern that moves with motion on must be seen moving, so a still
+		// render with motion off is its reduced-motion rule at work, not a
+		// check that cannot see it.
+		const movers = keys.base.filter( ( key ) =>
+			fixture.motion.moves_with_motion_on.includes(
+				sections[ key ].pattern
+			)
+		);
+		await visit(
+			tabs.visitor,
+			pages.main.link,
+			widths[ 0 ],
+			fixture.height
+		);
+		const moving = await tabs.visitor.evaluate( call( 'sample', movers ) );
+		expect(
+			`${ theme }: with motion on, the motion check sees ${ fixture.motion.moves_with_motion_on.join(
+				', '
+			) } animate in every style`,
+			movers.length ===
+				fixture.motion.moves_with_motion_on.length *
+					fixture.styles.length &&
+				moving.every( ( m ) => m?.running.length > 0 ),
+			moving.map( ( m ) => m?.running.join( '; ' ) || 'nothing' )
+		);
+	}
+
+	// The controls: each planted fault must fail its own check.
+	if ( want.contrast ) {
+		const control = await plant( site, entry.plant.map );
+		const { width } = fixture.controls.contrast;
+		const seen = await renderAt(
+			tabs,
+			pages.main.link,
+			width,
+			keys.base.filter(
+				( key ) => sections[ key ].style === entry.plant.style
+			),
+			{ contrast: true },
+			{ theme, variation: '', width },
+			sections,
+			fixture
+		);
+		await plant( site, null );
+		group( `Planted ${ JSON.stringify( entry.plant.map ) } on ${ theme }` );
+		console.log( contrastTable( seen.contrast, floor ) );
+		endGroup();
+		expect(
+			`${ theme }: the planted role map is in use for the control`,
+			control.roles === 'filter',
+			control.roles
+		);
+		// At rest every pair is painted from the role map. A hover can be the
+		// theme's own (Twenty Twenty-Four fills an outline button grey on
+		// hover, whatever the section), so only rest pairs must fail.
+		const rest = seen.contrast.filter( ( r ) => r.state === 'rest' );
+		expect(
+			`contrast control on ${ theme }: every pair at rest in the planted ${ entry.plant.style } style fails, so the gate can fail`,
+			rest.length > 0 && rest.every( ( r ) => fails( r, floor ) ),
+			rest
+				.filter( ( r ) => ! fails( r, floor ) )
+				.map( ( r ) => `${ r.pattern } ${ r.target } ${ r.ratio }:1` )
+				.join( ', ' ) || `${ rest.length } rows fail`
+		);
+	}
+	for ( const check of [ 'overflow', 'motion' ] ) {
+		if ( ! want[ check ] ) {
+			continue;
+		}
+		const { width } = fixture.controls[ check ];
+		const seen = await renderAt(
+			tabs,
+			pages.control.link,
+			width,
+			[ `plant--${ check }` ],
+			{ [ check ]: true },
+			{ theme, variation: '', width },
+			sections,
+			fixture
+		);
+		const row = seen.renders.find( ( r ) => r.check === check );
+		expect(
+			check === 'overflow'
+				? `overflow control on ${ theme }: the planted section with an element ${ fixture.controls.overflow.element_width }px wide fails overflow at ${ width }px`
+				: `motion control on ${ theme }: the planted animation with no reduced-motion rule fails motion`,
+			row && ! row.ok,
+			row ? row.note : `no ${ check } measurement of the planted section`
+		);
+	}
+
+	if ( entry.editor && want.contrast ) {
+		if ( ! tabs.admin ) {
+			tabs.admin = await ctx.browser.newPage( {
+				width: 1440,
+				height: 900,
+			} );
+			await logIn( tabs.admin, site.url );
+		}
+		await checkEditor(
+			tabs.admin,
+			site.url,
+			theme,
+			pages.main.id,
+			firstInverted
+				? {
+						text: firstInverted.text,
+						background: firstInverted.background,
+					}
+				: null
+		);
+	}
+
+	if ( ! want.contrast || ! entry.variations || opts[ 'no-variations' ] ) {
+		return;
+	}
+	const found = await listVariations( site );
+	const coloured = found.filter( ( v ) => v.colour );
+	const names = coloured.map( ( v ) => v.name );
+	expect(
+		`${ theme }: the colour-bearing style variations it ships are the ${ entry.variations.length } the fixture lists`,
+		JSON.stringify( [ ...names ].sort() ) ===
+			JSON.stringify( [ ...entry.variations ].sort() ),
+		{ ships: names, listed: entry.variations }
+	);
+	for ( const variation of coloured ) {
+		const used = await switchVariation( site, variation );
+		if (
+			! expect(
+				`${ theme }/${ variation.name }: switched on, with the ${ entry.roles } role map still in use`,
+				! used.error && used.roles === entry.roles,
+				used.error || used.roles
+			)
+		) {
+			continue;
+		}
+		for ( const width of fixture.variations.widths ) {
+			const seen = await renderAt(
+				tabs,
+				pages.main.link,
+				width,
+				keys.base,
+				{ contrast: true },
+				{ theme, variation: variation.name, width },
+				sections,
+				fixture
+			);
+			const mismatches = await tabs.visitor.evaluate(
+				call( 'paletteMismatches', variation.palette )
+			);
+			expect(
+				`${ theme }/${ variation.name } at ${ width }px: the page paints with the variation's palette`,
+				mismatches.length === 0,
+				mismatches.join( ', ' ) ||
+					`${ variation.palette.length } colours`
+			);
+			out.variations.push( ...seen.contrast );
+		}
+	}
+	const reset = await switchVariation( site, null );
+	expect(
+		`${ theme }: back on the theme's own styles`,
+		! reset.error,
+		reset.error || `global styles post ${ reset.post }`
+	);
+}
+
+/**
+ * The blueprint step that installs a theme the fixture pins to a commit,
+ * from GitHub's archive of that commit, into the folder named after it.
+ *
+ * @param {Object} entry A theme entry with install: {repo, sha}.
+ * @return {Object} An installTheme step.
+ */
+function installStep( entry ) {
+	return {
+		step: 'installTheme',
+		themeData: {
+			resource: 'url',
+			url: `https://codeload.github.com/${ entry.install.repo }/zip/${ entry.install.sha }`,
+		},
+		options: { activate: false, targetFolderName: entry.theme },
+	};
+}
+
+/**
+ * @param {Object} opts Parsed flags.
+ * @return {Promise<number>} Exit code.
+ */
+async function run( opts ) {
+	const fixture = JSON.parse( readFileSync( FIXTURE, 'utf8' ) );
+	const only = opts.themes
+		? new Set(
+				String( opts.themes )
+					.split( ',' )
+					.map( ( s ) => s.trim() )
+			)
+		: null;
+	const themes = fixture.themes.filter(
+		( t ) => ! only || only.has( t.theme )
+	);
+	if ( ! themes.length ) {
+		console.error(
+			`--themes matched none of ${ fixture.themes.map( ( t ) => t.theme ).join( ', ' ) }.`
+		);
+		return 2;
+	}
+	const chrome = findChrome();
+	if ( ! chrome ) {
+		annotate(
+			'error',
+			process.env.CHROME_PATH
+				? `CHROME_PATH points to ${ process.env.CHROME_PATH }, which does not exist.`
+				: 'No Chrome, Chromium or Edge found. Install one, or set CHROME_PATH to its executable.',
+			'npm run design-check'
+		);
+		return 1;
+	}
+
+	const asked = opts.checks
+		? String( opts.checks )
+				.split( ',' )
+				.map( ( s ) => s.trim() )
+		: CHECKS;
+	const want = Object.fromEntries(
+		CHECKS.map( ( name ) => [ name, asked.includes( name ) ] )
+	);
+	const { widths } = fixture;
+	const patterns = patternFiles();
+	const plants = plantSections( fixture.controls.overflow.element_width );
+	/** Section key => {pattern, style}. */
+	const sections = {};
+	for ( const pattern of patterns ) {
+		for ( const style of fixture.styles ) {
+			sections[ `${ pattern }--${ style }` ] = { pattern, style };
+		}
+	}
+	const keys = { base: Object.keys( sections ), plant: [] };
+	for ( const name of Object.keys( plants ) ) {
+		sections[ `plant--${ name }` ] = {
+			pattern: `plant ${ name }`,
+			style: 'plain',
+		};
+		keys.plant.push( `plant--${ name }` );
+	}
+
+	// One dev site per WordPress version: each theme names the version it
+	// runs on, and --wp puts them all on one.
+	const sites = new Map();
+	for ( const entry of themes ) {
+		const wp = opts.wp ? String( opts.wp ) : entry.wp;
+		if ( ! sites.has( wp ) ) {
+			sites.set( wp, [] );
+		}
+		sites.get( wp ).push( entry );
+	}
+
+	const out = {
+		versions: {},
+		renderCount: 0,
+		contrast: [],
+		variations: [],
+		renders: [],
+	};
+	let browser;
+	try {
+		browser = await launch( chrome );
+		const tabs = {
+			visitor: await browser.newPage( {
+				width: widths[ 0 ],
+				height: fixture.height,
+			} ),
+			still: await browser.newPage( {
+				width: widths[ 0 ],
+				height: fixture.height,
+			} ),
+			admin: null,
+		};
+		await tabs.still.call( 'Emulation.setEmulatedMedia', {
+			features: [ { name: 'prefers-reduced-motion', value: 'reduce' } ],
+		} );
+
+		for ( const [ wp, entries ] of sites ) {
+			let site;
+			try {
+				group( `Boot the dev site on WordPress ${ wp }` );
+				try {
+					site = await boot( {
+						...opts,
+						wp,
+						login: false,
+						// A beta updates itself in the background, and the
+						// site answers 503 Maintenance while it does
+						// (WP_Automatic_Updater::is_disabled()).
+						consts: { AUTOMATIC_UPDATER_DISABLED: true },
+						steps: entries
+							.filter( ( entry ) => entry.install )
+							.map( installStep ),
+					} );
+				} finally {
+					endGroup();
+				}
+				console.log( `Site: ${ site.url }` );
+
+				const written = await runPhp(
+					site,
+					`$dir = WP_CONTENT_DIR . '/mu-plugins';
+wp_mkdir_p( $dir );
+return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', ${ phpString( PLANT_PLUGIN ) } );`
+				);
+				if ( ! written ) {
+					throw new Error( 'Could not write the plant mu-plugin.' );
+				}
+				// A new site needs a new login.
+				await tabs.admin?.close();
+				tabs.admin = null;
+
+				const ctx = {
+					site,
+					wp,
+					browser,
+					tabs,
+					fixture,
+					opts,
+					want,
+					patterns,
+					plants,
+					sections,
+					keys,
+					out,
+				};
+				for ( const entry of entries ) {
+					group( entry.theme );
+					try {
+						await checkTheme( ctx, entry );
+					} catch ( error ) {
+						expect(
+							`${ entry.theme }: ran to the end`,
+							false,
+							error.message
+						);
+						if ( opts.debug ) {
+							console.error( error.stack );
+						}
+					} finally {
+						endGroup();
+					}
+				}
+
+				const fatal = reportPhpLog( await phpLog( site ) );
+				expect(
+					`WordPress ${ wp }: no PHP fatal errors in debug.log`,
+					fatal === 0,
+					`${ fatal } fatal`
+				);
+			} catch ( error ) {
+				expect(
+					`WordPress ${ wp }: the dev site booted and ran`,
+					false,
+					error.message
+				);
+				if ( opts.debug ) {
+					console.error( error.stack );
+				}
+			} finally {
+				await site?.stop?.();
+			}
+		}
+	} catch ( error ) {
+		expect( 'npm run design-check set up and ran', false, error.message );
+		if ( opts.debug ) {
+			console.error( error.stack );
+		}
+	} finally {
+		await browser?.close();
+	}
+
+	const counts = `${ patterns.length } patterns x ${ fixture.styles.length } styles x ${ widths.length } widths x ${ themes.length } themes`;
+	const expected =
+		patterns.length * fixture.styles.length * widths.length * themes.length;
+
+	if ( want.contrast ) {
+		checkContrast( out, themes, fixture, opts, !! only );
+	}
+
+	for ( const check of [ 'overflow', 'motion' ] ) {
+		if ( ! want[ check ] ) {
+			continue;
+		}
+		const rows = out.renders.filter( ( r ) => r.check === check );
+		const base = rows.filter( ( r ) => keys.base.includes( r.key ) );
+		group( `${ check }: ${ base.length } section renders` );
+		console.log( renderTable( rows ) );
+		endGroup();
+		const failed = rows.filter( ( r ) => ! r.ok );
+		summary( [
+			`### ${ check }: ${ base.length } section renders, ${ failed.length } failing`,
+			'',
+			...failed
+				.slice( 0, 100 )
+				.map(
+					( r ) =>
+						`- ${ r.theme } at ${ r.width }px, ${ r.pattern } ${ r.style }: ${ r.note }`
+				),
+		] );
+		expect(
+			check === 'overflow'
+				? 'overflow: no render scrolls sideways'
+				: 'motion: nothing moves under reduced motion',
+			base.length > 0 && failed.length === 0,
+			failed.length
+				? `\n${ renderTable( failed ) }`
+				: `${ base.length } section renders`
+		);
+		if ( ! only ) {
+			expect(
+				`${ check }: ${ expected } section renders (${ counts })`,
+				base.length === expected,
+				`${ base.length } renders`
+			);
+		}
+	}
+
+	if ( ! only ) {
+		expect(
+			`at least ${ fixture.min_renders } section renders (${ counts })`,
+			out.renderCount >= fixture.min_renders &&
+				out.renderCount === expected,
+			`${ out.renderCount } of ${ expected }`
+		);
+	}
+
+	const failed = checks.filter( ( c ) => ! c.ok );
+	const on = Object.entries( out.versions )
+		.map( ( [ theme, version ] ) => `${ theme } on WordPress ${ version }` )
+		.join( ', ' );
+	const tally = [
+		`Design check: ${ out.renderCount } section renders (${ counts })`,
+		want.contrast ? `${ out.contrast.length } contrast pairs` : '',
+		want.contrast && ! opts[ 'no-variations' ]
+			? `${ out.variations.length } style variation contrast pairs`
+			: '',
+		...[ 'overflow', 'motion' ]
+			.filter( ( check ) => want[ check ] )
+			.map(
+				( check ) =>
+					`${
+						out.renders.filter(
+							( r ) =>
+								r.check === check && keys.base.includes( r.key )
+						).length
+					} ${ check } renders`
+			),
+	]
+		.filter( Boolean )
+		.join( ', ' );
+	summary( [
+		`### npm run design-check${ opts.plant ? ' --plant' : '' }`,
+		'',
+		`${ tally }. ${ on || 'No theme ran' }.`,
+		'',
+		'| Result | Assertion | Observed |',
+		'|---|---|---|',
+		...checks.map(
+			( c ) =>
+				`| ${ c.ok ? 'ok' : 'FAIL' } | ${ c.name.replace( /\|/g, '\\|' ) } | ${ clip(
+					c.observed,
+					300
+				)
+					.replace( /\|/g, '\\|' )
+					.replace( /\n/g, ' ' ) } |`
+		),
+	] );
+	console.log( `\n${ tally }.\n${ on || 'No theme ran' }.` );
+	console.log(
+		`${ checks.length - failed.length } of ${ checks.length } assertions passed.`
+	);
+	if ( failed.length ) {
+		console.log(
+			`Failed:\n${ failed.map( ( c ) => `  ${ c.name }` ).join( '\n' ) }`
+		);
+	}
+	return failed.length ? 1 : 0;
+}
+
+/**
+ * Contrast against the floor and the fixture's known failures, for the base
+ * themes and the style variations: every pair under the floor must be
+ * listed, and every listed pair that was measured must still fail.
+ *
+ * @param {Object}        out      The run's rows.
+ * @param {Array<Object>} themes   The fixture's theme entries this run covered.
+ * @param {Object}        fixture  tests/fixtures/contrast.json.
+ * @param {Object}        opts     Parsed flags.
+ * @param {boolean}       narrowed Whether --themes picked some themes only.
+ */
+function checkContrast( out, themes, fixture, opts, narrowed ) {
+	const { floor } = fixture;
+	const known = new Map();
+	for ( const entry of themes ) {
+		for ( const failure of entry.known_failures || [] ) {
+			const listed = { variation: '', ...failure };
+			known.set( `${ entry.theme }|${ knownKey( listed ) }`, {
+				...listed,
+				theme: entry.theme,
+				seen: [],
+			} );
+		}
+	}
+	const all = [ ...out.contrast, ...out.variations ];
+	for ( const row of all ) {
+		const listed = known.get( `${ row.theme }|${ knownKey( row ) }` );
+		if ( listed && fails( row, floor ) ) {
+			row.known = true;
+			listed.seen.push( row );
+		}
+	}
+	const listedFor = ( rows ) =>
+		[ ...known.values() ].filter( ( k ) =>
+			rows.some(
+				( r ) => r.theme === k.theme && r.variation === k.variation
+			)
+		).length;
+
+	const parts = [
+		{
+			name: 'contrast',
+			rows: out.contrast,
+			heading: `Contrast: ${ out.contrast.length } pairs over ${ out.renderCount } section renders, floor ${ floor }:1${
+				opts.plant ? ' (PLANTED)' : ''
+			}`,
+		},
+	];
+	if ( ! opts[ 'no-variations' ] ) {
+		parts.push( {
+			name: 'style variations',
+			rows: out.variations,
+			heading: `Style variations: ${ out.variations.length } contrast pairs over ${
+				new Set(
+					out.variations.map(
+						( r ) => `${ r.theme }/${ r.variation }`
+					)
+				).size
+			} variations at ${ fixture.variations.widths.join( ' and ' ) }px`,
+		} );
+	}
+	const unlisted = [];
+	for ( const { name, rows, heading } of parts ) {
+		group( heading );
+		console.log( contrastTable( rows, floor ) );
+		endGroup();
+		const under = rows.filter( ( r ) => fails( r, floor ) && ! r.known );
+		const listedRows = rows.filter( ( r ) => r.known );
+		unlisted.push( ...under );
+		summarizeContrast(
+			`${ heading }: ${ listedRows.length } known failures, ${ under.length } other pairs under the floor`,
+			rows.filter( ( r ) => fails( r, floor ) ),
+			floor
+		);
+		expect(
+			`${ name }: every pair measures ${ floor }:1 or more, apart from the ${ listedFor(
+				rows
+			) } known failures the fixture lists`,
+			rows.length > 0 && under.length === 0,
+			under.length
+				? `\n${ contrastTable( under, floor ) }`
+				: `${ rows.length } pairs, ${ listedRows.length } of them known failures`
+		);
+	}
+	if ( ! narrowed ) {
+		expect(
+			`contrast: at least ${ fixture.min_pairs } pairs measured`,
+			out.contrast.length >= fixture.min_pairs,
+			`${ out.contrast.length } pairs`
+		);
+	}
+	if ( unlisted.length ) {
+		console.log(
+			`\nTo list a pair as a known failure, add it to its theme's known_failures in tests/fixtures/contrast.json ("variation": "" is the theme's own styles):\n${ [
+				// Highest ratio first, so each key ends on its lowest.
+				...new Map(
+					[ ...unlisted ]
+						.sort( ( a, b ) => ( b.ratio ?? 0 ) - ( a.ratio ?? 0 ) )
+						.map( ( r ) => [
+							`${ r.theme }|${ knownKey( r ) }`,
+							`${ r.theme }: ${ JSON.stringify( {
+								variation: r.variation,
+								pattern: r.pattern,
+								style: r.style,
+								target: r.target,
+								state: r.state,
+								ratio: r.ratio,
+							} ) }`,
+						] )
+				).values(),
+			].join( '\n' ) }\n`
+		);
+	}
+
+	const measured = new Set(
+		all.map( ( r ) => `${ r.theme }/${ r.variation }` )
+	);
+	const stale = [ ...known.values() ].filter(
+		( k ) =>
+			measured.has( `${ k.theme }/${ k.variation }` ) && ! k.seen.length
+	);
+	expect(
+		'contrast: every known failure the fixture lists still fails',
+		stale.length === 0,
+		stale
+			.map(
+				( k ) =>
+					`${ k.theme }/${ k.variation || 'own styles' } ${ k.pattern } ${ k.style } ${ k.target } ${ k.state } no longer fails: remove it from the fixture`
+			)
+			.join( '\n' ) || `${ known.size } listed`
+	);
+	for ( const k of known.values() ) {
+		const off = k.seen.find(
+			( row ) => Math.abs( row.ratio - k.ratio ) > 0.05
+		);
+		if ( off ) {
+			annotate(
+				'warning',
+				`${ k.theme }/${ k.variation || 'own styles' } ${ k.pattern } ${ k.style } ${ k.target } ${ k.state } is listed at ${ k.ratio }:1 and measured ${ off.ratio }:1 at ${ off.width }px. Update the fixture.`,
+				'Known failure ratio changed'
+			);
+		}
+	}
+}
+
+const problem = nodeVersionProblem();
+if ( problem ) {
+	console.error( problem );
+	process.exit( 1 );
+}
+
+const opts = parseFlags( process.argv.slice( 2 ) );
+if ( opts.help ) {
+	console.log( HELP );
+	process.exit( 0 );
+}
+const unknown = Object.keys( opts ).filter(
+	( key ) => key !== '_' && ! KNOWN.includes( key )
+);
+if ( unknown.length || opts._.length ) {
+	console.error(
+		`Unknown option ${ unknown.length ? `--${ unknown[ 0 ] }` : opts._[ 0 ] }. Run npm run design-check -- --help for the options.`
+	);
+	process.exit( 2 );
+}
+const asked = opts.checks
+	? String( opts.checks )
+			.split( ',' )
+			.map( ( s ) => s.trim() )
+	: [];
+if (
+	opts.checks === true ||
+	asked.some( ( name ) => ! CHECKS.includes( name ) )
+) {
+	console.error(
+		`--checks takes a list of ${ CHECKS.join( ', ' ) }, such as --checks contrast.`
+	);
+	process.exit( 2 );
+}
+
+setTimeout( () => {
+	annotate(
+		'error',
+		`npm run design-check gave up after ${ TIMEOUT_MINUTES } minutes.`,
+		'npm run design-check'
+	);
+	process.exit( 1 );
+}, TIMEOUT_MINUTES * 60000 ).unref();
+
+const code = await run( opts );
+// The tables run to thousands of lines, and when stdout is a pipe, as in CI,
+// process.exit() drops whatever is still queued: wait for both streams first.
+await new Promise( ( done ) => process.stdout.write( '', done ) );
+await new Promise( ( done ) => process.stderr.write( '', done ) );
+process.exit( code );
