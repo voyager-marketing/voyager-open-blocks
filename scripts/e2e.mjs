@@ -25,7 +25,11 @@
  *      saved page and on broken markup, including one case only block-runner catches,
  *      its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
  *      and its placeholder and missing_alt warnings: the logo marquee's six
- *      logos, the contact section's form slot and the image slot of each of
+ *      logos (then published and fetched: its Marquee group holds the logo
+ *      row and a copy of it made at render, aria-hidden and inert with no
+ *      id, while its REST content.rendered holds the row once, and validate
+ *      still warns six times), the contact section's form
+ *      slot and the image slot of each of
  *      the hero's two layouts (listed by get-catalog with their copy labels;
  *      one placeholder warning, and no other), each
  *      placed with insert on a draft of its own, the services section's two
@@ -1098,7 +1102,7 @@ const placeholderPages = [];
  * A draft holding one pattern placed with insert, and validate's report on it.
  *
  * @param {string} item Pattern name.
- * @return {Promise<Object>} The insert response and the validate report.
+ * @return {Promise<Object>} The draft's id, the insert response and the validate report.
  */
 async function validateInserted( item ) {
 	const draft = await api( '/wp/v2/pages', {
@@ -1111,6 +1115,7 @@ async function validateInserted( item ) {
 		item,
 	} );
 	return {
+		id: draft.data.id,
 		placed,
 		report: await checkMarkup( { post_id: draft.data.id } ),
 	};
@@ -1137,6 +1142,138 @@ step(
 	marquee.report.data.valid === true &&
 		codedWarnings( marquee.report, 'missing_alt' ).length === 0,
 	warningSummary( marquee.report )
+);
+
+/**
+ * The opening tag of each element directly inside the first element whose
+ * class list holds className, in a rendered page.
+ *
+ * @param {string} html      A rendered page.
+ * @param {string} className A class on the parent's own opening tag.
+ * @return {{tags: string[], end: number}} One opening tag per child, and where the parent's closing tag starts (-1 when no element has the class).
+ */
+function childTags( html, className ) {
+	const open = new RegExp(
+		`<[a-z][a-z0-9-]*\\b[^>]*\\bclass="(?:[^"]*\\s)?${ className }(?:\\s[^"]*)?"[^>]*>`
+	).exec( html );
+	if ( ! open ) {
+		return { tags: [], end: -1 };
+	}
+	const voids = new Set( [
+		'area',
+		'br',
+		'col',
+		'embed',
+		'hr',
+		'img',
+		'input',
+		'link',
+		'meta',
+		'source',
+		'track',
+		'wbr',
+	] );
+	const tag =
+		/<!--[\s\S]*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/g;
+	tag.lastIndex = open.index + open[ 0 ].length;
+	const tags = [];
+	let depth = 0;
+	for ( let m = tag.exec( html ); m; m = tag.exec( html ) ) {
+		if ( ! m[ 2 ] ) {
+			continue;
+		}
+		if ( m[ 1 ] ) {
+			if ( depth === 0 ) {
+				return { tags, end: m.index };
+			}
+			depth--;
+			continue;
+		}
+		if ( depth === 0 ) {
+			tags.push( m[ 0 ] );
+		}
+		if ( ! m[ 3 ] && ! voids.has( m[ 2 ].toLowerCase() ) ) {
+			depth++;
+		}
+	}
+	return { tags, end: -1 };
+}
+
+// The fitness check: the logo marquee as insert saves it, published and
+// fetched as a visitor. The Marquee group holds the logo row and, made at
+// render, a copy of it hidden from screen readers and inert, with no id. The
+// stored page still holds each logo once, so validate still warns six times.
+const marqueePublished = await api( `/wp/v2/pages/${ marquee.id }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const marqueeFront = marqueePublished.data.link
+	? await request( marqueePublished.data.link )
+	: { status: 0, text: '' };
+const marqueeRows = childTags(
+	marqueeFront.text,
+	'is-style-voyager-open-marquee'
+);
+const [ marqueeRow = '', marqueeCopyTag = '' ] = marqueeRows.tags;
+const copyStart = marqueeCopyTag
+	? marqueeFront.text.indexOf( marqueeCopyTag )
+	: -1;
+const marqueeCopy =
+	copyStart < 0 || marqueeRows.end < copyStart
+		? ''
+		: marqueeFront.text.slice( copyStart, marqueeRows.end );
+step(
+	'fitness: insert voyager-open/logo-marquee, publish and fetch it: the Marquee group holds two logo rows, the second aria-hidden="true" and inert, with the six logos and no id',
+	marquee.placed.data.saved === true &&
+		marqueeFront.status === 200 &&
+		marqueeRows.tags.length === 2 &&
+		marqueeRows.tags.every( ( t ) =>
+			/^<div\b[^>]*\bclass="wp-block-group\b/.test( t )
+		) &&
+		! /\saria-hidden=|\sinert\b/.test( marqueeRow ) &&
+		/\saria-hidden="true"/.test( marqueeCopyTag ) &&
+		/\sinert(?=[\s>=\/])/.test( marqueeCopyTag ) &&
+		( marqueeCopy.match( /<img\b/g ) || [] ).length === 6 &&
+		! /\sid=/.test( marqueeCopy ),
+	`${ marqueeFront.status }; ${
+		marqueeRows.tags.length
+	} rows in the Marquee group: ${ marqueeRows.tags.join( ' ' ) || 'none' }`
+);
+// The same page over REST: content.rendered is read by agents, not seen in a
+// browser, so it holds the logo row once, with no copy.
+const marqueeRest = await api( `/wp/v2/pages/${ marquee.id }`, {
+	query: { context: 'view' },
+} );
+const restRendered = marqueeRest.data.content?.rendered || '';
+const restRows = childTags( restRendered, 'is-style-voyager-open-marquee' );
+step(
+	'the same page over REST: content.rendered holds one logo row in the Marquee group, with the six logos and no copy',
+	marqueeRest.status === 200 &&
+		restRows.tags.length === 1 &&
+		! /\saria-hidden=|\sinert\b|voyager-open-marquee-copy/.test(
+			restRendered
+		) &&
+		( restRendered.match( /<img\b/g ) || [] ).length === 6,
+	`${ marqueeRest.status }; ${
+		restRows.tags.length
+	} rows in the Marquee group: ${ restRows.tags.join( ' ' ) || 'none' }`
+);
+
+const marqueePublishedReport = await checkMarkup( { post_id: marquee.id } );
+const publishedLogoWarnings = codedWarnings(
+	marqueePublishedReport,
+	'placeholder'
+);
+step(
+	'validate still warns placeholder once per logo, six times, on the published logo marquee page',
+	marqueePublishedReport.status === 200 &&
+		publishedLogoWarnings.length === 6 &&
+		new Set(
+			publishedLogoWarnings.map( ( w ) => w.match( /logo-[1-6]/ )?.[ 0 ] )
+		).size === 6,
+	`${ publishedLogoWarnings.length } placeholder warnings; ${ warningSummary(
+		marqueePublishedReport
+	) }`
 );
 
 const contact = await validateInserted( 'voyager-open/contact-section' );

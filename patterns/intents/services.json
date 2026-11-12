@@ -140,6 +140,7 @@
 							"metadata": {
 								"name": "Cards"
 							},
+							"className": "voyager-open-reveal",
 							"style": {
 								"spacing": {
 									"blockGap": {
