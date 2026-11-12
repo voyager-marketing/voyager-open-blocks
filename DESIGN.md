@@ -191,7 +191,7 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 
 ## Components
 
-- **Button** (`core/button`). The fill style for the section's one main action, `is-style-outline` for a second. At most two buttons in a section, and one fill. The label says what happens ("Call us", "Get a quote"), in sentence case, with no arrow. The target is at least 44px tall, which the planned `impeccable` check will measure. Never shrink the theme's padding. Some themes miss the target on their own: Twenty Twenty-Four's button computes to about 41.5px.
+- **Button** (`core/button`). The fill style for the section's one main action, `is-style-outline` for a second. At most two buttons in a section, and one fill. The label says what happens ("Call us", "Get a quote"), in sentence case, with no arrow. The target is at least 44px tall, which the `impeccable` check measures. Never shrink the theme's padding. Some themes miss the target on their own: Twenty Twenty-Four's button measures 41.5px, listed as that theme's known gap.
 - **Card.** A `core/group` with a 1px border, `50` padding, no fill and no shadow, holding an `h3`, one or two short paragraphs and at most one link or button. Cards in a row sit in `core/columns` at wide width and share one structure. A card never holds a card.
 - **Eyebrow.** One short line at `small`, uppercase with 0.08em letter spacing: above the section heading in the CTA band, and as the section's only heading in the logo marquee. At most one per section, and only when it tells the reader something the heading does not.
 - **Tick list.** `core/list` with the Ticks style: a wrapping row that stacks into a column in a narrow container. Three to six items, each one short claim of about 40 characters or fewer, with no full stop. The ticks take the text colour. Every claim comes from the site owner or Site Data, never from the agent.
@@ -200,15 +200,15 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 
 ## Do's and Don'ts
 
-Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast`, `overflow` and `motion` run in CI (`npm run design-check`): every pattern in each section style, Plain included, at 320, 390, 768 and 1280 px on Twenty Twenty-Five and Twenty Twenty-Four, and on Ipsum, WordPress's proposed default theme, on the fallback roles. `contrast` also measures each colour style variation the three themes ship, at 390 and 1280 px. The only pairs still under 4.5:1 are a theme's own outline button hover in a Plain section, which the pack does not paint, on Twenty Twenty-Five's Morning and Twenty Twenty-Four's Maelstrom. They are listed in `tests/fixtures/contrast.json` as known failures, and any other pair under 4.5:1 fails. The rest are planned and not in CI yet. The other rendered ones, `a11y` and `impeccable`, will render the same way.
+Each rule names the check that enforces it, or says judge only. `lint` and `presets` run in `npm run check`. `contrast`, `overflow`, `motion`, `a11y` and `impeccable` run in CI (`npm run design-check`): every pattern in each section style, Plain included, at 320, 390, 768 and 1280 px on Twenty Twenty-Five and Twenty Twenty-Four, and on Ipsum, WordPress's proposed default theme, on the fallback roles. `contrast` also measures each colour style variation the three themes ship, at 390 and 1280 px. The only pairs still under 4.5:1 are a theme's own outline button hover in a Plain section, which the pack does not paint, on Twenty Twenty-Five's Morning and Twenty Twenty-Four's Maelstrom. They are listed in `tests/fixtures/contrast.json` as known failures, and any other pair under 4.5:1 fails. Twenty Twenty-Four's own buttons, at 41.5px tall, are listed there as the one known tap-target gap. The rest are planned and not in CI yet.
 
 | Check | Fails when |
 | -- | -- |
 | `lint` | this file has any lint error or warning, which includes contrast under 4.5:1 between a component's colours |
 | `contrast` | rendered text measures under 4.5:1 against its background |
 | `overflow` | a render scrolls sideways |
-| `a11y` | an accessibility scan of a render reports a violation |
-| `impeccable` | Impeccable's rules report an error on a render |
+| `a11y` | axe-core reports a violation in a rendered section: the WCAG 2.0 and 2.1 A and AA rules, and `heading-order` |
+| `impeccable` | Impeccable reports line length, gradient text, nested cards or grey text on colour in a rendered section, or a tap target in it is under 44px |
 | `motion` | anything moves in a reduced-motion render |
 | `presets` | pattern markup sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug outside `20` to `60`, or uses `core/html` or HTML outside a block |
 | `rhythm` | a recipe or a composed page breaks the Layout rule on adjacent styles |
@@ -220,7 +220,7 @@ Each rule names the check that enforces it, or says judge only. `lint` and `pres
 - Do take every colour and font size from the theme's presets. Check: `presets`.
 - Do use spacing slugs `20` to `60` only. Check: `presets`.
 - Do keep body copy short enough to stay under about 75 characters per line. Check: `impeccable`.
-- Do aim for tap targets at least 44px tall and wide. Check: `impeccable`, which will measure the rendered size. Known gap: Twenty Twenty-Four's own button is about 41.5px tall.
+- Do aim for tap targets at least 44px tall and wide. Check: `impeccable`, which measures the rendered size. Known gap: Twenty Twenty-Four's own button is 41.5px tall.
 - Do make every page work at 320px wide. Check: `overflow`.
 - Do give every meaningful image alt text, and replace placeholders before a page goes live. Check: `validate`.
 - Do write button labels that say what happens. Judge only.
