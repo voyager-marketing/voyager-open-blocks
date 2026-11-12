@@ -61,7 +61,9 @@
 		"@wordpress/block-serialization-default-parser": "6.0.0",
 		"@wordpress/scripts": "37.0.0",
 		"@wp-playground/cli": "3.1.60",
+		"axe-core": "4.14.0",
 		"block-runner": "1.0.0",
+		"impeccable": "4.8.2",
 		"wesper": "0.5.0"
 	}
 }

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * The rendered design checks, `contrast`, `overflow` and `motion` as DESIGN.md
- * names them, measured on real renders of every pattern in every section style.
+ * The rendered design checks, `contrast`, `overflow`, `motion`, `a11y` and
+ * `impeccable` as DESIGN.md names them, measured on real renders of every
+ * pattern in every section style.
  *
  *   npm run design-check                boot a fresh dev site, render, measure, stop
- *   npm run design-check -- --plant     put all three planted faults in the main run too, to watch it fail
+ *   npm run design-check -- --plant     put every planted fault in the main run too, to watch it fail
  *   npm run contrast                    the contrast part alone (--checks contrast)
  *   npm run design-check -- --themes twentytwentyfive --no-variations
  *   npm run design-check -- --help      every option
@@ -35,16 +36,28 @@
  *        edge of the viewport with no clipping ancestor inside the section.
  *        The page as a whole fails when the document is wider than the
  *        viewport, so it scrolls sideways;
+ *      - a11y: runs axe-core in the page on the sections only, with the WCAG
+ *        2.0 and 2.1 A and AA rules and heading-order, and fails on any
+ *        violation;
+ *      - impeccable: runs impeccable detect --json on the page at that width
+ *        and places each finding in the section its selector matches. A
+ *        finding of a rule the fixture gates fails that section; the rest are
+ *        printed as advisories. Impeccable has no tap-target rule, so this
+ *        check measures every link, button and form control in the section
+ *        too, and fails one under 44px unless the fixture lists it as the
+ *        theme's known gap;
  *      then loads it again with prefers-reduced-motion: reduce emulated and,
  *      per section:
  *      - motion: fails when an animation or transition is running, or when
  *        any element's box moves between two samples taken apart. Overflow is
  *        measured again, since a reduced-motion rule can change the layout;
- *   4. runs three controls, each of which must fail its own check or the run
+ *   4. runs seven controls, each of which must fail its own check or the run
  *      fails: the fixture's low-contrast role map, planted through the
  *      voyager_open_blocks_style_roles filter (contrast); a section with an
- *      element wider than 320px (overflow); and a CSS animation with no
- *      reduced-motion rule (motion);
+ *      element wider than 320px (overflow); a CSS animation with no
+ *      reduced-motion rule (motion); an h2 followed by an h4 (a11y, on
+ *      heading-order); and gradient text, a card inside a card and a 30px tall
+ *      button (impeccable, each on its own rule);
  *   5. where the fixture asks, opens the page in the block editor as admin and
  *      checks the Styles panel offers Panel, Inverted and Accent and the canvas
  *      paints Inverted as the front end does;
@@ -55,13 +68,16 @@
  *      listed failure that no longer fails fails too.
  *
  * The run fails when any check fails outside the known failures, when fewer
- * renders or pairs were measured than the fixture expects, when a positive
- * control or a planted control fails, or on a PHP fatal error.
+ * renders or pairs were measured or scanned than the fixture expects, when a
+ * scan did not run, when a positive control or a planted control fails, or on
+ * a PHP fatal error.
  *
  * Needs Chrome, Chromium or Edge (set CHROME_PATH to pick one) and the Node
  * in .nvmrc. The first run downloads WordPress; later runs reuse it.
  */
-import { appendFileSync, readFileSync, readdirSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
 import { boot, parseFlags, phpLog, reportPhpLog, runPhp } from './dev.mjs';
@@ -75,7 +91,12 @@ const PATTERNS = join( repo, 'patterns' );
 const PLANT_OPTION = 'voyager_open_contrast_plant';
 const SECTION_CLASS = 'voyager-open-check--';
 const TIMEOUT_MINUTES = 25;
-const CHECKS = [ 'contrast', 'overflow', 'motion' ];
+const CHECKS = [ 'contrast', 'overflow', 'motion', 'a11y', 'impeccable' ];
+/** The checks that judge each section render and keep one row per render. */
+const RENDER_CHECKS = [ 'overflow', 'motion', 'a11y', 'impeccable' ];
+/** The rule the impeccable check measures itself: Impeccable 4.8.2 has none for tap targets. */
+const TAP_TARGET = 'tap-target';
+const require = createRequire( import.meta.url );
 
 /** Loads the planted role map from an option, so a run can switch it on and off. */
 const PLANT_PLUGIN = `<?php
@@ -115,6 +136,22 @@ ${ html }
 			'motion',
 			'<style>@keyframes voyager-open-check-drift{to{transform:translateY(8px)}}.voyager-open-check-drift{display:inline-block;animation:voyager-open-check-drift 1s linear infinite alternate}</style>\n<p class="voyager-open-check-drift">Planted: a CSS animation with no reduced-motion rule.</p>'
 		),
+		heading: section(
+			'heading',
+			'<h2>Planted: a section heading</h2>\n<h4>Planted: a heading two levels below it</h4>\n<p>An h2 followed by an h4, with no h3 between them.</p>'
+		),
+		gradient: section(
+			'gradient',
+			'<h2 style="background-image:linear-gradient(90deg,#b00020,#1a3fd6);-webkit-background-clip:text;background-clip:text;color:transparent">Planted: a heading in gradient text</h2>'
+		),
+		cards: section(
+			'cards',
+			'<div style="border:1px solid currentColor;border-radius:12px;padding:24px"><p>Planted: a card that holds a second card.</p><div style="border:1px solid currentColor;border-radius:12px;padding:24px"><p>Planted: the card inside the card.</p></div></div>'
+		),
+		target: section(
+			'target',
+			'<p><a href="#planted-target" style="display:inline-block;box-sizing:border-box;height:30px;line-height:28px;padding:0 16px;border:1px solid currentColor;text-decoration:none">Planted: a 30px tall button</a></p>'
+		),
 	};
 }
 
@@ -122,18 +159,23 @@ const HELP = `npm run design-check [-- options]
 
 Boots a fresh dev site (npm run dev), renders every pattern in patterns/ in
 every section style on each theme in tests/fixtures/contrast.json, loads it
-in headless Chrome at each width, and runs three checks on every render:
+in headless Chrome at each width, and runs five checks on every render:
 contrast (text under 4.5:1 against its background), overflow (the page
-scrolls sideways) and motion (anything moves with reduced motion on). Then it
-measures contrast on each colour-bearing style variation the fixture lists.
-Exits 1 if any check fails outside the fixture's known failures, or if a
-planted control does not fail its own check.
+scrolls sideways), motion (anything moves with reduced motion on), a11y
+(axe-core reports a violation) and impeccable (a gated Impeccable rule fires,
+or a tap target is under 44px). Then it measures contrast on each
+colour-bearing style variation the fixture lists. Exits 1 if any check fails
+outside the fixture's known failures and gaps, if a scan did not run, or if
+a planted control does not fail its own check.
 
   --checks <list>  Only these checks, such as --checks contrast (what
-                   npm run contrast runs). Default contrast,overflow,motion.
-  --plant          Put the three planted faults in the main run as well: the
-                   low-contrast role map, a section wider than 320px and an
-                   animation with no reduced-motion rule. The run must fail.
+                   npm run contrast runs). Default
+                   contrast,overflow,motion,a11y,impeccable.
+  --plant          Put every planted fault in the main run as well: the
+                   low-contrast role map, a section wider than 320px, an
+                   animation with no reduced-motion rule, an h2 followed by
+                   an h4, gradient text, a card inside a card and a 30px tall
+                   button. The run must fail.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
                    The render and pair counts are then not checked.
   --no-variations  Skip the style variations.
@@ -508,7 +550,193 @@ function installInPage( prefix ) {
 		} ),
 	} );
 
+	/**
+	 * The key of the measured section an element is in, or '' when it is
+	 * outside every one of them (the theme's own markup).
+	 *
+	 * @param {Element|null} el
+	 * @return {string} Section key, such as cta-band--plain.
+	 */
+	const keyOf = ( el ) => {
+		const section = el?.closest?.( `[class*="${ prefix }"]` );
+		const name = section
+			? [ ...section.classList ].find( ( c ) => c.startsWith( prefix ) )
+			: '';
+		return name ? name.slice( prefix.length ) : '';
+	};
+
+	/**
+	 * Whether a link sits in a run of text, as a link in a sentence does.
+	 * WCAG's target size criteria exempt those, since a line of text sets
+	 * their height.
+	 *
+	 * @param {Element} el
+	 * @return {boolean} Inline in text.
+	 */
+	const inText = ( el ) => {
+		if ( window.getComputedStyle( el ).display !== 'inline' ) {
+			return false;
+		}
+		let block = el.parentElement;
+		while (
+			block &&
+			window.getComputedStyle( block ).display.startsWith( 'inline' )
+		) {
+			block = block.parentElement;
+		}
+		const around = ( block?.textContent || '' ).replace( /\s+/g, '' );
+		const own = ( el.textContent || '' ).replace( /\s+/g, '' );
+		return around.length > own.length;
+	};
+
+	/**
+	 * Every tap target in a section under the minimum, tall or wide: links,
+	 * buttons and form controls that are shown, apart from links in a run of
+	 * text.
+	 *
+	 * @param {Element} section
+	 * @param {number}  min     Smallest height and width, in px.
+	 * @return {{measured: number, small: Array<{name: string, kind: string, height: number, width: number}>}} Result.
+	 */
+	const tapTargets = ( section, min ) => {
+		const found = [
+			...section.querySelectorAll(
+				'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"]'
+			),
+		].filter(
+			( el ) =>
+				shown( el ) &&
+				! el.disabled &&
+				! inText( el ) &&
+				! el.closest( '[inert]' )
+		);
+		const small = [];
+		for ( const el of found ) {
+			const rect = el.getBoundingClientRect();
+			if ( rect.height >= min && rect.width >= min ) {
+				continue;
+			}
+			let kind = el.tagName.toLowerCase();
+			if ( el.classList.contains( 'wp-block-button__link' ) ) {
+				kind = el.closest( '.wp-block-button.is-style-outline' )
+					? 'outline button'
+					: 'button';
+			} else if ( kind === 'a' ) {
+				kind = 'link';
+			}
+			const text = ( el.textContent || '' ).replace( /\s+/g, ' ' ).trim();
+			small.push( {
+				name: `${ kind } "${
+					text.length > 32 ? `${ text.slice( 0, 32 ) }...` : text
+				}"`,
+				kind,
+				height: Math.round( rect.height * 10 ) / 10,
+				width: Math.round( rect.width * 10 ) / 10,
+			} );
+		}
+		return { measured: found.length, small };
+	};
+
 	window.voyagerOpenCheck = {
+		/**
+		 * Run axe-core, already loaded in the page, on the measured sections
+		 * only, so the theme's own markup around them cannot fail the pack.
+		 * Page-level rules (landmarks, the document title) do not run when
+		 * the context is part of the page. heading-order compares each
+		 * heading with the one before it anywhere on the page.
+		 *
+		 * @param {string[]}                          keys   Section keys.
+		 * @param {{tags: string[], rules: string[]}} config The fixture's a11y entry.
+		 * @return {Promise<Object>} Rules run, and violations and incomplete results by section.
+		 */
+		async axe( keys, config ) {
+			const include = keys
+				.filter( ( key ) => sectionOf( key ) )
+				.map( ( key ) => [ `.${ prefix }${ key }` ] );
+			if ( ! include.length ) {
+				// No section to scan: axe would take the whole page instead.
+				return {
+					version: window.axe.version,
+					ran: [],
+					violations: [],
+					incomplete: [],
+				};
+			}
+			const results = await window.axe.run(
+				{ include },
+				{
+					runOnly: { type: 'tag', values: config.tags },
+					rules: Object.fromEntries(
+						config.rules.map( ( id ) => [ id, { enabled: true } ] )
+					),
+					elementRef: true,
+					resultTypes: [ 'violations', 'incomplete' ],
+				}
+			);
+			const nodes = ( list ) =>
+				list.flatMap( ( rule ) =>
+					rule.nodes.map( ( node ) => ( {
+						rule: rule.id,
+						impact: node.impact || rule.impact || '',
+						key: keyOf( node.element ),
+						target: [ node.target ].flat( 2 ).join( ' ' ),
+						summary: ( node.failureSummary || rule.help || '' )
+							.replace( /\s+/g, ' ' )
+							.trim(),
+					} ) )
+				);
+			return {
+				version: window.axe.version,
+				ran: [
+					...new Set(
+						[
+							...results.violations,
+							...results.incomplete,
+							...results.passes,
+							...results.inapplicable,
+						].map( ( rule ) => rule.id )
+					),
+				].sort(),
+				violations: nodes( results.violations ),
+				incomplete: nodes( results.incomplete ),
+			};
+		},
+
+		/**
+		 * Tap targets under the minimum, per section.
+		 *
+		 * @param {string[]} keys Section keys.
+		 * @param {number}   min  Smallest height and width, in px.
+		 * @return {Array<Object|null>} One result per key, null for one not found.
+		 */
+		tapTargets( keys, min ) {
+			return keys.map( ( key ) => {
+				const section = sectionOf( key );
+				return section ? tapTargets( section, min ) : null;
+			} );
+		},
+
+		/**
+		 * Where each CSS selector Impeccable reported lands in this page.
+		 *
+		 * @param {string[]} selectors
+		 * @return {Array<{count: number, keys: string[], error: string}>} One per selector: elements matched, and the section keys they are in ('' for outside them all).
+		 */
+		place( selectors ) {
+			return selectors.map( ( selector ) => {
+				try {
+					const found = [ ...document.querySelectorAll( selector ) ];
+					return {
+						count: found.length,
+						keys: [ ...new Set( found.map( keyOf ) ) ],
+						error: '',
+					};
+				} catch ( error ) {
+					return { count: 0, keys: [], error: error.message };
+				}
+			} );
+		},
+
 		/**
 		 * Load every image now (a lazy one far down the page would load, and
 		 * move what is below it, only when scrolled to), then wait for fonts
@@ -959,6 +1187,244 @@ async function motionResults( tab, keys, gapMs ) {
 		}
 		out[ key ] = { ok: notes.length === 0, note: notes.join( '; ' ) };
 	} );
+	return out;
+}
+
+/** @type {string|null} axe-core's browser build, read once. */
+let axeSource = null;
+
+/**
+ * Put axe-core into the page, unless it is there already.
+ *
+ * @param {Object} tab A page from launch().newPage().
+ * @return {Promise<string>} The version loaded in the page.
+ */
+async function loadAxe( tab ) {
+	axeSource ??= readFileSync(
+		require.resolve( 'axe-core/axe.min.js' ),
+		'utf8'
+	);
+	const loaded = await tab.evaluate( 'window.axe?.version || ""' );
+	if ( loaded ) {
+		return loaded;
+	}
+	return tab.evaluate( `${ axeSource }\n;window.axe?.version || ''` );
+}
+
+/**
+ * Run `impeccable detect --json` on one URL at one viewport, in the browser
+ * the run uses. Exit 0 is a scan with no primary findings and 2 a scan with
+ * some; anything else, or output that is not a findings array, is a scan
+ * that did not run, never a pass.
+ *
+ * @param {string} url
+ * @param {number} width
+ * @param {number} height
+ * @param {string} chrome Browser executable, from findChrome().
+ * @return {Promise<{ok: boolean, findings: Array<Object>, note: string}>} Result.
+ */
+async function impeccableScan( url, width, height, chrome ) {
+	const cli = join(
+		repo,
+		'node_modules',
+		'impeccable',
+		'cli',
+		'bin',
+		'cli.js'
+	);
+	if ( ! existsSync( cli ) ) {
+		return {
+			ok: false,
+			findings: [],
+			note: 'impeccable is not installed (npm ci)',
+		};
+	}
+	// --no-config: no project config, no inline ignore comments and no
+	// DESIGN.md context, so a comment in the markup cannot waive a finding.
+	const args = [
+		cli,
+		'detect',
+		'--json',
+		'--no-config',
+		'--viewport',
+		`${ width }x${ height }`,
+		url,
+	];
+	const { code, stdout, stderr } = await new Promise( ( done ) => {
+		const child = execFile(
+			process.execPath,
+			args,
+			{
+				cwd: repo,
+				encoding: 'utf8',
+				maxBuffer: 64 * 1024 * 1024,
+				timeout: 180000,
+				env: {
+					...process.env,
+					IMPECCABLE_BROWSER: chrome,
+					IMPECCABLE_NO_TELEMETRY: '1',
+					IMPECCABLE_NO_UPDATE_CHECK: '1',
+					IMPECCABLE_NO_STALENESS_CHECK: '1',
+					DO_NOT_TRACK: '1',
+				},
+			},
+			( error, out, err ) =>
+				done( {
+					code: error ? ( error.code ?? error.signal ?? 1 ) : 0,
+					stdout: out,
+					stderr: err,
+				} )
+		);
+		child.stdin?.end();
+	} );
+	let findings = null;
+	try {
+		findings = JSON.parse( stdout );
+	} catch {
+		// Reported below.
+	}
+	if ( ( code === 0 || code === 2 ) && Array.isArray( findings ) ) {
+		return { ok: true, findings, note: '' };
+	}
+	return {
+		ok: false,
+		findings: [],
+		note: `impeccable detect exited ${ code }: ${ clip(
+			( stderr || stdout || '' ).replace( /\s+/g, ' ' ).trim(),
+			300
+		) }`,
+	};
+}
+
+/**
+ * The a11y and impeccable checks on one loaded page: axe-core on its
+ * sections, Impeccable on the whole page with each finding placed in the
+ * section it is in, and tap targets measured here.
+ *
+ * @param {Object}   tab     The visitor page, loaded at width.
+ * @param {string}   url     The page.
+ * @param {number}   width   Viewport width.
+ * @param {string[]} keys    Sections to measure.
+ * @param {Object}   want    Checks to run: {a11y, impeccable}.
+ * @param {string}   theme   Theme slug.
+ * @param {Object}   fixture tests/fixtures/contrast.json.
+ * @param {string}   chrome  Browser executable.
+ * @return {Promise<Object>} {a11y, impeccable}: per check, whether it ran, a note when it did not, findings by section key, and advisories.
+ */
+async function judge( tab, url, width, keys, want, theme, fixture, chrome ) {
+	const out = {};
+	if ( want.a11y ) {
+		const version = await loadAxe( tab );
+		const result = version
+			? await tab.evaluate( call( 'axe', keys, fixture.a11y ) )
+			: null;
+		const bySection = {};
+		const advisories = [];
+		for ( const v of result?.violations || [] ) {
+			if ( v.key && keys.includes( v.key ) ) {
+				( bySection[ v.key ] ??= [] ).push( v );
+			} else {
+				advisories.push( { ...v, why: 'outside the sections' } );
+			}
+		}
+		for ( const v of result?.incomplete || [] ) {
+			advisories.push( { ...v, why: 'needs review' } );
+		}
+		out.a11y = {
+			ran: !! result?.ran.length,
+			// eslint-disable-next-line no-nested-ternary
+			note: ! result
+				? 'axe-core did not load in the page'
+				: result.ran.length
+					? ''
+					: 'no section to scan',
+			version,
+			rules: result?.ran || [],
+			bySection,
+			advisories,
+		};
+	}
+	if ( want.impeccable ) {
+		const { gate, tap_target: tap } = fixture.impeccable;
+		const scan = await impeccableScan( url, width, fixture.height, chrome );
+		const placed = scan.ok
+			? await tab.evaluate(
+					call(
+						'place',
+						scan.findings.map( ( f ) => f.selector || '' )
+					)
+				)
+			: [];
+		const bySection = {};
+		const advisories = [];
+		const unplaced = [];
+		scan.findings.forEach( ( f, i ) => {
+			const at = placed[ i ];
+			const gated =
+				gate.includes( f.antipattern ) && f.severity !== 'advisory';
+			const row = {
+				rule: f.antipattern,
+				severity: f.severity,
+				selector: f.selector || '',
+				summary: f.snippet || f.name || '',
+			};
+			const inSections = ( at?.keys || [] ).filter( ( k ) =>
+				keys.includes( k )
+			);
+			if ( gated && ! at?.count ) {
+				unplaced.push( {
+					...row,
+					why:
+						at?.error || 'the selector matches nothing in the page',
+				} );
+			} else if ( gated && inSections.length ) {
+				for ( const key of inSections ) {
+					( bySection[ key ] ??= [] ).push( row );
+				}
+			} else {
+				advisories.push( {
+					...row,
+					key: inSections.join( ', ' ),
+					why: gated ? 'outside the sections' : 'not gated',
+				} );
+			}
+		} );
+		const targets = await tab.evaluate(
+			call( 'tapTargets', keys, tap.min )
+		);
+		const gaps = tap.known_gaps?.[ theme ] || [];
+		const tapped = {};
+		keys.forEach( ( key, i ) => {
+			const t = targets[ i ];
+			tapped[ key ] = t ? t.measured : 0;
+			for ( const small of t?.small || [] ) {
+				const gap = gaps.find(
+					( g ) =>
+						g.kind === small.kind &&
+						small.width >= tap.min &&
+						Math.abs( small.height - g.height ) <= tap.tolerance
+				);
+				( bySection[ key ] ??= [] ).push( {
+					rule: TAP_TARGET,
+					severity: 'error',
+					selector: '',
+					summary: `${ small.name } is ${ small.height }px tall and ${ small.width }px wide, under ${ tap.min }px`,
+					height: small.height,
+					kind: small.kind,
+					known: gap || null,
+				} );
+			}
+		} );
+		out.impeccable = {
+			ran: scan.ok,
+			note: scan.note,
+			findings: scan.findings.length,
+			bySection,
+			advisories,
+			unplaced,
+			tapped,
+		};
+	}
 	return out;
 }
 
@@ -1480,6 +1946,19 @@ async function renderAt(
 	const contrast = want.contrast
 		? await contrastRows( tabs.visitor, scanned, context, sections )
 		: [];
+	const judged =
+		want.a11y || want.impeccable
+			? await judge(
+					tabs.visitor,
+					url,
+					width,
+					keys,
+					want,
+					context.theme,
+					fixture,
+					tabs.chrome
+				)
+			: {};
 
 	let still = null;
 	const calm = {};
@@ -1541,8 +2020,187 @@ async function renderAt(
 				note: result.note || 'still',
 			} );
 		}
+		if ( want.a11y ) {
+			const a = judged.a11y;
+			const found = s.count === 1 ? a.bySection[ s.key ] || [] : [];
+			renders.push( {
+				check: 'a11y',
+				...where,
+				ran: a.ran && s.count === 1,
+				ok: a.ran && s.count === 1 && found.length === 0,
+				rules: [ ...new Set( found.map( ( v ) => v.rule ) ) ],
+				note: ( () => {
+					if ( ! a.ran ) {
+						return a.note;
+					}
+					if ( s.count !== 1 ) {
+						return 'section not found';
+					}
+					return found.length
+						? found
+								.map(
+									( v ) =>
+										`${ v.rule } (${ v.impact }) at ${ v.target }: ${ clip( v.summary, 160 ) }`
+								)
+								.join( '; ' )
+						: 'no violations';
+				} )(),
+			} );
+		}
+		if ( want.impeccable ) {
+			const imp = judged.impeccable;
+			const found = s.count === 1 ? imp.bySection[ s.key ] || [] : [];
+			const failing = found.filter( ( f ) => ! f.known );
+			renders.push( {
+				check: 'impeccable',
+				...where,
+				ran: imp.ran && s.count === 1,
+				ok: imp.ran && s.count === 1 && failing.length === 0,
+				rules: [ ...new Set( failing.map( ( f ) => f.rule ) ) ],
+				gaps: found.filter( ( f ) => f.known ),
+				targets: imp.tapped[ s.key ] || 0,
+				note: ( () => {
+					if ( ! imp.ran ) {
+						return imp.note;
+					}
+					if ( s.count !== 1 ) {
+						return 'section not found';
+					}
+					if ( ! found.length ) {
+						return `no gated finding, ${
+							imp.tapped[ s.key ] || 0
+						} tap targets measured`;
+					}
+					return found
+						.map(
+							( f ) =>
+								`${ f.known ? 'known gap: ' : '' }${ f.rule }${
+									f.selector ? ` at ${ f.selector }` : ''
+								}: ${ clip( f.summary, 160 ) }`
+						)
+						.join( '; ' );
+				} )(),
+			} );
+		}
 	}
-	return { page, still, scanned, contrast, renders };
+	return { page, still, scanned, contrast, renders, judged };
+}
+
+/**
+ * Keep what the a11y and impeccable checks saw on one page of the main run
+ * that no section's row holds: whether each scan ran, the advisories, and
+ * the gated findings no section could be found for.
+ *
+ * @param {Object} out      The run's rows.
+ * @param {Object} judged   From judge(), through renderAt().
+ * @param {Object} where    {theme, width}.
+ * @param {Object} sections Key => {pattern, style}.
+ * @param {string} at       "<theme> at <width>px", for assertion names.
+ */
+function keepJudged( out, judged, where, sections, at ) {
+	const name = ( key ) =>
+		sections[ key ]
+			? `${ sections[ key ].pattern } ${ sections[ key ].style }`
+			: 'the theme';
+	if ( judged?.a11y ) {
+		const a = judged.a11y;
+		const want = require( 'axe-core/package.json' ).version;
+		expect(
+			`${ at }: axe-core ${ want } ran on the sections, with heading-order among its rules`,
+			a.ran &&
+				a.version === want &&
+				a.rules.includes( 'heading-order' ) &&
+				a.rules.length > 1,
+			a.ran
+				? `axe-core ${ a.version }, ${ a.rules.length } rules`
+				: a.note
+		);
+		out.a11yRules = a.rules;
+		for ( const v of a.advisories ) {
+			out.advisories.push( {
+				check: 'a11y',
+				...where,
+				rule: v.rule,
+				where: name( v.key ),
+				note: `${ v.why }: ${ v.target }: ${ clip( v.summary, 200 ) }`,
+			} );
+		}
+	}
+	if ( judged?.impeccable ) {
+		const imp = judged.impeccable;
+		out.impeccableScans += imp.ran ? 1 : 0;
+		expect(
+			`${ at }: impeccable detect scanned the page`,
+			imp.ran,
+			imp.ran ? `${ imp.findings } findings` : imp.note
+		);
+		expect(
+			`${ at }: every gated Impeccable finding is in a section or in the theme's own markup`,
+			imp.unplaced.length === 0,
+			imp.unplaced
+				.map( ( f ) => `${ f.rule } at "${ f.selector }": ${ f.why }` )
+				.join( '; ' ) || 'all placed'
+		);
+		for ( const f of imp.advisories ) {
+			out.advisories.push( {
+				check: 'impeccable',
+				...where,
+				rule: f.rule,
+				where: f.key
+					? f.key.split( ', ' ).map( name ).join( ', ' )
+					: 'the theme',
+				note: `${ f.why }${ f.selector ? ` at ${ f.selector }` : '' }: ${ clip(
+					f.summary,
+					200
+				) }`,
+			} );
+		}
+	}
+}
+
+/**
+ * Print the advisories: what the a11y and impeccable checks report and do
+ * not gate on, counted by rule, with the first few of each.
+ *
+ * @param {Array<Object>} advisories From keepJudged().
+ */
+function printAdvisories( advisories ) {
+	for ( const check of [ 'a11y', 'impeccable' ] ) {
+		const mine = advisories.filter( ( a ) => a.check === check );
+		if ( ! mine.length ) {
+			continue;
+		}
+		const byRule = new Map();
+		for ( const a of mine ) {
+			byRule.set( a.rule, [ ...( byRule.get( a.rule ) || [] ), a ] );
+		}
+		group(
+			`${ check } advisories, which do not fail the run: ${ mine.length } across ${ byRule.size } rules`
+		);
+		for ( const [ rule, list ] of [ ...byRule ].sort(
+			( a, b ) => b[ 1 ].length - a[ 1 ].length
+		) ) {
+			const themes = [ ...new Set( list.map( ( a ) => a.theme ) ) ];
+			console.log(
+				`advisory  ${ rule }: ${ list.length } on ${ themes.join(
+					', '
+				) }`
+			);
+			for ( const a of list.slice( 0, 3 ) ) {
+				console.log(
+					`            ${ a.theme } at ${ a.width }px, ${ a.where }: ${ a.note }`
+				);
+			}
+		}
+		endGroup();
+		summary( [
+			`### ${ check } advisories: ${ mine.length } across ${ byRule.size } rules, none of them failing`,
+			'',
+			...[ ...byRule ].map(
+				( [ rule, list ] ) => `- \`${ rule }\`: ${ list.length }`
+			),
+		] );
+	}
 }
 
 /**
@@ -1637,6 +2295,7 @@ async function checkTheme( ctx, entry ) {
 		out.contrast.push( ...seen.contrast );
 		out.renders.push( ...seen.renders );
 		const at = `${ theme } at ${ width }px`;
+		keepJudged( out, seen.judged, { theme, width }, sections, at );
 		expect(
 			`${ at }: all ${ keys.base.length } sections render, each once`,
 			base.every( ( s ) => s.count === 1 ),
@@ -1800,6 +2459,48 @@ async function checkTheme( ctx, entry ) {
 			row && ! row.ok,
 			row ? row.note : `no ${ check } measurement of the planted section`
 		);
+	}
+	// Each of these plants must fail its check on its own rule, so a plant
+	// that fails for some other reason does not count.
+	const ruled = {
+		a11y: [ [ 'heading', 'heading-order', 'h2 followed by an h4' ] ],
+		impeccable: [
+			[ 'gradient', 'gradient-text', 'heading in gradient text' ],
+			[ 'cards', 'nested-cards', 'card inside a card' ],
+			[
+				'target',
+				TAP_TARGET,
+				`30px tall button, under ${ fixture.impeccable.tap_target.min }px`,
+			],
+		],
+	};
+	for ( const [ check, plants ] of Object.entries( ruled ) ) {
+		if ( ! want[ check ] ) {
+			continue;
+		}
+		const { width } = fixture.controls[ check ];
+		const seen = await renderAt(
+			tabs,
+			pages.control.link,
+			width,
+			plants.map( ( [ name ] ) => `plant--${ name }` ),
+			{ [ check ]: true },
+			{ theme, variation: '', width },
+			sections,
+			fixture
+		);
+		for ( const [ name, rule, what ] of plants ) {
+			const row = seen.renders.find(
+				( r ) => r.check === check && r.key === `plant--${ name }`
+			);
+			expect(
+				`${ check } control on ${ theme }: the planted ${ what } fails ${ check } on ${ rule }`,
+				row && row.ran && ! row.ok && row.rules.includes( rule ),
+				row
+					? row.note
+					: `no ${ check } measurement of the planted section`
+			);
+		}
 	}
 
 	if ( entry.editor && want.contrast ) {
@@ -1974,6 +2675,9 @@ async function run( opts ) {
 		contrast: [],
 		variations: [],
 		renders: [],
+		advisories: [],
+		impeccableScans: 0,
+		a11yRules: [],
 	};
 	let browser;
 	try {
@@ -1988,6 +2692,8 @@ async function run( opts ) {
 				height: fixture.height,
 			} ),
 			admin: null,
+			// The executable, for impeccable detect, which starts its own.
+			chrome,
 		};
 		await tabs.still.call( 'Emulation.setEmulatedMedia', {
 			features: [ { name: 'prefers-reduced-motion', value: 'reduce' } ],
@@ -2096,18 +2802,30 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 		checkContrast( out, themes, fixture, opts, !! only );
 	}
 
-	for ( const check of [ 'overflow', 'motion' ] ) {
+	const verdicts = {
+		overflow: 'overflow: no render scrolls sideways',
+		motion: 'motion: nothing moves under reduced motion',
+		a11y: 'a11y: axe-core reports no violation in any render',
+		impeccable: `impeccable: no render breaks a gated Impeccable rule (${ fixture.impeccable.gate.join(
+			', '
+		) }) or has a tap target under ${
+			fixture.impeccable.tap_target.min
+		}px outside the known gaps`,
+	};
+	for ( const check of RENDER_CHECKS ) {
 		if ( ! want[ check ] ) {
 			continue;
 		}
 		const rows = out.renders.filter( ( r ) => r.check === check );
 		const base = rows.filter( ( r ) => keys.base.includes( r.key ) );
-		group( `${ check }: ${ base.length } section renders` );
+		// a11y and impeccable count a render only once its scan ran.
+		const scanned = base.filter( ( r ) => r.ran !== false );
+		group( `${ check }: ${ scanned.length } section renders scanned` );
 		console.log( renderTable( rows ) );
 		endGroup();
 		const failed = rows.filter( ( r ) => ! r.ok );
 		summary( [
-			`### ${ check }: ${ base.length } section renders, ${ failed.length } failing`,
+			`### ${ check }: ${ scanned.length } section renders scanned, ${ failed.length } failing`,
 			'',
 			...failed
 				.slice( 0, 100 )
@@ -2117,22 +2835,24 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 				),
 		] );
 		expect(
-			check === 'overflow'
-				? 'overflow: no render scrolls sideways'
-				: 'motion: nothing moves under reduced motion',
+			verdicts[ check ],
 			base.length > 0 && failed.length === 0,
 			failed.length
 				? `\n${ renderTable( failed ) }`
-				: `${ base.length } section renders`
+				: `${ scanned.length } section renders scanned`
 		);
 		if ( ! only ) {
 			expect(
-				`${ check }: ${ expected } section renders (${ counts })`,
-				base.length === expected,
-				`${ base.length } renders`
+				`${ check }: ${ expected } section renders scanned (${ counts })`,
+				scanned.length === expected,
+				`${ scanned.length } scanned`
 			);
 		}
 	}
+	if ( want.impeccable ) {
+		checkTapGaps( out, themes, fixture, keys );
+	}
+	printAdvisories( out.advisories );
 
 	if ( ! only ) {
 		expect(
@@ -2153,17 +2873,24 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 		want.contrast && ! opts[ 'no-variations' ]
 			? `${ out.variations.length } style variation contrast pairs`
 			: '',
-		...[ 'overflow', 'motion' ]
-			.filter( ( check ) => want[ check ] )
-			.map(
-				( check ) =>
-					`${
-						out.renders.filter(
-							( r ) =>
-								r.check === check && keys.base.includes( r.key )
-						).length
-					} ${ check } renders`
-			),
+		...RENDER_CHECKS.filter( ( check ) => want[ check ] ).map(
+			( check ) =>
+				`${
+					out.renders.filter(
+						( r ) =>
+							r.check === check &&
+							keys.base.includes( r.key ) &&
+							r.ran !== false
+					).length
+				} ${ check } renders${
+					// eslint-disable-next-line no-nested-ternary
+					check === 'a11y'
+						? ` (${ out.a11yRules.length } axe-core rules)`
+						: check === 'impeccable'
+							? ` (${ out.impeccableScans } page scans)`
+							: ''
+				}`
+		),
 	]
 		.filter( Boolean )
 		.join( ', ' );
@@ -2194,6 +2921,66 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 		);
 	}
 	return failed.length ? 1 : 0;
+}
+
+/**
+ * The known tap-target gaps: each one the fixture lists for a theme that ran
+ * must still be measured under the minimum, at the height listed, so the
+ * list stays true.
+ *
+ * @param {Object}        out     The run's rows.
+ * @param {Array<Object>} themes  The fixture's theme entries this run covered.
+ * @param {Object}        fixture tests/fixtures/contrast.json.
+ * @param {Object}        keys    {base, plant}: section keys.
+ */
+function checkTapGaps( out, themes, fixture, keys ) {
+	const tap = fixture.impeccable.tap_target;
+	const lines = [];
+	const stale = [];
+	for ( const { theme } of themes ) {
+		const rows = out.renders.filter(
+			( r ) =>
+				r.check === 'impeccable' &&
+				r.theme === theme &&
+				r.ran &&
+				keys.base.includes( r.key )
+		);
+		if ( ! rows.length ) {
+			continue;
+		}
+		for ( const gap of tap.known_gaps?.[ theme ] || [] ) {
+			const seen = rows.flatMap( ( r ) =>
+				r.gaps.filter( ( f ) => f.known === gap )
+			);
+			const heights = seen.map( ( f ) => f.height );
+			if ( ! seen.length ) {
+				stale.push(
+					`${ theme } ${ gap.kind } at ${ gap.height }px is no longer measured under ${ tap.min }px: remove it from the fixture`
+				);
+				continue;
+			}
+			lines.push(
+				`${ theme } ${ gap.kind }: listed at ${ gap.height }px, measured ${ Math.min(
+					...heights
+				) } to ${ Math.max( ...heights ) }px tall on ${
+					new Set(
+						rows
+							.filter( ( r ) =>
+								r.gaps.some( ( f ) => f.known === gap )
+							)
+							.map( ( r ) => r.key + r.width )
+					).size
+				} renders`
+			);
+		}
+	}
+	expect(
+		'impeccable: every known tap-target gap the fixture lists is still measured',
+		stale.length === 0,
+		stale.join( '; ' ) ||
+			lines.join( '; ' ) ||
+			'none listed for these themes'
+	);
 }
 
 /**
