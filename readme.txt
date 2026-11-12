@@ -150,6 +150,23 @@ In the plugin's `skills/` folder, one `SKILL.md` per item in the open Agent Skil
 
 == Changelog ==
 
+= 0.8.0 =
+* Settings > Site Data has a Business profile: services, service area and credentials (one per line), year founded, license number, rating and review count (typed in by hand, the pack calls no review service), and your main call to action. Each one is a new Site Data key your blocks can bind to.
+* On W3 Total Cache, a Site Data change now refreshes the pages that show the field: the pack ships an adapter, `w3-total-cache`, active while its Page Cache is on, which flushes each of those pages, or every page, never W3 Total Cache's other caches.
+* On SpinupWP, Nginx Helper and LiteSpeed Cache, a Site Data change now refreshes the pages that show the field: the pack ships an adapter for each, `spinupwp`, `nginx-helper` and `litespeed-cache`, active when the plugin says its page cache is on.
+* On WP Rocket and Cloudflare, a Site Data change now refreshes the pages that show the field: the pack ships an adapter for each, `wp-rocket`, which cleans those pages, and `cloudflare`, which asks the Cloudflare plugin to purge everything, since it cannot purge a page by URL.
+* A hero section for the top of a page, in two layouts: the text beside an image, or over a background image, each with a call button that follows your Site Data phone number.
+* Two placeholder images for sections with a photo, and the editor and `validate` now flag a placeholder left as a cover's background or in a media and text block.
+* A reviews section for what your customers say, in two layouts: three cards in a row, or one large quote, each with its star rating in words, the quote, the name and one detail. It ships with placeholders, never a review, for you to replace with real ones.
+* The logo marquee now loops at a steady speed with no visible join, instead of drifting to one end and back, and the cards of the services and reviews sections fade gently into place as you scroll to them. Both are CSS alone, and nothing moves for a visitor who turns motion off.
+* A services section that says what you do, in two layouts: three cards in a row, each an icon, a name and one line, or the same services as rows. Add a fourth service, or up to six in the list, or drop one.
+* `validate` warns on the pack's placeholder logos and the contact section's form stand-in left on a page, and on images with no alt text.
+* A Facts block shows a list, one item per line. Connect it to your services, service area or credentials from Settings > Site Data, and it shows that list and changes when you change it. It takes the Ticks style too.
+* On WP Super Cache, a Site Data change now refreshes every page that shows the field, not only the first 50: the pack ships a WP Super Cache adapter, `wp-super-cache`, which clears the site's cache when more than 50 pages, or a template or template part, show the field.
+* Pages that show the company name, tagline, year or copyright line now refresh when the Site Title or Tagline changes, and once when a new year starts. On a multisite network, a change made to another site refreshes that site's pages.
+* The Panel, Inverted and Accent section styles now take their colours from the style variation picked in the Site Editor, and keep text and outline buttons readable on its colours, hover included.
+* The validate ability also knows phone and email fields named in other words, such as whatsapp, sms, telefono, movil or correo, and warns when one keeps an old number or address as its fallback.
+
 = 0.7.0 =
 * Three section styles for a group, Panel, Inverted and Accent, take their colours from the active theme's palette, with built-in colour maps for Twenty Twenty-Five, Twenty Twenty-Four and the Voyager design system and a fallback from the theme's own text and background colours elsewhere; `get-catalog` lists them, `configure` sets one with its new `style` input, and a theme can replace the colour map with the `voyager_open_blocks_style_roles` filter.
 * Settings > Site Data shows the published pages and the templates each field appears on, and `get-catalog` returns a `used_on` count for every Site Data and bindable post meta field.
