@@ -4,6 +4,43 @@
 	"categories": [ "voyager-open", "call-to-action" ],
 	"keywords": [ "cta", "call to action", "band", "phone", "contact" ],
 	"viewportWidth": 1280,
+	"copy_rules": {
+		"Eyebrow": {
+			"purpose": "A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already.",
+			"min": 2,
+			"max": 40,
+			"required": false,
+			"claim": false
+		},
+		"Heading": {
+			"purpose": "The band's h2: one short question or invitation that asks the reader to act.",
+			"min": 10,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short.",
+			"min": 20,
+			"max": 100,
+			"required": true,
+			"claim": false
+		},
+		"Primary button": {
+			"purpose": "The band's main action, as what happens when it is pressed, such as Get a quote.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Click to call": {
+			"purpose": "Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
 	"intent": {
 		"blocks": [
 			{
