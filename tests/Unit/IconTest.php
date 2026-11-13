@@ -105,7 +105,14 @@ final class IconTest extends TestCase {
 		$this->assertStringContainsString( $icon . '.is-trigger-always' . $svg . '{animation:voyager-open-icon-' . $name . ' ', $css );
 		$this->assertStringContainsString( $icon . '.is-trigger-hover:hover' . $svg . ',' . $icon . '.is-trigger-hover:focus-within' . $svg . '{animation:voyager-open-icon-' . $name . ' ', $css );
 		$this->assertStringContainsString( $icon . '.is-trigger-scroll' . $svg . '{animation:voyager-open-icon-' . $name . ' ', $css );
-		$this->assertStringContainsString( '@supports (animation-timeline:view()){.wp-block-voyager-open-icon.is-trigger-scroll' . $svg . '{animation-duration:auto;animation-timeline:view();', $css );
+
+		// The shorthand resets animation-timeline to auto, so the timeline
+		// rule needs the scroll rule's selector and must come after it.
+		$scroll   = strpos( $css, $icon . '.is-trigger-scroll' . $svg . '{animation:' );
+		$timeline = strpos( $css, '@supports (animation-timeline:view()){' . $icon . '.is-trigger-scroll' . $svg . '{animation-duration:auto;animation-timeline:view();' );
+		$this->assertIsInt( $scroll );
+		$this->assertIsInt( $timeline );
+		$this->assertGreaterThan( $scroll, $timeline );
 
 		preg_match_all( '/has-animation-([\w-]+)/', $css, $named );
 		$this->assertSame( [ $name ], array_values( array_unique( $named[1] ) ) );

@@ -134,7 +134,8 @@ export function readRecipes( dir ) {
 /**
  * Everything rhythm refuses in one recipe, one line each.
  *
- * A missing `layout` is null, as contract 5 reads it. A style must be a
+ * A missing `layout` is null and a missing `style` plain, as compose reads
+ * them (read_recipe() in inc/abilities/recipes.php). A style must be a
  * string to be compared, and plain is the one style two sections next to
  * each other may share.
  *
@@ -186,7 +187,7 @@ export function rhythmProblems( entry, layouts ) {
 				}`
 			);
 		}
-		const { style } = section;
+		const style = section.style ?? 'plain';
 		if ( typeof style !== 'string' ) {
 			add( 'shape', `${ where }: style is not a string` );
 			previous = null;
@@ -228,7 +229,7 @@ export function recipePages( root ) {
 							section.pattern,
 							section.layout ?? null
 						),
-						style: section.style,
+						style: section.style ?? 'plain',
 					} ) ),
 		};
 	} );

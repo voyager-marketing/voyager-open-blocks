@@ -76,9 +76,13 @@
  *      (impeccable, each on its own rule); and a grid whose cards are each
  *      wider than half the row, columns not stacked on a phone, and a heading
  *      word in a box narrower than itself, free to break and not (layout,
- *      each on its own reason). One more must pass: white text on
+ *      each on its own reason). Two more must pass: white text on
  *      a cover with a black overlay at 80%, which reads over any image, so
- *      the cover measurement is seen to read the overlay and not the page;
+ *      the cover measurement is seen to read the overlay and not the page,
+ *      and the process steps section with every step heading at its
+ *      40-character maximum (layout, at the wide width and each stacked
+ *      one), so its row of three columns is seen to hold the longest step
+ *      heading the copy rules allow;
  *   5. where the fixture asks, opens the page in the block editor as admin and
  *      checks the Styles panel offers Panel, Inverted and Accent and the canvas
  *      paints Inverted as the front end does;
@@ -96,7 +100,9 @@
  * The run fails when any check fails outside the known failures, when fewer
  * renders or pairs were measured or scanned than the fixture expects, when a
  * scan did not run, when a positive control or a planted control fails, or on
- * a PHP fatal error.
+ * a PHP fatal error. --themes runs some of the themes, held to their share of
+ * the fixture's floors, and every plant still goes on each theme it runs, so
+ * one --plant run per theme proves each check fails its plants on that theme.
  *
  * Needs Chrome, Chromium or Edge (set CHROME_PATH to pick one) and the Node
  * in .nvmrc. The first run downloads WordPress; later runs reuse it.
@@ -182,6 +188,27 @@ const LAYOUT_PLANTS = {
 		at: 'wide',
 		reason: 'spill',
 		label: 'heading word in a box narrower than itself, not free to break',
+	},
+};
+/**
+ * The controls the layout check must pass, each a pattern with copy at the
+ * limit of its copy rules, rendered at the wide width and at each stacked
+ * width. steps-long is the process steps section with every step heading at
+ * its copy rule's maximum, 40 characters, with the long words a step heading
+ * can hold: its row of three columns is the narrowest the pack ships on
+ * Twenty Twenty-Four, so a heading word that breaks or spills there shows the
+ * row is too narrow for the copy the rules allow. Each heading replaces the
+ * shipped one, and its columns are its pattern's.
+ */
+const LAYOUT_CONTROLS = {
+	'steps-long': {
+		pattern: 'process-steps',
+		headings: {
+			'1. Get in touch': '1. Site measurements and recommendations',
+			'2. We visit and quote': '2. A thorough, itemised written estimate',
+			'3. We do the work': '3. Professional installation and cleanup',
+		},
+		label: 'process steps with each step heading at its 40-character maximum',
 	},
 };
 /** What buildPages() swaps for the plugin's assets URL in the planted markup. */
@@ -358,7 +385,83 @@ function plantSections( width ) {
 			'spill',
 			'<h3 style="width:4em;overflow-wrap:normal;word-break:normal;hyphens:manual">Installation</h3>'
 		),
+		...Object.fromEntries(
+			Object.entries( LAYOUT_CONTROLS ).map( ( [ name, control ] ) => [
+				name,
+				layoutControl( name, control ),
+			] )
+		),
 	};
+}
+
+/**
+ * A layout control's markup: its pattern as patterns/ ships it, each heading
+ * the control names swapped for its long one, and the class a planted
+ * section carries. Each long heading must be exactly its slot's copy rule
+ * maximum, so a rule that changes cannot leave the control short of it.
+ *
+ * @param {string} name    The control's name in LAYOUT_CONTROLS.
+ * @param {Object} control Its entry.
+ * @return {string} Block markup.
+ */
+function layoutControl( name, control ) {
+	const intent = JSON.parse(
+		readFileSync(
+			join( PATTERNS, 'intents', `${ control.pattern }.json` ),
+			'utf8'
+		)
+	);
+	const labels = {};
+	const walk = ( nodes ) => {
+		for ( const node of nodes || [] ) {
+			const label = node.attrs?.metadata?.name;
+			if ( label && typeof node.text === 'string' ) {
+				labels[ node.text ] = label;
+			}
+			walk( node.children );
+		}
+	};
+	walk( intent.intent?.blocks );
+	const className = `${ SECTION_CLASS }plant--${ name }`;
+	let markup = readFileSync(
+		join( PATTERNS, `${ control.pattern }.html` ),
+		'utf8'
+	);
+	const swap = ( from, to, what ) => {
+		const parts = markup.split( from );
+		if ( parts.length !== 2 ) {
+			throw new Error(
+				`Layout control ${ name }: patterns/${ control.pattern }.html holds ${ what } ${
+					parts.length - 1
+				} times, not once.`
+			);
+		}
+		markup = parts.join( to );
+	};
+	for ( const [ shipped, long ] of Object.entries( control.headings ) ) {
+		const max = intent.copy_rules?.[ labels[ shipped ] ]?.max;
+		if ( long.length !== max ) {
+			throw new Error(
+				`Layout control ${ name }: "${ long }" is ${ long.length } characters, and the copy rule of "${ labels[ shipped ] }" allows ${ max }.`
+			);
+		}
+		swap(
+			`>${ shipped }</h`,
+			`>${ long }</h`,
+			`the heading "${ shipped }"`
+		);
+	}
+	swap(
+		'<!-- wp:group {"tagName":"section",',
+		`<!-- wp:group {"tagName":"section","className":"${ className }",`,
+		'a section group'
+	);
+	swap(
+		'<section class="wp-block-group alignfull"',
+		`<section class="wp-block-group alignfull ${ className }"`,
+		'a full-width section'
+	);
+	return markup;
 }
 
 const HELP = `npm run design-check [-- options]
@@ -392,7 +495,9 @@ its own check, or if the readable cover control does not pass.
                    fails, and 3 when the run fails any other way or a check
                    misses its plant.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
-                   The render and pair counts are then not checked.
+                   The render counts expected are those themes' own, and the
+                   fixture's floors on renders and pairs scale to their share
+                   of its themes. CI runs one job per theme this way.
   --no-variations  Skip the style variations.
   --port <n>       Port to serve on. Default 9400, or a free port if 9400 is taken.
   --wp <version>   WordPress version for every theme, such as 7.1.4. Default
@@ -1652,7 +1757,7 @@ async function contrastRows( tab, scanned, context, sections ) {
  * How many columns a section's rows must render at a width: the fixture's
  * count for its pattern at the wide width, one at a stacked width, and at
  * any other width only that the rows are there. A planted section takes its
- * plant's count.
+ * plant's count, and a layout control its pattern's.
  *
  * @param {string} key      Section key.
  * @param {Object} sections Key => {pattern, style}.
@@ -1661,7 +1766,10 @@ async function contrastRows( tab, scanned, context, sections ) {
  */
 function columnsFor( key, sections, fixture ) {
 	if ( key.startsWith( 'plant--' ) ) {
-		return LAYOUT_PLANTS[ key.slice( 7 ) ]?.columns;
+		const name = key.slice( 7 );
+		return Object.hasOwn( LAYOUT_CONTROLS, name )
+			? fixture.layout.columns[ LAYOUT_CONTROLS[ name ].pattern ]
+			: LAYOUT_PLANTS[ name ]?.columns;
 	}
 	return fixture.layout.columns[ sections[ key ]?.pattern ];
 }
@@ -3735,6 +3843,37 @@ async function checkTheme( ctx, entry ) {
 				);
 			}
 		}
+		// Each layout control must pass at the wide width and at each
+		// stacked width: its pattern holds the copy its rules allow.
+		for ( const width of [
+			fixture.layout.wide,
+			...fixture.layout.stacked,
+		] ) {
+			const names = Object.keys( LAYOUT_CONTROLS );
+			const seen = await renderAt(
+				tabs,
+				pages.control.link,
+				width,
+				names.map( ( name ) => `plant--${ name }` ),
+				{ layout: true },
+				{ theme, variation: '', width },
+				sections,
+				fixture
+			);
+			for ( const name of names ) {
+				const row = seen.renders.find(
+					( r ) =>
+						r.check === 'layout' && r.key === `plant--${ name }`
+				);
+				expect(
+					`layout control on ${ theme }: the ${ LAYOUT_CONTROLS[ name ].label } passes layout at ${ width }px`,
+					row && row.ok,
+					row
+						? row.note
+						: 'no layout measurement of the control section'
+				);
+			}
+		}
 	}
 	// Each of these plants must fail its check on its own rule, so a plant
 	// that fails for some other reason does not count.
@@ -3900,6 +4039,9 @@ async function run( opts ) {
 		);
 		return 2;
 	}
+	// The fixture's floors are for every theme. A run on some of them, such
+	// as one CI job per theme, is held to their share.
+	const share = themes.length / fixture.themes.length;
 	const chrome = findChrome();
 	if ( ! chrome ) {
 		annotate(
@@ -4147,7 +4289,7 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 	const recipeExpected = keys.recipe.length * widths.length * themes.length;
 
 	if ( want.contrast ) {
-		checkContrast( out, themes, fixture, opts, !! only );
+		checkContrast( out, themes, fixture, opts, share );
 	}
 
 	const verdicts = {
@@ -4196,37 +4338,33 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 			base.length > 0 && failed.length === 0,
 			failed.length ? `\n${ renderTable( failed ) }` : both
 		);
-		if ( ! only ) {
-			expect(
-				`${ check }: ${ expected } section renders scanned (${ counts })`,
-				scanned.length === expected,
-				`${ scanned.length } scanned`
-			);
-			expect(
-				`${ check }: ${ recipeExpected } recipe section renders scanned (${ recipeCounts })`,
-				recipeExpected > 0 && recipeScanned.length === recipeExpected,
-				`${ recipeScanned.length } scanned`
-			);
-		}
+		expect(
+			`${ check }: ${ expected } section renders scanned (${ counts })`,
+			scanned.length === expected,
+			`${ scanned.length } scanned`
+		);
+		expect(
+			`${ check }: ${ recipeExpected } recipe section renders scanned (${ recipeCounts })`,
+			recipeExpected > 0 && recipeScanned.length === recipeExpected,
+			`${ recipeScanned.length } scanned`
+		);
 	}
 	if ( want.impeccable ) {
 		checkTapGaps( out, themes, fixture, keys );
 	}
 	printAdvisories( out.advisories );
 
-	if ( ! only ) {
-		expect(
-			`at least ${ fixture.min_renders } section renders (${ counts })`,
-			out.renderCount >= fixture.min_renders &&
-				out.renderCount === expected,
-			`${ out.renderCount } of ${ expected }`
-		);
-		expect(
-			`one recipe page per recipe on each theme at each width: ${ recipeExpected } recipe section renders (${ recipeCounts })`,
-			recipeExpected > 0 && out.recipeCount === recipeExpected,
-			`${ out.recipeCount } of ${ recipeExpected }`
-		);
-	}
+	const minRenders = Math.ceil( fixture.min_renders * share );
+	expect(
+		`at least ${ minRenders } section renders (${ counts })`,
+		out.renderCount >= minRenders && out.renderCount === expected,
+		`${ out.renderCount } of ${ expected }`
+	);
+	expect(
+		`one recipe page per recipe on each theme at each width: ${ recipeExpected } recipe section renders (${ recipeCounts })`,
+		recipeExpected > 0 && out.recipeCount === recipeExpected,
+		`${ out.recipeCount } of ${ recipeExpected }`
+	);
 
 	const failed = checks.filter( ( c ) => ! c.ok );
 	const on = Object.entries( out.versions )
@@ -4448,13 +4586,13 @@ function checkTapGaps( out, themes, fixture, keys ) {
  * themes and the style variations: every pair under the floor must be
  * listed, and every listed pair that was measured must still fail.
  *
- * @param {Object}        out      The run's rows.
- * @param {Array<Object>} themes   The fixture's theme entries this run covered.
- * @param {Object}        fixture  tests/fixtures/contrast.json.
- * @param {Object}        opts     Parsed flags.
- * @param {boolean}       narrowed Whether --themes picked some themes only.
+ * @param {Object}        out     The run's rows.
+ * @param {Array<Object>} themes  The fixture's theme entries this run covered.
+ * @param {Object}        fixture tests/fixtures/contrast.json.
+ * @param {Object}        opts    Parsed flags.
+ * @param {number}        share   The run's themes over the fixture's, which scales the floor on pairs.
  */
-function checkContrast( out, themes, fixture, opts, narrowed ) {
+function checkContrast( out, themes, fixture, opts, share ) {
 	const { floor } = fixture;
 	const known = new Map();
 	for ( const entry of themes ) {
@@ -4527,13 +4665,12 @@ function checkContrast( out, themes, fixture, opts, narrowed ) {
 				: `${ rows.length } pairs, ${ listedRows.length } of them known failures`
 		);
 	}
-	if ( ! narrowed ) {
-		expect(
-			`contrast: at least ${ fixture.min_pairs } pairs measured`,
-			out.contrast.length >= fixture.min_pairs,
-			`${ out.contrast.length } pairs`
-		);
-	}
+	const minPairs = Math.ceil( fixture.min_pairs * share );
+	expect(
+		`contrast: at least ${ minPairs } pairs measured`,
+		out.contrast.length >= minPairs,
+		`${ out.contrast.length } pairs`
+	);
 	if ( unlisted.length ) {
 		console.log(
 			`\nTo list a pair as a known failure, add it to its theme's known_failures in tests/fixtures/contrast.json ("variation": "" is the theme's own styles):\n${ [

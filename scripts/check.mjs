@@ -648,7 +648,7 @@ printEach( patternFindings );
 // breaks no other rule. The gate must refuse every one of those blocks for
 // that rule, so a rule that stops biting on any one case turns this red, and
 // so does a file that loses its cases. Raise the floor when you add a case.
-const PLANTED_CASES = 41;
+const PLANTED_CASES = 42;
 const plantedDir = 'tests/invalid/presets';
 const plantedFiles = readdirSync( join( root, plantedDir ) ).filter( ( file ) =>
 	file.endsWith( '.html' )
@@ -711,7 +711,7 @@ printEach( plantProblems );
 
 // The other direction: every preset form the gate accepts, written once.
 // A rule that has grown to refuse a preset reference or a slug fails here.
-const ALLOWED_CASES = 22;
+const ALLOWED_CASES = 23;
 const allowedFile = 'tests/fixtures/presets/allowed.html';
 const allowed = presets( allowedFile );
 const allowedFindings = allowed.error
@@ -957,5 +957,36 @@ report(
 		: 'each refused for its own rule and no other'
 );
 printEach( recipePlantProblems );
+
+// A section with no style is plain, as compose reads it (read_recipe() in
+// inc/abilities/recipes.php), so the gate and design-check's recipe pages
+// build the page compose builds: the home recipe with its Panel proof strip's
+// style taken out passes, and with a style that is no string it is refused.
+let styleless = [];
+let unreadable = [];
+let styleError = '';
+try {
+	const layouts = sectionLayouts( join( root, RECIPE_INTENTS ) );
+	const home = readRecipes( join( root, RECIPES ) ).find(
+		( entry ) => entry.slug === 'home'
+	);
+	const without = structuredClone( home );
+	delete without.recipe.sections[ 1 ].style;
+	const numbered = structuredClone( home );
+	numbered.recipe.sections[ 1 ].style = 5;
+	styleless = rhythmProblems( without, layouts );
+	unreadable = rhythmProblems( numbered, layouts );
+} catch ( error ) {
+	styleError = `the gate crashed: ${ error?.message || error }`;
+}
+report(
+	'rhythm: reads a section with no style as plain, as compose does, and refuses a style that is no string',
+	styleError === '' &&
+		styleless.length === 0 &&
+		unreadable.length === 1 &&
+		unreadable[ 0 ].rule === 'shape',
+	styleError ||
+		[ ...styleless, ...unreadable ].map( ( p ) => p.line ).join( '; ' )
+);
 
 process.exit( failed ? 1 : 0 );

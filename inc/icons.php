@@ -131,11 +131,14 @@ function animation_handle( string $name ): string {
  *
  * Its three trigger rules, the rule that ties the scroll trigger to the
  * icon's view timeline where the browser has one, the reduced-motion rule
- * that stops it, and its keyframes: what src/icon/style.scss built for each
- * animation when one stylesheet held all seven, in the same order and with
- * the same selectors, so an animated icon renders and moves as it did. The
- * view timeline and reduced-motion rules name no animation, so a page with
- * two animations holds them twice, which changes nothing.
+ * that stops it, and its keyframes.
+ *
+ * The view timeline rule has the scroll rule's own selector and comes after
+ * it. The `animation` shorthand in the scroll rule resets
+ * `animation-timeline` to `auto`, so a timeline rule with fewer classes, or
+ * one before the shorthand, loses and the icon plays once on load. The
+ * reduced-motion rule names no animation, so a page with two animations holds
+ * it twice, which changes nothing.
  *
  * @param string $name Animation name.
  */
@@ -152,7 +155,7 @@ function animation_css( string $name ): string {
 	return $icon . '.is-trigger-always' . $svg . '{' . $play . ' infinite}'
 		. $icon . '.is-trigger-hover:hover' . $svg . ',' . $icon . '.is-trigger-hover:focus-within' . $svg . '{' . $play . ' infinite}'
 		. $icon . '.is-trigger-scroll' . $svg . '{' . $play . ' both}'
-		. '@supports (animation-timeline:view()){.wp-block-voyager-open-icon.is-trigger-scroll' . $svg . '{animation-duration:auto;animation-timeline:view();animation-range:entry 0% cover 40%}}'
+		. '@supports (animation-timeline:view()){' . $icon . '.is-trigger-scroll' . $svg . '{animation-duration:auto;animation-timeline:view();animation-range:entry 0% cover 40%}}'
 		. '@media (prefers-reduced-motion:reduce){.wp-block-voyager-open-icon' . $svg . '{animation:none!important}}'
 		. '@keyframes voyager-open-icon-' . $name . '{' . $animation['keyframes'] . '}';
 }

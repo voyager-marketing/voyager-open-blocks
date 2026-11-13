@@ -170,7 +170,17 @@ export default function Edit( { attributes, setAttributes } ) {
 					) }
 				</PanelBody>
 			</InspectorControls>
-			<div { ...useBlockProps() }>
+			<div
+				{ ...useBlockProps( {
+					// The classes render.php adds, so the canvas plays the
+					// animation as the front end does.
+					className: animation
+						? `has-animation-${ animation } is-trigger-${
+								animationTrigger || 'hover'
+							}`
+						: undefined,
+				} ) }
+			>
 				<IconSvg name={ icon } size={ size } />
 			</div>
 		</>

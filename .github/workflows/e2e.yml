@@ -1,27 +1,35 @@
 name: E2E
 
 # The pack in a real WordPress (Playground) and a real block editor (headless
-# Chrome). Four jobs:
+# Chrome). Five jobs:
 #
 # - rest: boots the dev site (npm run dev) in the background, collects its
 #   site context with Wesper over REST, and runs npm run e2e against it: the
 #   abilities end to end, the way an agent uses them.
 # - editor: npm run e2e:editor boots its own fresh dev site and checks the
 #   first-run notice, Settings > Site Data, the editor hints, pasting each
-#   pattern and the front end, logged in as admin.
-# - contrast: npm run design-check boots its own dev site and renders every
-#   pattern in every section style on each theme in tests/fixtures/contrast.json,
-#   at 320, 390, 768 and 1280px, and runs DESIGN.md's rendered checks on every
-#   render: contrast, overflow, motion, layout, a11y and impeccable. Then it
-#   measures contrast on each colour-bearing style variation each theme ships.
-#   Ipsum runs on its own site, on the WordPress beta it requires, installed
-#   from a pinned commit. A second row runs it with --plant, every planted
-#   fault in the main run, and passes only when the run fails each check on
-#   its own plants and nothing else.
+#   pattern, the front end and the icon animations, logged in as admin.
+# - themes: reads the themes in tests/fixtures/contrast.json, one contrast
+#   job each, so a theme added to the fixture gets its jobs with no edit here.
+# - contrast: npm run design-check --themes <theme> boots its own dev site
+#   and renders every pattern in every section style on that theme, and one
+#   page per recipe in recipes/, its sections in order in their recipe
+#   styles, at 320, 390, 768 and 1280px. It runs DESIGN.md's rendered checks
+#   on every section: contrast, overflow, motion, layout, a11y and
+#   impeccable. Then it measures contrast on each colour-bearing style
+#   variation the theme ships. Ipsum runs on the WordPress beta it requires,
+#   installed from a pinned commit. Each theme is a job of its own, held to
+#   its share of the fixture's floors, so no job runs near the script's
+#   25-minute limit. A second row per theme runs it with --plant, every
+#   planted fault in the main run, and passes only when the run fails each
+#   check on its own plants and nothing else. Every plant goes on every
+#   theme, so the three plant jobs passing means each planted fault failed
+#   its own check on each theme.
 # - usage-index: npm run check:usage-index boots its own dev site, deletes the
 #   usage index, and checks that `wp voyager-open-blocks reindex` and the
-#   backfill on activation each put every row back. Two more rows plant a
-#   fault in one path each, and pass only when the check fails that path.
+#   backfill on activation each put every row back, list rows included.
+#   Three more rows plant a fault in one path each, and pass only when the
+#   check fails that path.
 #
 # Job logs are not always at hand, so every failed assertion is also an error
 # annotation named after it, with what it saw.
@@ -133,25 +141,44 @@ jobs:
       - run: npm ci --no-audit --no-fund
 
       # ubuntu-latest ships Google Chrome; the script finds it on PATH.
-      - name: First-run notice, Site Data screen, editor hints, paste and front end
+      - name: First-run notice, Site Data screen, editor hints, paste, front end and icon animations
         run: npm run e2e:editor
 
-  contrast:
-    name: npm run design-check${{ matrix.plant && ' -- --plant' || '' }} (${{ matrix.what }})
+  themes:
+    name: design-check themes, from tests/fixtures/contrast.json
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      list: ${{ steps.read.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: One contrast job per theme in the fixture
+        id: read
+        run: |
+          list=$(node -p "JSON.stringify(require('./tests/fixtures/contrast.json').themes.map((entry) => entry.theme))")
+          if [ "$list" = '[]' ]; then
+            echo '::error title=design-check themes::tests/fixtures/contrast.json lists no themes.'
+            exit 1
+          fi
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "ok   $list"
+
+  contrast:
+    name: npm run design-check -- --themes ${{ matrix.theme }}${{ matrix.plant && ' --plant' || '' }}
+    needs: themes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - plant: ''
-            what: contrast, overflow, motion, layout, a11y and impeccable in headless Chrome
-          # The control for the run as a whole: with every plant in the main
-          # run, design-check must exit 1 and print the line that says each
-          # check failed on its own plants and nothing else did. A crash
-          # exits 1 too, so the exit code alone is not enough.
-          - plant: plant
-            what: every planted fault fails its own check
+        theme: ${{ fromJSON(needs.themes.outputs.list) }}
+        # '' runs every check on the theme. plant is the control for the run
+        # as a whole: with every plant in the main run, design-check must exit
+        # 1 and print the line that says each check failed on its own plants
+        # and nothing else did. A crash exits 1 too, so the exit code alone is
+        # not enough.
+        plant: ['', plant]
     steps:
       - uses: actions/checkout@v4
 
@@ -162,8 +189,8 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
-      # Boots its own dev site, renders every pattern in each section style on
-      # each theme in tests/fixtures/contrast.json, and loads the page at each
+      # Boots its own dev site, renders every pattern in each section style
+      # and one page per recipe on the theme, and loads each page at each
       # width: contrast measures text against its background from computed
       # styles, overflow fails a render that scrolls sideways, and motion fails
       # anything that moves with reduced motion emulated. Every run also plants
@@ -173,22 +200,26 @@ jobs:
       # or a heading word that breaks inside itself. a11y and impeccable run
       # axe-core and Impeccable on every section. ubuntu-latest ships Google
       # Chrome; the script finds it on PATH.
-      - name: Every check on every pattern, style and width, and the planted controls
+      - name: Every check on every pattern, recipe page, style and width, and the planted controls
         if: matrix.plant == ''
-        run: npm run design-check
+        env:
+          THEME: ${{ matrix.theme }}
+        run: npm run design-check -- --themes "$THEME"
 
       - name: Every planted fault in the main run, which must fail each check on its own plants and nothing else
         if: matrix.plant != ''
+        env:
+          THEME: ${{ matrix.theme }}
         run: |
           set +e
-          npm run design-check -- --plant 2>&1 | tee "$RUNNER_TEMP/plant.log"
+          npm run design-check -- --themes "$THEME" --plant 2>&1 | tee "$RUNNER_TEMP/plant.log"
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 1 ] || ! grep -q '^Planted run: every check failed on its planted faults, and nothing else failed\.$' "$RUNNER_TEMP/plant.log"; then
-            echo "::error title=npm run design-check -- --plant::Expected exit 1 and every check failing on its own plants and nothing else. It exited $status; the reason is in the log above."
+            echo "::error title=npm run design-check -- --themes $THEME --plant::Expected exit 1 and every check failing on its own plants and nothing else. It exited $status; the reason is in the log above."
             exit 1
           fi
-          echo "ok   npm run design-check -- --plant exited 1, each check failing on its own plants and nothing else"
+          echo "ok   npm run design-check -- --themes $THEME --plant exited 1, each check failing on its own plants and nothing else"
 
   usage-index:
     name: npm run check:usage-index${{ matrix.plant && format(' --plant {0}', matrix.plant) || '' }}
@@ -197,10 +228,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # '' runs the check as it is. activation and reindex are controls:
-        # each plants a fault in that path, and the run exits 0 only when the
-        # check fails that path and passes the others.
-        plant: ['', activation, reindex]
+        # '' runs the check as it is. activation, reindex and lists are
+        # controls: each plants a fault in one path, and the run exits 0 only
+        # when the check fails that path and passes the others. crash has no
+        # row: npm run check runs the script with --plant crash and requires
+        # exit 2, which needs no site.
+        plant: ['', activation, reindex, lists]
     steps:
       - uses: actions/checkout@v4
 
@@ -211,7 +244,7 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
-      - name: Reindex, backfill on activation, and the Shown on order
+      - name: Reindex, backfill on activation, the Shown on order and list rows
         env:
           PLANT: ${{ matrix.plant }}
         run: npm run check:usage-index -- ${PLANT:+--plant "$PLANT"}
