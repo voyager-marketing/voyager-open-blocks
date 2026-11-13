@@ -1,2 +1,0 @@
-type: feat
-The contact section shows your address, phone, email and hours through the Contact details block, so a visitor on a phone taps the number to call and the email to write, and while a field in Settings > Site Data is empty it shows a label such as "Phone" instead of a sample number or address. `validate` now warns `stale_fallback` on a contact section saved with an earlier version, whose sample phone number and email address visitors see whenever those fields are empty: replace the section, or put a label in place of each sample.
