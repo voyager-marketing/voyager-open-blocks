@@ -50,7 +50,34 @@ final class PatternLayoutsTest extends TestCase {
 	 * The intents whose copy_rules may hold a claim slot, each because a test
 	 * below checks what its claim slots ship.
 	 */
-	private const CLAIM_SECTIONS = [ 'proof-strip', 'reviews', 'reviews-single' ];
+	private const CLAIM_SECTIONS = [ 'proof-strip', 'reviews', 'reviews-single', 'stats', 'stats-band' ];
+
+	/** The stats section's two layouts. */
+	private const STATS = [ 'stats', 'stats-band' ];
+
+	/**
+	 * The stats section's figures, in order, by the label of each figure's
+	 * block: the Site Data key its value binds, the text the value shows while
+	 * that field is empty, which names the field, and the label under it,
+	 * which says what the figure is.
+	 */
+	private const FIGURES = [
+		'Founded'      => [
+			'key'      => 'founded',
+			'fallback' => 'Founded',
+			'label'    => 'Year founded',
+		],
+		'Rating'       => [
+			'key'      => 'rating',
+			'fallback' => 'Score',
+			'label'    => 'Average rating',
+		],
+		'Review count' => [
+			'key'      => 'review_count',
+			'fallback' => 'Count',
+			'label'    => 'Reviews',
+		],
+	];
 
 	/**
 	 * What each part of a review ships as: what goes there, never a review.
@@ -517,6 +544,102 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
+	/**
+	 * The text a figure's label slot ships with, or null for a slot that is
+	 * no figure's label.
+	 *
+	 * @param string $slot A copy label, such as "Rating label".
+	 */
+	private static function figure_label( string $slot ): ?string {
+		foreach ( self::FIGURES as $figure => $want ) {
+			if ( "{$figure} label" === $slot ) {
+				return $want['label'];
+			}
+		}
+
+		return null;
+	}
+
+	public function test_stats_comes_in_two_layouts_row_first_then_band(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'stats', $intents['stats']['section'] ?? null );
+		$this->assertSame( 'row', $intents['stats']['layout'] ?? null );
+		$this->assertSame( 'stats', $intents['stats-band']['section'] ?? null );
+		$this->assertSame( 'band', $intents['stats-band']['layout'] ?? null );
+	}
+
+	public function test_every_figure_binds_its_value_to_site_data_and_no_default_text_is_a_figure(): void {
+		foreach ( self::STATS as $name ) {
+			$intent = self::intents()[ $name ] ?? null;
+			$this->assertIsArray( $intent, "{$name} is not in patterns/intents/" );
+			$rules = is_array( $intent['copy_rules'] ?? null ) ? $intent['copy_rules'] : [];
+			$texts = self::text_blocks( $intent );
+			$root  = $intent['intent']['blocks'][0] ?? null;
+			$this->assertIsArray( $root, $name );
+
+			$figures = [];
+			foreach ( self::nodes( $root ) as $row ) {
+				$label = $row['node']['attrs']['metadata']['name'] ?? null;
+				if ( is_string( $label ) && isset( self::FIGURES[ $label ] ) ) {
+					$figures[ $label ] = $row['node'];
+				}
+			}
+			$this->assertSame( array_keys( self::FIGURES ), array_keys( $figures ), "{$name}: the figures are the year founded, the rating and the review count, in that order" );
+
+			foreach ( self::FIGURES as $figure => $want ) {
+				$at = "{$name} \"{$figure}\"";
+				$this->assertSame( [ $figure, "{$figure} value", "{$figure} label" ], self::labels_in( $figures[ $figure ] ), "{$at} holds its value, then its label, and nothing else" );
+
+				$value = self::labelled( $figures[ $figure ], "{$figure} value" );
+				$label = self::labelled( $figures[ $figure ], "{$figure} label" );
+				$this->assertIsArray( $value, $at );
+				$this->assertIsArray( $label, $at );
+				$this->assertSame( 'core/paragraph', $value['block'] ?? null, $at );
+				$this->assertSame( 'core/paragraph', $label['block'] ?? null, $at );
+
+				// The value: the figure role, bound to its Site Data key, a claim.
+				$this->assertSame( 'x-large', $value['attrs']['fontSize'] ?? null, "{$at}: the value takes the figure role, x-large (DESIGN.md, Typography)" );
+				$this->assertSame(
+					[
+						'content' => [
+							'source' => 'voyager/site-data',
+							'args'   => [ 'key' => $want['key'] ],
+						],
+					],
+					$value['attrs']['metadata']['bindings'] ?? null,
+					"{$at}: the value's content binds to Site Data's {$want['key']}, and nothing else of it binds"
+				);
+				$this->assertTrue( $rules[ "{$figure} value" ]['claim'] ?? null, "{$at}: the value is a claim, so no copy may fill it" );
+				$this->assertTrue( $rules[ "{$figure} value" ]['required'] ?? null, "{$at}: the value goes only with its whole figure" );
+
+				// Its own text shows while the field is empty: it names the
+				// field and makes no claim. The no-claim test above skips a
+				// bound slot, so this is what keeps the fallback honest.
+				$this->assertSame( $want['fallback'], $texts[ "{$figure} value" ] ?? null, "{$at}: the value's own text names the field" );
+				$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $want['fallback'], "{$at}: the value's own text makes a claim" );
+
+				// The label: what the figure is, its own text, body size, no claim slot.
+				$this->assertSame( $want['label'], $texts[ "{$figure} label" ] ?? null, "{$at}: the label says what the figure is" );
+				$this->assertArrayNotHasKey( 'bindings', $label['attrs']['metadata'] ?? [], "{$at}: the label is the block's own text" );
+				$this->assertArrayNotHasKey( 'fontSize', $label['attrs'] ?? [], "{$at}: the label is body text" );
+				$this->assertFalse( $rules[ "{$figure} label" ]['claim'] ?? null, "{$at}: the label is no claim" );
+			}
+
+			$this->assertSame( array_map( static fn ( string $figure ): string => "{$figure} value", array_keys( self::FIGURES ) ), self::bound_text_labels( $intent ), "{$name}: the three values are the only bound text" );
+			foreach ( $texts as $label => $text ) {
+				$this->assertDoesNotMatchRegularExpression( '/\d/', $text, "{$name} \"{$label}\" ships a figure of its own" );
+			}
+		}
+	}
+
+	public function test_a_figure_fallback_that_makes_a_claim_is_caught(): void {
+		// The same pattern the stats test holds each fallback to.
+		foreach ( [ '1998', '4.8', '127', 'Since', 'Five stars', 'Years', 'Rated' ] as $planted ) {
+			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
+		}
+	}
+
 	public function test_copy_rules_cover_every_named_text_block_and_its_default_copy_fits(): void {
 		$intents = self::intents();
 		$this->assertNotSame( [], $intents, 'no intent files were read' );
@@ -585,7 +708,14 @@ final class PatternLayoutsTest extends TestCase {
 				}
 				if ( in_array( $label, $bound, true ) ) {
 					// A fallback, shown only while the source returns nothing.
-					// validate's stale_fallback: warning checks it.
+					// validate's stale_fallback: warning checks it for a phone
+					// or an email, and the stats test for a figure.
+					continue;
+				}
+				if ( in_array( $name, self::STATS, true ) && self::figure_label( $label ) === $text ) {
+					// A figure's label says what its bound value is ("Average
+					// rating"), so it holds the words of the claim the value
+					// makes. The stats test pins each label's text.
 					continue;
 				}
 				if ( 1 === preg_match( self::CLAIMS, self::without_step_number( (string) $label, $text ) ) ) {

@@ -80,6 +80,9 @@ $voyager_open_seed = static function (): void {
 		'reviews'         => [ 'Reviews', '<!-- wp:pattern {"slug":"voyager-open/reviews"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/reviews-single"} /-->' ],
 		// The process steps in both layouts: side by side, then one under another.
 		'process-steps'   => [ 'Process steps', '<!-- wp:pattern {"slug":"voyager-open/process-steps"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/process-steps-list"} /-->' ],
+		// The stats section in both layouts: figures in a row, then beside a heading.
+		// The seed sets no figure, so each shows its own text until Site Data has it.
+		'stats'           => [ 'Stats', '<!-- wp:paragraph --><p>Each figure below is the year founded, the rating or the review count from Site Data, never typed in. Until those fields are filled in under Settings, Site Data, each figure shows its own text, which names the field.</p><!-- /wp:paragraph -->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats-band"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
