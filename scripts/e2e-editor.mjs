@@ -1153,8 +1153,8 @@ async function checkPaste() {
 		item.name.startsWith( 'voyager-open/' )
 	);
 	expect(
-		'e the pack registers fifteen patterns',
-		ours.length === 15,
+		'e the pack registers seventeen patterns',
+		ours.length === 17,
 		ours.map( ( item ) => item.name ).join( ', ' )
 	);
 
