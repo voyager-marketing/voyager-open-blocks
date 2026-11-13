@@ -14,7 +14,7 @@ Ready-made business sections and an icon block that show your phone, email and a
 
 == Description ==
 
-Voyager Open Blocks adds eight ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
+Voyager Open Blocks adds ten ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
 
 You need no code and no AI agent. Insert the sections from the "Business sections (Open Blocks)" category in the pattern inserter, like any other pattern. See every section live at [demo.voyagermark.com/open-blocks](https://demo.voyagermark.com/open-blocks/).
 
@@ -23,6 +23,8 @@ You need no code and no AI agent. Insert the sections from the "Business section
 * **Hero**: the top of a page, with its heading, one line, your main button and a click-to-call button, beside an image or over a background image. You replace the placeholder image with your own photo.
 * **Services**: what you do, as three cards in a row or as rows, each service an icon, a name and one line. Add a fourth service, or more in the list, or drop one.
 * **Reviews**: what your customers say, as cards or as one large quote, each with its star rating in words, the quote, the customer's name and one detail. It ships with placeholders, never a review: you add real reviews, in your customers' own words and with their permission.
+* **Process steps**: what happens once a visitor gets in touch, as three numbered steps side by side or one under another, each a heading that starts with its number and one line. Add a fourth or fifth step, or drop one.
+* **FAQ**: the questions visitors ask before they get in touch, one under another or beside the section heading. Each question opens to show its answer, with no script. Add up to eight questions, or drop one.
 * **CTA band**: a heading and one line beside your main button and a click-to-call button that dials your phone number. Use it mid-page.
 * **Proof strip**: a row of three to six checkmarked facts, such as "Licensed and insured", under your hero.
 * **Logo marquee**: a row of client or partner logos that drifts sideways when it is wider than the screen. You replace the placeholder logos with your own.
@@ -54,7 +56,7 @@ Nine WordPress abilities in the `voyager-open-blocks` category let an agent use 
 * `get-catalog`: the pack's blocks, its patterns and every bindable field with its exact arguments.
 * `find-posts`: find a page, post, template or template part by words in its title, its slug, or as the home page, and get its ID. It lists only what the user can edit, and no content.
 * `get-post-blocks`: a post's blocks with their paths, labels, text and bindings, and whether each binding has a value now.
-* `insert`: place a pattern, the icon block, the facts block or the contact details block in a post, at the top level or inside another block, such as an icon beside a header's call button. A pattern copy takes plain text for its named headings, paragraphs, buttons and list items, can leave named blocks out, and can repeat one, such as a fifth credential.
+* `insert`: place a pattern, the icon block, the facts block or the contact details block in a post, at the top level or inside another block, such as an icon beside a header's call button. A pattern copy takes plain text for its named headings, paragraphs, buttons, list items and FAQ questions, can leave named blocks out, and can repeat one, such as a fifth credential.
 * `compose`: build a whole draft page in one call from a list of sections, each with its text and section style, checked as insert checks a pattern. It returns the preview link and the Site Data the page shows that is still empty, and it writes drafts only.
 * `configure`: set attributes on a block that saves no HTML.
 * `bind`: write a block binding. The arguments must match a listed field exactly. In a template, it checks them against the post type the template shows.
@@ -106,7 +108,7 @@ Under Settings > Site Data, with your email, street address, city, state or regi
 
 = Will this work with my theme? =
 
-Yes, if your site uses the block editor. The sections are built from core blocks (group, columns, heading, paragraph, buttons, list and image) and use your theme's spacing and font size presets. They set no colours of their own, so they take your theme's look.
+Yes, if your site uses the block editor. The sections are built from core blocks (group, columns, heading, paragraph, buttons, list, details and image) and use your theme's spacing and font size presets. They set no colours of their own, so they take your theme's look.
 
 = What happens when a Site Data field is empty? =
 

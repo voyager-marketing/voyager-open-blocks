@@ -34,6 +34,17 @@
 			}
 		},
 		{
+			"pattern": "voyager-open/process-steps",
+			"layout": "row",
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "What happens once a visitor books this service, in a few words.",
+				"Intro": "One line on where the steps lead for this service, such as from the first call to the finished repair.",
+				"Step 2 heading": "The visit, check or quote this service needs before the work, numbered 2, in the site owner's words.",
+				"Step 3 text": "What the work itself involves for this service, in one plain line. No time, price or promise unless the site owner gave it."
+			}
+		},
+		{
 			"pattern": "voyager-open/cta-band",
 			"layout": null,
 			"style": "accent",

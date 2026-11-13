@@ -42,6 +42,12 @@
  *      readers and one name, "Rated 5 out of 5"; a fourth card through
  *      repeat with a four-star review through omit, and the single quote,
  *      each filled by copy and passing both validators with no warning),
+ *      the process steps section's two layouts (listed with their section,
+ *      layout and copy labels; the row with a fourth step through repeat and
+ *      with one step dropped through omit, the list with five steps through
+ *      repeat, each renumbered through copy, each on a draft of its own and
+ *      passing both validators with no warning; omit of one step's heading
+ *      refused as required),
  *      the FAQ's two layouts (listed with their copy labels, each question
  *      a details block; the list with copy for "Question 1" and its answer,
  *      a fourth question through repeat and the second dropped through omit,
@@ -1455,8 +1461,8 @@ const cardsIn = ( markup ) =>
 	).length;
 
 /**
- * Insert a services or reviews layout on a draft of its own, and validate it
- * both ways.
+ * Insert a services, reviews or process steps layout on a draft of its own,
+ * and validate it both ways.
  *
  * @param {string} label What the step checks.
  * @param {Object} input insert's input, less post_id.
@@ -1813,6 +1819,185 @@ step(
 	clean( oneReview.report ) &&
 		( oneReview.report.data.warnings || [] ).length === 0,
 	warningSummary( oneReview.report )
+);
+
+// The process steps section in its two layouts: "row", a core/columns with
+// one column per step, and "list", one group per step. Each step is a block
+// labelled "Step <n>" holding "Step <n> heading", an h3 that starts with the
+// step's number, and "Step <n> text". repeat copies a whole step, so the row
+// gains a column, and omit drops one. The number is in the heading's text,
+// so copy renumbers the headings after either.
+const stepLabels = ( count ) => [
+	'Heading',
+	'Intro',
+	...Array.from( { length: count }, ( _, i ) => [
+		`Step ${ i + 1 } heading`,
+		`Step ${ i + 1 } text`,
+	] ).flat(),
+];
+for ( const [ item, layout ] of [
+	[ 'voyager-open/process-steps', 'row' ],
+	[ 'voyager-open/process-steps-list', 'list' ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } as the process steps section's ${ layout } layout, with its copy labels and a copy rule for each`,
+		listed?.section === 'process-steps' &&
+			listed?.layout === layout &&
+			JSON.stringify( labels ) === JSON.stringify( stepLabels( 3 ) ) &&
+			JSON.stringify( Object.keys( listed?.copy_rules || {} ).sort() ) ===
+				JSON.stringify( [ ...stepLabels( 3 ) ].sort() ),
+		listed
+			? `${ listed.section } ${ listed.layout }: ${ labels.join( ', ' ) }`
+			: 'not listed'
+	);
+}
+
+const processSteps = [
+	[ 'Book a visit', 'Call or write, and we find a time that suits you.' ],
+	[
+		'We look at the job',
+		'We see the work for ourselves and answer questions.',
+	],
+	[
+		'You get a quote',
+		'A written price for the work, for you to think over.',
+	],
+	[
+		'We do the work',
+		'On the day we agreed, and we tidy up after ourselves.',
+	],
+	[
+		'We check it with you',
+		'We walk you through the finished work before we go.',
+	],
+];
+// Copy for the steps kept, in order, each heading numbered for its place.
+const stepCopy = ( labels ) =>
+	Object.fromEntries( [
+		[ 'Heading', 'How a job goes' ],
+		...labels.flatMap( ( label, i ) => [
+			[ `${ label } heading`, `${ i + 1 }. ${ processSteps[ i ][ 0 ] }` ],
+			[ `${ label } text`, processSteps[ i ][ 1 ] ],
+		] ),
+	] );
+const numberedAs = ( count ) =>
+	processSteps.slice( 0, count ).map( ( [ t ], i ) => `${ i + 1 }. ${ t }` );
+const columnsIn = ( markup ) =>
+	(
+		markup.match( /<!-- wp:column \{"metadata":\{"name":"Step \d+"\}/g ) ||
+		[]
+	).length;
+
+// The row with a fourth step: repeat copies "Step 3", column and all, as
+// "Step 4", and copy fills and numbers all four.
+const fourSteps = await insertServices( 'process steps with a fourth step', {
+	item: 'voyager-open/process-steps',
+	repeat: { 'Step 3': [ 'Step 4' ] },
+	copy: stepCopy( [ 'Step 1', 'Step 2', 'Step 3', 'Step 4' ] ),
+} );
+const fourStepsMarkup = fourSteps.placed.data.markup || '';
+const fourStepsLabels = ( fourSteps.placed.data.blocks || [] ).map(
+	( b ) => b.label
+);
+step(
+	'insert process steps with a fourth step through repeat: four columns, each a step named for its number, the headings numbered 1 to 4 by copy',
+	fourSteps.placed.status === 200 &&
+		fourSteps.placed.data.saved === true &&
+		fourSteps.placed.data.validation?.round_trip === true &&
+		columnsIn( fourStepsMarkup ) === 4 &&
+		JSON.stringify( headingsIn( fourStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 4 ) ) &&
+		fourStepsMarkup.includes( `<p>${ processSteps[ 3 ][ 1 ] }</p>` ) &&
+		! fourStepsMarkup.includes( 'Once you say yes' ) &&
+		[ 'Step 4', 'Step 4 heading', 'Step 4 text' ].every( ( name ) =>
+			fourStepsLabels.includes( name )
+		),
+	fourSteps.placed.data.code ||
+		`${ headingsIn( fourStepsMarkup ).join( ' | ' ) }; ${ columnsIn(
+			fourStepsMarkup
+		) } columns`
+);
+step(
+	'validate passes the page with four process steps, with no warning',
+	clean( fourSteps.report ) &&
+		( fourSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( fourSteps.report )
+);
+
+// The row with the second step dropped: omit removes "Step 2" and its
+// blocks, and copy numbers the two left 1 and 2, though the second keeps
+// its label, "Step 3".
+const twoSteps = await insertServices( 'process steps with a step omitted', {
+	item: 'voyager-open/process-steps',
+	omit: [ 'Step 2' ],
+	copy: stepCopy( [ 'Step 1', 'Step 3' ] ),
+} );
+const twoStepsMarkup = twoSteps.placed.data.markup || '';
+step(
+	'insert process steps with one step dropped through omit: two columns, nothing of the second step, the headings renumbered 1 and 2 by copy',
+	twoSteps.placed.status === 200 &&
+		twoSteps.placed.data.saved === true &&
+		columnsIn( twoStepsMarkup ) === 2 &&
+		JSON.stringify( headingsIn( twoStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 2 ) ) &&
+		! twoStepsMarkup.includes( '"Step 2' ) &&
+		! twoStepsMarkup.includes( 'We visit and quote' ),
+	twoSteps.placed.data.code || headingsIn( twoStepsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with two process steps, with no warning',
+	clean( twoSteps.report ) &&
+		( twoSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( twoSteps.report )
+);
+
+// The list with five steps: two copies of the third, numbered by copy.
+const fiveSteps = await insertServices( 'process steps list with five steps', {
+	item: 'voyager-open/process-steps-list',
+	repeat: { 'Step 3': [ 'Step 4', 'Step 5' ] },
+	copy: stepCopy( [ 'Step 1', 'Step 2', 'Step 3', 'Step 4', 'Step 5' ] ),
+} );
+const fiveStepsMarkup = fiveSteps.placed.data.markup || '';
+step(
+	'insert the process steps list with five steps through repeat, the headings numbered 1 to 5 by copy',
+	fiveSteps.placed.status === 200 &&
+		fiveSteps.placed.data.saved === true &&
+		JSON.stringify( headingsIn( fiveStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 5 ) ) &&
+		! fiveStepsMarkup.includes( '<!-- wp:columns' ),
+	fiveSteps.placed.data.code || headingsIn( fiveStepsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with five process steps in a list, with no warning',
+	clean( fiveSteps.report ) &&
+		( fiveSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( fiveSteps.report )
+);
+
+// A step's heading is required: omit takes a whole step, never its heading alone.
+const stepHeadingOmitted = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/process-steps',
+	dry_run: true,
+	omit: [ 'Step 2 heading' ],
+} );
+step(
+	'insert refuses omit of "Step 2 heading" alone with reason required, and takes "Step 2" whole',
+	stepHeadingOmitted.status === 400 &&
+		stepHeadingOmitted.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify(
+			( stepHeadingOmitted.data.data?.refused || [] ).map(
+				( r ) => `${ r.slot } ${ r.reason }`
+			)
+		) === JSON.stringify( [ 'Step 2 heading required' ] ) &&
+		twoSteps.placed.data.saved === true,
+	stepHeadingOmitted.data.code || `status ${ stepHeadingOmitted.status }`
 );
 
 // The FAQ in its two layouts. Each question is a core/details block labelled
