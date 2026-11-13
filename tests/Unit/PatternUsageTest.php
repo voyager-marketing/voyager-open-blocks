@@ -180,6 +180,27 @@ final class PatternUsageTest extends TestCase {
 		}
 	}
 
+	public function test_the_stats_section_binds_the_year_founded_the_rating_and_the_review_count(): void {
+		$patterns = Patterns\bound_keys( SiteData\SOURCE, self::INTENTS );
+
+		foreach ( [ 'voyager-open/stats' => 'Stats', 'voyager-open/stats-band' => 'Stats beside a heading' ] as $name => $title ) {
+			$this->assertSame(
+				[
+					'title' => $title,
+					'keys'  => [ 'founded', 'rating', 'review_count' ],
+				],
+				$patterns[ $name ] ?? null,
+				"{$name} binds the three business profile figures, in order"
+			);
+		}
+
+		// So Settings > Site Data shows the stats section under each of the three fields.
+		$used = SiteData\used_by( $patterns );
+		foreach ( [ 'founded', 'rating', 'review_count' ] as $key ) {
+			$this->assertEqualsCanonicalizing( [ 'Stats', 'Stats beside a heading' ], $used[ $key ], "{$key} is shown by the stats section, and by no other pattern" );
+		}
+	}
+
 	public function test_every_stored_field_gets_a_help_line(): void {
 		foreach ( SiteData\fields() as $key => $field ) {
 			if ( isset( $field['option'] ) ) {

@@ -1,6 +1,6 @@
 {
 	"title": "Home page",
-	"description": "The front page: what the business does and where, the credentials a visitor checks, its main services, what customers say, and one way to get in touch.",
+	"description": "The front page: what the business does and where, the credentials a visitor checks, its main services, what customers say, its figures from Site Data, and one way to get in touch.",
 	"page_type": "home",
 	"sections": [
 		{
@@ -50,6 +50,14 @@
 			"style": "plain",
 			"copy_guidance": {
 				"Heading": "What customers say about the work, in a few words. No count or score."
+			}
+		},
+		{
+			"pattern": "voyager-open/stats",
+			"layout": "row",
+			"style": "panel",
+			"copy_guidance": {
+				"Rating label": "What the rating is, in a few words, such as Average rating. Name the review site only as the site owner names it."
 			}
 		},
 		{
