@@ -658,6 +658,24 @@ function where_to_change( string $source, string $key ): string {
 }
 
 /**
+ * One bound slot as a sentence: where it is, what it is bound to, and where to change the value.
+ *
+ * @param array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string} $slot A refused slot, from bound_copy_slots() or bound_attribute_slots().
+ */
+function bound_slot_line( array $slot ): string {
+	return sprintf(
+		'"%s" (%s %s at %s) is bound to %s%s, so %s.',
+		$slot['slot'],
+		$slot['block'],
+		$slot['attribute'],
+		$slot['path'],
+		$slot['source'],
+		'' === $slot['key'] ? '' : sprintf( ', key "%s"', $slot['key'] ),
+		where_to_change( $slot['source'], $slot['key'] )
+	);
+}
+
+/**
  * The error for copy or attributes aimed at bound slots. Lists every one.
  *
  * @param string $field   The input that named them: copy or attributes.
@@ -667,16 +685,7 @@ function bound_slot_error( string $field, array $refused ): WP_Error {
 	$slots = [];
 
 	foreach ( $refused as $slot ) {
-		$slots[] = sprintf(
-			'"%s" (%s %s at %s) is bound to %s%s, so %s.',
-			$slot['slot'],
-			$slot['block'],
-			$slot['attribute'],
-			$slot['path'],
-			$slot['source'],
-			'' === $slot['key'] ? '' : sprintf( ', key "%s"', $slot['key'] ),
-			where_to_change( $slot['source'], $slot['key'] )
-		);
+		$slots[] = bound_slot_line( $slot );
 	}
 
 	return new WP_Error(
