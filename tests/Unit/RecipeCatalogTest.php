@@ -271,11 +271,61 @@ final class RecipeCatalogTest extends TestCase {
 				'layout'  => $section['layout'],
 				'style'   => $section['style'],
 				'copy'    => [],
+				'omit'    => [],
+				'repeat'  => [],
 			];
 		}
 
 		$this->assertSame( $expected, Abilities\recipe_sections( $recipe ) );
 		$this->assertNull( Abilities\find_recipe( 'no-such-recipe', null, self::INTENTS ) );
+	}
+
+	public function test_a_recipe_section_s_omit_is_listed_and_goes_to_compose_as_the_section_s_omit(): void {
+		$recipe = Abilities\find_recipe( 'contact', null, self::INTENTS );
+		$this->assertNotNull( $recipe );
+
+		$hero = $recipe['sections'][0];
+		$this->assertSame( 'voyager-open/hero', $hero['pattern'] );
+		$this->assertSame( [ 'Primary button' ], $hero['omit'] ?? null, 'the contact page\'s hero leaves out its main button, which links to the contact page' );
+
+		$sections = Abilities\recipe_sections( $recipe );
+		$this->assertSame( [ 'Primary button' ], $sections[0]['omit'] );
+		$this->assertSame( [], $sections[1]['omit'], 'a section with no omit omits nothing' );
+		$this->assertArrayNotHasKey( 'omit', $recipe['sections'][1], 'a section whose file gives no omit lists none' );
+	}
+
+	/**
+	 * A recipe's omit the reader refuses: what to plant on the home recipe's
+	 * proof strip, and part of the reason read_recipe() gives.
+	 *
+	 * @return array<string, array{mixed, string}>
+	 */
+	public static function faulty_omit(): array {
+		return [
+			'omit that is not a list'      => [ 'Credential 4', 'sections[1]: omit is not a list of block labels' ],
+			'omit written as an object'    => [ [ 'label' => 'Credential 4' ], 'sections[1]: omit is not a list of block labels' ],
+			'an empty label'               => [ [ 'Credential 4', '' ], 'sections[1]: omit is not a list of block labels' ],
+			'a label that is not a string' => [ [ 4 ], 'sections[1]: omit is not a list of block labels' ],
+		];
+	}
+
+	/**
+	 * @param mixed  $omit   The omit to plant.
+	 * @param string $expect Part of the reason the file is skipped.
+	 */
+	#[DataProvider( 'faulty_omit' )]
+	public function test_a_recipe_whose_omit_is_not_a_list_of_labels_is_skipped( mixed $omit, string $expect ): void {
+		$recipe                        = self::shipped( 'home' );
+		$recipe['sections'][1]['omit'] = $omit;
+		$file                          = $this->dir . '/home.json';
+		file_put_contents( $file, (string) json_encode( $recipe, JSON_UNESCAPED_SLASHES ) );
+
+		$this->assertSame( [], $this->listed() );
+		$this->assertSame( [ self::NOTICE ], $GLOBALS['voyager_test_doing_it_wrong'] );
+
+		$reason = Abilities\read_recipe( $file, Abilities\section_layouts( self::INTENTS ) );
+		$this->assertIsString( $reason );
+		$this->assertStringContainsString( $expect, $reason );
 	}
 
 	public function test_compose_s_recipe_input_is_an_enum_of_the_slugs_found(): void {

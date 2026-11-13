@@ -265,6 +265,8 @@ final class ComposeTest extends TestCase {
 				'layout'  => null,
 				'style'   => 'plain',
 				'copy'    => [],
+				'omit'    => [],
+				'repeat'  => [],
 			],
 			$sections[0] ?? null
 		);
@@ -277,5 +279,128 @@ final class ComposeTest extends TestCase {
 			],
 			$sections[1]['copy']['Intro'] ?? null
 		);
+	}
+
+	public function test_sections_input_reads_omit_and_repeat_as_insert_reads_them(): void {
+		$omit     = [ 'Credential 4', '' ];
+		$repeat   = [
+			'Credential 3' => [ 'Credential 5', '' ],
+			'Credential 2' => [],
+		];
+		$sections = Abilities\sections_input(
+			[
+				[
+					'pattern' => 'voyager-open/proof-strip',
+					'omit'    => $omit,
+					'repeat'  => $repeat,
+				],
+			]
+		);
+
+		$this->assertSame( [ 'Credential 4' ], $sections[0]['omit'] ?? null );
+		$this->assertSame( [ 'Credential 3' => [ 'Credential 5' ] ], $sections[0]['repeat'] ?? null );
+		$this->assertSame( Abilities\omit_input( $omit ), $sections[0]['omit'] ?? null, 'a section reads omit with insert\'s reader' );
+		$this->assertSame( Abilities\repeat_input( $repeat ), $sections[0]['repeat'] ?? null, 'a section reads repeat with insert\'s reader' );
+	}
+
+	public function test_omit_and_repeat_have_one_input_schema_each_with_its_own_description(): void {
+		$omit   = Abilities\omit_schema( 'Labels to leave out.' );
+		$repeat = Abilities\repeat_schema( 'Copies to add.' );
+
+		$this->assertSame( 'Labels to leave out.', $omit['description'] ?? null );
+		$this->assertSame( 'array', $omit['type'] ?? null );
+		$this->assertSame( 1, $omit['items']['minLength'] ?? null );
+		$this->assertSame( 'Copies to add.', $repeat['description'] ?? null );
+		$this->assertSame( 'object', $repeat['type'] ?? null );
+		$this->assertSame( 10, $repeat['additionalProperties']['maxItems'] ?? null );
+		$this->assertSame( array_diff_key( $omit, [ 'description' => true ] ), array_diff_key( Abilities\omit_schema( 'Other words.' ), [ 'description' => true ] ) );
+	}
+
+	/**
+	 * The labels of a block tree's named blocks, in document order.
+	 *
+	 * @param array<int, array<mixed>> $blocks Blocks.
+	 * @return list<string>
+	 */
+	private static function labels( array $blocks ): array {
+		/** @var array<int, array{blockName: string|null, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>}> $blocks */
+		return array_values( array_filter( array_column( \VoyagerOpenBlocks\BlockTree\describe( $blocks ), 'label' ), 'is_string' ) );
+	}
+
+	/**
+	 * A pattern's copy rules, as its intent holds them.
+	 *
+	 * @param string $name Pattern name less voyager-open/, such as proof-strip.
+	 * @return array<string, array<mixed>>
+	 */
+	private static function rules( string $name ): array {
+		return \VoyagerOpenBlocks\Patterns\intent_meta( 'voyager-open/' . $name, self::INTENTS )['copy_rules'];
+	}
+
+	public function test_fill_pattern_omits_the_fourth_credential_so_the_strip_holds_three(): void {
+		$blocks  = IntentBlocks::blocks( 'proof-strip' );
+		$refused = Abilities\fill_pattern( $blocks, self::rules( 'proof-strip' ), [], [ 'Credential 4' ], [] );
+
+		$this->assertSame( [], $refused );
+		$texts = array_column( IntentBlocks::texts( $blocks ), 'text', 'label' );
+		$this->assertSame( [ 'Credential 1', 'Credential 2', 'Credential 3' ], array_keys( $texts ) );
+		$this->assertNotContains( 'Your fourth credential', $texts );
+	}
+
+	public function test_fill_pattern_repeats_first_so_omit_can_drop_the_block_it_copied(): void {
+		$blocks  = IntentBlocks::blocks( 'proof-strip' );
+		$refused = Abilities\fill_pattern(
+			$blocks,
+			self::rules( 'proof-strip' ),
+			[],
+			[ 'Credential 4' ],
+			[ 'Credential 4' => [ 'Credential 5', 'Credential 6' ] ]
+		);
+
+		$this->assertSame( [], $refused );
+		$texts = array_column( IntentBlocks::texts( $blocks ), 'text', 'label' );
+		$this->assertSame( [ 'Credential 1', 'Credential 2', 'Credential 3', 'Credential 5', 'Credential 6' ], array_keys( $texts ) );
+		$this->assertSame( 'Your fourth credential', $texts['Credential 5'] ?? null, 'a copy holds the text of the block it copies until copy replaces it' );
+	}
+
+	public function test_fill_pattern_refuses_omit_of_a_required_slot_and_not_of_a_whole_item(): void {
+		$strip   = IntentBlocks::blocks( 'proof-strip' );
+		$refused = Abilities\fill_pattern( $strip, self::rules( 'proof-strip' ), [], [ 'Credential 1', 'Credential 4' ], [] );
+
+		$this->assertSame( [ 'Credential 1 required' ], array_map( static fn ( array $row ): string => $row['slot'] . ' ' . $row['reason'], is_array( $refused ) ? $refused : [] ) );
+		$this->assertSame( 'Credential 1', is_array( $refused ) ? ( $refused[0]['omitted'] ?? null ) : null );
+
+		// "Service 3" holds "Service 3 heading" and "Service 3 text", both
+		// required: leaving out the whole card takes them with it.
+		$services = IntentBlocks::blocks( 'services' );
+		$refused  = Abilities\fill_pattern( $services, self::rules( 'services' ), [], [ 'Service 3' ], [] );
+
+		$this->assertSame( [], $refused );
+		$this->assertSame( [], array_values( array_filter( self::labels( $services ), static fn ( string $label ): bool => str_starts_with( $label, 'Service 3' ) ) ) );
+
+		// A copy repeat made is an item too, under the rule of the one it copies.
+		$services = IntentBlocks::blocks( 'services' );
+		$refused  = Abilities\fill_pattern( $services, self::rules( 'services' ), [], [ 'Service 4 heading' ], [ 'Service 3' => [ 'Service 4' ] ] );
+
+		$this->assertSame( [ 'Service 4 heading required' ], array_map( static fn ( array $row ): string => $row['slot'] . ' ' . $row['reason'], is_array( $refused ) ? $refused : [] ) );
+	}
+
+	public function test_fill_pattern_returns_the_error_insert_returns_for_omit_or_repeat_it_cannot_apply(): void {
+		foreach (
+			[
+				'voyager_open_blocks_invalid_omit'   => [ [ 'Credential 9' ], [] ],
+				'voyager_open_blocks_invalid_omit '  => [ [ 'Proof strip' ], [] ],
+				'voyager_open_blocks_invalid_repeat' => [ [], [ 'Credential 9' => [ 'Credential 10' ] ] ],
+				'voyager_open_blocks_invalid_repeat ' => [ [], [ 'Credential 4' => [ 'Credential 3' ] ] ],
+			] as $code => [ $omit, $repeat ]
+		) {
+			$blocks = IntentBlocks::blocks( 'proof-strip' );
+			$before = $blocks;
+			$result = Abilities\fill_pattern( $blocks, self::rules( 'proof-strip' ), [], $omit, $repeat );
+
+			$this->assertInstanceOf( \WP_Error::class, $result, $code );
+			$this->assertSame( trim( $code ), $result->get_error_code() );
+			$this->assertSame( $before, $blocks, "{$code}: the blocks are left as they were" );
+		}
 	}
 }
