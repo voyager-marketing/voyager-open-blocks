@@ -27,7 +27,9 @@
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
  *      and on the saved page, and the validate ability on the same markup, on the
  *      saved page and on broken markup, including one case only block-runner catches,
- *      its stale_fallback warning on bench/runs/loop/willow-vet/after-edit.html,
+ *      its stale_fallback warnings on bench/runs/loop/willow-vet/after-edit.html
+ *      (the call button's old number, and the sample phone and email its
+ *      contact section was saved with),
  *      and its placeholder and missing_alt warnings: the logo marquee's six
  *      logos (then published and fetched: its Marquee group holds the logo
  *      row and a copy of it made at render, aria-hidden and inert with no
@@ -1190,7 +1192,10 @@ step(
 // phone number as copy for the bound call button, so the stored page kept the
 // old number as that button's fallback after the number changed. validate
 // warns on it, given the markup and given the stored page, and on nothing in
-// this run's page, whose bound call buttons hold "Call us".
+// this run's page, whose bound call buttons hold "Call us". The same page
+// holds a contact section as an earlier release saved it, its phone and
+// email paragraphs holding the sample number and address, which visitors see
+// while the field is empty, so validate warns on those two as well.
 const staleWarnings = ( report ) =>
 	( report.data.warnings || [] ).filter( ( w ) =>
 		w.startsWith( 'stale_fallback: ' )
@@ -1203,9 +1208,13 @@ const flagsWillow = ( report ) => {
 	const found = staleWarnings( report );
 	return (
 		report.status === 200 &&
-		found.length === 1 &&
+		found.length === 3 &&
 		found[ 0 ].includes( 'core/button "Click to call"' ) &&
-		found[ 0 ].includes( '"(555) 555-0113" looks like a phone number' )
+		found[ 0 ].includes( '"(555) 555-0113" looks like a phone number' ) &&
+		found[ 1 ].includes( 'core/paragraph "Phone"' ) &&
+		found[ 1 ].includes( '"(555) 010-0100" looks like a phone number' ) &&
+		found[ 2 ].includes( 'core/paragraph "Email"' ) &&
+		found[ 2 ].includes( '"hello@example.com" looks like an email address' )
 	);
 };
 const willowReport = await checkMarkup( { markup: willowMarkup } );
