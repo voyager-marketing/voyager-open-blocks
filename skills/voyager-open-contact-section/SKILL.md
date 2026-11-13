@@ -46,6 +46,26 @@ core/group (section, full width, constrained)      "Contact section"
 
 Every binding uses the `voyager/site-data` source. The intent tree is `patterns/intents/contact-section.json`. The markup is `patterns/contact-section.html`.
 
+## Copy rules
+
+The intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` (contract 3). Lengths count characters of plain text.
+
+| Label | What goes there | Min | Max | Required |
+|---|---|---|---|---|
+| `Heading` | The section's `h2`: an invitation to get in touch, in a few words. | 3 | 60 | yes |
+| `Body` | One line on the ways to reach the business, or when. Leave it out when the details say enough. | 20 | 120 | no |
+| `Phone` | Bound to the Site Data phone number. Its own text, a sample 555 number, shows only while the number is empty. | 2 | 40 | no |
+| `Email` | Bound to the Site Data email address. Its own text, an example.com address, shows only while the address is empty. | 2 | 60 | no |
+| `Street address` | Bound to the Site Data street address. Its own text, a sample street, shows only while the street address is empty. | 2 | 80 | no |
+| `City, state, postal code` | Bound to the Site Data city, state or region and postal code, shown as one line. Its own text, a sample town, shows only while all three are empty. | 2 | 80 | no |
+| `Hours` | Bound to the Site Data business hours. Its own text, sample weekday hours, shows only while the hours are empty. | 2 | 80 | no |
+| `Click to call` | The call button's label. Its link is bound to the Site Data phone number, and its text is its own, so name the action, such as "Call us", never the number. Leave it out with the Phone line. | 2 | 24 | no |
+| `Form heading` | The form slot's `h3`: what the visitor can send, in a few words. | 3 | 40 | yes |
+| `Form body` | One line on what to put in the message, until a form plugin's block replaces the slot. | 20 | 120 | yes |
+| `Email button` | The form slot's one fill button, until a form plugin's block replaces it. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as "Email us", never the address. | 2 | 24 | yes |
+
+The five detail lines are bound slots: `insert` refuses copy for them, and their rules describe the fallback text the pattern ships. Any of them can be left out with `omit`. No slot is a claim slot, and the shipped copy makes no claim.
+
 ## Customizing
 
 - **Add the site's form.** Replace the contents of the group named "Form" with the form plugin's block. On route 2, read the block's name and attributes from the manifest's `blocks.types`. Do not guess them. Keep the heading if it still fits. On route 1, no ability places a third-party block: tell the user to add the form in the editor.

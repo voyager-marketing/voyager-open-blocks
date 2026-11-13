@@ -33,6 +33,16 @@ The eyebrow is a level 2 heading at the small font size, so heading navigation r
 
 The shipped images are grey placeholder SVGs in the plugin's `assets/placeholders/`. In `patterns/logo-marquee.html` their URLs begin with `/voyager-open-blocks-assets/`, a token the plugin swaps for its real assets URL at registration. They carry an empty `alt`, so a screen reader skips them instead of reading the same phrase six times.
 
+## Copy rules
+
+The intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` (contract 3). Lengths count characters of plain text. The eyebrow is the pattern's only text: the logos are images.
+
+| Label | What goes there | Min | Max | Required |
+|---|---|---|---|---|
+| `Eyebrow` | The section's only heading, an `h2` at the small size: whose logos these are, such as clients, partners or suppliers. | 10 | 50 | yes |
+
+The eyebrow is not a claim slot, and the shipped text makes no claim. Say whose logos they are, not how many customers the business has ("Trusted by 500 businesses") or what the logos do not show: a count is a claim, and it changes.
+
 ## Customizing
 
 On route 2, replace each `core/image` in the intent with the site's own media. Upload first, or find the existing attachment, then use its URL and ID:
