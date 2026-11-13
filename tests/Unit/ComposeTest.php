@@ -389,6 +389,59 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( [ 'Service 4 heading required' ], array_map( static fn ( array $row ): string => $row['slot'] . ' ' . $row['reason'], is_array( $refused ) ? $refused : [] ) );
 	}
 
+	/**
+	 * Each refused row as "slot reason".
+	 *
+	 * @param mixed $refused What fill_pattern() returned.
+	 * @return list<string>
+	 */
+	private static function refusals( mixed $refused ): array {
+		return array_map( static fn ( array $row ): string => $row['slot'] . ' ' . $row['reason'], is_array( $refused ) ? $refused : [] );
+	}
+
+	public function test_fill_pattern_refuses_an_omit_that_leaves_the_section_with_nothing_to_show(): void {
+		// The proof strip's facts layout holds one facts block in its Row.
+		// The facts block is no copy slot, so no copy rule makes it required:
+		// leaving it out, or the Row around it, would save an empty ruled band.
+		foreach ( [ 'Credentials', 'Row' ] as $label ) {
+			$blocks  = IntentBlocks::blocks( 'proof-strip-facts' );
+			$refused = Abilities\fill_pattern( $blocks, self::rules( 'proof-strip-facts' ), [], [ $label ], [] );
+
+			$this->assertSame( [ "{$label} required" ], self::refusals( $refused ), "proof-strip-facts, omit {$label}" );
+			$this->assertIsArray( $refused );
+			$this->assertSame( $label, $refused[0]['omitted'] ?? null );
+			$this->assertStringContainsString( 'nothing to show', $refused[0]['message'] ?? '' );
+		}
+
+		// Each figure can go as a whole item, and all three together leave the
+		// stats row empty. The refusal names the first one that took something.
+		$stats   = IntentBlocks::blocks( 'stats' );
+		$refused = Abilities\fill_pattern( $stats, self::rules( 'stats' ), [], [ 'Founded', 'Rating', 'Review count' ], [] );
+		$this->assertSame( [ 'Founded required' ], self::refusals( $refused ) );
+	}
+
+	public function test_an_omit_that_leaves_something_to_show_is_not_refused_as_empty(): void {
+		foreach (
+			[
+				[ 'stats', [ 'Review count' ] ],
+				[ 'stats', [ 'Founded', 'Rating' ] ],
+				[ 'proof-strip', [ 'Credential 4' ] ],
+				[ 'hero', [ 'Eyebrow', 'Primary button' ] ],
+				[ 'faq', [ 'Question 1', 'Question 2', 'Question 3' ] ],
+			] as [ $name, $omit ]
+		) {
+			$blocks = IntentBlocks::blocks( $name );
+			$this->assertSame( [], Abilities\fill_pattern( $blocks, self::rules( $name ), [], $omit, [] ), "{$name}, omit " . implode( ', ', $omit ) );
+		}
+
+		// A section a required slot already keeps whole is refused once, for that slot.
+		$strip = IntentBlocks::blocks( 'proof-strip' );
+		$this->assertSame(
+			[ 'Credential 1 required', 'Credential 2 required', 'Credential 3 required' ],
+			self::refusals( Abilities\fill_pattern( $strip, self::rules( 'proof-strip' ), [], [ 'Credentials' ], [] ) )
+		);
+	}
+
 	public function test_fill_pattern_returns_the_error_insert_returns_for_omit_or_repeat_it_cannot_apply(): void {
 		foreach (
 			[

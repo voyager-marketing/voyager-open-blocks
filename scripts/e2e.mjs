@@ -156,7 +156,9 @@
  *      the page, holding those three li, in order. With the credentials
  *      emptied it shows the block's own three stand-ins, and compose with
  *      dry_run names credentials in empty and warns no placeholder: on the
- *      bound list. Then it deletes the page and puts the credentials back.
+ *      bound list. insert and compose refuse omit "Credentials", and insert
+ *      omit "Row", as required, since the strip would show nothing. Then it
+ *      deletes the page and puts the credentials back.
  *  14. the contact details block: insert puts voyager-open/contact-details in
  *      a draft, bind ties its seven attributes to the seven Site Data keys,
  *      the fields are set to the values in tests/fixtures/site-data-keys.json
@@ -5359,6 +5361,56 @@ step(
 	`${ JSON.stringify(
 		stripFactsTrial.data.empty ?? stripFactsTrial.data.code
 	) }; ${ JSON.stringify( stripFactsPlaceholders ) }`
+);
+
+// The facts block is no copy slot, so no copy rule makes it required. Left
+// out, or with the Row around it, the strip would save as an empty ruled
+// band: insert and compose refuse that omit as required, with dry_run too.
+for ( const label of [ 'Credentials', 'Row' ] ) {
+	const emptied = await run( `${ ns }/insert`, {
+		post_id: stripFactsId,
+		item: stripFactsItem,
+		dry_run: true,
+		omit: [ label ],
+	} );
+	const emptiedRows = emptied.data.data?.refused || [];
+	step(
+		`insert refuses omit "${ label }" on voyager-open/proof-strip-facts as required, since nothing would be left to show`,
+		emptied.status === 400 &&
+			emptied.data.code === 'voyager_open_blocks_copy_rules' &&
+			emptiedRows.length === 1 &&
+			emptiedRows[ 0 ].slot === label &&
+			emptiedRows[ 0 ].reason === 'required' &&
+			emptiedRows[ 0 ].omitted === label,
+		emptied.data.message ||
+			emptied.data.code ||
+			`status ${ emptied.status }`
+	);
+}
+const emptiedCompose = await run( `${ ns }/compose`, {
+	title: `E2E proof strip facts omit ${ stamp }`,
+	sections: [
+		{
+			pattern: 'voyager-open/proof-strip',
+			layout: 'facts',
+			omit: [ 'Credentials' ],
+		},
+	],
+	dry_run: true,
+} );
+const emptiedComposeRows = emptiedCompose.data.refused || [];
+step(
+	'compose refuses the same omit on a facts layout section, and saves nothing',
+	emptiedCompose.status === 200 &&
+		emptiedCompose.data.saved === false &&
+		emptiedComposeRows.length === 1 &&
+		emptiedComposeRows[ 0 ].slot === 'Credentials' &&
+		emptiedComposeRows[ 0 ].reason === 'required',
+	JSON.stringify(
+		emptiedComposeRows.length
+			? emptiedComposeRows
+			: emptiedCompose.data.code
+	)
 );
 
 if ( stripFactsId ) {
