@@ -9,7 +9,7 @@
 		"collectedAt": "1970-01-01T00:00:00Z",
 		"collector": "fixture",
 		"collectorVersion": "scripts/lib/pack-blocks.mjs",
-		"sourceHash": "sha256:d3f0c96f1f8be28079f7621526f7bbe4db5c56b76b36995ca13267b05cb2533e",
+		"sourceHash": "sha256:15d0ddc27185c4bb7c309744a40eef65e2e274654dfc0c761670b20e57812345",
 		"partial": true
 	},
 	"warnings": [

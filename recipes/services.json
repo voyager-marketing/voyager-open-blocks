@@ -44,6 +44,16 @@
 			}
 		},
 		{
+			"pattern": "voyager-open/process-steps",
+			"layout": "list",
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "What happens once a visitor asks about any service, in a few words, such as How it works.",
+				"Step 1 heading": "The first thing a visitor does, numbered 1, such as 1. Get in touch. Number each step after it in order.",
+				"Step 1 text": "What the visitor does or tells the business, in one plain line. No reply time unless the site owner gave it."
+			}
+		},
+		{
 			"pattern": "voyager-open/closing-cta",
 			"layout": null,
 			"style": "inverted",

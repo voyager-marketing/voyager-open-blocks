@@ -29,6 +29,8 @@
  *   e. Paste: each pattern's registered markup, and the icon card from the
  *      demo gallery, through the editor's paste handler: the top-level blocks
  *      match and every block is valid.
+ *      The editor canvas holds the keyframes of every icon animation, which
+ *      the front end loads only where an icon uses one.
  *   f. The front end of the CTA band page carries no editor-only class or hint
  *      text, for a visitor or for the logged-in admin.
  *   g. Theme files: a template part that is only a file in the active theme,
@@ -417,6 +419,42 @@ function readHints( clientId ) {
 		inspector: inspector
 			? inspector.innerText.replace( /\s+/g, ' ' ).slice( 0, 600 )
 			: null,
+	};
+}
+
+/**
+ * The icon's animations, from its registered `animation` enum, and the
+ * keyframes the editor canvas's stylesheets hold for them.
+ *
+ * @return {{animations: string[], keyframes: string[]}} Both, sorted.
+ */
+function canvasIconKeyframes() {
+	const frame = document.querySelector( 'iframe[name="editor-canvas"]' );
+	const canvas = frame ? frame.contentDocument : document;
+	const keyframes = new Set();
+	const walk = ( rules ) => {
+		for ( const rule of rules ) {
+			if (
+				rule.type === window.CSSRule.KEYFRAMES_RULE &&
+				rule.name.startsWith( 'voyager-open-icon-' )
+			) {
+				keyframes.add( rule.name );
+			} else if ( rule.cssRules ) {
+				walk( rule.cssRules );
+			}
+		}
+	};
+	for ( const sheet of canvas.styleSheets ) {
+		try {
+			walk( sheet.cssRules );
+		} catch {}
+	}
+	const type = window.wp.blocks.getBlockType( 'voyager-open/icon' );
+	return {
+		animations: ( type?.attributes?.animation?.enum || [] )
+			.filter( ( name ) => name !== '' )
+			.sort(),
+		keyframes: [ ...keyframes ].sort(),
 	};
 }
 
@@ -1115,9 +1153,24 @@ async function checkPaste() {
 		item.name.startsWith( 'voyager-open/' )
 	);
 	expect(
-		'e the pack registers eleven patterns',
-		ours.length === 11,
+		'e the pack registers thirteen patterns',
+		ours.length === 13,
 		ours.map( ( item ) => item.name ).join( ', ' )
+	);
+
+	// Each animation's CSS loads on a page only where an icon uses it. The
+	// editor loads all of them, through the icon's editorStyle.
+	const iconKeyframes = await admin.evaluate( js( canvasIconKeyframes ) );
+	expect(
+		'e the editor canvas holds the keyframes of every icon animation',
+		iconKeyframes.animations.length === 7 &&
+			JSON.stringify( iconKeyframes.keyframes ) ===
+				JSON.stringify(
+					iconKeyframes.animations.map(
+						( name ) => `voyager-open-icon-${ name }`
+					)
+				),
+		iconKeyframes
 	);
 
 	const cases = [

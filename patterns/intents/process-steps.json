@@ -1,0 +1,246 @@
+{
+	"title": "Process steps",
+	"section": "process-steps",
+	"layout": "row",
+	"description": "What happens once a visitor gets in touch, in order: a section heading, an optional line of intro, and three numbered steps side by side at wide width, each a heading that starts with its number and one short line. On a phone the steps stack.",
+	"categories": [
+		"voyager-open",
+		"services"
+	],
+	"viewportWidth": 1280,
+	"keywords": [
+		"process",
+		"steps",
+		"how it works",
+		"what happens next",
+		"booking"
+	],
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: what the steps are, in a few words, such as How it works.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Intro": {
+			"purpose": "One line on where the steps lead, such as from the first call to the finished job. Leave it out when the heading says enough.",
+			"min": 20,
+			"max": 120,
+			"required": false,
+			"claim": false
+		},
+		"Step 1 heading": {
+			"purpose": "The step's h3: its number, a full stop and a space, then what happens, in a few words, such as 1. Get in touch. After repeat or omit, renumber every step's heading so the numbers count up from 1 in order.",
+			"min": 4,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Step 1 text": {
+			"purpose": "One plain line on what happens in this step, or what the customer does. No price, time or promise unless the site owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Step 2 heading": {
+			"purpose": "The step's h3: its number, a full stop and a space, then what happens, in a few words, such as 1. Get in touch. After repeat or omit, renumber every step's heading so the numbers count up from 1 in order.",
+			"min": 4,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Step 2 text": {
+			"purpose": "One plain line on what happens in this step, or what the customer does. No price, time or promise unless the site owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Step 3 heading": {
+			"purpose": "The step's h3: its number, a full stop and a space, then what happens, in a few words, such as 1. Get in touch. After repeat or omit, renumber every step's heading so the numbers count up from 1 in order.",
+			"min": 4,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Step 3 text": {
+			"purpose": "One plain line on what happens in this step, or what the customer does. No price, time or promise unless the site owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Process steps"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|40"
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Lead"
+							},
+							"align": "wide",
+							"layout": {
+								"type": "constrained",
+								"justifyContent": "left"
+							}
+						},
+						"children": [
+							{
+								"block": "core/heading",
+								"level": 2,
+								"text": "How it works",
+								"attrs": {
+									"metadata": {
+										"name": "Heading"
+									}
+								}
+							},
+							{
+								"block": "core/paragraph",
+								"text": "What happens from your first call to the finished job.",
+								"attrs": {
+									"metadata": {
+										"name": "Intro"
+									}
+								}
+							}
+						]
+					},
+					{
+						"block": "core/columns",
+						"attrs": {
+							"align": "wide",
+							"metadata": {
+								"name": "Steps"
+							},
+							"style": {
+								"spacing": {
+									"blockGap": {
+										"top": "var:preset|spacing|40",
+										"left": "var:preset|spacing|60"
+									}
+								}
+							}
+						},
+						"children": [
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Step 1"
+									}
+								},
+								"children": [
+									{
+										"block": "core/heading",
+										"level": 3,
+										"text": "1. Get in touch",
+										"attrs": {
+											"metadata": {
+												"name": "Step 1 heading"
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Call or send a message, and tell us about the job.",
+										"attrs": {
+											"metadata": {
+												"name": "Step 1 text"
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Step 2"
+									}
+								},
+								"children": [
+									{
+										"block": "core/heading",
+										"level": 3,
+										"text": "2. We visit and quote",
+										"attrs": {
+											"metadata": {
+												"name": "Step 2 heading"
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "We look at the job, then send you a quote for the work.",
+										"attrs": {
+											"metadata": {
+												"name": "Step 2 text"
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Step 3"
+									}
+								},
+								"children": [
+									{
+										"block": "core/heading",
+										"level": 3,
+										"text": "3. We do the work",
+										"attrs": {
+											"metadata": {
+												"name": "Step 3 heading"
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Once you say yes, we agree a time and carry out the work.",
+										"attrs": {
+											"metadata": {
+												"name": "Step 3 text"
+											}
+										}
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}
