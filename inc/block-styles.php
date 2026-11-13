@@ -13,12 +13,15 @@
  *   itself, hidden from screen readers and inert, so the loop has no visible
  *   join; the stored page holds each logo once. Still under reduced motion,
  *   and paused on hover and focus.
+ * - core/details "Question": one question of an FAQ. Its summary is a tap
+ *   target at least 44px tall, and a 1px rule sits above each question and
+ *   below the last.
  * - The `voyager-open-reveal` class: a block fades and lifts into place as it
  *   enters the viewport, in CSS alone, and only with motion on in a browser
  *   with scroll-driven animations. Its stylesheet loads only on a page that
  *   renders a block carrying the class.
  *
- * Colours come from currentColor, so both styles follow the theme.
+ * Colours come from currentColor, so every style follows the theme.
  *
  * @package VoyagerOpenBlocks
  */
@@ -119,6 +122,27 @@ function marquee_css(): string {
 		. '@keyframes voyager-open-marquee{from{transform:translateX(0)}to{transform:translateX(calc(var(--voyager-open-marquee-way,-1) * clamp(0px,(100% - 100cqw) * 10000000,100%)))}}'
 		. '@media (prefers-reduced-motion:reduce){' . $still( $group ) . '}'
 		. $still( $group . ':not(:has(>.' . MARQUEE_COPY_CLASS . '))' );
+}
+
+/**
+ * The Question rules.
+ *
+ * WordPress 7.1 styles a details block's summary with `cursor: pointer` and
+ * nothing else (wp-includes/blocks/details/style.css), so its height is one
+ * line of the theme's body text, under 44px on the themes the design checks
+ * run. A minimum height with the box sized from its border, and half a line
+ * of padding above and below, make it a 44px tap target on any theme without
+ * changing the theme's type. The rules take the text colour, as every rule in
+ * the pack does, so they follow the section style. An open question keeps a
+ * little room under its answer, above the next rule.
+ */
+function question_css(): string {
+	$details = '.wp-block-details.is-style-voyager-open-question';
+
+	return $details . '{border-block-start:1px solid}'
+		. $details . ':last-child{border-block-end:1px solid}'
+		. $details . '[open]{padding-block-end:.5em}'
+		. $details . '>summary{box-sizing:border-box;min-height:44px;padding-block:.5em}';
 }
 
 /**
@@ -293,6 +317,15 @@ function register(): void {
 			'name'         => 'voyager-open-marquee',
 			'label'        => __( 'Marquee', 'voyager-open-blocks' ),
 			'inline_style' => marquee_css(),
+		]
+	);
+
+	register_block_style(
+		'core/details',
+		[
+			'name'         => 'voyager-open-question',
+			'label'        => __( 'Question', 'voyager-open-blocks' ),
+			'inline_style' => question_css(),
 		]
 	);
 }

@@ -1,0 +1,145 @@
+{
+	"business": "The Saltglass Inn is a twelve-room inn on the harbor road in Wrenmouth, a seaside town. Mira and Joe Calloway run it for couples, families and people traveling with a dog, and host small family gatherings in its garden. They gave the four facts on the proof strip: each of the twelve rooms has its own bath, breakfast is cooked to order, dogs are welcome in four rooms, and parking on site is free. They also gave three reviews from guests who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0174, its email, hello@saltglass-inn.example.com, and the three figures in its stats row (founded in 2006, an average rating of 4.8, and 241 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"compose": {
+		"title": "Home",
+		"sections": [
+			{
+				"pattern": "voyager-open/hero",
+				"layout": "split",
+				"style": "plain",
+				"copy": {
+					"Eyebrow": "Seaside inn in Wrenmouth",
+					"Heading": "A quiet stay by the harbor in Wrenmouth",
+					"Body": "Tell us the dates you want, and we will tell you which rooms are free.",
+					"Primary button": "Check availability"
+				}
+			},
+			{
+				"pattern": "voyager-open/proof-strip",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Credential 1": {
+						"text": "Twelve rooms, each with its own bath",
+						"source": "user"
+					},
+					"Credential 2": {
+						"text": "Breakfast cooked to order",
+						"source": "user"
+					},
+					"Credential 3": {
+						"text": "Dogs welcome in four rooms",
+						"source": "user"
+					},
+					"Credential 4": {
+						"text": "Free parking on site",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/services",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "Stay, eat and gather",
+					"Intro": "A small inn on the harbor road, a short walk from the beach and the old town.",
+					"Service 1 heading": "Harbor rooms",
+					"Service 1 text": "Rooms at the front of the house, with a window seat and a view of the boats.",
+					"Service 2 heading": "Breakfast",
+					"Service 2 text": "Eggs, fresh bread and fruit, served in the front room each morning.",
+					"Service 3 heading": "Small gatherings",
+					"Service 3 text": "Birthdays and family weekends, with the garden and the front room to yourselves."
+				}
+			},
+			{
+				"pattern": "voyager-open/cta-band",
+				"layout": null,
+				"style": "accent",
+				"copy": {
+					"Eyebrow": "Planning a trip?",
+					"Heading": "Find a room for your dates",
+					"Body": "Send us your dates, and we will reply with the rooms that are free.",
+					"Primary button": "Check availability"
+				}
+			},
+			{
+				"pattern": "voyager-open/reviews",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "What guests say",
+					"Review 1 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 1 quote": {
+						"text": "We woke up to the boats coming in. Breakfast alone was worth the trip.",
+						"source": "user"
+					},
+					"Review 1 name": {
+						"text": "Claire D.",
+						"source": "user"
+					},
+					"Review 1 detail": {
+						"text": "Harbor room",
+						"source": "user"
+					},
+					"Review 2 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 2 quote": {
+						"text": "Our dog was as welcome as we were. Mira had a bowl of water waiting.",
+						"source": "user"
+					},
+					"Review 2 name": {
+						"text": "Owen F.",
+						"source": "user"
+					},
+					"Review 2 detail": {
+						"text": "Dog-friendly room",
+						"source": "user"
+					},
+					"Review 3 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 3 quote": {
+						"text": "We had the garden for my mother's seventieth. Joe made it easy from start to end.",
+						"source": "user"
+					},
+					"Review 3 name": {
+						"text": "Sofia R.",
+						"source": "user"
+					},
+					"Review 3 detail": {
+						"text": "Family weekend",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/stats",
+				"layout": "row",
+				"style": "panel",
+				"copy": {
+					"Founded label": "Welcoming guests since",
+					"Rating label": "Average guest rating",
+					"Review count label": "Guest reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/closing-cta",
+				"layout": null,
+				"style": "inverted",
+				"copy": {
+					"Heading": "Come and stay by the harbor",
+					"Body": "Call or email us with your dates, and we will reply with what is free.",
+					"Primary button": "Check availability",
+					"Email button": "Email us"
+				}
+			}
+		]
+	}
+}

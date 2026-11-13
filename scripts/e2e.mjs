@@ -42,6 +42,18 @@
  *      readers and one name, "Rated 5 out of 5"; a fourth card through
  *      repeat with a four-star review through omit, and the single quote,
  *      each filled by copy and passing both validators with no warning),
+ *      the process steps section's two layouts (listed with their section,
+ *      layout and copy labels; the row with a fourth step through repeat and
+ *      with one step dropped through omit, the list with five steps through
+ *      repeat, each renumbered through copy, each on a draft of its own and
+ *      passing both validators with no warning; omit of one step's heading
+ *      refused as required),
+ *      the FAQ's two layouts (listed with their copy labels, each question
+ *      a details block; the list with copy for "Question 1" and its answer,
+ *      a fourth question through repeat and the second dropped through omit,
+ *      the new summaries read back from the saved page; the split layout
+ *      filled by copy; omit of an answer without its question refused as
+ *      required; each passing both validators with no warning),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
  *      hero and the CTA band; insert refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
@@ -68,9 +80,20 @@
  *      it is blank; a 61-character heading with a claim given as a plain
  *      string, and two adjacent Accent sections with copy for a bound slot,
  *      are each refused with every fault and save nothing; a published page,
- *      a recipe, both post_id and title, and an unknown layout are refused; a
- *      dry run creates no post; and undo reverses a compose save byte for
- *      byte, on an existing draft and on a new one,
+ *      a recipe with sections, an unknown recipe, both post_id and title, and
+ *      an unknown layout are refused; a dry run creates no post; and undo
+ *      reverses a compose save byte for byte, on an existing draft and on a
+ *      new one. Then the page recipes: get-catalog lists every file in
+ *      recipes/ as it holds it, compose with the home recipe's slug saves a
+ *      draft whose top-level blocks are that recipe's sections in order, each
+ *      the pattern its section and layout name, as insert places it with no
+ *      copy, with its style class and no other, and validate passes it; and
+ *      a dry run of each recipe get-catalog lists is refused nothing,
+ *  6d. the copy examples in skills/voyager-open-blocks/examples/, a home page
+ *      for each of five kinds of business: each file's compose input, run with
+ *      dry_run, returns refused [] and a valid validation, and the same input
+ *      with each claim given as a plain string is refused, every claim slot
+ *      with reason claim and nothing else,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
  *      binds its link to Site Data, then checks it resolves and validates,
@@ -117,7 +140,19 @@
  *      <style> whose id does) and no keyframes, and a page holding one pulse
  *      icon loads the base and the pulse keyframes, no other animation's, and
  *      the reduced-motion rule that stops it. Then it deletes both pages.
- *  16. the service area section: get-catalog lists its two layouts, each
+ *  16. the stats section: get-catalog lists voyager-open/stats and
+ *      voyager-open/stats-band with their copy labels, each value bound to
+ *      founded, rating or review_count. The year founded, the rating and the
+ *      review count are set to 1998, 4.80 and 0127 through POST
+ *      /wp/v2/settings, and a published page holding voyager-open/stats
+ *      shows 1998, 4.8 and 127 in its section, in that order. The page counts
+ *      in used_on for the rating, changing the rating records a purge with
+ *      the page, and with the rating emptied its figure shows its own text
+ *      and compose with dry_run names rating in empty.
+ *      insert refuses copy for a value as a bound slot and omit of a value
+ *      alone, and leaves a whole figure out with omit. Then it deletes the
+ *      page and puts the three fields back.
+ *  17. the service area section: get-catalog lists its two layouts, each
  *      with its copy labels and one facts block, "Places", whose items are
  *      bound to service_area. insert places the list layout on a draft with
  *      copy for its heading, the service area is set to three lines through
@@ -133,11 +168,19 @@
  * `wp user application-password create admin e2e --porcelain`.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { parse } from '@wordpress/block-serialization-default-parser';
 
 import { flags, repo } from './lib/site.mjs';
 
@@ -1460,8 +1503,8 @@ const cardsIn = ( markup ) =>
 	).length;
 
 /**
- * Insert a services or reviews layout on a draft of its own, and validate it
- * both ways.
+ * Insert a services, reviews or process steps layout on a draft of its own,
+ * and validate it both ways.
  *
  * @param {string} label What the step checks.
  * @param {Object} input insert's input, less post_id.
@@ -1818,6 +1861,335 @@ step(
 	clean( oneReview.report ) &&
 		( oneReview.report.data.warnings || [] ).length === 0,
 	warningSummary( oneReview.report )
+);
+
+// The process steps section in its two layouts: "row", a core/columns with
+// one column per step, and "list", one group per step. Each step is a block
+// labelled "Step <n>" holding "Step <n> heading", an h3 that starts with the
+// step's number, and "Step <n> text". repeat copies a whole step, so the row
+// gains a column, and omit drops one. The number is in the heading's text,
+// so copy renumbers the headings after either.
+const stepLabels = ( count ) => [
+	'Heading',
+	'Intro',
+	...Array.from( { length: count }, ( _, i ) => [
+		`Step ${ i + 1 } heading`,
+		`Step ${ i + 1 } text`,
+	] ).flat(),
+];
+for ( const [ item, layout ] of [
+	[ 'voyager-open/process-steps', 'row' ],
+	[ 'voyager-open/process-steps-list', 'list' ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } as the process steps section's ${ layout } layout, with its copy labels and a copy rule for each`,
+		listed?.section === 'process-steps' &&
+			listed?.layout === layout &&
+			JSON.stringify( labels ) === JSON.stringify( stepLabels( 3 ) ) &&
+			JSON.stringify( Object.keys( listed?.copy_rules || {} ).sort() ) ===
+				JSON.stringify( [ ...stepLabels( 3 ) ].sort() ),
+		listed
+			? `${ listed.section } ${ listed.layout }: ${ labels.join( ', ' ) }`
+			: 'not listed'
+	);
+}
+
+const processSteps = [
+	[ 'Book a visit', 'Call or write, and we find a time that suits you.' ],
+	[
+		'We look at the job',
+		'We see the work for ourselves and answer questions.',
+	],
+	[
+		'You get a quote',
+		'A written price for the work, for you to think over.',
+	],
+	[
+		'We do the work',
+		'On the day we agreed, and we tidy up after ourselves.',
+	],
+	[
+		'We check it with you',
+		'We walk you through the finished work before we go.',
+	],
+];
+// Copy for the steps kept, in order, each heading numbered for its place.
+const stepCopy = ( labels ) =>
+	Object.fromEntries( [
+		[ 'Heading', 'How a job goes' ],
+		...labels.flatMap( ( label, i ) => [
+			[ `${ label } heading`, `${ i + 1 }. ${ processSteps[ i ][ 0 ] }` ],
+			[ `${ label } text`, processSteps[ i ][ 1 ] ],
+		] ),
+	] );
+const numberedAs = ( count ) =>
+	processSteps.slice( 0, count ).map( ( [ t ], i ) => `${ i + 1 }. ${ t }` );
+const columnsIn = ( markup ) =>
+	(
+		markup.match( /<!-- wp:column \{"metadata":\{"name":"Step \d+"\}/g ) ||
+		[]
+	).length;
+
+// The row with a fourth step: repeat copies "Step 3", column and all, as
+// "Step 4", and copy fills and numbers all four.
+const fourSteps = await insertServices( 'process steps with a fourth step', {
+	item: 'voyager-open/process-steps',
+	repeat: { 'Step 3': [ 'Step 4' ] },
+	copy: stepCopy( [ 'Step 1', 'Step 2', 'Step 3', 'Step 4' ] ),
+} );
+const fourStepsMarkup = fourSteps.placed.data.markup || '';
+const fourStepsLabels = ( fourSteps.placed.data.blocks || [] ).map(
+	( b ) => b.label
+);
+step(
+	'insert process steps with a fourth step through repeat: four columns, each a step named for its number, the headings numbered 1 to 4 by copy',
+	fourSteps.placed.status === 200 &&
+		fourSteps.placed.data.saved === true &&
+		fourSteps.placed.data.validation?.round_trip === true &&
+		columnsIn( fourStepsMarkup ) === 4 &&
+		JSON.stringify( headingsIn( fourStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 4 ) ) &&
+		fourStepsMarkup.includes( `<p>${ processSteps[ 3 ][ 1 ] }</p>` ) &&
+		! fourStepsMarkup.includes( 'Once you say yes' ) &&
+		[ 'Step 4', 'Step 4 heading', 'Step 4 text' ].every( ( name ) =>
+			fourStepsLabels.includes( name )
+		),
+	fourSteps.placed.data.code ||
+		`${ headingsIn( fourStepsMarkup ).join( ' | ' ) }; ${ columnsIn(
+			fourStepsMarkup
+		) } columns`
+);
+step(
+	'validate passes the page with four process steps, with no warning',
+	clean( fourSteps.report ) &&
+		( fourSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( fourSteps.report )
+);
+
+// The row with the second step dropped: omit removes "Step 2" and its
+// blocks, and copy numbers the two left 1 and 2, though the second keeps
+// its label, "Step 3".
+const twoSteps = await insertServices( 'process steps with a step omitted', {
+	item: 'voyager-open/process-steps',
+	omit: [ 'Step 2' ],
+	copy: stepCopy( [ 'Step 1', 'Step 3' ] ),
+} );
+const twoStepsMarkup = twoSteps.placed.data.markup || '';
+step(
+	'insert process steps with one step dropped through omit: two columns, nothing of the second step, the headings renumbered 1 and 2 by copy',
+	twoSteps.placed.status === 200 &&
+		twoSteps.placed.data.saved === true &&
+		columnsIn( twoStepsMarkup ) === 2 &&
+		JSON.stringify( headingsIn( twoStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 2 ) ) &&
+		! twoStepsMarkup.includes( '"Step 2' ) &&
+		! twoStepsMarkup.includes( 'We visit and quote' ),
+	twoSteps.placed.data.code || headingsIn( twoStepsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with two process steps, with no warning',
+	clean( twoSteps.report ) &&
+		( twoSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( twoSteps.report )
+);
+
+// The list with five steps: two copies of the third, numbered by copy.
+const fiveSteps = await insertServices( 'process steps list with five steps', {
+	item: 'voyager-open/process-steps-list',
+	repeat: { 'Step 3': [ 'Step 4', 'Step 5' ] },
+	copy: stepCopy( [ 'Step 1', 'Step 2', 'Step 3', 'Step 4', 'Step 5' ] ),
+} );
+const fiveStepsMarkup = fiveSteps.placed.data.markup || '';
+step(
+	'insert the process steps list with five steps through repeat, the headings numbered 1 to 5 by copy',
+	fiveSteps.placed.status === 200 &&
+		fiveSteps.placed.data.saved === true &&
+		JSON.stringify( headingsIn( fiveStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 5 ) ) &&
+		! fiveStepsMarkup.includes( '<!-- wp:columns' ),
+	fiveSteps.placed.data.code || headingsIn( fiveStepsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with five process steps in a list, with no warning',
+	clean( fiveSteps.report ) &&
+		( fiveSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( fiveSteps.report )
+);
+
+// A step's heading is required: omit takes a whole step, never its heading alone.
+const stepHeadingOmitted = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/process-steps',
+	dry_run: true,
+	omit: [ 'Step 2 heading' ],
+} );
+step(
+	'insert refuses omit of "Step 2 heading" alone with reason required, and takes "Step 2" whole',
+	stepHeadingOmitted.status === 400 &&
+		stepHeadingOmitted.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify(
+			( stepHeadingOmitted.data.data?.refused || [] ).map(
+				( r ) => `${ r.slot } ${ r.reason }`
+			)
+		) === JSON.stringify( [ 'Step 2 heading required' ] ) &&
+		twoSteps.placed.data.saved === true,
+	stepHeadingOmitted.data.code || `status ${ stepHeadingOmitted.status }`
+);
+
+// The FAQ in its two layouts. Each question is a core/details block labelled
+// "Question <n>" whose summary is the question, holding its answer, a
+// paragraph labelled "Question <n> answer". So copy writes the summary,
+// repeat adds a question with its answer, and omit drops one with its answer.
+const faqLabels = ( numbers ) => [
+	'Heading',
+	'Intro',
+	...numbers.flatMap( ( n ) => [
+		`Question ${ n }`,
+		`Question ${ n } answer`,
+	] ),
+];
+for ( const [ item, layout ] of [
+	[ 'voyager-open/faq', 'list' ],
+	[ 'voyager-open/faq-split', 'split' ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } (section "faq", layout "${ layout }") with Question 1 to Question 3 and their answers as copy labels`,
+		listed?.section === 'faq' &&
+			listed?.layout === layout &&
+			JSON.stringify( labels ) ===
+				JSON.stringify( faqLabels( [ 1, 2, 3 ] ) ) &&
+			( listed?.blocks || [] )
+				.filter( ( b ) => /^Question \d$/.test( b.label || '' ) )
+				.every( ( b ) => b.block === 'core/details' && b.copy ),
+		listed ? labels.join( ', ' ) : 'not listed'
+	);
+}
+
+const faqCopy = {
+	Heading: 'Questions about our plumbing',
+	'Question 1': 'Do you work on weekends?',
+	'Question 1 answer':
+		'E2E answer 1: the words the site owner gave for weekend work.',
+	'Question 3': 'Can I be there while you work?',
+	'Question 3 answer': 'E2E answer 3: the words the site owner gave.',
+	'Question 4': 'Do you clean up afterwards?',
+	'Question 4 answer': 'E2E answer 4: the words the site owner gave.',
+};
+// The summaries a page holds, in order, and its details blocks.
+const summariesIn = ( markup ) =>
+	[ ...markup.matchAll( /<summary>([^<]*)<\/summary>/g ) ].map(
+		( m ) => m[ 1 ]
+	);
+const detailsIn = ( markup ) =>
+	( markup.match( /<!-- wp:details /g ) || [] ).length;
+
+// The fitness check: copy for Question 1 and its answer, a fourth question
+// through repeat, the second dropped through omit, and the new summary read
+// back from the saved page.
+const faq = await insertServices(
+	'faq with a fourth question and one dropped',
+	{
+		item: 'voyager-open/faq',
+		repeat: { 'Question 3': [ 'Question 4' ] },
+		omit: [ 'Question 2' ],
+		copy: faqCopy,
+	}
+);
+const faqSaved =
+	(
+		await api( `/wp/v2/pages/${ faq.postId }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw ?? '';
+validate( 'faq as the page saved it', faqSaved );
+const faqBlocks = ( faq.placed.data.blocks || [] ).map( ( b ) => b.label );
+step(
+	'fitness: insert voyager-open/faq with copy for "Question 1" and "Question 1 answer", a fourth question through repeat and the second dropped through omit; the saved page holds the new summaries in order and none of the second',
+	faq.placed.status === 200 &&
+		faq.placed.data.saved === true &&
+		faq.placed.data.validation?.round_trip === true &&
+		detailsIn( faqSaved ) === 3 &&
+		JSON.stringify( summariesIn( faqSaved ) ) ===
+			JSON.stringify( [
+				faqCopy[ 'Question 1' ],
+				faqCopy[ 'Question 3' ],
+				faqCopy[ 'Question 4' ],
+			] ) &&
+		faqSaved.includes( `<p>${ faqCopy[ 'Question 1 answer' ] }</p>` ) &&
+		faqSaved.includes( `<p>${ faqCopy[ 'Question 4 answer' ] }</p>` ) &&
+		! faqSaved.includes( 'Do you charge for a quote?' ) &&
+		! faqSaved.includes( 'Question 2' ) &&
+		[ 'Question 4', 'Question 4 answer' ].every( ( name ) =>
+			faqBlocks.includes( name )
+		),
+	faq.placed.data.code ||
+		`${ detailsIn( faqSaved ) } questions: ${ summariesIn( faqSaved ).join(
+			' | '
+		) }`
+);
+step(
+	'validate passes the page with the FAQ, with no warning',
+	clean( faq.report ) && ( faq.report.data.warnings || [] ).length === 0,
+	warningSummary( faq.report )
+);
+
+// The split layout, filled by copy: the heading column beside the questions.
+const faqSplit = await insertServices( 'faq beside its heading', {
+	item: 'voyager-open/faq-split',
+	copy: {
+		Heading: 'Questions about our plumbing',
+		'Question 2': 'Do you give a written quote?',
+		'Question 2 answer': 'E2E answer 2: the words the site owner gave.',
+	},
+} );
+const faqSplitMarkup = faqSplit.placed.data.markup || '';
+step(
+	'insert the FAQ beside its heading, filled by copy: one row of two columns, the heading first, three questions',
+	faqSplit.placed.status === 200 &&
+		faqSplit.placed.data.saved === true &&
+		( faqSplitMarkup.match( /<!-- wp:column[ {]/g ) || [] ).length === 2 &&
+		faqSplitMarkup.indexOf( 'Questions about our plumbing' ) <
+			faqSplitMarkup.indexOf( '<summary>' ) &&
+		detailsIn( faqSplitMarkup ) === 3 &&
+		summariesIn( faqSplitMarkup )[ 1 ] === 'Do you give a written quote?',
+	faqSplit.placed.data.code || summariesIn( faqSplitMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with the FAQ beside its heading, with no warning',
+	clean( faqSplit.report ) &&
+		( faqSplit.report.data.warnings || [] ).length === 0,
+	warningSummary( faqSplit.report )
+);
+
+// A question may be left out with its answer, never its answer alone.
+const answerAlone = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/faq',
+	dry_run: true,
+	omit: [ 'Question 2 answer' ],
+} );
+step(
+	'insert refuses omit of an answer without its question, as required',
+	answerAlone.status === 400 &&
+		answerAlone.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify(
+			( answerAlone.data.data?.refused || [] ).map(
+				( r ) => `${ r.slot } ${ r.reason }`
+			)
+		) === JSON.stringify( [ 'Question 2 answer required' ] ),
+	answerAlone.data.message || answerAlone.data.code
 );
 
 // Copy rules (contract 3). get-catalog gives each pattern its section, its
@@ -2926,8 +3298,10 @@ step(
 		);
 	}
 
-	// Input compose refuses outright: a page that is not a draft, a recipe,
-	// both post_id and title, and a layout no intent of the section carries.
+	// Input compose refuses outright: a page that is not a draft, a recipe
+	// with sections, a recipe slug get-catalog does not list (refused by the
+	// input schema's enum, before compose runs), both post_id and title, and
+	// a layout no intent of the section carries.
 	const live = await api( '/wp/v2/pages', {
 		method: 'POST',
 		body: {
@@ -2955,10 +3329,23 @@ step(
 
 	const refusedInputs = [
 		[
-			'a recipe',
-			{ title: `E2E: compose recipe ${ stamp }`, recipe: 'home' },
+			'a recipe and sections together',
+			{
+				title: `E2E: compose recipe and sections ${ stamp }`,
+				recipe: 'home',
+				sections,
+			},
 			'voyager_open_blocks_invalid_recipe',
-			'recipes arrive in a later release',
+			'not both',
+		],
+		[
+			'a recipe slug that names no recipe',
+			{
+				title: `E2E: compose unknown recipe ${ stamp }`,
+				recipe: 'no-such-recipe',
+			},
+			'ability_invalid_input',
+			'input[recipe] is not one of',
 		],
 		[
 			'both post_id and title',
@@ -3071,12 +3458,385 @@ step(
 		undoNew.data.message || `restored revision ${ undoNew.data.restored }`
 	);
 
+	// Page recipes (contract 5): get-catalog lists every file in recipes/ as
+	// it holds it, with its slug, and compose with a recipe's slug builds the
+	// recipe's sections in order, each in its layout and style, with each
+	// pattern's own text. Each section's pattern is found from get-catalog's
+	// patterns, by the section and layout they list, not by compose's own
+	// resolver.
+	const canonical = ( value ) =>
+		JSON.stringify( value, ( key, item ) =>
+			item && typeof item === 'object' && ! Array.isArray( item )
+				? Object.fromEntries(
+						Object.entries( item ).sort( ( [ a ], [ b ] ) =>
+							a < b ? -1 : 1
+						)
+					)
+				: item
+		);
+	const recipeFiles = readdirSync( join( repo, 'recipes' ) )
+		.filter( ( file ) => file.endsWith( '.json' ) )
+		.sort();
+	const recipeOf = ( file ) =>
+		JSON.parse( readFileSync( join( repo, 'recipes', file ), 'utf8' ) );
+	const listedRecipes = Array.isArray( catalog.data.recipes )
+		? catalog.data.recipes
+		: [];
+	const unlike = recipeFiles.filter( ( file, index ) => {
+		const { slug, ...listed } = listedRecipes[ index ] || {};
+		return (
+			slug !== file.replace( /\.json$/, '' ) ||
+			canonical( listed ) !== canonical( recipeOf( file ) )
+		);
+	} );
+	step(
+		'get-catalog lists every recipe in recipes/, six of them, each with its slug and its title, description, page_type and sections as its file holds them',
+		recipeFiles.length === 6 &&
+			listedRecipes.length === recipeFiles.length &&
+			unlike.length === 0,
+		catalog.data.recipes
+			? `listed ${ listedRecipes
+					.map( ( r ) => r.slug )
+					.join( ', ' ) }; listed unlike the file: ${
+					unlike.join( ', ' ) || 'none'
+				}`
+			: `no recipes key; get-catalog returned ${ Object.keys(
+					catalog.data
+				).join( ', ' ) }`
+	);
+
+	const styleClass = /^is-style-voyager-open-(panel|inverted|accent)$/;
+	const tokens = ( classes ) =>
+		String( classes || '' )
+			.split( /\s+/ )
+			.filter( Boolean );
+	const styleTokens = ( classes ) =>
+		tokens( classes ).filter( ( c ) => styleClass.test( c ) );
+	const otherTokens = ( classes ) =>
+		tokens( classes )
+			.filter( ( c ) => ! styleClass.test( c ) )
+			.join( ' ' );
+	const wrapperClass = ( chunk ) =>
+		/^\s*<[a-z][a-z0-9-]*\b[^>]*?\bclass="([^"]*)"/i.exec(
+			typeof chunk === 'string' ? chunk : ''
+		)?.[ 1 ] ?? '';
+	const withoutClassName = ( attrs ) => {
+		const { className, ...rest } = attrs || {};
+		return rest;
+	};
+	const topLevel = ( markup ) =>
+		parse( markup || '' ).filter( ( block ) => block.blockName );
+	const patternFor = ( section ) =>
+		( catalog.data.patterns || [] ).find( ( p ) =>
+			section.layout === null || section.layout === undefined
+				? p.name === section.pattern
+				: `voyager-open/${ p.section }` === section.pattern &&
+					p.layout === section.layout
+		)?.name ?? null;
+	// Each saved top-level block against what insert places for its
+	// section's pattern with no copy: the same block, attributes, inner
+	// blocks and HTML, but for the section style class on the block and on
+	// its wrapper, which must be the recipe's style and nothing else.
+	const sectionMismatches = ( top, expected ) => {
+		const out = [];
+		if ( top.length !== expected.length ) {
+			out.push(
+				`${ top.length } top-level blocks for ${ expected.length } sections`
+			);
+		}
+		expected.forEach( ( want, index ) => {
+			const got = top[ index ];
+			const ship = want.blocks[ 0 ];
+			const at = `section ${ index } (${ want.name }, ${ want.style })`;
+			if ( ! got || ! ship ) {
+				out.push( `${ at }: missing` );
+				return;
+			}
+			const style =
+				want.style === 'plain'
+					? '[]'
+					: JSON.stringify( [
+							`is-style-voyager-open-${ want.style }`,
+						] );
+			const wrapper = wrapperClass( got.innerContent?.[ 0 ] );
+			if (
+				JSON.stringify( styleTokens( got.attrs?.className ) ) !== style
+			) {
+				out.push(
+					`${ at }: its comment's className is "${
+						got.attrs?.className ?? ''
+					}"`
+				);
+			}
+			if ( JSON.stringify( styleTokens( wrapper ) ) !== style ) {
+				out.push( `${ at }: its wrapper's class is "${ wrapper }"` );
+			}
+			if (
+				got.blockName !== ship.blockName ||
+				otherTokens( got.attrs?.className ) !==
+					otherTokens( ship.attrs?.className ) ||
+				otherTokens( wrapper ) !==
+					otherTokens( wrapperClass( ship.innerContent?.[ 0 ] ) ) ||
+				canonical( withoutClassName( got.attrs ) ) !==
+					canonical( withoutClassName( ship.attrs ) ) ||
+				canonical( got.innerBlocks ) !==
+					canonical( ship.innerBlocks ) ||
+				canonical( ( got.innerContent || [] ).slice( 1 ) ) !==
+					canonical( ( ship.innerContent || [] ).slice( 1 ) )
+			) {
+				out.push(
+					`${ at }: is ${ got.blockName } "${
+						got.attrs?.metadata?.name ?? ''
+					}", not the pattern as insert places it`
+				);
+			}
+		} );
+		return out;
+	};
+
+	// The fitness check: compose with title and recipe "home".
+	const home = recipeOf( 'home.json' );
+	const recipeTitle = `E2E: compose from the home recipe ${ stamp }`;
+	const fromRecipe = await run( composeAbility, {
+		title: recipeTitle,
+		recipe: 'home',
+	} );
+	const recipeId = Number.isInteger( fromRecipe.data.post_id )
+		? fromRecipe.data.post_id
+		: 0;
+	if ( recipeId ) {
+		created.push( recipeId );
+	}
+	const recipePage = recipeId
+		? await api( `/wp/v2/pages/${ recipeId }`, {
+				query: { context: 'edit' },
+			} )
+		: { data: {} };
+	const recipeRaw = recipePage.data.content?.raw || '';
+	const recipeReport = recipeId
+		? await checkMarkup( { post_id: recipeId } )
+		: { status: 0, data: {} };
+	const expectedTop = [];
+	for ( const section of home.sections ) {
+		const name = patternFor( section );
+		const shipped =
+			name && recipeId
+				? await run( `${ ns }/insert`, {
+						post_id: recipeId,
+						item: name,
+						dry_run: true,
+					} )
+				: { data: {} };
+		expectedTop.push( {
+			name,
+			style: section.style,
+			blocks: topLevel( shipped.data.markup ),
+		} );
+	}
+	const recipeProblems = sectionMismatches(
+		topLevel( recipeRaw ),
+		expectedTop
+	);
+	step(
+		'fitness: compose with title and recipe "home" saves a draft page whose top-level blocks are recipes/home.json\'s sections in order, each the pattern its section and layout name, as insert places it with no copy, with its style class and no other, and validate on the saved page reports no error',
+		fromRecipe.status === 200 &&
+			fromRecipe.data.saved === true &&
+			!! recipeId &&
+			recipePage.data.status === 'draft' &&
+			recipePage.data.type === 'page' &&
+			recipePage.data.title?.raw === recipeTitle &&
+			Number.isInteger( fromRecipe.data.revision_id ) &&
+			JSON.stringify( fromRecipe.data.refused ) === '[]' &&
+			fromRecipe.data.validation?.valid === true &&
+			home.sections.length > 0 &&
+			expectedTop.every(
+				( want ) => want.name && want.blocks.length === 1
+			) &&
+			recipeProblems.length === 0 &&
+			clean( recipeReport ),
+		`${ composeSummary( fromRecipe ) }; ${
+			recipeProblems.join( '; ' ) || 'every section matches'
+		}; validate: ${ warningSummary( recipeReport ) }`
+	);
+	validate( 'compose from the home recipe', recipeRaw );
+
+	// Every recipe get-catalog lists builds: a dry run of each is refused
+	// nothing, validates and creates no post.
+	const recipeTrials = [];
+	for ( const recipe of listedRecipes ) {
+		const recipeTrialTitle = `E2E: compose recipe ${ recipe.slug } ${ stamp }`;
+		const tried = await run( composeAbility, {
+			title: recipeTrialTitle,
+			recipe: recipe.slug,
+			dry_run: true,
+		} );
+		recipeTrials.push( {
+			slug: recipe.slug,
+			ok:
+				tried.status === 200 &&
+				tried.data.saved === false &&
+				tried.data.post_id === null &&
+				JSON.stringify( tried.data.refused ) === '[]' &&
+				tried.data.validation?.valid === true &&
+				( tried.data.validation?.errors || [] ).length === 0 &&
+				( await titled( recipeTrialTitle ) ).length === 0,
+			summary: composeSummary( tried ),
+		} );
+	}
+	step(
+		'compose with dry_run builds each of the six recipes get-catalog lists: nothing refused, valid with no error, and no post',
+		recipeTrials.length === 6 && recipeTrials.every( ( t ) => t.ok ),
+		recipeTrials
+			.map( ( t ) => `${ t.slug }: ${ t.summary }` )
+			.join( '; ' ) || 'no recipes listed'
+	);
+
 	for ( const id of created ) {
 		await api( `/wp/v2/pages/${ id }`, {
 			method: 'DELETE',
 			query: { force: true },
 		} );
 	}
+}
+
+// 6d. The copy examples (skills/voyager-open-blocks/examples/): each file is
+// a fictional business and the compose call that builds its home page. A dry
+// run of each must pass the copy rules and validate, and saves nothing. Then
+// each claim, given as plain text instead of the object form the site owner's
+// text takes, must be refused: every claim slot, with reason claim, and no
+// other slot.
+{
+	const examplesDir = join(
+		repo,
+		'skills',
+		'voyager-open-blocks',
+		'examples'
+	);
+	const verticals = [
+		'health-and-vet',
+		'home-services',
+		'hospitality',
+		'legal',
+		'restaurants',
+	];
+	let files = [];
+	try {
+		files = readdirSync( examplesDir )
+			.filter( ( file ) => file.endsWith( '.json' ) )
+			.sort();
+	} catch {}
+	const examples = files.map( ( file ) => {
+		try {
+			return {
+				file,
+				input: JSON.parse(
+					readFileSync( join( examplesDir, file ), 'utf8' )
+				).compose,
+			};
+		} catch ( error ) {
+			return { file, input: null, error: error.message };
+		}
+	} );
+	const summary = ( response ) =>
+		response.data.code
+			? `${ response.status } ${ response.data.code }: ${ response.data.message }`
+			: `${ response.status }, saved ${ response.data.saved }, refused [${ (
+					response.data.refused || []
+				)
+					.map( ( r ) => `${ r.section } ${ r.slot } ${ r.reason }` )
+					.join( '; ' ) }], ${
+					( response.data.validation?.errors || [] ).length
+				} validation errors`;
+	// A claim slot holds the object form; as plain text it is a claim typed in.
+	const asStrings = ( input ) => ( {
+		...input,
+		sections: ( input.sections || [] ).map( ( section ) => ( {
+			...section,
+			copy: Object.fromEntries(
+				Object.entries( section.copy || {} ).map(
+					( [ slot, value ] ) => [
+						slot,
+						typeof value === 'object' && value !== null
+							? value.text
+							: value,
+					]
+				)
+			),
+		} ) ),
+	} );
+	const claimRows = ( input ) =>
+		( input.sections || [] ).flatMap( ( section, index ) =>
+			Object.entries( section.copy || {} )
+				.filter( ( [ , value ] ) => typeof value === 'object' )
+				.map( ( [ slot ] ) => `${ index } ${ slot } claim` )
+		);
+	const rowsOf = ( response ) =>
+		( response.data.refused || [] ).map(
+			( r ) => `${ r.section } ${ r.slot } ${ r.reason }`
+		);
+
+	let passed = 0;
+	let refusedAsStrings = 0;
+	let claimSlots = 0;
+	const lines = [];
+	const stringLines = [];
+
+	for ( const { file, input, error } of examples ) {
+		if ( ! input || typeof input !== 'object' ) {
+			lines.push( `${ file }: no compose input (${ error || 'none' })` );
+			continue;
+		}
+
+		const trial = await run( `${ ns }/compose`, {
+			...input,
+			dry_run: true,
+		} );
+		const ok =
+			trial.status === 200 &&
+			trial.data.saved === false &&
+			trial.data.post_id === null &&
+			trial.data.revision_id === null &&
+			JSON.stringify( trial.data.refused ) === '[]' &&
+			trial.data.validation?.valid === true &&
+			( trial.data.validation?.errors || [] ).length === 0;
+		passed += ok ? 1 : 0;
+		lines.push( `${ file }: ${ ok ? 'pass' : summary( trial ) }` );
+
+		const expected = claimRows( input ).sort();
+		claimSlots += expected.length;
+		const typed = await run( `${ ns }/compose`, {
+			...asStrings( input ),
+			dry_run: true,
+		} );
+		const typedOk =
+			expected.length > 0 &&
+			typed.status === 200 &&
+			typed.data.saved === false &&
+			JSON.stringify( rowsOf( typed ).sort() ) ===
+				JSON.stringify( expected );
+		refusedAsStrings += typedOk ? 1 : 0;
+		stringLines.push(
+			`${ file }: ${ expected.length } claim slots, ${
+				typedOk ? 'each refused as claim' : summary( typed )
+			}`
+		);
+	}
+
+	const allFiles =
+		JSON.stringify( files ) ===
+		JSON.stringify( verticals.map( ( v ) => `${ v }.json` ) );
+	step(
+		`fitness: compose dry_run: ${ passed } of ${ verticals.length } examples pass the copy rules`,
+		allFiles && passed === verticals.length,
+		lines.length ? lines.join( '; ' ) : `no examples in ${ examplesDir }`
+	);
+	step(
+		`compose dry_run refuses the examples' claims typed in as plain text: ${ refusedAsStrings } of ${ verticals.length } examples, ${ claimSlots } claim slots, each refused with reason claim and no other slot`,
+		allFiles && refusedAsStrings === verticals.length,
+		stringLines.length
+			? stringLines.join( '; ' )
+			: `no examples in ${ examplesDir }`
+	);
 }
 
 // 7. The icon prompt, end to end: "Add a phone icon next to the call button
@@ -4394,7 +5154,287 @@ for ( const iconPost of [ stillIcon, pulseIcon ] ) {
 	}
 }
 
-// 16. The service area section, in its two layouts. Each holds a facts block
+// 16. The stats section. Every figure binds to the business profile in Site
+// Data, so a page shows only the year founded, the rating and the review
+// count the site owner typed in. The three options are set through
+// POST /wp/v2/settings in forms the resolvers tidy (1998, 4.80 and 0127), and
+// a published page holding voyager-open/stats shows 1998, 4.8 and 127, in
+// that order. Changing the rating records a purge with the page, and a field
+// emptied shows the figure's own text, which names the field. Copy for a
+// value is refused as a bound slot, even as text the site owner gave.
+const statsFigures = [
+	{
+		figure: 'Founded',
+		key: 'founded',
+		option: 'voyager_site_founded',
+		stored: '1998',
+		shown: '1998',
+	},
+	{
+		figure: 'Rating',
+		key: 'rating',
+		option: 'voyager_site_rating',
+		stored: '4.80',
+		shown: '4.8',
+	},
+	{
+		figure: 'Review count',
+		key: 'review_count',
+		option: 'voyager_site_review_count',
+		stored: '0127',
+		shown: '127',
+	},
+];
+for ( const [ item, layout, lead ] of [
+	[ 'voyager-open/stats', 'row', [] ],
+	[ 'voyager-open/stats-band', 'band', [ 'Heading', 'Body' ] ],
+] ) {
+	const statsListed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( statsListed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	const expected = [
+		...lead,
+		...statsFigures.flatMap( ( f ) => [
+			`${ f.figure } value`,
+			`${ f.figure } label`,
+		] ),
+	];
+	const unbound = statsFigures.filter( ( f ) => {
+		const content = ( statsListed?.blocks || [] ).find(
+			( b ) => b.label === `${ f.figure } value`
+		)?.bindings?.content;
+		return ! (
+			content?.source === 'voyager/site-data' &&
+			content?.args?.key === f.key
+		);
+	} );
+	step(
+		`get-catalog lists ${ item } (section stats, layout ${ layout }) with its copy labels, each value bound to founded, rating or review_count`,
+		statsListed?.section === 'stats' &&
+			statsListed?.layout === layout &&
+			JSON.stringify( labels ) === JSON.stringify( expected ) &&
+			unbound.length === 0 &&
+			statsListed?.copy_rules?.[ 'Rating value' ]?.claim === true,
+		statsListed
+			? `labels ${ labels.join( ', ' ) }; unbound ${
+					unbound.map( ( f ) => f.figure ).join( ', ' ) || 'none'
+				}`
+			: 'not listed'
+	);
+}
+
+/**
+ * The figures of each stats section on a page: the text of every value, the
+ * paragraphs at the figure role's x-large size, in order.
+ *
+ * @param {string} pageHtml A rendered page.
+ * @return {string[][]} One list per section that holds figures.
+ */
+const figuresIn = ( pageHtml ) =>
+	[ ...pageHtml.matchAll( /<section\b[^>]*>([\s\S]*?)<\/section>/g ) ]
+		.map( ( match ) =>
+			[
+				...match[ 1 ].matchAll(
+					/<p\b[^>]*\bclass="[^"]*\bhas-x-large-font-size\b[^"]*"[^>]*>([\s\S]*?)<\/p>/g
+				),
+			].map( ( value ) => value[ 1 ].replace( /<[^>]*>/g, '' ).trim() )
+		)
+		.filter( ( values ) => values.length > 0 );
+const statsSettingsBefore = ( await api( '/wp/v2/settings' ) ).data;
+const setStats = ( values ) =>
+	api( '/wp/v2/settings', { method: 'POST', body: values } );
+const statsSet = await setStats(
+	Object.fromEntries( statsFigures.map( ( f ) => [ f.option, f.stored ] ) )
+);
+const statsDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: { title: `E2E stats ${ stamp }`, status: 'draft', content: '' },
+} );
+const statsId = statsDraft.data.id;
+const statsPlaced = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats',
+} );
+validate( 'stats as insert saves it', statsPlaced.data.markup || '' );
+const statsUse = 'voyager/site-data:rating';
+const statsUsedBefore = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ statsUse ];
+const statsPublished = await api( `/wp/v2/pages/${ statsId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const statsLink = statsPublished.data.link;
+const statsShown = async () =>
+	statsLink ? figuresIn( ( await request( statsLink ) ).text ) : [];
+const shownStats = await statsShown();
+step(
+	'fitness: with the year founded, the rating and the review count set to 1998, 4.80 and 0127, a published page holding voyager-open/stats shows 1998, 4.8 and 127 in its section, in that order',
+	statsSet.status === 200 &&
+		statsFigures.every(
+			( f ) => statsSet.data?.[ f.option ] === f.shown
+		) &&
+		statsPlaced.data.saved === true &&
+		statsPublished.status === 200 &&
+		shownStats.length === 1 &&
+		JSON.stringify( shownStats[ 0 ] ) ===
+			JSON.stringify( statsFigures.map( ( f ) => f.shown ) ),
+	`settings ${ statsSet.data?.code || statsSet.status } ${ JSON.stringify(
+		statsFigures.map( ( f ) => statsSet.data?.[ f.option ] )
+	) }; insert ${
+		statsPlaced.data.code || `saved ${ statsPlaced.data.saved }`
+	}; shown ${ JSON.stringify( shownStats ) }`
+);
+validate(
+	'the published stats page',
+	( await api( `/wp/v2/pages/${ statsId }`, { query: { context: 'edit' } } ) )
+		.data.content?.raw || ''
+);
+
+const statsUsedAfter = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ statsUse ];
+step(
+	'get-catalog used_on for the rating counts the published stats page',
+	Number.isInteger( statsUsedBefore?.posts ) &&
+		statsUsedAfter?.posts === statsUsedBefore.posts + 1,
+	`before ${ JSON.stringify( statsUsedBefore ) }, after ${ JSON.stringify(
+		statsUsedAfter
+	) }`
+);
+
+const statsPurge = await purgesDuring( () =>
+	setStats( { voyager_site_rating: '4.7' } )
+);
+const afterPurge = await statsShown();
+step(
+	'changing the rating records one purge, for the rating, with the stats page, and the page shows the new rating',
+	statsPurge.changed.status === 200 &&
+		statsPurge.records.length === 1 &&
+		( statsPurge.records[ 0 ].context?.keys || [] ).includes( 'rating' ) &&
+		( statsPurge.records[ 0 ].urls || [] ).includes( statsLink ) &&
+		( statsPurge.records[ 0 ].context?.post_ids || [] ).includes(
+			statsId
+		) &&
+		JSON.stringify( afterPurge[ 0 ] ) ===
+			JSON.stringify( [ '1998', '4.7', '127' ] ),
+	`${ described( statsPurge.records ) }; shown ${ JSON.stringify(
+		afterPurge
+	) }`
+);
+
+const noRating = await setStats( { voyager_site_rating: '' } );
+const withoutRating = await statsShown();
+step(
+	'with the rating empty, its figure shows its own text, which names the field and holds no number, and the other two still show',
+	noRating.status === 200 &&
+		noRating.data?.voyager_site_rating === '' &&
+		withoutRating.length === 1 &&
+		withoutRating[ 0 ].length === 3 &&
+		withoutRating[ 0 ][ 0 ] === '1998' &&
+		withoutRating[ 0 ][ 1 ] === 'Score' &&
+		withoutRating[ 0 ][ 2 ] === '127',
+	JSON.stringify( withoutRating )
+);
+const statsTrial = await run( `${ ns }/compose`, {
+	title: `E2E stats trial ${ stamp }`,
+	sections: [ { pattern: 'voyager-open/stats' } ],
+	dry_run: true,
+} );
+step(
+	'with the rating empty, compose with dry_run names rating in empty, and not the year founded or the review count',
+	statsTrial.status === 200 &&
+		statsTrial.data.saved === false &&
+		JSON.stringify( statsTrial.data.empty ) ===
+			JSON.stringify( [ 'rating' ] ),
+	JSON.stringify( statsTrial.data.empty ?? statsTrial.data.code )
+);
+
+const statsRaw = async () =>
+	(
+		await api( `/wp/v2/pages/${ statsId }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw ?? null;
+const beforeStatsCopy = await statsRaw();
+const statsCopy = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats',
+	copy: { 'Rating value': { text: '4.8', source: 'user' } },
+} );
+const statsRefused = statsCopy.data.data?.refused || [];
+step(
+	'insert refuses copy for the bound "Rating value" with voyager_open_blocks_bound_slot, even as text the site owner gave, and the page is unchanged',
+	statsCopy.status === 400 &&
+		statsCopy.data.code === 'voyager_open_blocks_bound_slot' &&
+		statsRefused.length === 1 &&
+		statsRefused[ 0 ].slot === 'Rating value' &&
+		statsRefused[ 0 ].reason === 'bound' &&
+		statsRefused[ 0 ].key === 'rating' &&
+		!! beforeStatsCopy &&
+		( await statsRaw() ) === beforeStatsCopy,
+	statsCopy.data.message || statsCopy.data.code
+);
+
+const statsOmit = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats-band',
+	dry_run: true,
+	omit: [ 'Review count' ],
+	copy: {
+		Heading: 'About us at a glance',
+		'Rating label': 'Customer rating',
+	},
+} );
+const omitMarkup = statsOmit.data.markup || '';
+step(
+	'insert with omit leaves out a whole figure, its value and its label, and takes plain copy for the band heading and a label',
+	statsOmit.status === 200 &&
+		statsOmit.data.saved === false &&
+		omitMarkup.includes( '"key":"founded"' ) &&
+		omitMarkup.includes( '"key":"rating"' ) &&
+		! omitMarkup.includes( '"key":"review_count"' ) &&
+		! omitMarkup.includes( 'Review count label' ) &&
+		omitMarkup.includes( '>About us at a glance</h2>' ) &&
+		omitMarkup.includes( '>Customer rating</p>' ),
+	statsOmit.data.message || statsOmit.data.code || 'markup checked'
+);
+const valueOmit = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats',
+	dry_run: true,
+	omit: [ 'Rating value' ],
+} );
+step(
+	'insert refuses omit of a value alone, which would leave its label with no figure',
+	valueOmit.status === 400 &&
+		valueOmit.data.code === 'voyager_open_blocks_copy_rules' &&
+		( valueOmit.data.data?.refused || [] ).some(
+			( r ) => r.slot === 'Rating value' && r.reason === 'required'
+		),
+	valueOmit.data.message || valueOmit.data.code
+);
+
+if ( statsId ) {
+	await api( `/wp/v2/pages/${ statsId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+await setStats(
+	Object.fromEntries(
+		statsFigures
+			.filter(
+				( f ) => typeof statsSettingsBefore[ f.option ] === 'string'
+			)
+			.map( ( f ) => [ f.option, statsSettingsBefore[ f.option ] ] )
+	)
+);
+
+// 17. The service area section, in its two layouts. Each holds a facts block
 // bound to Site Data's service_area, so the places a page names follow
 // Settings > Site Data. get-catalog lists both with that binding. insert
 // places the list layout with copy for its heading on a draft, the service

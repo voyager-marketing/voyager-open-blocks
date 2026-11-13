@@ -18,6 +18,8 @@ typography:
     fontSize: 2rem
   title:
     fontSize: 1.375rem
+  figure:
+    fontSize: 2rem
   body:
     fontSize: 1.125rem
   label:
@@ -60,6 +62,8 @@ components:
     typography: "{typography.heading}"
   heading-card:
     typography: "{typography.title}"
+  figure-value:
+    typography: "{typography.figure}"
   text-muted:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.muted}"
@@ -160,16 +164,19 @@ The pack sets no font family, weight or line height. The theme's do. Each type r
 | `display` | `xx-large` | a page's first heading, the hero's `h1`, and only that |
 | `heading` | `x-large`, through the theme's `h2` style | a section heading (`h2`) |
 | `title` | `large`, through the theme's `h3` style | card and form headings (`h3`), and the one quote of the reviews section's single layout |
+| `figure` | `x-large` | the value of a figure in the stats section, and only that |
 | `body` | the theme's body size | paragraphs, list items, buttons |
 | `label` | `small` | eyebrows and fine print |
 
-Headings and body text carry no `fontSize`: the theme's element styles size them. A pattern sets `fontSize` only to `small` or `xx-large`, and `large` on the single review's quote, and only when the theme defines that slug. Core's own defaults stop at `x-large`.
+Headings and body text carry no `fontSize`: the theme's element styles size them. A pattern sets `fontSize` only to `small` or `xx-large`, `large` on the single review's quote and `x-large` on a figure's value, and only when the theme defines that slug. Core's own defaults stop at `x-large`, and the three themes the checks run each define it, so a figure keeps its size where the hero's `xx-large` may not.
+
+A figure is not a heading. It is a value from Site Data, a year, a rating or a count, that a visitor reads at a glance, so it is set large without becoming a heading a screen reader lists. `display` stays the hero's alone: a page has one `h1`, and a figure as large as it would compete with the page's first heading. At `x-large` a figure matches a section heading's size and stays below the page's.
 
 One heading level per job: one `h1` per page, an `h2` for each section, `h3` inside a section.
 
 ## Layout
 
-Every section is a full-width `core/group` (`tagName: section`, `align: full`, constrained layout), so its background reaches both edges. Text sits at the theme's content width or near it (the closing CTA sets 720px). Rows of items (columns, cards, logos, ticks, the CTA band's row) go `align: wide`. A list of items one under another, such as the services list, stays at content width, and so does the reviews section's single quote. Keep body copy short enough to stay under about 75 characters per line wherever it sits: the CTA band's body shares a wide row with its buttons.
+Every section is a full-width `core/group` (`tagName: section`, `align: full`, constrained layout), so its background reaches both edges. Text sits at the theme's content width or near it (the closing CTA sets 720px). Rows of items (columns, cards, logos, ticks, the CTA band's row, the stats section's figures) go `align: wide`. A list of items one under another, such as the services list, the process steps list or the FAQ's questions, stays at content width, and so does the reviews section's single quote. Keep body copy short enough to stay under about 75 characters per line wherever it sits: the CTA band's body shares a wide row with its buttons.
 
 Spacing uses the theme's spacing presets:
 
@@ -206,13 +213,18 @@ Radius follows the theme, and the pack sets none. Buttons take the theme's butto
 - **Icon** (`voyager-open/icon`). A pictogram above a card's heading, or beside the text of a row in a list: one per item, from the pack's set, chosen for what the item is, never for a promise (no `star` for quality: the star appears only in a review's star row). Every icon in a section is the same size (40px in the services section). An icon that sits beside a heading saying the same thing is decorative: no label, no link and no animation, so a screen reader reads the heading. It strokes in the text colour, so it follows the section style too.
 - **Star row.** A review's own rating: five `star` icons in a row with no gap between them, 24px, then the rating in words at `small` ("Rated 5 out of 5"). The stars have no label, so each renders hidden from screen readers, and the words are the row's one accessible name. They say the rating to a sighted reader too, since the outline star cannot show a part star or tell five from none. A lower rating drops the stars above it and says the same number. The rating, like the quote, comes from the site owner, never from the agent.
 - **Quote** (`core/quote`). A customer's words and nothing else, in the theme's Plain quote style, so a theme's quote box (a fill and a radius on Twenty Twenty-Four and Ipsum) never sits inside a card or keeps a colour a section style cannot repaint. The theme still sets its type, and may add a rule or a quotation mark. The name and one detail follow it as paragraphs, outside the quotation, the detail at `small`. The single review's quote is centred at `large`.
+- **Figure.** A value from Site Data with a short label under it, as two paragraphs in one block: the value at `x-large` (the `figure` role) and the label in body text, `20` between them. The value is bound to the business profile, the year founded, the rating or the review count, and never typed: a figure is a claim, and it comes from the site owner through Settings > Site Data, never from the agent. While its field is empty the value shows its own text, which names the field and holds no number, so a figure whose field is empty is left out of the page rather than shown. The label says what the figure is ("Average rating") and adds no claim. The stats section shows three in a row at wide width, `60` apart, centred, which stack on a phone, or the same three beside its heading and one line, in a row that wraps. Figures do not count up or move: Motion has nothing for them. Check: `layout`.
 - **Eyebrow.** One short line at `small`, uppercase with 0.08em letter spacing: above the section heading in the CTA band, and as the section's only heading in the logo marquee. At most one per section, and only when it tells the reader something the heading does not.
+- **Step.** One stage of what happens once a visitor gets in touch, in the process steps section: an `h3` that starts with the step's number, a full stop and a space ("1. Get in touch"), then one short paragraph. The number is in the heading's own text, so a screen reader announces it with the heading and a sighted reader sees it. It is not an eyebrow, which a section has at most one of, and the steps are not an ordered list: a `core/list-item` holds only a nested `core/list`, never a heading and a paragraph. A step is not a card: no border, fill, icon or button.
+  - Every step in a section shares one structure. Three to five steps, numbered from 1 in order with no gap, so a step added or dropped means the headings are renumbered.
+  - In a row the steps sit in `core/columns` at wide width, one column per step with a `60` gap, and stack in order on a phone. Check: `layout`. In a list they sit one under another at content width, `50` apart.
 - **Tick list.** `core/list` with the Ticks style: a wrapping row that stacks into a column in a narrow container. Three to six items, each one short claim of about 40 characters or fewer, with no full stop. The ticks take the text colour. Every claim comes from the site owner or Site Data, never from the agent.
 - **Logo row.** `core/group` with the Marquee style. Five to ten logos, each 40px tall with `scale: contain`, with the company's name as alt text (the placeholders ship with empty alt text until replaced).
   - When the row is wider than the section, it loops left at a steady linear speed with no visible join. At render the row is followed by a copy of itself, hidden from screen readers (`aria-hidden="true"`) and `inert`, with any `id` dropped, and the copy starts one gap after the row's last logo. Both move left by one row's width, then start again where the copy has taken the row's place. A right-to-left page loops right.
   - A row that fits the section stays still, and its copy is clipped away. CSS tells the two apart with no script: in the row's transform, `clamp(0px, (100% - 100cqw) * 10000000, 100%)` is the row's width when it is wider than the marquee and 0 when it fits.
   - The stored page holds each logo once, so an editor edits one row and `validate` reports each placeholder logo once. The copy is made only for a page a visitor sees: a REST response (`content.rendered`), a feed and an admin request carry each logo once.
   - It pauses on hover and focus. With motion off, the copy is not displayed and the row wraps and stays still. A row with no copy beside it, as the block editor shows it, wraps and stays still too, so every logo can be reached.
+- **Question** (`core/details` with the Question style). One question of the FAQ: its summary is the question, asked as a visitor asks it, and the one paragraph inside is the answer. The browser opens and closes it, with no script and no animation. A summary on its own is one line of body text, 22.4 to 30.5px tall on the three themes the checks run, so the Question style gives it a 44px minimum height, with half a line of padding above and below. A 1px rule sits above each question and below the last, and sets no colour, so it takes the text colour and follows the section style. The FAQ ships its first question open and the rest closed, and is never an exclusive accordion: the details blocks share no `name`. Check: `impeccable`, which measures each summary as a tap target.
 - **Form slot.** The contact section's second column: a `core/group` with a 1px border and `50` padding that holds an `h3`, one line of copy and an email button until a form plugin's block replaces it. The form plugin owns the fields. Choose one that shows a visible label on every field.
 - **Image slot.** Where a section shows a photo, beside its text or behind it.
   - Beside text: a `core/image` with `aspectRatio` set (`4/3` unless the section needs another) and `scale: cover`, or a `core/media-text` with `imageFill` and a `focalPoint`.

@@ -4,8 +4,8 @@
 	"height": 900,
 	"floor": 4.5,
 	"styles": [ "plain", "panel", "inverted", "accent" ],
-	"min_renders": 624,
-	"min_pairs": 4560,
+	"min_renders": 912,
+	"min_pairs": 6768,
 	"link": {
 		"pattern": "cta-band",
 		"text": "we will get back to you",
@@ -17,7 +17,7 @@
 	},
 	"layout": {
 		"$comment": "layout measures every row of items in a section (a core/columns, or a group with the grid layout) and every heading, with reduced motion emulated so a revealed row is where it rests. columns names, per pattern, how many columns its rows render at the wide width; at each stacked width every row renders one; at the other widths only that the rows are there. A pattern columns does not list holds no row. A heading word that breaks across lines, or reaches past its heading, fails, so a card too narrow for its heading cannot pass.",
-		"columns": { "contact-section": 2, "hero": 2, "reviews": 3, "service-area-split": 2, "services": 3 },
+		"columns": { "contact-section": 2, "faq-split": 2, "hero": 2, "process-steps": 3, "reviews": 3, "service-area-split": 2, "services": 3, "stats": 3, "stats-band": 2 },
 		"wide": 1280,
 		"stacked": [ 320, 390 ]
 	},

@@ -21,11 +21,19 @@ final class PatternLayoutsTest extends TestCase {
 	private const INTENTS = __DIR__ . '/../../patterns/intents';
 
 	/**
-	 * Words and marks of a factual claim: a credential, a year, a rating or an
-	 * award. Default copy holds none of them (contract 3). "star" and "top"
-	 * are whole words, so "started" and "stop" make no claim.
+	 * Words and marks of a factual claim or a promise: a credential, a year, a
+	 * rating, an award, a price or a time. Default copy holds none of them
+	 * (contract 3). "star", "top" and "free" are whole words, so "started",
+	 * "stop" and "freeze" make no claim.
 	 */
-	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|\bstars?\b|years?\b|since|established|guarantee|warrant|best|\btop\b|leading|#|\d/i';
+	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|\bstars?\b|years?\b|since|established|guarantee|warrant|best|\btop\b|leading|\bfree\b|same[- ]day|#|\d/i';
+
+	/**
+	 * How a step's heading starts: its number, a full stop and a space
+	 * (DESIGN.md, Step). An ordered list cannot hold the steps, because a
+	 * core/list-item holds only a nested core/list, not an h3 and a paragraph.
+	 */
+	private const STEP_NUMBER = '/^(\d+)\. \S/';
 
 	/**
 	 * What each of the proof strip's items ships as: what goes there, never a
@@ -42,7 +50,34 @@ final class PatternLayoutsTest extends TestCase {
 	 * The intents whose copy_rules may hold a claim slot, each because a test
 	 * below checks what its claim slots ship.
 	 */
-	private const CLAIM_SECTIONS = [ 'proof-strip', 'reviews', 'reviews-single' ];
+	private const CLAIM_SECTIONS = [ 'proof-strip', 'reviews', 'reviews-single', 'stats', 'stats-band' ];
+
+	/** The stats section's two layouts. */
+	private const STATS = [ 'stats', 'stats-band' ];
+
+	/**
+	 * The stats section's figures, in order, by the label of each figure's
+	 * block: the Site Data key its value binds, the text the value shows while
+	 * that field is empty, which names the field, and the label under it,
+	 * which says what the figure is.
+	 */
+	private const FIGURES = [
+		'Founded'      => [
+			'key'      => 'founded',
+			'fallback' => 'Founded',
+			'label'    => 'Year founded',
+		],
+		'Rating'       => [
+			'key'      => 'rating',
+			'fallback' => 'Score',
+			'label'    => 'Average rating',
+		],
+		'Review count' => [
+			'key'      => 'review_count',
+			'fallback' => 'Count',
+			'label'    => 'Reviews',
+		],
+	];
 
 	/**
 	 * What each part of a review ships as: what goes there, never a review.
@@ -190,6 +225,90 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'single', $intents['reviews-single']['layout'] ?? null );
 	}
 
+	public function test_process_steps_comes_in_two_layouts_row_first_then_list(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'process-steps', $intents['process-steps']['section'] ?? null );
+		$this->assertSame( 'row', $intents['process-steps']['layout'] ?? null );
+		$this->assertSame( 'process-steps', $intents['process-steps-list']['section'] ?? null );
+		$this->assertSame( 'list', $intents['process-steps-list']['layout'] ?? null );
+	}
+
+	public function test_the_faq_comes_in_two_layouts_list_first_then_split(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'faq', $intents['faq']['section'] ?? null );
+		$this->assertSame( 'list', $intents['faq']['layout'] ?? null );
+		$this->assertSame( 'faq', $intents['faq-split']['section'] ?? null );
+		$this->assertSame( 'split', $intents['faq-split']['layout'] ?? null );
+	}
+
+	/**
+	 * The rows of items in an intent, as the design checks' layout check finds
+	 * them: core/columns, and groups with the grid layout.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return list<array<mixed>>
+	 */
+	private static function rows_of_items( array $intent ): array {
+		$out = [];
+		foreach ( is_array( $intent['intent']['blocks'] ?? null ) ? $intent['intent']['blocks'] : [] as $top ) {
+			foreach ( self::nodes( is_array( $top ) ? $top : [] ) as $row ) {
+				$node = $row['node'];
+				if ( 'core/columns' === ( $node['block'] ?? null ) || 'grid' === ( $node['attrs']['layout']['type'] ?? null ) ) {
+					$out[] = $node;
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	public function test_every_question_is_a_details_block_holding_only_its_answer_and_only_the_first_ships_open(): void {
+		foreach ( [ 'faq', 'faq-split' ] as $name ) {
+			$intent = self::intents()[ $name ];
+			$items  = self::service_items( $intent, 'Question' );
+			$this->assertSame( [ 'Question 1', 'Question 2', 'Question 3' ], array_keys( $items ), $name );
+
+			$first = null;
+			foreach ( $items as $label => $item ) {
+				$at = "{$name} \"{$label}\"";
+				$this->assertSame( 'core/details', $item['block'] ?? null, "{$at}: a question is a core/details block, which opens and closes with no script" );
+				$this->assertSame( 'is-style-voyager-open-question', $item['attrs']['className'] ?? null, "{$at}: the Question style makes its summary a 44px tap target" );
+				$this->assertSame( 'Question 1' === $label, $item['attrs']['showContent'] ?? false, "{$at}: only the first question ships open" );
+				$this->assertArrayNotHasKey( 'name', $item['attrs'], "{$at}: no exclusive accordion" );
+				$this->assertMatchesRegularExpression( '/\?$/', (string) ( $item['text'] ?? '' ), "{$at}: the question is its summary, asked as a visitor asks it" );
+
+				$answer = is_array( $item['children'] ?? null ) ? $item['children'] : [];
+				$this->assertCount( 1, $answer, "{$at} holds its answer and nothing else" );
+				$this->assertSame( 'core/paragraph', $answer[0]['block'] ?? null, $at );
+				$this->assertSame( "{$label} answer", $answer[0]['attrs']['metadata']['name'] ?? null, "{$at}: the answer carries the question's label, so repeat and omit take it along" );
+
+				$shape = self::shape( $item, $label );
+				unset( $shape['attrs']['showContent'] );
+				$first = $first ?? $shape;
+				$this->assertSame( $first, $shape, "{$at} is built differently from \"Question 1\"" );
+			}
+		}
+	}
+
+	public function test_the_faq_list_holds_no_row_and_the_split_one_row_of_two_with_the_heading_beside_the_questions(): void {
+		$intents = self::intents();
+
+		// tests/fixtures/contrast.json's layout.columns lists the patterns that hold a row.
+		$this->assertSame( [], self::rows_of_items( $intents['faq'] ), 'faq: the questions sit one under another at content width' );
+		foreach ( array_slice( self::nodes( $intents['faq']['intent']['blocks'][0] ), 1 ) as $row ) {
+			$this->assertArrayNotHasKey( 'align', $row['node']['attrs'] ?? [], 'faq: everything in the full-width section stays at content width' );
+		}
+
+		$rows = self::rows_of_items( $intents['faq-split'] );
+		$this->assertCount( 1, $rows, 'faq-split holds one row' );
+		$this->assertSame( 'wide', $rows[0]['attrs']['align'] ?? null, 'faq-split: the row is at wide width' );
+		$columns = is_array( $rows[0]['children'] ?? null ) ? $rows[0]['children'] : [];
+		$this->assertCount( 2, $columns, 'faq-split: the heading column, then the questions' );
+		$this->assertSame( [ 'Lead', 'Heading', 'Intro' ], self::labels_in( $columns[0] ), 'faq-split: the heading and intro come first, so on a phone the questions stack under them' );
+		$this->assertSame( 'Question 1', self::service_items( [ 'intent' => [ 'blocks' => [ $columns[1] ] ] ], 'Question' )['Question 1']['attrs']['metadata']['name'] ?? null );
+		$this->assertNotSame( false, $rows[0]['attrs']['isStackedOnMobile'] ?? true, 'faq-split: the columns stack on a phone' );
 	public function test_service_area_comes_in_two_layouts_list_first_then_split(): void {
 		$intents = self::intents();
 
@@ -301,7 +420,7 @@ final class PatternLayoutsTest extends TestCase {
 	 * repeat and omit work on, by label.
 	 *
 	 * @param array<string, mixed> $intent A decoded intent file.
-	 * @param string               $word   What the items are called: "Service" or "Review".
+	 * @param string               $word   What the items are called: "Service", "Review" or "Step".
 	 * @return array<string, array<string, mixed>>
 	 */
 	private static function service_items( array $intent, string $word = 'Service' ): array {
@@ -409,6 +528,61 @@ final class PatternLayoutsTest extends TestCase {
 		}
 
 		$this->assertCount( 1, array_unique( $sizes ), 'every icon is the same size, in both layouts' );
+	}
+
+	public function test_every_step_shares_one_structure_and_its_heading_starts_with_its_number(): void {
+		$intents = self::intents();
+		$insides = [];
+
+		// In the row, each step is a column, so repeat adds a column and omit
+		// takes one away. In the list, each step is a group.
+		foreach ( [ 'process-steps' => 'core/column', 'process-steps-list' => 'core/group' ] as $name => $wrapper ) {
+			$this->assertArrayHasKey( $name, $intents, "no intent for voyager-open/{$name}" );
+			$steps = self::service_items( $intents[ $name ], 'Step' );
+			$this->assertSame( [ 'Step 1', 'Step 2', 'Step 3' ], array_keys( $steps ), $name );
+
+			$first = null;
+			foreach ( $steps as $label => $step ) {
+				$at    = "{$name} \"{$label}\"";
+				$shape = self::shape( $step, $label );
+				$first = $first ?? $shape;
+				$this->assertSame( $first, $shape, "{$at} is built differently from \"Step 1\"" );
+				$this->assertSame( $wrapper, $step['block'] ?? null, $at );
+
+				// An h3 and one short line, and nothing else: no icon, no button, no card.
+				$children = is_array( $step['children'] ?? null ) ? array_values( $step['children'] ) : [];
+				$this->assertSame(
+					[ [ 'core/heading', "{$label} heading" ], [ 'core/paragraph', "{$label} text" ] ],
+					array_map( static fn ( mixed $child ): array => [ is_array( $child ) ? ( $child['block'] ?? null ) : null, is_array( $child ) ? ( $child['attrs']['metadata']['name'] ?? null ) : null ], $children ),
+					"{$at} holds its heading, then one short line"
+				);
+				$this->assertSame( 3, $children[0]['level'] ?? null, "{$at}: a step's heading is an h3" );
+				foreach ( self::nodes( $step ) as $row ) {
+					$this->assertArrayNotHasKey( 'border', is_array( $row['node']['attrs']['style'] ?? null ) ? $row['node']['attrs']['style'] : [], "{$at}: a step is not a card, and holds none" );
+				}
+
+				// The number is in the heading's own text, so a screen reader
+				// hears it with the heading and a sighted reader sees it.
+				$heading = is_string( $children[0]['text'] ?? null ) ? $children[0]['text'] : '';
+				$this->assertSame( 1, preg_match( self::STEP_NUMBER, $heading, $match ), "{$at}: the heading \"{$heading}\" starts with the step's number" );
+				$this->assertSame( substr( (string) $label, strlen( 'Step ' ) ), $match[1], "{$at}: the heading's number is the step's own" );
+			}
+
+			$insides[ $name ] = array_map( static fn ( mixed $child ): mixed => is_array( $child ) ? self::shape( $child, 'Step 1' ) : $child, $steps['Step 1']['children'] ?? [] );
+		}
+
+		$this->assertSame( $insides['process-steps'], $insides['process-steps-list'], 'a step holds the same blocks in both layouts, with its number in its heading in both' );
+
+		$row = null;
+		foreach ( self::nodes( $intents['process-steps']['intent']['blocks'][0] ) as $found ) {
+			if ( 'core/columns' === ( $found['node']['block'] ?? null ) ) {
+				$row = $found['node'];
+			}
+		}
+		$this->assertIsArray( $row, 'process-steps puts its steps in a core/columns' );
+		$this->assertSame( 'wide', $row['attrs']['align'] ?? null, 'the row of steps is at wide width' );
+		$this->assertNotSame( false, $row['attrs']['isStackedOnMobile'] ?? null, 'the steps stack on a phone' );
+		$this->assertSame( [ 'Step 1', 'Step 2', 'Step 3' ], array_map( static fn ( mixed $column ): mixed => is_array( $column ) ? ( $column['attrs']['metadata']['name'] ?? null ) : null, is_array( $row['children'] ?? null ) ? $row['children'] : [] ), 'the row holds the three steps and nothing else' );
 	}
 
 	/**
@@ -551,6 +725,102 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
+	/**
+	 * The text a figure's label slot ships with, or null for a slot that is
+	 * no figure's label.
+	 *
+	 * @param string $slot A copy label, such as "Rating label".
+	 */
+	private static function figure_label( string $slot ): ?string {
+		foreach ( self::FIGURES as $figure => $want ) {
+			if ( "{$figure} label" === $slot ) {
+				return $want['label'];
+			}
+		}
+
+		return null;
+	}
+
+	public function test_stats_comes_in_two_layouts_row_first_then_band(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'stats', $intents['stats']['section'] ?? null );
+		$this->assertSame( 'row', $intents['stats']['layout'] ?? null );
+		$this->assertSame( 'stats', $intents['stats-band']['section'] ?? null );
+		$this->assertSame( 'band', $intents['stats-band']['layout'] ?? null );
+	}
+
+	public function test_every_figure_binds_its_value_to_site_data_and_no_default_text_is_a_figure(): void {
+		foreach ( self::STATS as $name ) {
+			$intent = self::intents()[ $name ] ?? null;
+			$this->assertIsArray( $intent, "{$name} is not in patterns/intents/" );
+			$rules = is_array( $intent['copy_rules'] ?? null ) ? $intent['copy_rules'] : [];
+			$texts = self::text_blocks( $intent );
+			$root  = $intent['intent']['blocks'][0] ?? null;
+			$this->assertIsArray( $root, $name );
+
+			$figures = [];
+			foreach ( self::nodes( $root ) as $row ) {
+				$label = $row['node']['attrs']['metadata']['name'] ?? null;
+				if ( is_string( $label ) && isset( self::FIGURES[ $label ] ) ) {
+					$figures[ $label ] = $row['node'];
+				}
+			}
+			$this->assertSame( array_keys( self::FIGURES ), array_keys( $figures ), "{$name}: the figures are the year founded, the rating and the review count, in that order" );
+
+			foreach ( self::FIGURES as $figure => $want ) {
+				$at = "{$name} \"{$figure}\"";
+				$this->assertSame( [ $figure, "{$figure} value", "{$figure} label" ], self::labels_in( $figures[ $figure ] ), "{$at} holds its value, then its label, and nothing else" );
+
+				$value = self::labelled( $figures[ $figure ], "{$figure} value" );
+				$label = self::labelled( $figures[ $figure ], "{$figure} label" );
+				$this->assertIsArray( $value, $at );
+				$this->assertIsArray( $label, $at );
+				$this->assertSame( 'core/paragraph', $value['block'] ?? null, $at );
+				$this->assertSame( 'core/paragraph', $label['block'] ?? null, $at );
+
+				// The value: the figure role, bound to its Site Data key, a claim.
+				$this->assertSame( 'x-large', $value['attrs']['fontSize'] ?? null, "{$at}: the value takes the figure role, x-large (DESIGN.md, Typography)" );
+				$this->assertSame(
+					[
+						'content' => [
+							'source' => 'voyager/site-data',
+							'args'   => [ 'key' => $want['key'] ],
+						],
+					],
+					$value['attrs']['metadata']['bindings'] ?? null,
+					"{$at}: the value's content binds to Site Data's {$want['key']}, and nothing else of it binds"
+				);
+				$this->assertTrue( $rules[ "{$figure} value" ]['claim'] ?? null, "{$at}: the value is a claim, so no copy may fill it" );
+				$this->assertTrue( $rules[ "{$figure} value" ]['required'] ?? null, "{$at}: the value goes only with its whole figure" );
+
+				// Its own text shows while the field is empty: it names the
+				// field and makes no claim. The no-claim test above skips a
+				// bound slot, so this is what keeps the fallback honest.
+				$this->assertSame( $want['fallback'], $texts[ "{$figure} value" ] ?? null, "{$at}: the value's own text names the field" );
+				$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $want['fallback'], "{$at}: the value's own text makes a claim" );
+
+				// The label: what the figure is, its own text, body size, no claim slot.
+				$this->assertSame( $want['label'], $texts[ "{$figure} label" ] ?? null, "{$at}: the label says what the figure is" );
+				$this->assertArrayNotHasKey( 'bindings', $label['attrs']['metadata'] ?? [], "{$at}: the label is the block's own text" );
+				$this->assertArrayNotHasKey( 'fontSize', $label['attrs'] ?? [], "{$at}: the label is body text" );
+				$this->assertFalse( $rules[ "{$figure} label" ]['claim'] ?? null, "{$at}: the label is no claim" );
+			}
+
+			$this->assertSame( array_map( static fn ( string $figure ): string => "{$figure} value", array_keys( self::FIGURES ) ), self::bound_text_labels( $intent ), "{$name}: the three values are the only bound text" );
+			foreach ( $texts as $label => $text ) {
+				$this->assertDoesNotMatchRegularExpression( '/\d/', $text, "{$name} \"{$label}\" ships a figure of its own" );
+			}
+		}
+	}
+
+	public function test_a_figure_fallback_that_makes_a_claim_is_caught(): void {
+		// The same pattern the stats test holds each fallback to.
+		foreach ( [ '1998', '4.8', '127', 'Since', 'Five stars', 'Years', 'Rated' ] as $planted ) {
+			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
+		}
+	}
+
 	public function test_copy_rules_cover_every_named_text_block_and_its_default_copy_fits(): void {
 		$intents = self::intents();
 		$this->assertNotSame( [], $intents, 'no intent files were read' );
@@ -584,6 +854,24 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
+	/**
+	 * Copy with a step's own number taken off the front of its heading. In
+	 * "Step 2 heading", a leading "2. " is the step's place in the order, not
+	 * a claim (DESIGN.md, Step). Any other number, a number that is not the
+	 * step's own, and every other label's text stay as they are, so the claim
+	 * check still sees them.
+	 *
+	 * @param string $label A block's metadata.name.
+	 * @param string $text  The text it ships.
+	 */
+	private static function without_step_number( string $label, string $text ): string {
+		if ( 1 === preg_match( '/^Step (\d+) heading$/', $label, $match ) && str_starts_with( $text, $match[1] . '. ' ) ) {
+			return substr( $text, strlen( $match[1] ) + 2 );
+		}
+
+		return $text;
+	}
+
 	public function test_no_default_copy_makes_a_claim_outside_a_claim_slot_or_a_bound_slot(): void {
 		$hits = [];
 
@@ -601,10 +889,17 @@ final class PatternLayoutsTest extends TestCase {
 				}
 				if ( in_array( $label, $bound, true ) ) {
 					// A fallback, shown only while the source returns nothing.
-					// validate's stale_fallback: warning checks it.
+					// validate's stale_fallback: warning checks it for a phone
+					// or an email, and the stats test for a figure.
 					continue;
 				}
-				if ( 1 === preg_match( self::CLAIMS, $text ) ) {
+				if ( in_array( $name, self::STATS, true ) && self::figure_label( $label ) === $text ) {
+					// A figure's label says what its bound value is ("Average
+					// rating"), so it holds the words of the claim the value
+					// makes. The stats test pins each label's text.
+					continue;
+				}
+				if ( 1 === preg_match( self::CLAIMS, self::without_step_number( (string) $label, $text ) ) ) {
 					$hits[] = "{$at}: \"{$text}\"";
 				}
 			}
@@ -614,13 +909,31 @@ final class PatternLayoutsTest extends TestCase {
 	}
 
 	public function test_the_claim_pattern_catches_a_planted_claim(): void {
-		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county' ] as $planted ) {
+		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county', 'Free estimates', 'Same-day repairs', 'Same day visits' ] as $planted ) {
 			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
 		}
 	}
 
-	public function test_the_claim_pattern_passes_words_that_only_hold_star_or_top(): void {
-		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover' ] as $plain ) {
+	public function test_a_step_s_own_number_is_not_a_claim_but_what_follows_it_still_is(): void {
+		foreach ( [ [ 'Step 1 heading', '1. Get in touch' ], [ 'Step 12 heading', '12. We do the work' ] ] as [ $label, $text ] ) {
+			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, self::without_step_number( $label, $text ), "{$label}: {$text}" );
+		}
+
+		foreach ( [
+			[ 'Step 1 heading', '1. Same-day visits' ],
+			[ 'Step 1 heading', '1. Free quotes' ],
+			[ 'Step 1 heading', '1. A call back within 24 hours' ],
+			[ 'Step 2 heading', '1. Get in touch' ],
+			[ 'Step 1 heading', '1.Get in touch' ],
+			[ 'Step 1 text', '1. Get in touch' ],
+			[ 'Heading', '1. How it works' ],
+		] as [ $label, $text ] ) {
+			$this->assertMatchesRegularExpression( self::CLAIMS, self::without_step_number( $label, $text ), "{$label}: {$text}" );
+		}
+	}
+
+	public function test_the_claim_pattern_passes_words_that_only_hold_star_top_or_free(): void {
+		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover', 'Pipes that freeze in winter' ] as $plain ) {
 			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $plain, $plain );
 		}
 	}

@@ -1,0 +1,220 @@
+{
+	"title": "FAQ",
+	"section": "faq",
+	"layout": "list",
+	"description": "Questions visitors ask, answered: a section heading, an optional line of intro, and three questions at content width, one under another. Each question opens to show its answer, with no script, and the first ships open.",
+	"categories": [
+		"voyager-open",
+		"text"
+	],
+	"viewportWidth": 1280,
+	"keywords": [
+		"faq",
+		"questions",
+		"answers",
+		"details",
+		"accordion"
+	],
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: what the questions are about, in a few words.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Intro": {
+			"purpose": "One line on what the questions cover. Leave it out when the heading says enough.",
+			"min": 20,
+			"max": 120,
+			"required": false,
+			"claim": false
+		},
+		"Question 1": {
+			"purpose": "One question a visitor asks, in their own words, ending in a question mark. To drop a question, omit this label: its answer goes with it.",
+			"min": 10,
+			"max": 80,
+			"required": false,
+			"claim": false
+		},
+		"Question 1 answer": {
+			"purpose": "One short paragraph that answers the question plainly. A fact in it, such as a price, a time, an area or a licence, comes from the site owner or from Site Data, never from you.",
+			"min": 20,
+			"max": 300,
+			"required": true,
+			"claim": false
+		},
+		"Question 2": {
+			"purpose": "One question a visitor asks, in their own words, ending in a question mark. To drop a question, omit this label: its answer goes with it.",
+			"min": 10,
+			"max": 80,
+			"required": false,
+			"claim": false
+		},
+		"Question 2 answer": {
+			"purpose": "One short paragraph that answers the question plainly. A fact in it, such as a price, a time, an area or a licence, comes from the site owner or from Site Data, never from you.",
+			"min": 20,
+			"max": 300,
+			"required": true,
+			"claim": false
+		},
+		"Question 3": {
+			"purpose": "One question a visitor asks, in their own words, ending in a question mark. To drop a question, omit this label: its answer goes with it.",
+			"min": 10,
+			"max": 80,
+			"required": false,
+			"claim": false
+		},
+		"Question 3 answer": {
+			"purpose": "One short paragraph that answers the question plainly. A fact in it, such as a price, a time, an area or a licence, comes from the site owner or from Site Data, never from you.",
+			"min": 20,
+			"max": 300,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "FAQ"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|40"
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Lead"
+							},
+							"layout": {
+								"type": "default"
+							}
+						},
+						"children": [
+							{
+								"block": "core/heading",
+								"level": 2,
+								"text": "Common questions",
+								"attrs": {
+									"metadata": {
+										"name": "Heading"
+									}
+								}
+							},
+							{
+								"block": "core/paragraph",
+								"text": "Short answers to what people ask before they get in touch.",
+								"attrs": {
+									"metadata": {
+										"name": "Intro"
+									}
+								}
+							}
+						]
+					},
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Questions"
+							},
+							"style": {
+								"spacing": {
+									"blockGap": "0px"
+								}
+							},
+							"layout": {
+								"type": "default"
+							}
+						},
+						"children": [
+							{
+								"block": "core/details",
+								"text": "What areas do you work in?",
+								"attrs": {
+									"className": "is-style-voyager-open-question",
+									"metadata": {
+										"name": "Question 1"
+									},
+									"showContent": true
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Say which towns or areas you cover, and what someone just outside them can do.",
+										"attrs": {
+											"metadata": {
+												"name": "Question 1 answer"
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/details",
+								"text": "Do you charge for a quote?",
+								"attrs": {
+									"className": "is-style-voyager-open-question",
+									"metadata": {
+										"name": "Question 2"
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Say whether a quote or a first visit costs anything, and how to ask for one.",
+										"attrs": {
+											"metadata": {
+												"name": "Question 2 answer"
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/details",
+								"text": "How soon can you come out?",
+								"attrs": {
+									"className": "is-style-voyager-open-question",
+									"metadata": {
+										"name": "Question 3"
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Say how soon you can usually book a visit, and how to reach you when it cannot wait.",
+										"attrs": {
+											"metadata": {
+												"name": "Question 3 answer"
+											}
+										}
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

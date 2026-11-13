@@ -1,0 +1,268 @@
+{
+	"title": "Stats",
+	"section": "stats",
+	"layout": "row",
+	"description": "Three figures from Site Data in a row at wide width: the year founded, the average rating and the review count, each its value at x-large with a short label under it. Every value is bound, so the page shows only what the site owner typed in, and a figure whose field is empty shows its own text, which names the field. The figures stack on a phone.",
+	"categories": [
+		"voyager-open",
+		"about"
+	],
+	"viewportWidth": 1280,
+	"keywords": [
+		"stats",
+		"figures",
+		"numbers",
+		"rating",
+		"reviews",
+		"founded",
+		"at a glance"
+	],
+	"copy_rules": {
+		"Founded value": {
+			"purpose": "Bound to the Site Data year founded, which the site owner types in. Its own text names the field and shows only while the field is empty: leave the whole figure out then, with omit. Never type a year.",
+			"min": 1,
+			"max": 12,
+			"required": true,
+			"claim": true
+		},
+		"Founded label": {
+			"purpose": "What the figure is, in a few words, such as Year founded. It names the figure and adds no claim of its own.",
+			"min": 3,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Rating value": {
+			"purpose": "Bound to the Site Data rating, which the site owner types in. Its own text names the field and shows only while the field is empty: leave the whole figure out then, with omit. Never type a rating.",
+			"min": 1,
+			"max": 12,
+			"required": true,
+			"claim": true
+		},
+		"Rating label": {
+			"purpose": "What the figure is, in a few words, such as Average rating. It names the figure and adds no claim of its own.",
+			"min": 3,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Review count value": {
+			"purpose": "Bound to the Site Data review count, which the site owner types in. Its own text names the field and shows only while the field is empty: leave the whole figure out then, with omit. Never type a count.",
+			"min": 1,
+			"max": 12,
+			"required": true,
+			"claim": true
+		},
+		"Review count label": {
+			"purpose": "What the figure is, in a few words, such as Reviews. It names the figure and adds no claim of its own.",
+			"min": 3,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Stats"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/columns",
+						"attrs": {
+							"align": "wide",
+							"metadata": {
+								"name": "Figures"
+							},
+							"style": {
+								"spacing": {
+									"blockGap": {
+										"top": "var:preset|spacing|40",
+										"left": "var:preset|spacing|60"
+									}
+								}
+							}
+						},
+						"children": [
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Founded"
+									},
+									"style": {
+										"spacing": {
+											"blockGap": "var:preset|spacing|20"
+										}
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Founded",
+										"attrs": {
+											"fontSize": "x-large",
+											"metadata": {
+												"name": "Founded value",
+												"bindings": {
+													"content": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "founded"
+														}
+													}
+												}
+											},
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Year founded",
+										"attrs": {
+											"metadata": {
+												"name": "Founded label"
+											},
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Rating"
+									},
+									"style": {
+										"spacing": {
+											"blockGap": "var:preset|spacing|20"
+										}
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Score",
+										"attrs": {
+											"fontSize": "x-large",
+											"metadata": {
+												"name": "Rating value",
+												"bindings": {
+													"content": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "rating"
+														}
+													}
+												}
+											},
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Average rating",
+										"attrs": {
+											"metadata": {
+												"name": "Rating label"
+											},
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											}
+										}
+									}
+								]
+							},
+							{
+								"block": "core/column",
+								"attrs": {
+									"metadata": {
+										"name": "Review count"
+									},
+									"style": {
+										"spacing": {
+											"blockGap": "var:preset|spacing|20"
+										}
+									}
+								},
+								"children": [
+									{
+										"block": "core/paragraph",
+										"text": "Count",
+										"attrs": {
+											"fontSize": "x-large",
+											"metadata": {
+												"name": "Review count value",
+												"bindings": {
+													"content": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "review_count"
+														}
+													}
+												}
+											},
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Reviews",
+										"attrs": {
+											"metadata": {
+												"name": "Review count label"
+											},
+											"style": {
+												"typography": {
+													"textAlign": "center"
+												}
+											}
+										}
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

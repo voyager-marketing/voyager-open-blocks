@@ -1,0 +1,36 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Process steps pattern",
+		"description": "The process steps section in its two layouts: voyager-open/process-steps, three numbered steps side by side, and voyager-open/process-steps-list, the same steps one under another at content width, each step a heading that starts with its number and one short line.",
+		"author": "voyager-marketing",
+		"categories": [
+			"Blocks"
+		]
+	},
+	"landingPage": "/voyager-open/process-steps/",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "git:directory",
+				"url": "https://github.com/voyager-marketing/voyager-open-blocks",
+				"ref": "main",
+				"refType": "branch"
+			},
+			"options": {
+				"activate": true,
+				"targetFolderName": "voyager-open-blocks"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; require WP_PLUGIN_DIR . '/voyager-open-blocks/playground/seed.php';"
+		}
+	]
+}
