@@ -86,7 +86,7 @@ The abilities list and insert only the pack's `voyager-open/*` patterns, so your
 
 ## API reference
 
-The plugin is pre-1.0. The supported surface is the helper function, the two binding sources and their args, the options, the filters, the abilities, the icon and facts blocks, the block styles and the pattern slugs. Functions under the `VoyagerOpenBlocks\` namespace work and are listed where a theme might call them, but they can change in a minor release.
+The plugin is pre-1.0. The supported surface is the helper function, the two binding sources and their args, the options, the filters, the abilities, the icon, facts and contact details blocks, the block styles and the pattern slugs. Functions under the `VoyagerOpenBlocks\` namespace work and are listed where a theme might call them, but they can change in a minor release.
 
 ### Binding sources
 
@@ -142,7 +142,7 @@ Stored values are trimmed before use. A list splits on `\r\n`, `\r` or `\n`. A b
 
 ### Bindable attributes
 
-WordPress decides which attributes take a binding. The ones the pack's patterns use: `content` on `core/paragraph` and `core/heading`, `text` and `url` on `core/button`. The plugin adds `label` and `linkUrl` on `voyager-open/icon`, and `items` on `voyager-open/facts`. For any other block, ask WordPress with `get_block_bindings_supported_attributes( 'core/list-item' )`, or read `bindings.supportedAttributes` in a Wesper manifest.
+WordPress decides which attributes take a binding. The ones the pack's patterns use: `content` on `core/paragraph` and `core/heading`, `text` and `url` on `core/button`. The plugin adds `label` and `linkUrl` on `voyager-open/icon`, `items` on `voyager-open/facts`, and all seven attributes of `voyager-open/contact-details` (`phone`, `phoneLink`, `email`, `emailLink`, `address`, `addressLocality` and `hours`). For any other block, ask WordPress with `get_block_bindings_supported_attributes( 'core/list-item' )`, or read `bindings.supportedAttributes` in a Wesper manifest.
 
 ### Functions
 
@@ -214,6 +214,8 @@ apply_filters( 'voyager_post_meta_text_fields', array $fields );
 
 `block_bindings_supported_attributes_voyager-open/facts`: the core filter the plugin hooks to add `items`.
 
+`block_bindings_supported_attributes_voyager-open/contact-details`: the core filter the plugin hooks to add its seven attributes.
+
 `voyager_open_blocks_style_roles`: the colour preset each role of the [section styles](#block-styles-and-patterns) uses, role => palette slug. The roles are `surface`, `on-surface`, `muted`, `accent`, `on-accent` and `line`. The plugin passes its built-in map when your palette matches Twenty Twenty-Five, Twenty Twenty-Four or the Voyager design system, else `[]`. The second argument is the slugs of the palette the site paints with: a style variation's, when one chosen in the Site Editor brings its own palette, else your theme's. A map the filter changes is used as it returns it, kept only to the known roles and to slugs in that palette, with no pairing or contrast choice made for it. A map it returns unchanged is the built-in one, which the plugin keeps to the roles the palette can paint, in pairs. A role the map leaves out is mixed from the site's own text and background colours with `color-mix()`: the ones saved in the Site Editor's Global Styles, else `styles.color` in your theme.json.
 
 ```php
@@ -269,7 +271,7 @@ The plugin hooks these:
 
 | Hook | Priority | What runs |
 |---|---|---|
-| `init` | 10 | Registers the icon and facts blocks, the patterns and their category, and the block styles, starts the usage index's background rebuild when the plugin version changed, and schedules the daily year check, `voyager_open_blocks_year_check`, when it is not scheduled |
+| `init` | 10 | Registers the icon, facts and contact details blocks, the patterns and their category, and the block styles, starts the usage index's background rebuild when the plugin version changed, and schedules the daily year check, `voyager_open_blocks_year_check`, when it is not scheduled |
 | `init` | 15 | Registers the bindable post meta rows from the option |
 | `init` | 20 | Registers both binding sources, their options and the settings screen hooks |
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
@@ -334,6 +336,8 @@ The code is `voyager_open_blocks_bound_slot` when every refused slot is `bound`,
 **`voyager-open/icon`** is a dynamic block that saves no HTML. Attributes: `icon` (one of 35 names, default `star`), `size` (pixels, default `48`, clamped to 8 to 512), `label` (accessible name, empty means decorative), `linkUrl`, `linkTarget` (boolean), `animation` (`bounce`, `pulse`, `spin`, `float`, `wiggle`, `fade-in`, `zoom-in`), `animationTrigger` (`hover`, `scroll` or `always`, default `hover`). It supports text and background colour, margin, padding, anchor and left, center or right alignment. The icon strokes with `currentColor`. The names are the `icon` enum in [`src/icon/block.json`](../src/icon/block.json). A link with no label takes the icon's name as its accessible name.
 
 **`voyager-open/facts`** is a dynamic block that saves no HTML. One attribute, `items` (string, default `''`, bindable): one item per line. It prints a `ul` with the block's wrapper attributes and one `li` per line, each line trimmed and empty lines dropped. Each item is decoded once and escaped once, so a value that arrives escaped, as voyager-blocks returns Site Data, prints the same as one that arrives raw. With no items it prints nothing. Bound to a Site Data list that is empty, it shows its own `items`: the source returns `null`, and WordPress keeps the stored value. It supports text and background colour, font size, line height, margin, padding and anchor.
+
+**`voyager-open/contact-details`** is a dynamic block that saves no HTML. Seven attributes, each a string, default `''`, and bindable: `address`, `addressLocality`, `phone`, `phoneLink`, `email`, `emailLink` and `hours`. Bound to the `voyager/site-data` keys `address`, `address_locality`, `phone`, `phone_link`, `email`, `email_link` and `hours`, it shows Site Data. It prints a `div` with the block's wrapper attributes, holding one `address` with the street, the city line, the phone and the email, each on a line of its own, then the hours as a `p` after it. The phone is `<a href="{phoneLink}">{phone}</a>` and the email `<a href="{emailLink}">{email}</a>`, each href through `esc_url()`, which keeps `tel:` and `mailto:`. A phone or email with no link, or one `esc_url()` refuses, prints as text. A part whose text is empty prints nothing, its link included, an `address` with no line in it is left out, and with no text in any part the block prints nothing. Each value is decoded once and escaped once, as in the facts block. A bound part whose field is empty shows the block's own value. Its stylesheet sets the line layout and gives each link a minimum height and width of 44px, with no colour or font of its own. It supports text and background colour, font size, line height, margin, padding and anchor.
 
 **Block styles:**
 

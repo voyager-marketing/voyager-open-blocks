@@ -9,7 +9,7 @@
 		"collectedAt": "1970-01-01T00:00:00Z",
 		"collector": "fixture",
 		"collectorVersion": "scripts/lib/pack-blocks.mjs",
-		"sourceHash": "sha256:c538104d6126cf549400cec3fd951d05cb11464e529219ac046c6873ae7a9e1f",
+		"sourceHash": "sha256:d3f0c96f1f8be28079f7621526f7bbe4db5c56b76b36995ca13267b05cb2533e",
 		"partial": true
 	},
 	"warnings": [
@@ -65,6 +65,68 @@
 	],
 	"blocks": {
 		"types": [
+			{
+				"name": "voyager-open/contact-details",
+				"apiVersion": 3,
+				"title": "Contact details",
+				"category": "text",
+				"attributes": {
+					"phone": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					},
+					"phoneLink": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					},
+					"email": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					},
+					"emailLink": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					},
+					"address": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					},
+					"addressLocality": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					},
+					"hours": {
+						"type": "string",
+						"default": "",
+						"role": "content"
+					}
+				},
+				"supports": {
+					"html": false,
+					"anchor": true,
+					"color": {
+						"text": true,
+						"background": true
+					},
+					"spacing": {
+						"margin": true,
+						"padding": true
+					},
+					"typography": {
+						"fontSize": true,
+						"lineHeight": true
+					}
+				},
+				"source": "plugin",
+				"parent": null,
+				"ancestor": null
+			},
 			{
 				"name": "voyager-open/facts",
 				"apiVersion": 3,

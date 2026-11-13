@@ -40,7 +40,7 @@ $voyager_open_seed = static function (): void {
 		'voyager_site_social_x'         => 'https://x.com/example',
 		'voyager_site_services'         => "Drain cleaning\nWater heater repair\nLeak detection",
 		'voyager_site_service_area'     => "Springfield\nRiverside\nFairview",
-		'voyager_site_credentials'      => "Licensed and insured\nBackground-checked technicians\nOne-year workmanship guarantee",
+		'voyager_site_credentials'      => "Your first credential\nYour second credential\nYour third credential",
 	];
 	foreach ( $site_data as $option => $value ) {
 		update_option( $option, $value );
@@ -110,9 +110,22 @@ $voyager_open_seed = static function (): void {
 					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Service area</h3><!-- /wp:heading -->',
 					'<!-- wp:voyager-open/facts {"items":"Your town","metadata":{"bindings":{"items":{"source":"voyager/site-data","args":{"key":"service_area"}}}}} /-->',
 					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Credentials</h3><!-- /wp:heading -->',
-					'<!-- wp:voyager-open/facts {"items":"Licensed and insured","className":"is-style-voyager-open-ticks","metadata":{"bindings":{"items":{"source":"voyager/site-data","args":{"key":"credentials"}}}}} /-->',
+					'<!-- wp:voyager-open/facts {"items":"Your credential","className":"is-style-voyager-open-ticks","metadata":{"bindings":{"items":{"source":"voyager/site-data","args":{"key":"credentials"}}}}} /-->',
 					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Its own items</h3><!-- /wp:heading -->',
 					'<!-- wp:voyager-open/facts {"items":"Free estimates\nWeekend appointments\nNo call-out fee"} /-->',
+				]
+			),
+		],
+		'contact-details' => [
+			'Contact details',
+			implode(
+				"\n\n",
+				[
+					'<!-- wp:paragraph --><p>Each block below is a contact details block. The first shows the voyager/site-data contact fields: the street, the city line, the phone and the email, which dial and open a new message when tapped, and the hours. The second shows details of its own, with an email link and no phone link. Change the fields under Settings, Site Data.</p><!-- /wp:paragraph -->',
+					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">From Site Data</h3><!-- /wp:heading -->',
+					'<!-- wp:voyager-open/contact-details {"phone":"Phone number","email":"Email address","address":"Street address","addressLocality":"City, state, postal code","hours":"Business hours","metadata":{"bindings":{"phone":{"source":"voyager/site-data","args":{"key":"phone"}},"phoneLink":{"source":"voyager/site-data","args":{"key":"phone_link"}},"email":{"source":"voyager/site-data","args":{"key":"email"}},"emailLink":{"source":"voyager/site-data","args":{"key":"email_link"}},"address":{"source":"voyager/site-data","args":{"key":"address"}},"addressLocality":{"source":"voyager/site-data","args":{"key":"address_locality"}},"hours":{"source":"voyager/site-data","args":{"key":"hours"}}}}} /-->',
+					'<!-- wp:heading {"level":3} --><h3 class="wp-block-heading">Its own details</h3><!-- /wp:heading -->',
+					'<!-- wp:voyager-open/contact-details {"phone":"Phone number","email":"Email address","emailLink":"mailto:hello@example.com","address":"Street address","addressLocality":"City, state, postal code","hours":"Business hours"} /-->',
 				]
 			),
 		],

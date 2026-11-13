@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Two blocks, two binding sources and eleven patterns, built so an agent can use them correctly without guessing.
+Three blocks, two binding sources and eleven patterns, built so an agent can use them correctly without guessing.
 
 ## Tell your agent
 
@@ -25,6 +25,7 @@ Each item skill has its own prompt under "Tell your agent".
 |---|---|---|---|
 | `voyager-open/icon` | block (dynamic) | `voyager-open-icon` | None. Set its attributes with `insert` or `configure`. |
 | `voyager-open/facts` | block (dynamic) | `voyager-open-facts` | None. Set `items` with `insert` or `configure`, or bind it to a Site Data list. |
+| `voyager-open/contact-details` | block (dynamic) | `voyager-open-contact-details` | None. Bind its seven attributes to Site Data, or set them with `insert` or `configure`. |
 | `voyager/site-data` | binding source | `voyager-site-data` | None |
 | `voyager/post-meta-text` | binding source | `voyager-post-meta-text` | None |
 | `voyager-open/hero` | pattern (the hero, image beside text) | `voyager-open-hero` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
@@ -71,7 +72,7 @@ Every step is an ability call. Place blocks with `insert`, and change them with 
    - **A new section.** Leave `parent` out. `position` is a top-level index: `0` puts the section first, `-1` (the default) adds it at the end, and `n` puts it before the section at path `n`.
    - **Inside a block.** Pass `parent`, the path of the block to go in, and `position`, an index among its inner blocks. To put an icon next to a button, the parent is the block that holds the button's `core/buttons`, not `core/buttons` itself, which takes only buttons. For a button at `0/2/1`, the buttons block is `0/2`, so pass `"parent": "0"` and `"position": 2` to go before it, or `3` to go after it.
 4. **Try, then place.** Call `insert` with `item`, `position`, `parent` when nesting, `copy` and, if a pattern has blocks the user has no content for, `omit`, or more items than it ships, `repeat`. Add `"dry_run": true` first: it runs every check, refusals included, and returns the `markup` without saving. Read `validation`, then call `insert` again without `dry_run`. Keep the `revision_id` it returns.
-5. **Bind or configure.** Take paths from the `blocks` that `insert` returned. Call `bind` with args copied from `get-catalog`, or `configure` for the attributes of the icon or the facts block. In a template or template part, add `post_type` to `bind` for post meta (see Binding rules). Both take `dry_run` too, and each save returns its own `revision_id`.
+5. **Bind or configure.** Take paths from the `blocks` that `insert` returned. Call `bind` with args copied from `get-catalog`, or `configure` for the attributes of the icon, the facts or the contact details block. In a template or template part, add `post_type` to `bind` for post meta (see Binding rules). Both take `dry_run` too, and each save returns its own `revision_id`.
 6. **Verify, and undo what fails.** Call `get-post-blocks` again. Every binding you meant to land should read `resolution.status: "resolved"`. A post meta binding in a template is the exception: it has a value only when a post is shown. Then call `validate` with the `post_id`, and for a template its `post_type`, to check the whole saved page. A site whose plugin is older than this skill has no `validate`. Skip it there. If a check fails, call `undo` with the `post_id` and the `revision_id` of the save that broke it: the content goes back to how it was before that save. If the post was saved after it, undo is refused with `voyager_open_blocks_undo_conflict`, changes nothing, and lists those saves in `later`. When every `revision_id` listed there is one your own saves returned, call `undo` again with `"force": true` to reverse them all. When one is not yours, someone else edited the page: stop and tell the user, and do not force it. Then fix the input and go back to step 4. `revision_id: null` means a save made no revision, because nothing changed, the post is an auto-draft, or the site keeps no revisions for it; `revision_note` says which, and that save cannot be undone. A site whose plugin is older than this skill has no `undo`.
 7. **Report.** For each binding, give its `value_preview` when it resolved, or the Site Data field to fill in when it fell back (`reason: "empty_value"`). Say that the saved HTML was not compared with each block's save(), because this route cannot run Block Runner.
 
@@ -94,10 +95,10 @@ These checks run before anything is saved. When one fails, nothing is saved, and
   - The code is `voyager_open_blocks_bound_slot` when every refused slot is bound, and `voyager_open_blocks_copy_rules` otherwise. A slot with no rule is not checked, and neither is the text a pattern ships with, so a pattern inserted with no `copy` keeps its placeholders.
   - With `parent`, the block at that path must already hold at least one block, must allow the new block (its block.json `allowedBlocks`, or its own `allowedBlocks` setting), and must not be locked (`templateLock` `all`, `insert` or `contentOnly`, its own or inherited). Each new block's block.json `parent` and `ancestor` rules must hold there. A block whose `parent` rule names a container cannot go at the top level.
   - Inside a parent, the section that holds it must still survive a parse and serialize round trip (`validation.section_round_trip`). The response's `section_markup` is that whole section.
-  - `attributes`, for the icon and the facts block: each must exist in its block.json and match its type and enum. `metadata` is refused. Use `bind`.
+  - `attributes`, for the icon, the facts and the contact details block: each must exist in its block.json and match its type and enum. `metadata` is refused. Use `bind`.
   - The new blocks pass three checks: every block type is registered, every comment attribute with a schema matches it, and the markup survives a parse and serialize round trip.
 - **configure**
-  - The block at `path` must be dynamic and save no HTML, like the icon and the facts block. Any other block is refused.
+  - The block at `path` must be dynamic and save no HTML, like the icon, the facts and the contact details block. Any other block is refused.
   - Each attribute must exist and match its type and enum. `null` removes one, so its default applies. `metadata` is refused.
   - With `style` in place of `attributes`, the block at `path` must be a `core/group`, and the style one of `plain`, `panel`, `inverted` and `accent`. Anything else is refused with `voyager_open_blocks_invalid_style`. The style's class replaces any other `is-style-*` class, in the block comment and on the group's saved wrapper, as the editor's Styles panel does.
   - The changed block passes the same three checks.
@@ -128,7 +129,7 @@ The pack's patterns were checked with Block Runner when they were built. `copy` 
 
 Say so, and tell the user what to do in the editor, or use route 2.
 
-- Add a block other than the pack's. `insert` places the pack's patterns, icon and facts block only, so a plain paragraph or heading to bind must already be in the post.
+- Add a block other than the pack's. `insert` places the pack's patterns, icon, facts and contact details blocks only, so a plain paragraph or heading to bind must already be in the post.
 - Put a block inside a container that holds no blocks yet, or one that is locked. Where an empty container's HTML holds its inner blocks cannot be known without its JavaScript.
 - Change an image, add a block type a pattern does not have, or change a static block's link, such as a primary button's `/contact/`.
 - Reach a header, footer or template that was never saved in the Site Editor. `find-posts` lists it with `"id": null`. Ask the user to save it once.
@@ -154,7 +155,7 @@ Use `--ssh <target>` for a remote install over WP-CLI. The REST collector (`--re
 
 Confirm the pack is active before using it:
 
-- `blocks.types[]` has `voyager-open/icon` and `voyager-open/facts`.
+- `blocks.types[]` has `voyager-open/icon`, `voyager-open/facts` and `voyager-open/contact-details`.
 - `bindings.sources[]` has `voyager/site-data` and `voyager/post-meta-text`.
 - `patterns.items[]` has the `voyager-open/*` patterns.
 
@@ -162,7 +163,7 @@ Missing means the plugin is inactive or older. Stop and say so. Do not write mar
 
 ### 2. Author native blocks (Block Runner)
 
-Never hand-write block markup. The one exception is the self-closing comment of the icon or the facts block, because Block Runner cannot assemble a custom block (see `voyager-open-icon` and `voyager-open-facts`). Two ways:
+Never hand-write block markup. The one exception is the self-closing comment of the icon, the facts or the contact details block, because Block Runner cannot assemble a custom block (see `voyager-open-icon`, `voyager-open-facts` and `voyager-open-contact-details`). Two ways:
 
 - **Insert a pattern by reference.** `<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->` renders the current pattern and picks up plugin updates. Use it when the copy can stay as shipped or will be edited in the editor.
 - **Assemble an edited copy.** Each pattern's intent tree is in `patterns/intents/<name>.json` under the `intent` key, in the plugin folder and in the repository. Copy it, change text and attributes, then:
@@ -172,7 +173,7 @@ npx block-runner assemble intent.json --json            # read .output, check .i
 npx block-runner validate page.html --strict --json --context site.context.json
 ```
 
-Pass `--context site.context.json` so Block Runner knows `voyager-open/icon` and `voyager-open/facts` are registered on the target. Without it, strict mode warns that the block is unregistered.
+Pass `--context site.context.json` so Block Runner knows `voyager-open/icon`, `voyager-open/facts` and `voyager-open/contact-details` are registered on the target. Without it, strict mode warns that the block is unregistered.
 
 ### 3. Bind
 
@@ -194,7 +195,7 @@ A binding lives in the block's `metadata.bindings`:
 { "metadata": { "bindings": { "content": { "source": "voyager/site-data", "args": { "key": "phone" } } } } }
 ```
 
-- The attribute must be bindable for that block. `core/paragraph` and `core/heading` take `content`, `core/button` takes `text` and `url`, `voyager-open/icon` takes `label` and `linkUrl`, and `voyager-open/facts` takes `items`, for the Site Data lists (`services`, `service_area`, `credentials`). On route 2, check `bindings.supportedAttributes["<block>"]` in the manifest. On route 1, `bind` refuses any other attribute and lists the bindable ones.
+- The attribute must be bindable for that block. `core/paragraph` and `core/heading` take `content`, `core/button` takes `text` and `url`, `voyager-open/icon` takes `label` and `linkUrl`, `voyager-open/facts` takes `items`, for the Site Data lists (`services`, `service_area`, `credentials`), and `voyager-open/contact-details` takes all seven of its attributes, for the contact fields (`phone`, `phone_link`, `email`, `email_link`, `address`, `address_locality`, `hours`). On route 2, check `bindings.supportedAttributes["<block>"]` in the manifest. On route 1, `bind` refuses any other attribute and lists the bindable ones.
 - Copy `args` verbatim from `get-catalog`, called with the post's type, such as `{"post_type": "post"}`. The default is `page`. In a template or template part, call it with the post type the template shows, and pass that same `post_type` to `bind`. A template has no fields of its own, so without it `bind` refuses post meta. It lists every field, including the `voyager/site-data` keys Wesper cannot see. On route 2, the manifest's `contentModel.postTypes[].fields[]` also gives post meta args ready to use.
 - Leave the authored text in place. An empty value resolves to nothing, and WordPress then keeps the authored text, so placeholder copy shows until the site has real data.
 - A binding replaces the whole attribute. To bind a phone number that sits inside a longer line, give it a block of its own first.
@@ -210,7 +211,7 @@ The plugin registers nine WordPress abilities in the `voyager-open-blocks` categ
 | `voyager-open-blocks/get-post-blocks` | GET | Read a post's blocks with their paths, labels, own `text` and bindings. Each binding carries `resolution` (`status` `resolved` or `fell_back`, a `reason`, a `value_preview`), so you can prove a bound value arrives. |
 | `voyager-open-blocks/insert` | POST | Place a pattern (a copy, or a `core/pattern` reference with `mode: "reference"`) or one of the pack's blocks (`get-catalog`'s `blocks`) at a top-level `position`, or inside the block at `parent`. A copy takes `copy`, text by label within the pattern's `copy_rules`, such as `{"Heading": "Need a plumber today?"}`, or `{"text": "...", "source": "user"}` for text the site owner gave, `omit`, labels to leave out, such as `["Credential 4"]`, and `repeat`, new labels for copies of a block, such as `{"Credential 4": ["Credential 5"]}`. Returns the inserted `markup`, each block's `path` and `label`, `validation`, and with `parent` the whole `section_markup`. `dry_run` previews without saving. A save returns `revision_id`. |
 | `voyager-open-blocks/compose` | POST | Build a whole draft page in one call: `title` for a new draft page, or `post_id` of a draft to replace, and `sections`, each `{"pattern": "voyager-open/<section>", "layout", "style", "copy"}`. `pattern` is the section `get-catalog` lists on a pattern, `layout` its layout (left out, the first), `style` `plain`, `panel`, `inverted` or `accent` (two sections next to each other never share one other than `plain`), and `copy` works as `insert`'s does. When anything is refused, nothing is saved, `saved` is `false` and `refused` lists every slot with its `section` index. Returns `post_id`, `revision_id`, `preview_url`, `validation` (what `validate` returns for the page), `empty` (the Site Data keys the page binds that are empty now) and `refused`. `dry_run` creates no post. Drafts only: change a live page with `insert` and `configure`. |
-| `voyager-open-blocks/configure` | POST | Set attributes on a block that saves no HTML (the icon, the facts block), validated against block.json, or pass `style` instead (`plain`, `panel`, `inverted` or `accent`) to put a section style on a `core/group`. `dry_run` previews without saving. A save returns `revision_id`. |
+| `voyager-open-blocks/configure` | POST | Set attributes on a block that saves no HTML (the icon, the facts block, the contact details block), validated against block.json, or pass `style` instead (`plain`, `panel`, `inverted` or `accent`) to put a section style on a `core/group`. `dry_run` previews without saving. A save returns `revision_id`. |
 | `voyager-open-blocks/bind` | POST | Write `metadata.bindings`. The attribute must be bindable for that block, and `args` must match a listed field exactly. In a template, pass `post_type`, the post type it shows. `dry_run` previews without saving. A save returns `revision_id`. |
 | `voyager-open-blocks/undo` | POST | Reverse a save: pass `post_id` and the `revision_id` that `insert`, `compose`, `configure` or `bind` returned. Restores the content as it was before that save, and returns `revision_id` for the undo itself, which undo takes to put the change back. Refused when the post was saved after it, unless `force` is `true`. |
 | `voyager-open-blocks/validate` | GET | Check `markup`, or a saved post by `post_id`, without saving. Reports per block: registered type, attributes against block.json, bindings against the catalog, and the round trip. Not saved HTML. Takes `post_type` to check binding args for a template. Warns `placeholder:` for each of the pack's placeholders still on the page (the logo marquee's logos, an image slot's placeholder in an image, a media and text block or a cover's background, the contact section's form slot) and `missing_alt:` for any other image or media and text image with no alt text. A cover never gets `missing_alt:`: its background is decoration. Tell the user to fix those in the editor before the page goes live, and to set the focal point on the subject of each image that replaces a placeholder in a cover or a media and text block. Warnings do not change `valid`. |

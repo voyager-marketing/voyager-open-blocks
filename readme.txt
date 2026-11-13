@@ -14,7 +14,7 @@ Ready-made business sections and an icon block that show your phone, email and a
 
 == Description ==
 
-Voyager Open Blocks adds eight ready-made page sections, an icon block and a facts block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
+Voyager Open Blocks adds eight ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
 
 You need no code and no AI agent. Insert the sections from the "Business sections (Open Blocks)" category in the pattern inserter, like any other pattern. See every section live at [demo.voyagermark.com/open-blocks](https://demo.voyagermark.com/open-blocks/).
 
@@ -30,6 +30,7 @@ You need no code and no AI agent. Insert the sections from the "Business section
 * **Contact section**: your phone, email, address and hours beside a slot for your form plugin's form.
 * **Icon block**: 35 outline icons, with an optional link and a CSS-only animation.
 * **Facts block**: a list with one item per line. Connected to your services, service area or credentials on Settings > Site Data, it shows that list and follows it.
+* **Contact details block**: your address, phone, email and hours. Connected to Settings > Site Data, the phone dials and the email opens a new message when a visitor taps them.
 * **Settings > Site Data**: one screen for the details every section reads.
 
 The sections use core blocks and your theme's presets, with no colours of their own, so they take your theme's look.
@@ -53,7 +54,7 @@ Nine WordPress abilities in the `voyager-open-blocks` category let an agent use 
 * `get-catalog`: the pack's blocks, its patterns and every bindable field with its exact arguments.
 * `find-posts`: find a page, post, template or template part by words in its title, its slug, or as the home page, and get its ID. It lists only what the user can edit, and no content.
 * `get-post-blocks`: a post's blocks with their paths, labels, text and bindings, and whether each binding has a value now.
-* `insert`: place a pattern, the icon block or the facts block in a post, at the top level or inside another block, such as an icon beside a header's call button. A pattern copy takes plain text for its named headings, paragraphs, buttons and list items, can leave named blocks out, and can repeat one, such as a fifth credential.
+* `insert`: place a pattern, the icon block, the facts block or the contact details block in a post, at the top level or inside another block, such as an icon beside a header's call button. A pattern copy takes plain text for its named headings, paragraphs, buttons and list items, can leave named blocks out, and can repeat one, such as a fifth credential.
 * `compose`: build a whole draft page in one call from a list of sections, each with its text and section style, checked as insert checks a pattern. It returns the preview link and the Site Data the page shows that is still empty, and it writes drafts only.
 * `configure`: set attributes on a block that saves no HTML.
 * `bind`: write a block binding. The arguments must match a listed field exactly. In a template, it checks them against the post type the template shows.
