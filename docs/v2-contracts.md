@@ -175,7 +175,7 @@ A page as an ordered list of sections, for `compose` to build.
     { "title": "Hero over a background", "section": "hero", "layout": "cover" }
     ```
 
-  - An intent with no `section` key is a section with one layout, as the CTA band, proof strip, logo marquee, closing CTA and contact section are. It has no `layout` key either.
+  - An intent with no `section` key is a section with one layout, as the CTA band, logo marquee, closing CTA and contact section are. It has no `layout` key either.
 - How a recipe section finds its layout. `pattern` names the section by its slug, and `layout` picks one of its layouts:
   - `"pattern": "voyager-open/hero", "layout": "cover"` resolves to the intent whose `section` is `hero` and whose `layout` is `cover`, so the pattern `voyager-open/hero-cover`.
   - `"layout": null`, or no `layout` key, is the section's first layout, the pattern that keeps the section's slug: `voyager-open/hero`.

@@ -4,8 +4,8 @@
 	"height": 900,
 	"floor": 4.5,
 	"styles": [ "plain", "panel", "inverted", "accent" ],
-	"min_renders": 912,
-	"min_pairs": 6768,
+	"min_renders": 960,
+	"min_pairs": 6912,
 	"link": {
 		"pattern": "cta-band",
 		"text": "we will get back to you",

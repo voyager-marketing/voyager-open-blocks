@@ -1,16 +1,22 @@
 ---
 name: voyager-open-proof-strip
-description: Insert or customize the voyager-open/proof-strip pattern, one ruled row of three to six checkmarked credentials, usually directly under a hero. Use when a site has verifiable trust facts (licenses, years in business, guarantees) to show at a glance.
+description: Insert or customize the proof strip, one ruled row of three to six checkmarked credentials, usually directly under a hero, in two layouts. voyager-open/proof-strip takes facts the site owner gives you as a tick list; voyager-open/proof-strip-facts shows the Credentials list from Settings > Site Data through the facts block. Use when a site has verifiable trust facts (licenses, years in business, guarantees) to show at a glance.
 license: GPL-2.0-or-later
 ---
 
-# Proof strip (`voyager-open/proof-strip`)
+# Proof strip (`voyager-open/proof-strip`, `voyager-open/proof-strip-facts`)
 
 ## When to use
 
 - Directly under a hero, to back the headline with facts.
-- Only with real, verifiable facts. If the owner has not given you any, do not place the strip on a live page: ask for them. On a demo or draft page the shipped stand-ins can stay, and you say they need replacing. Never invent a license, an award, a rating or a number of years.
-- When the owner keeps the credentials in Settings > Site Data, show that list through a `voyager-open/facts` block in the Ticks style instead (Copy rules, below).
+- Only with real, verifiable facts. If the owner has not given you any and Settings > Site Data holds none, do not place the strip on a live page: ask for them. On a demo or draft page the shipped stand-ins can stay, and you say they need replacing. Never invent a license, an award, a rating or a number of years.
+
+Pick the layout by where the facts live:
+
+| Layout | Pattern | Use it when |
+|---|---|---|
+| `list` (the first) | `voyager-open/proof-strip` | The owner gives you the facts in the conversation. You type them into its items. |
+| `facts` | `voyager-open/proof-strip-facts` | The owner keeps them in Settings > Site Data > Business profile > Credentials. The strip shows that list and follows it, so a change there changes every page that shows it. |
 
 ## Tell your agent
 
@@ -20,22 +26,34 @@ The shipped items are stand-ins that say what goes there ("Your first credential
 
 ## Structure
 
+Both layouts are the same section and Row. Only what sits in the Row differs.
+
 ```
+voyager-open/proof-strip (layout list)
 core/group (section, full width, ruled top and bottom)   "Proof strip"
   core/group (flex, wrap, centered)                      "Row"
     core/list  className is-style-voyager-open-ticks     "Credentials"
       core/list-item x4                                  "Credential 1" to "Credential 4"
+
+voyager-open/proof-strip-facts (layout facts)
+core/group (section, full width, ruled top and bottom)   "Proof strip"
+  core/group (flex, wrap, centered)                      "Row"
+    voyager-open/facts  className is-style-voyager-open-ticks, items bound to credentials   "Credentials"
 ```
 
-`is-style-voyager-open-ticks` is a `core/list` block style registered by the pack. It draws a checkmark in the text colour and lays the items out as one wrapping row. On WordPress 7.1, core also ships a "Checkmark" list style (`is-style-checkmark-list`). This pack's style also gives the single-row layout and works from 6.9.
+`is-style-voyager-open-ticks` is a block style the pack registers on `core/list` and on `voyager-open/facts`. It draws a checkmark in the text colour and lays the items out as one wrapping row, so the two layouts look the same. On WordPress 7.1, core also ships a "Checkmark" list style (`is-style-checkmark-list`). This pack's style also gives the single-row layout and works from 6.9.
 
-The Row group centres a short list in the strip; a long one fills the row and wraps. A flex group holding a Ticks list is also a size container (`voyager-open-ticks`), so when the Row is narrower than 32em the ticks stack as one column. That follows the strip's width, not the screen's. Keep the list inside the Row group: on its own the list keeps the wrapping row at every width.
+The Row group centres a short list in the strip; a long one fills the row and wraps. A flex group holding a Ticks list or facts block is also a size container (`voyager-open-ticks`), so when the Row is narrower than 32em the ticks stack as one column. That follows the strip's width, not the screen's. Keep the list or the facts block inside the Row group: on its own it keeps the wrapping row at every width.
 
-The intent tree is `patterns/intents/proof-strip.json`. The markup is `patterns/proof-strip.html`.
+The facts block prints its items as one `ul` with the class `wp-block-voyager-open-facts` and the Ticks class, one `li` per line, with no wrapper around the list.
+
+The intent trees are `patterns/intents/proof-strip.json` and `patterns/intents/proof-strip-facts.json`. The markup is `patterns/proof-strip.html` and `patterns/proof-strip-facts.html`. Both intents carry `"section": "proof-strip"`, with `"layout": "list"` and `"layout": "facts"`.
 
 ## Copy rules
 
-The intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` (contract 3). Lengths count characters of plain text.
+Each intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` (contract 3). Lengths count characters of plain text.
+
+**The `list` layout:**
 
 | Label | What goes there | Min | Max | Required | Claim |
 |---|---|---|---|---|---|
@@ -46,21 +64,34 @@ An item added with `repeat` takes the same rules as the one it copies, so `Crede
 
 Every item is a claim slot. `claim: true` means its text comes from the site owner, never from you. Pass each fact in contract 3's object form, `{"text": "Licensed in Illinois", "source": "user"}`, which says the owner gave it. The shipped text makes no claim and says what goes there: "Your first credential" to "Your fourth credential". Replace each one you have a fact for and drop the rest, or leave the strip off a live page.
 
-**Credentials kept in Site Data.** When Settings > Site Data > Business profile > Credentials holds the list, do not type it into this strip. Place a `voyager-open/facts` block in the Ticks style (`is-style-voyager-open-ticks`) with its `items` bound to `voyager/site-data`, `{"key": "credentials"}`, so the page follows the setting. It looks the same as this strip's list. The `voyager-open-facts` skill shows how.
+**The `facts` layout:** `copy_rules` is `{}`. It has no copy slot: the facts block is not a text block, and `insert` refuses copy for "Credentials". The credentials change in Settings > Site Data, never through `copy`.
+
+## Credentials from Site Data
+
+The `facts` layout shows Site Data's `credentials`: one license, certification or membership per line.
+
+- **Filling it.** Settings > Site Data > Business profile > Credentials, one per line. An administrator's REST client can set it too: `POST /wp/v2/settings` with `{"voyager_site_credentials": "Licensed in Ohio\nMember of the trade guild\nWritten quotes"}`, a line break between items. Read it back after. Only the owner's own facts go there, as in the `list` layout.
+- **The stand-ins.** While the field is empty, the binding returns nothing and the facts block shows its own items: "Your first credential", "Your second credential" and "Your third credential". They say what goes there and make no claim. `compose` names `credentials` in `empty` then, and `get-post-blocks` shows the binding's `resolution` as `fell_back`. `validate` gives them no `placeholder:` warning, since markup cannot tell whether the field is filled. So read `empty` and tell the owner to fill the field, or use the `list` layout with the facts they give you.
+- **What shows.** Each line, trimmed, with empty lines dropped. An ampersand prints once whichever plugin owns `voyager/site-data` (see the `voyager-open-facts` skill).
+- Pages that show the list are in `get-catalog`'s `used_on` under `voyager/site-data:credentials`, and a change to the field refreshes them.
 
 ## Customizing
 
-On route 2, copy the intent and replace the list items' `text` with three to six short facts, under about 40 characters each so the row holds. Remove items you have no fact for, or add items for more. Then `npx block-runner assemble intent.json --json`. A list you author can use the `items` shorthand instead:
+On route 2, for the `list` layout, copy the intent and replace the list items' `text` with three to six short facts, under about 40 characters each so the row holds. Remove items you have no fact for, or add items for more. Then `npx block-runner assemble intent.json --json`. A list you author can use the `items` shorthand instead:
 
 ```json
 { "block": "core/list", "attrs": { "className": "is-style-voyager-open-ticks" }, "items": [ "Licensed and insured", "Family owned since 1998" ] }
 ```
 
-On route 1, `insert` rewrites the four shipped items with `copy`, drops items with `omit` and adds a fifth or sixth with `repeat` (see Abilities).
+For the `facts` layout, use `patterns/proof-strip-facts.html` as it is. Block Runner cannot assemble the facts block, so the markup keeps its self-closing comment.
+
+On route 1, `insert` rewrites the `list` layout's four shipped items with `copy`, drops items with `omit` and adds a fifth or sixth with `repeat` (see Abilities).
 
 ## Bindings
 
-None by default. A fact kept in post meta can drive an item when the site allows it. `core/list-item` takes a `content` binding on WordPress 7.1, and older versions may not. On route 2, check `bindings.supportedAttributes["core/list-item"]`. On route 1, `bind` refuses the attribute if the site does not support it. Then bind that item:
+The `facts` layout binds the facts block's `items` to `voyager/site-data` `{"key": "credentials"}`, as shipped. Leave it bound.
+
+The `list` layout binds nothing by default. A fact kept in post meta can drive an item when the site allows it. `core/list-item` takes a `content` binding on WordPress 7.1, and older versions may not. On route 2, check `bindings.supportedAttributes["core/list-item"]`. On route 1, `bind` refuses the attribute if the site does not support it. Then bind that item:
 
 ```json
 { "block": "core/list-item", "text": "Family owned", "attrs": { "metadata": { "bindings": {
@@ -72,14 +103,21 @@ The shipped intent already gives the list `children` of `core/list-item` nodes, 
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/proof-strip` is in the Wesper manifest's `patterns.items` and the `voyager-open-ticks` style is in the `core/list` block's `styles`. Assemble `patterns/intents/proof-strip.json` with the owner's facts, one item per fact, then validate it with Block Runner. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm the pattern you need is in the Wesper manifest's `patterns.items` and the `voyager-open-ticks` style is in the `core/list` block's `styles`, or, for the `facts` layout, `voyager-open/facts` in `blocks.types` and `voyager/site-data` in `bindings.sources`. Assemble `patterns/intents/proof-strip.json` with the owner's facts, one item per fact, then validate it with Block Runner. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
 - **Where:** "under the hero" is usually `position` 1. In `get-post-blocks`, the hero is normally the top-level block at path `0`, and the `text` of the heading inside it is the page's main headline.
-- **Three or four facts:** `insert` with `copy` for one item per fact, each in the object form because the owner gave it, and `omit` for the item left over:
+- **Credentials in Site Data:** `insert` the `facts` layout, with no copy:
+
+  ```json
+  {"post_id": 123, "item": "voyager-open/proof-strip-facts", "position": 1}
+  ```
+
+  In `compose`, the section is `{"pattern": "voyager-open/proof-strip", "layout": "facts"}`. If `empty` names `credentials`, say so.
+- **Three or four facts the owner gave you:** `insert` the `list` layout with `copy` for one item per fact, each in the object form because the owner gave it, and `omit` for the item left over:
 
   ```json
   {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "copy": {"Credential 1": {"text": "Licensed and insured", "source": "user"}, "Credential 2": {"text": "Family owned since 1998", "source": "user"}, "Credential 3": {"text": "Written quotes", "source": "user"}}, "omit": ["Credential 4"]}
@@ -93,11 +131,11 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
   ```
 
   Every item you add needs a fact in `copy`, or it shows the fourth item's stand-in. More than six makes a crowded row: say so and ask which to keep.
-- **No facts:** do not insert the strip. Ask the owner for them. When they are in Settings > Site Data > Credentials, insert a `voyager-open/facts` block in the Ticks style and bind its `items` instead (Copy rules, above).
-- **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. It shows the four stand-ins, so use it only on a demo page.
-- **bind:** optional. Bind a list item's `content` to an allowlisted post meta field (Bindings, above).
+- **No facts:** do not insert the strip. Ask the owner for them, or for their Credentials under Settings > Site Data.
+- **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. The `list` layout then shows its four stand-ins, so use it only on a demo page.
+- **bind:** optional, on the `list` layout. Bind a list item's `content` to an allowlisted post meta field (Bindings, above).
 - Then `validate` the page.
 
 ## Try it
 
-`blueprints/proof-strip.json`.
+`blueprints/proof-strip.json` opens a page with both layouts: the typed-in strip, then the strip from Site Data.

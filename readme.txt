@@ -28,7 +28,7 @@ You need no code and no AI agent. Insert the sections from the "Business section
 * **FAQ**: the questions visitors ask before they get in touch, one under another or beside the section heading. Each question opens to show its answer, with no script. Add up to eight questions, or drop one.
 * **Service area**: where you work, as a heading, one line and the towns you serve as a checkmarked list, on its own or beside an image. The towns come from your service area on Settings > Site Data and follow it.
 * **CTA band**: a heading and one line beside your main button and a click-to-call button that dials your phone number. Use it mid-page.
-* **Proof strip**: a row of three to six checkmarked facts, such as "Licensed and insured", under your hero.
+* **Proof strip**: a row of three to six checkmarked facts, such as "Licensed and insured", under your hero. Type them in, or show the credentials from Settings > Site Data, which the strip then follows.
 * **Logo marquee**: a row of client or partner logos that drifts sideways when it is wider than the screen. You replace the placeholder logos with your own.
 * **Closing CTA**: the last section before your footer, with your main button and an email button.
 * **Contact section**: your phone, email, address and hours beside a slot for your form plugin's form.

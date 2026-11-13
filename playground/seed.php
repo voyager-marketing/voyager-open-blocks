@@ -88,7 +88,8 @@ $voyager_open_seed = static function (): void {
 		// The service area in both layouts: a list, then beside an image. Both show the Site Data service area.
 		'service-area'    => [ 'Service area', '<!-- wp:pattern {"slug":"voyager-open/service-area"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/service-area-split"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
-		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
+		// The proof strip in both layouts: credentials typed in, then the Credentials from Site Data.
+		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/proof-strip-facts"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
 		'closing-cta'     => [ 'Closing CTA', '<!-- wp:pattern {"slug":"voyager-open/closing-cta"} /-->' ],
 		'contact-section' => [ 'Contact section', '<!-- wp:pattern {"slug":"voyager-open/contact-section"} /-->' ],

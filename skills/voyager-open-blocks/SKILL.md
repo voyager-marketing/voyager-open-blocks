@@ -26,7 +26,7 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 ## Recipes
 
-`compose` takes `voyager-open/hero-cover` as `pattern` `voyager-open/hero`, `layout` `cover`.
+`compose` takes `voyager-open/hero-cover` as `pattern` `voyager-open/hero`, `layout` `cover`; `voyager-open/proof-strip-facts`, `layout` `facts`.
 
 | Page | Recipe | Sections, with style |
 |---|---|---|
