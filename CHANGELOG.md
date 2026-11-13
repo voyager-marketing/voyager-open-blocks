@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.9.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### Features
+
+* add a process steps section in two layouts, numbered steps ([#82](https://github.com/voyager-marketing/voyager-open-blocks/issues/82)) ([25b6dce](https://github.com/voyager-marketing/voyager-open-blocks/commit/25b6dce05e168e6a8f001e7e06feb2265cab6e54))
+* add a service area section in two layouts, places from Site Data ([#83](https://github.com/voyager-marketing/voyager-open-blocks/issues/83)) ([3c14406](https://github.com/voyager-marketing/voyager-open-blocks/commit/3c144069cd3bbcec66a23b34cf415e50b2e37e40))
+* add a stats section in two layouts, every figure from Site Data ([#85](https://github.com/voyager-marketing/voyager-open-blocks/issues/85)) ([c996333](https://github.com/voyager-marketing/voyager-open-blocks/commit/c9963332ae14d40436cb8cb4245bbb4ea9b450a0))
+* add an FAQ section in two layouts, questions in details blocks ([#84](https://github.com/voyager-marketing/voyager-open-blocks/issues/84)) ([087966c](https://github.com/voyager-marketing/voyager-open-blocks/commit/087966cb6275852257692f672758629dbe18065b))
+* add the contact details block, a phone and email that tap ([#78](https://github.com/voyager-marketing/voyager-open-blocks/issues/78)) ([202433d](https://github.com/voyager-marketing/voyager-open-blocks/commit/202433dad856be7ddd7e0ad6af470fd04cc0580b))
+* add the proof strip's facts layout, credentials from Site Data ([#91](https://github.com/voyager-marketing/voyager-open-blocks/issues/91)) ([d65779d](https://github.com/voyager-marketing/voyager-open-blocks/commit/d65779d73fb6901e99d821cca57b29e24fbf5f61))
+* compose builds a draft page from a list of sections ([#80](https://github.com/voyager-marketing/voyager-open-blocks/issues/80)) ([2bb8955](https://github.com/voyager-marketing/voyager-open-blocks/commit/2bb89550f511bb516fb3851056de2e876675f90d))
+* compose builds a page from a recipe, and get-catalog lists them ([#86](https://github.com/voyager-marketing/voyager-open-blocks/issues/86)) ([8f68b10](https://github.com/voyager-marketing/voyager-open-blocks/commit/8f68b10d41b096be91c9d0007d4ed0365d8066f7))
+* compose sections take omit and repeat, validate warns stand-ins ([#88](https://github.com/voyager-marketing/voyager-open-blocks/issues/88)) ([55f310f](https://github.com/voyager-marketing/voyager-open-blocks/commit/55f310f5bd513a737f80305e75c96a7f5b76a650))
+* get-catalog returns copy rules, and insert enforces them ([#76](https://github.com/voyager-marketing/voyager-open-blocks/issues/76)) ([51ff390](https://github.com/voyager-marketing/voyager-open-blocks/commit/51ff3900a48dba69b2d1cfe18ad5ea4d405f27af))
+* page recipes as data for six page types ([#79](https://github.com/voyager-marketing/voyager-open-blocks/issues/79)) ([3a2f7c6](https://github.com/voyager-marketing/voyager-open-blocks/commit/3a2f7c6da0dcb59d604bfd519cc39fe033512470))
+* serve each skill's Tell your agent prompt as an MCP prompt ([#90](https://github.com/voyager-marketing/voyager-open-blocks/issues/90)) ([0119008](https://github.com/voyager-marketing/voyager-open-blocks/commit/011900858a7af0efcbaff14a7de6530444cb8213))
+* the contact section shows its details through the details block ([#92](https://github.com/voyager-marketing/voyager-open-blocks/issues/92)) ([5a51200](https://github.com/voyager-marketing/voyager-open-blocks/commit/5a5120069000456ad0102ae14e3340c75b58b15f))
+
+
+### Bug Fixes
+
+* copy rules in five sections, and stand-ins in the proof strip ([#74](https://github.com/voyager-marketing/voyager-open-blocks/issues/74)) ([858044e](https://github.com/voyager-marketing/voyager-open-blocks/commit/858044ed7379b28a376f32800504765b8ea13d05))
+* icon scroll timeline, closing CTA padding, design-check per theme ([#94](https://github.com/voyager-marketing/voyager-open-blocks/issues/94)) ([cd0d6d5](https://github.com/voyager-marketing/voyager-open-blocks/commit/cd0d6d579c459e94f245d5f63171c2be58f12de2))
+* refresh pages that list a post's meta in a Query Loop ([#75](https://github.com/voyager-marketing/voyager-open-blocks/issues/75)) ([19450e9](https://github.com/voyager-marketing/voyager-open-blocks/commit/19450e9345d4f4f5f871873f6fcfcf520b25b5d5))
+
+
+### Documentation
+
+* copy examples for five kinds of business, each a compose call ([#87](https://github.com/voyager-marketing/voyager-open-blocks/issues/87)) ([f92ae27](https://github.com/voyager-marketing/voyager-open-blocks/commit/f92ae279fa31c62fc9eeae94b43bd24362f5cd98))
+* the entry skill is a quick card, the detail in the abilities ([#89](https://github.com/voyager-marketing/voyager-open-blocks/issues/89)) ([c1134f9](https://github.com/voyager-marketing/voyager-open-blocks/commit/c1134f9f27987f811a3091ecc368659ab6c8b59a))
+
+
+### Performance
+
+* load each icon animation's CSS only where an icon uses it ([#81](https://github.com/voyager-marketing/voyager-open-blocks/issues/81)) ([ce9d007](https://github.com/voyager-marketing/voyager-open-blocks/commit/ce9d007b9b0d93cdea294e67f49f2ff8efe5117d))
+
 ## [0.8.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.7.0...v0.8.0) (2026-11-12)
 
 
