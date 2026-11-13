@@ -38,6 +38,15 @@
  *      switch_theme rebuilds the theme index, and not before; removing the
  *      file and rebuilding again takes it back out. Runs last, because it
  *      fires switch_theme.
+ *   h. Icon animations, on a page holding one icon per animation on the
+ *      scroll trigger and a pulse icon that always plays. On the front end
+ *      each scroll icon's SVG computes its own animation on its view
+ *      timeline (animation-timeline view(), duration auto), so it plays as
+ *      it enters the viewport and not once on load, while the always icon
+ *      computes the pulse on the document timeline. In the editor each icon
+ *      on the canvas carries its animation and trigger classes and computes
+ *      the same animation and timeline as on the front end, so the editor
+ *      previews it. Runs before g.
  *
  * Each check is a named assertion. A failed one prints what it saw, and in
  * GitHub Actions becomes an error annotation titled with its name. PHP fatal
@@ -47,7 +56,8 @@
  * Needs Chrome, Chromium or Edge (set CHROME_PATH to pick one) and the Node
  * in .nvmrc. The first run downloads WordPress; later runs reuse it.
  */
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
 	appPassword,
@@ -62,6 +72,7 @@ import { findChrome, launch } from './lib/chrome.mjs';
 import { annotate, endGroup, group } from './lib/log.mjs';
 import { nodeVersionProblem } from './lib/node-version.mjs';
 import { createRestClient } from './lib/rest.mjs';
+import { repo } from './lib/site.mjs';
 
 const TIMEOUT_MINUTES = 20;
 const WIDTH = 1280;
@@ -106,7 +117,7 @@ the theme template index, in headless Chrome. Exits 1 if any assertion fails.
 
   --only <list>    Only these checks, such as --only a,c. Checks: a notice,
                    b Settings > Site Data, c empty bound value, d placeholders,
-                   e paste, f front end, g theme files.
+                   e paste, f front end, g theme files, h icon animations.
   --port <n>       Port to serve on. Default 9400, or a free port if 9400 is taken.
   --wp <version>   WordPress version, such as 6.9. Default latest.
   --php <version>  PHP version, such as 8.1. Default 8.3.
@@ -466,6 +477,35 @@ function countInCanvas( selector ) {
 	const frame = document.querySelector( 'iframe[name="editor-canvas"]' );
 	const canvas = frame ? frame.contentDocument : document;
 	return canvas.querySelectorAll( selector ).length;
+}
+
+/**
+ * Every icon in the editor canvas, or in the page when there is no canvas:
+ * its animation and trigger classes, and the animation its SVG computes.
+ *
+ * @return {Array<Object>} One entry per icon, in document order.
+ */
+function readIcons() {
+	const frame = document.querySelector( 'iframe[name="editor-canvas"]' );
+	const doc = frame ? frame.contentDocument : document;
+	return [ ...doc.querySelectorAll( '.wp-block-voyager-open-icon' ) ].map(
+		( icon ) => {
+			const svg = icon.querySelector(
+				'.wp-block-voyager-open-icon__svg'
+			);
+			const style = svg ? doc.defaultView.getComputedStyle( svg ) : null;
+			return {
+				classes: [ ...icon.classList ]
+					.filter( ( name ) =>
+						/^(has-animation-|is-trigger-)/.test( name )
+					)
+					.sort(),
+				animation: style ? style.animationName : null,
+				timeline: style ? style.animationTimeline : null,
+				duration: style ? style.animationDuration : null,
+			};
+		}
+	);
 }
 
 /**
@@ -1299,6 +1339,106 @@ return [
 	);
 }
 
+/**
+ * The icon's animations, from src/icon/block.json's `animation` enum.
+ *
+ * @return {string[]} Names, less the empty "none".
+ */
+function iconAnimations() {
+	const block = JSON.parse(
+		readFileSync( join( repo, 'src', 'icon', 'block.json' ), 'utf8' )
+	);
+	return ( block.attributes?.animation?.enum || [] ).filter(
+		( name ) => name !== ''
+	);
+}
+
+async function checkIconAnimations() {
+	const animations = iconAnimations();
+	// One icon per animation on the scroll trigger, then the control: a pulse
+	// that always plays, on the document timeline.
+	const icons = [
+		...animations.map( ( animation ) => ( {
+			icon: 'star',
+			animation,
+			animationTrigger: 'scroll',
+		} ) ),
+		{ icon: 'star', animation: 'pulse', animationTrigger: 'always' },
+	];
+	const page = await createPage(
+		'E2E editor: icon animations',
+		icons
+			.map(
+				( attrs ) =>
+					`<!-- wp:voyager-open/icon ${ JSON.stringify( attrs ) } /-->`
+			)
+			.join( '\n\n' )
+	);
+	const want = icons.map( ( attrs ) => ( {
+		classes: [
+			`has-animation-${ attrs.animation }`,
+			`is-trigger-${ attrs.animationTrigger }`,
+		].sort(),
+		animation: `voyager-open-icon-${ attrs.animation }`,
+	} ) );
+
+	await admin.goto( page.link );
+	const front = await admin.evaluate( js( readIcons ) );
+	const scroll = front.slice( 0, animations.length );
+	const always = front[ animations.length ];
+	expect(
+		`h1 front end: each of the ${ animations.length } scroll-triggered icons plays its own animation on its view timeline, as it enters the viewport`,
+		animations.length === 7 &&
+			front.length === icons.length &&
+			scroll.every(
+				( got, i ) =>
+					JSON.stringify( got.classes ) ===
+						JSON.stringify( want[ i ].classes ) &&
+					got.animation === want[ i ].animation &&
+					got.timeline === 'view()' &&
+					got.duration === 'auto'
+			),
+		scroll.map( ( got, i ) => ( { ...got, want: want[ i ] } ) )
+	);
+	expect(
+		'h2 front end: the always-playing pulse icon, the control, plays on the document timeline',
+		!! always &&
+			JSON.stringify( always.classes ) ===
+				JSON.stringify( want[ animations.length ].classes ) &&
+			always.animation === 'voyager-open-icon-pulse' &&
+			always.timeline === 'auto' &&
+			always.duration !== 'auto',
+		always || 'no control icon on the page'
+	);
+
+	await openEditor( page.id );
+	await admin.waitFor(
+		`${ js( countInCanvas, '.wp-block-voyager-open-icon' ) } === ${
+			icons.length
+		}`,
+		{ timeout: 15000 }
+	);
+	const canvas = await admin.evaluate( js( readIcons ) );
+	expect(
+		'h3 editor: each icon on the canvas carries its animation and trigger classes and plays what the front end plays, so the editor previews it',
+		canvas.length === icons.length &&
+			canvas.every(
+				( got, i ) =>
+					JSON.stringify( got.classes ) ===
+						JSON.stringify( want[ i ].classes ) &&
+					got.animation === want[ i ].animation &&
+					got.timeline === front[ i ]?.timeline
+			),
+		canvas.map( ( got, i ) => ( {
+			...got,
+			want: want[ i ],
+			front: front[ i ]
+				? `${ front[ i ].animation } on ${ front[ i ].timeline }`
+				: null,
+		} ) )
+	);
+}
+
 const CHECKS = [
 	[ 'a', 'First-run notice', checkNotice ],
 	[ 'b', 'Settings > Site Data', checkSettings ],
@@ -1306,6 +1446,8 @@ const CHECKS = [
 	[ 'd', 'Placeholder hints', checkPlaceholders ],
 	[ 'e', 'Paste each pattern', checkPaste ],
 	[ 'f', 'Front end', checkFrontEnd ],
+	// h before g, which fires switch_theme and so runs last.
+	[ 'h', 'Icon animations', checkIconAnimations ],
 	[ 'g', 'Theme template files', checkThemeFiles ],
 ];
 
@@ -1392,7 +1534,11 @@ async function run( opts ) {
 		: null;
 	const checks = CHECKS.filter( ( [ id ] ) => ! only || only.has( id ) );
 	if ( ! checks.length ) {
-		console.error( '--only matched none of a, b, c, d, e, f.' );
+		console.error(
+			`--only matched none of ${ CHECKS.map( ( [ id ] ) => id )
+				.sort()
+				.join( ', ' ) }.`
+		);
 		return 2;
 	}
 	const chrome = findChrome();
