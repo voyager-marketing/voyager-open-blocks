@@ -22,9 +22,27 @@ final class PatternLayoutsTest extends TestCase {
 
 	/**
 	 * Words and marks of a factual claim: a credential, a year, a rating or an
-	 * award. Default copy holds none of them (contract 3).
+	 * award. Default copy holds none of them (contract 3). "star" and "top"
+	 * are whole words, so "started" and "stop" make no claim.
 	 */
-	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|star|years?\b|since|established|guarantee|warrant|best|top|leading|#|\d/i';
+	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|\bstars?\b|years?\b|since|established|guarantee|warrant|best|\btop\b|leading|#|\d/i';
+
+	/**
+	 * What each of the proof strip's items ships as: what goes there, never a
+	 * credential.
+	 */
+	private const CREDENTIAL_PLACEHOLDERS = [
+		'Credential 1' => 'Your first credential',
+		'Credential 2' => 'Your second credential',
+		'Credential 3' => 'Your third credential',
+		'Credential 4' => 'Your fourth credential',
+	];
+
+	/**
+	 * The intents whose copy_rules may hold a claim slot, each because a test
+	 * below checks what its claim slots ship.
+	 */
+	private const CLAIM_SECTIONS = [ 'proof-strip', 'reviews', 'reviews-single' ];
 
 	/**
 	 * What each part of a review ships as: what goes there, never a review.
@@ -73,6 +91,37 @@ final class PatternLayoutsTest extends TestCase {
 				$label = $node['attrs']['metadata']['name'] ?? null;
 				if ( is_string( $label ) && isset( BlockTree\TEXT_ATTRIBUTES[ (string) ( $node['block'] ?? '' ) ] ) ) {
 					$out[ $label ] = is_string( $node['text'] ?? null ) ? $node['text'] : '';
+				}
+				$walk( is_array( $node['children'] ?? null ) ? $node['children'] : [] );
+			}
+		};
+
+		$blocks = $intent['intent']['blocks'] ?? [];
+		$walk( is_array( $blocks ) ? $blocks : [] );
+
+		return $out;
+	}
+
+	/**
+	 * The named text blocks whose text is bound, the slots insert refuses copy
+	 * for: their own text is a fallback, shown only while the source returns
+	 * nothing. A button with only its url bound keeps its own text, so it is
+	 * not one of them.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return list<string>
+	 */
+	private static function bound_text_labels( array $intent ): array {
+		$out  = [];
+		$walk = static function ( array $nodes ) use ( &$walk, &$out ): void {
+			foreach ( $nodes as $node ) {
+				if ( ! is_array( $node ) ) {
+					continue;
+				}
+				$label     = $node['attrs']['metadata']['name'] ?? null;
+				$attribute = BlockTree\TEXT_ATTRIBUTES[ (string) ( $node['block'] ?? '' ) ] ?? null;
+				if ( is_string( $label ) && null !== $attribute && isset( $node['attrs']['metadata']['bindings'][ $attribute ] ) ) {
+					$out[] = $label;
 				}
 				$walk( is_array( $node['children'] ?? null ) ? $node['children'] : [] );
 			}
@@ -381,17 +430,28 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
+	public function test_each_credential_in_the_proof_strip_is_a_claim_and_ships_as_a_stand_in_never_a_credential(): void {
+		$intent = self::intents()['proof-strip'];
+		$texts  = self::text_blocks( $intent );
+		$rules  = is_array( $intent['copy_rules'] ?? null ) ? $intent['copy_rules'] : [];
+
+		$this->assertSame( array_keys( self::CREDENTIAL_PLACEHOLDERS ), array_keys( $texts ), 'proof-strip ships four items, "Credential 1" to "Credential 4", and no other text' );
+
+		foreach ( self::CREDENTIAL_PLACEHOLDERS as $label => $stand_in ) {
+			$at = "proof-strip \"{$label}\"";
+			$this->assertTrue( $rules[ $label ]['claim'] ?? null, "{$at} is a credential, so its text must come from the site owner" );
+			$this->assertSame( $stand_in, $texts[ $label ], "{$at} must say what goes there, not read as a credential" );
+			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $texts[ $label ], "{$at}: the stand-in makes a claim" );
+		}
+	}
+
 	public function test_copy_rules_cover_every_named_text_block_and_its_default_copy_fits(): void {
 		$intents = self::intents();
-		foreach ( [ 'hero', 'hero-cover', 'services', 'services-list', 'reviews', 'reviews-single' ] as $name ) {
-			$this->assertArrayHasKey( 'copy_rules', $intents[ $name ], $name );
-		}
+		$this->assertNotSame( [], $intents, 'no intent files were read' );
+		$without = array_keys( array_filter( $intents, static fn ( array $intent ): bool => ! array_key_exists( 'copy_rules', $intent ) ) );
+		$this->assertSame( [], $without, 'every intent carries copy_rules' );
 
 		foreach ( $intents as $name => $intent ) {
-			if ( ! array_key_exists( 'copy_rules', $intent ) ) {
-				continue;
-			}
-
 			$rules = $intent['copy_rules'];
 			$texts = self::text_blocks( $intent );
 			$this->assertIsArray( $rules, $name );
@@ -418,22 +478,44 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
-	public function test_the_hero_and_services_default_copy_makes_no_claim(): void {
-		foreach ( [ 'hero', 'hero-cover', 'services', 'services-list' ] as $name ) {
-			$intent = self::intents()[ $name ];
+	public function test_no_default_copy_makes_a_claim_outside_a_claim_slot_or_a_bound_slot(): void {
+		$hits = [];
+
+		foreach ( self::intents() as $name => $intent ) {
+			$rules = is_array( $intent['copy_rules'] ?? null ) ? $intent['copy_rules'] : [];
+			$bound = self::bound_text_labels( $intent );
 
 			foreach ( self::text_blocks( $intent ) as $label => $text ) {
-				$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $text, "{$name} \"{$label}\"" );
-			}
-			foreach ( $intent['copy_rules'] as $label => $rule ) {
-				$this->assertFalse( $rule['claim'], "{$name} \"{$label}\" is a claim slot, so its text must come from Site Data" );
+				$at = "{$name} \"{$label}\"";
+				if ( true === ( $rules[ $label ]['claim'] ?? null ) ) {
+					// Its text comes from the site owner. The reviews and proof
+					// strip tests check that it ships a stand-in.
+					$this->assertContains( $name, self::CLAIM_SECTIONS, "{$at} is a claim slot, and no test checks what it ships" );
+					continue;
+				}
+				if ( in_array( $label, $bound, true ) ) {
+					// A fallback, shown only while the source returns nothing.
+					// validate's stale_fallback: warning checks it.
+					continue;
+				}
+				if ( 1 === preg_match( self::CLAIMS, $text ) ) {
+					$hits[] = "{$at}: \"{$text}\"";
+				}
 			}
 		}
+
+		$this->assertSame( [], $hits, 'default copy outside a claim slot or a bound slot makes a claim' );
 	}
 
 	public function test_the_claim_pattern_catches_a_planted_claim(): void {
-		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service' ] as $planted ) {
+		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county' ] as $planted ) {
 			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
+		}
+	}
+
+	public function test_the_claim_pattern_passes_words_that_only_hold_star_or_top(): void {
+		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover' ] as $plain ) {
+			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $plain, $plain );
 		}
 	}
 
