@@ -1,6 +1,6 @@
 {
 	"title": "Service page",
-	"description": "One service in detail: what it is and where, the credentials it needs, what it covers, one customer's words about it, and how to book it.",
+	"description": "One service in detail: what it is and where, the credentials it needs, what it covers, one customer's words about it, the questions customers ask about it, and how to book it.",
 	"page_type": "service",
 	"sections": [
 		{
@@ -51,6 +51,16 @@
 				"Heading": "What a customer said about this service, in a few words. No count or score.",
 				"Review 1 quote": "A review of this service that the site owner gave you, in the customer's own words.",
 				"Review 1 detail": "This service's name, or the month and year of the review, as the site owner gave it."
+			}
+		},
+		{
+			"pattern": "voyager-open/faq",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "Questions about this service, in a few words.",
+				"Question 1": "A question customers ask about this service before they book it, in their own words.",
+				"Question 1 answer": "The answer the site owner gave. A price, a time or a guarantee in it comes from the site owner, never from you."
 			}
 		},
 		{
