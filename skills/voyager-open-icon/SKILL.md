@@ -33,12 +33,23 @@ A header is a template part, and "next to the call button" is inside it. Both ro
 | `label` | string | `""` | Accessible name. Empty means decorative (`aria-hidden`). Set it whenever the icon carries meaning or is a link. |
 | `linkUrl` | string | `""` | Wraps the icon in a link. A link with no label falls back to the icon's name as its label. |
 | `linkTarget` | boolean | `false` | Opens the link in a new tab. |
-| `animation` | string, enum | `""` | `bounce`, `pulse`, `spin`, `float`, `wiggle`, `fade-in`, `zoom-in`. CSS only. Off under reduced motion. |
+| `animation` | string, enum | `""` | `bounce`, `pulse`, `spin`, `float`, `wiggle`, `fade-in`, `zoom-in`. CSS only, loaded only on a page whose icon uses it (see Stylesheets). Off under reduced motion. |
 | `animationTrigger` | string, enum | `hover` | `hover`, `scroll` (plays as the icon enters the viewport where the browser supports scroll-driven animation, once on load elsewhere), `always`. |
 
 Supports: text and background colour, margin, padding, anchor, and `align` (`left`, `center`, `right`). Colour comes from the text colour, because the icon strokes with `currentColor`.
 
 Icon names: arrow-down, arrow-left, arrow-right, arrow-up, bolt, building-office, chart-bar, chat-bubble, check-circle, chevron-down, chevron-right, clock, cog, cursor-arrow-click, document, envelope, exclamation-triangle, globe, heart, home, information-circle, light-bulb, link, map-pin, phone, photo, play-circle, rocket-launch, shield-check, sparkles, star, users, video-camera, wrench, x-circle.
+
+## Stylesheets
+
+An icon with no animation loads one small stylesheet. Each animation adds its own, and only where an icon uses it:
+
+| Handle | Holds | Loads |
+|---|---|---|
+| `voyager-open-icon-style` | Layout, alignment, the link and the SVG box: what every icon needs. Under 1 KB. | Wherever an icon renders. A site that does not load block assets on demand loads it on every page, as it does every block's style. |
+| `voyager-open-icon-animation-<name>`, one per animation, such as `voyager-open-icon-animation-pulse` | That animation's keyframes, its three trigger rules, the rule that ties the scroll trigger to the icon's view timeline, and the reduced-motion rule that stops it. Inline CSS, no file. | Only on a page that renders an icon with that animation. A block theme prints it in the head. A classic theme prints it at the footer, and WordPress 6.9 or later moves it into the head when it loads block styles on demand. The editor loads all seven. |
+
+So a page whose icons are all still, such as one holding the services section as shipped, loads no animation CSS. Setting `animation` with `configure` is all it takes for that page to load the one it now needs.
 
 ## Binding
 

@@ -111,7 +111,13 @@
  *      no mailto: link render while the rest still does. validate warns
  *      stale_fallback on the block bound to the phone whose own phone holds
  *      a phone number. Then it deletes the page and puts the fields back.
- *  15. the service area section: get-catalog lists its two layouts, each
+ *  15. the icon's CSS, split by animation: a published page holding one
+ *      icon with no animation loads under 1,024 bytes of icon CSS (every
+ *      <link> whose id starts with voyager-open-icon, fetched, and every
+ *      <style> whose id does) and no keyframes, and a page holding one pulse
+ *      icon loads the base and the pulse keyframes, no other animation's, and
+ *      the reduced-motion rule that stops it. Then it deletes both pages.
+ *  16. the service area section: get-catalog lists its two layouts, each
  *      with its copy labels and one facts block, "Places", whose items are
  *      bound to service_area. insert places the list layout on a draft with
  *      copy for its heading, the service area is set to three lines through
@@ -4198,7 +4204,197 @@ await setContact(
 );
 await api( recorder, { method: 'DELETE' } );
 
-// 15. The service area section, in its two layouts. Each holds a facts block
+// 15. The icon's CSS, split by animation. The base rules load with every
+// icon; an animation's keyframes, trigger rules and reduced-motion rule load
+// only on a page whose icon uses it. Each page below holds one icon, is
+// published and is fetched as a visitor. The icon's CSS is every <link>
+// whose id starts with voyager-open-icon, fetched, and every <style> whose
+// id does, so a stylesheet WordPress inlines counts the same as a file.
+const ICON_CSS_CEILING = 1024;
+const iconType = ( catalog.data.blocks || [] ).find(
+	( b ) => b.name === 'voyager-open/icon'
+);
+const iconAnimations = ( iconType?.attributes?.animation?.enum || [] ).filter(
+	( name ) => name !== ''
+);
+step(
+	'get-catalog lists the icon with its seven animations',
+	iconAnimations.length === 7,
+	JSON.stringify( iconAnimations )
+);
+
+/**
+ * One attribute of an HTML tag, entities for & decoded, or null.
+ *
+ * @param {string} tag  An opening tag.
+ * @param {string} name The attribute.
+ * @return {string|null} Its value.
+ */
+const tagAttribute = ( tag, name ) => {
+	const match = tag.match(
+		new RegExp( `\\s${ name }=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i' )
+	);
+	return match
+		? ( match[ 1 ] ?? match[ 2 ] ?? match[ 3 ] ).replace(
+				/&#0?38;|&amp;/g,
+				'&'
+			)
+		: null;
+};
+
+/**
+ * The icon's CSS on a page, and what it is made of.
+ *
+ * @param {string} pageHtml The page as a visitor gets it.
+ * @return {Promise<{bytes: number, css: string, parts: string[]}>} Bytes and text of every icon stylesheet and inline style, and one "id: bytes" per part.
+ */
+async function iconCss( pageHtml ) {
+	const parts = [];
+	let css = '';
+	let bytes = 0;
+	const add = ( id, text ) => {
+		const size = Buffer.byteLength( text, 'utf8' );
+		parts.push( `${ id }: ${ size }` );
+		css += text;
+		bytes += size;
+	};
+	for ( const [ tag ] of pageHtml.matchAll( /<link\b[^>]*>/gi ) ) {
+		const id = tagAttribute( tag, 'id' ) || '';
+		const href = tagAttribute( tag, 'href' );
+		if ( id.startsWith( 'voyager-open-icon' ) ) {
+			add(
+				id,
+				href ? ( await request( new URL( href, base ) ) ).text : ''
+			);
+		}
+	}
+	for ( const [ , open, text ] of pageHtml.matchAll(
+		/(<style\b[^>]*>)([\s\S]*?)<\/style>/gi
+	) ) {
+		const id = tagAttribute( open, 'id' ) || '';
+		if ( id.startsWith( 'voyager-open-icon' ) ) {
+			add( id, text );
+		}
+	}
+	return { bytes, css, parts };
+}
+
+/**
+ * The names of the `@keyframes` rules in some CSS.
+ *
+ * @param {string} css CSS.
+ * @return {string[]} Names, sorted.
+ */
+const keyframeNames = ( css ) =>
+	[ ...css.matchAll( /@keyframes\s+([\w-]+)/g ) ]
+		.map( ( m ) => m[ 1 ] )
+		.sort();
+
+/**
+ * Publish a page holding one icon, fetch it as a visitor, and read the
+ * icon's CSS.
+ *
+ * @param {string} label What the page is for.
+ * @param {Object} attrs The icon's attributes.
+ * @return {Promise<Object>} The page's id, its HTML, the icon's wrapper class and its CSS.
+ */
+async function iconPage( label, attrs ) {
+	const created = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E icon CSS ${ label } ${ stamp }`,
+			status: 'publish',
+			content: `<!-- wp:voyager-open/icon ${ JSON.stringify(
+				attrs
+			) } /-->`,
+		},
+	} );
+	const pageHtml = created.data.link
+		? ( await request( created.data.link ) ).text
+		: '';
+	const wrapper = pageHtml.match(
+		/<div\b[^>]*\bclass="([^"]*\bwp-block-voyager-open-icon\b[^"]*)"/
+	);
+	return {
+		id: created.data.id,
+		status: created.status,
+		html: pageHtml,
+		className: wrapper ? wrapper[ 1 ] : null,
+		...( await iconCss( pageHtml ) ),
+	};
+}
+
+const stillIcon = await iconPage( 'still', { icon: 'star', size: 48 } );
+step(
+	`fitness: a page with one icon and no animation loads under ${ ICON_CSS_CEILING } bytes of icon CSS`,
+	stillIcon.status === 201 &&
+		stillIcon.className !== null &&
+		stillIcon.parts.some( ( cssPart ) =>
+			cssPart.startsWith( 'voyager-open-icon-style' )
+		) &&
+		stillIcon.bytes > 0 &&
+		stillIcon.bytes < ICON_CSS_CEILING,
+	`${ stillIcon.bytes } bytes: ${ stillIcon.parts.join( ', ' ) || 'no icon CSS on the page' }`
+);
+step(
+	"the still icon's page loads no animation's keyframes",
+	stillIcon.className !== null && keyframeNames( stillIcon.css ).length === 0,
+	JSON.stringify( keyframeNames( stillIcon.css ) )
+);
+
+const pulseIcon = await iconPage( 'pulse', {
+	icon: 'star',
+	size: 48,
+	animation: 'pulse',
+	animationTrigger: 'always',
+} );
+const pulseClasses = ( pulseIcon.className || '' ).split( /\s+/ );
+step(
+	'the pulse icon renders with its animation and trigger classes',
+	pulseIcon.status === 201 &&
+		pulseClasses.includes( 'has-animation-pulse' ) &&
+		pulseClasses.includes( 'is-trigger-always' ),
+	JSON.stringify( pulseIcon.className )
+);
+step(
+	"a page with one pulse icon loads the base and the pulse CSS, and no other animation's keyframes",
+	pulseIcon.parts.some( ( cssPart ) =>
+		cssPart.startsWith( 'voyager-open-icon-style' )
+	) &&
+		JSON.stringify( keyframeNames( pulseIcon.css ) ) ===
+			JSON.stringify( [ 'voyager-open-icon-pulse' ] ) &&
+		/\.has-animation-pulse\.is-trigger-always\s+\.wp-block-voyager-open-icon__svg\s*\{\s*animation:\s*voyager-open-icon-pulse\b/.test(
+			pulseIcon.css
+		),
+	`${ pulseIcon.bytes } bytes: ${ pulseIcon.parts.join(
+		', '
+	) }; keyframes ${ JSON.stringify( keyframeNames( pulseIcon.css ) ) }`
+);
+const reducedMotion = [
+	...pulseIcon.css.matchAll(
+		/@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g
+	),
+].map( ( m ) => m[ 1 ] );
+step(
+	"the pulse icon's page loads its reduced-motion rule, which stops the icon's animation",
+	reducedMotion.some( ( rules ) =>
+		/\.wp-block-voyager-open-icon(?:\.has-animation-pulse)?\s+\.wp-block-voyager-open-icon__svg\s*\{\s*animation:\s*none\s*!important\s*;?\s*\}/.test(
+			rules
+		)
+	),
+	JSON.stringify( reducedMotion )
+);
+
+for ( const iconPost of [ stillIcon, pulseIcon ] ) {
+	if ( iconPost.id ) {
+		await api( `/wp/v2/pages/${ iconPost.id }`, {
+			method: 'DELETE',
+			query: { force: true },
+		} );
+	}
+}
+
+// 16. The service area section, in its two layouts. Each holds a facts block
 // bound to Site Data's service_area, so the places a page names follow
 // Settings > Site Data. get-catalog lists both with that binding. insert
 // places the list layout with copy for its heading on a draft, the service
