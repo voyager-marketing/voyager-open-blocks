@@ -149,7 +149,17 @@
  *      a purge with the page, and with the email emptied no email line and
  *      no mailto: link render while the rest still does. validate warns
  *      stale_fallback on the block bound to the phone whose own phone holds
- *      a phone number. Then it deletes the page and puts the fields back.
+ *      a phone number. Then the contact section, which shows its details
+ *      through that block: with the same fields, a published page holding
+ *      the section as insert places it shows, inside the section and besides
+ *      its two buttons, one tel: link reading the phone and one mailto: link
+ *      reading the email. The page counts in used_on for the phone, email,
+ *      address, city line and hours, and changing each records a purge with
+ *      it. With the phone and email emptied, the details show "Phone" and
+ *      "Email" and no tel: or mailto: link. validate warns stale_fallback on
+ *      a section saved as an earlier release saved it, with the sample phone
+ *      number and email address. Then it deletes the pages and puts the
+ *      fields back.
  *  15. the icon's CSS, split by animation: a published page holding one
  *      icon with no animation loads under 1,024 bytes of icon CSS (every
  *      <link> whose id starts with voyager-open-icon, fetched, and every
@@ -1424,10 +1434,12 @@ step(
 const contact = await validateInserted( 'voyager-open/contact-section' );
 const formWarnings = codedWarnings( contact.report, 'placeholder' );
 step(
-	'validate warns placeholder once for the form slot on a page holding the contact section',
+	'validate warns placeholder once for the form slot on a page holding the contact section, and no stale_fallback',
 	contact.placed.data.saved === true &&
 		contact.report.status === 200 &&
 		contact.report.data.valid === true &&
+		( contact.report.data.warnings || [] ).length === 1 &&
+		codedWarnings( contact.report, 'stale_fallback' ).length === 0 &&
 		formWarnings.length === 1 &&
 		formWarnings[ 0 ].startsWith( 'placeholder: core/group "Form" at ' ) &&
 		formWarnings[ 0 ].includes( '"Form slot" column' ),
@@ -5317,6 +5329,214 @@ step(
 		),
 	JSON.stringify( staleContact.data.warnings || staleContact.data.code )
 );
+
+// The contact section shows its details through the contact details block,
+// so on a phone the number dials and the email opens a new message. Its two
+// buttons, "Click to call" and the form slot's "Email button", link to the
+// same fields, so the links are counted besides them.
+const sectionItem = 'voyager-open/contact-section';
+const sectionRefilled = await setContact(
+	Object.fromEntries(
+		contactOptions.map( ( option ) => [
+			option,
+			keysFixture.options[ option ],
+		] )
+	)
+);
+const sectionRows = [
+	'phone',
+	'email',
+	'address',
+	'address_locality',
+	'hours',
+].map( ( key ) => `voyager/site-data:${ key }` );
+const sectionUsed = async () => {
+	const catalogUsed = (
+		await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+	).data.used_on;
+	return Object.fromEntries(
+		sectionRows.map( ( row ) => [ row, catalogUsed?.[ row ]?.posts ] )
+	);
+};
+const sectionUsedBefore = await sectionUsed();
+const sectionDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E contact section ${ stamp }`,
+		status: 'draft',
+		content: '',
+	},
+} );
+const sectionId = sectionDraft.data.id;
+const sectionInsert = await run( `${ ns }/insert`, {
+	post_id: sectionId,
+	item: sectionItem,
+} );
+const sectionPublished = await api( `/wp/v2/pages/${ sectionId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const sectionLink = sectionPublished.data.link;
+
+/**
+ * The contact section on a page: the section element that holds its heading.
+ *
+ * @param {string} pageHtml The page.
+ * @return {string} Its markup, or '' when the page has none.
+ */
+const contactSectionOf = ( pageHtml ) =>
+	[ ...pageHtml.matchAll( /<section\b[^>]*>[\s\S]*?<\/section>/g ) ]
+		.map( ( match ) => match[ 0 ] )
+		.find( ( found ) => found.includes( '>Get in touch<' ) ) || '';
+
+/**
+ * The links to a scheme in some markup, each with its text and whether it is
+ * a button's link.
+ *
+ * @param {string} markup Markup.
+ * @param {string} scheme tel or mailto.
+ * @return {Array<{href: string, text: string, button: boolean}>} Links.
+ */
+const schemeLinks = ( markup, scheme ) =>
+	[
+		...markup.matchAll(
+			new RegExp(
+				`<a\\b([^>]*)\\bhref="(${ scheme }:[^"]*)"([^>]*)>([\\s\\S]*?)</a>`,
+				'g'
+			)
+		),
+	].map( ( m ) => ( {
+		href: m[ 2 ],
+		text: m[ 4 ].replace( /<[^>]*>/g, '' ).trim(),
+		button: /\bwp-block-button__link\b/.test( m[ 1 ] + m[ 3 ] ),
+	} ) );
+const sectionShown = sectionLink
+	? contactSectionOf( ( await request( sectionLink ) ).text )
+	: '';
+const sectionTels = schemeLinks( sectionShown, 'tel' );
+const sectionMails = schemeLinks( sectionShown, 'mailto' );
+const plainTels = sectionTels.filter( ( link ) => ! link.button );
+const plainMails = sectionMails.filter( ( link ) => ! link.button );
+step(
+	'fitness: published, the contact section shows one tel: link reading the phone and one mailto: link reading the email inside it, besides its call and email buttons',
+	sectionRefilled.status === 200 &&
+		sectionInsert.data.saved === true &&
+		sectionPublished.status === 200 &&
+		'' !== sectionShown &&
+		plainTels.length === 1 &&
+		plainTels[ 0 ].href === contactExpected.phone_link &&
+		plainTels[ 0 ].text === contactExpected.phone &&
+		plainMails.length === 1 &&
+		plainMails[ 0 ].href === contactExpected.email_link &&
+		plainMails[ 0 ].text === contactExpected.email &&
+		sectionTels.filter( ( link ) => link.button ).length === 1 &&
+		sectionMails.filter( ( link ) => link.button ).length === 1 &&
+		contactBlocks( sectionShown ).length === 1,
+	`${ sectionInsert.data.code || sectionPublished.status }; ${
+		sectionShown ? 'section found' : 'no section'
+	}; tel ${ JSON.stringify( sectionTels ) }; mailto ${ JSON.stringify(
+		sectionMails
+	) }`
+);
+
+const sectionUsedAfter = await sectionUsed();
+step(
+	'get-catalog used_on counts the published contact section page for the phone, email, address, city line and hours',
+	sectionRows.every(
+		( row ) =>
+			Number.isInteger( sectionUsedBefore[ row ] ) &&
+			sectionUsedAfter[ row ] === sectionUsedBefore[ row ] + 1
+	),
+	`before ${ JSON.stringify( sectionUsedBefore ) }, after ${ JSON.stringify(
+		sectionUsedAfter
+	) }`
+);
+
+const sectionChanges = [
+	[ 'phone', { voyager_site_phone: '(555) 010-0178' } ],
+	[ 'email', { voyager_site_email: 'office@example.com' } ],
+	[ 'address', { voyager_site_address: '7 Example Lane' } ],
+	// The city line, address_locality, is made from the city, state and
+	// postal code: a change to one is noted under its own key.
+	[ 'address_city', { voyager_site_address_city: 'Fairview' } ],
+	[ 'hours', { voyager_site_hours: 'Saturday, 9am to noon' } ],
+];
+const sectionPurges = [];
+for ( const [ key, values ] of sectionChanges ) {
+	const purged = await purgesDuring( () => setContact( values ) );
+	sectionPurges.push( [ key, purged ] );
+}
+step(
+	'changing the phone, email, address, city or hours each records a purge with the contact section page',
+	sectionPurges.every(
+		( [ key, purged ] ) =>
+			purged.changed.status === 200 &&
+			purged.records.length === 1 &&
+			( purged.records[ 0 ].context?.keys || [] ).includes( key ) &&
+			( purged.records[ 0 ].urls || [] ).includes( sectionLink )
+	),
+	sectionPurges
+		.map(
+			( [ key, purged ] ) => `${ key }: ${ described( purged.records ) }`
+		)
+		.join( '; ' )
+);
+
+const sectionEmptied = await setContact( {
+	voyager_site_phone: '',
+	voyager_site_email: '',
+} );
+const sectionWithout = sectionLink
+	? contactSectionOf( ( await request( sectionLink ) ).text )
+	: '';
+const detailsWithout = contactBlocks( sectionWithout );
+step(
+	'with the phone and email empty, the details show "Phone" and "Email" and no tel: or mailto: link',
+	sectionEmptied.status === 200 &&
+		detailsWithout.length === 1 &&
+		detailsWithout[ 0 ].inAddress.includes( '__phone">Phone</span>' ) &&
+		detailsWithout[ 0 ].inAddress.includes( '__email">Email</span>' ) &&
+		schemeLinks( detailsWithout[ 0 ].html, 'tel' ).length === 0 &&
+		schemeLinks( detailsWithout[ 0 ].html, 'mailto' ).length === 0,
+	JSON.stringify( detailsWithout[ 0 ]?.html || sectionWithout )
+);
+
+// A contact section saved by an earlier release keeps the sample phone
+// number and email address as its paragraphs' own text, which visitors see
+// whenever the field is empty.
+const sampleSection = await run(
+	`${ ns }/validate`,
+	{
+		markup: [
+			'<!-- wp:paragraph {"metadata":{"name":"Phone","bindings":{"content":{"source":"voyager/site-data","args":{"key":"phone"}}}}} -->',
+			'<p>(555) 010-0100</p>',
+			'<!-- /wp:paragraph -->',
+			'',
+			'<!-- wp:paragraph {"metadata":{"name":"Email","bindings":{"content":{"source":"voyager/site-data","args":{"key":"email"}}}}} -->',
+			'<p>hello@example.com</p>',
+			'<!-- /wp:paragraph -->',
+		].join( '\n' ),
+	},
+	true
+);
+const sampleStale = ( sampleSection.data.warnings || [] ).filter( ( w ) =>
+	w.startsWith( 'stale_fallback: ' )
+);
+step(
+	'validate warns stale_fallback on the sample phone number and email address a contact section saved by an earlier release holds',
+	sampleSection.status === 200 &&
+		sampleStale.length === 2 &&
+		sampleStale.some( ( w ) => w.includes( '"(555) 010-0100"' ) ) &&
+		sampleStale.some( ( w ) => w.includes( '"hello@example.com"' ) ),
+	JSON.stringify( sampleSection.data.warnings || sampleSection.data.code )
+);
+
+if ( sectionId ) {
+	await api( `/wp/v2/pages/${ sectionId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
 
 if ( contactId ) {
 	await api( `/wp/v2/pages/${ contactId }`, {
