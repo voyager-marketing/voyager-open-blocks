@@ -574,8 +574,9 @@ step(
 );
 
 // The proof strip with three facts: copy fills three items, omit drops the fourth.
-// Credentials are facts the site owner gives, so the copy is the object form,
-// which a slot takes whether or not its pattern has copy rules yet.
+// Each credential is a claim slot, so the copy is the object form, text the
+// site owner gave. The strip ships stand-ins ("Your first credential" to
+// "Your fourth credential"), and none may be left.
 const strip = await run( `${ ns }/insert`, {
 	post_id: postId,
 	item: 'voyager-open/proof-strip',
@@ -594,7 +595,7 @@ step(
 		strip.data.validation?.round_trip === true &&
 		( stripMarkup.match( /<li>/g ) || [] ).length === 3 &&
 		stripMarkup.includes( '>Family owned since 1998</li>' ) &&
-		! stripMarkup.includes( 'Same-week scheduling' ) &&
+		! /Your \w+ credential/.test( stripMarkup ) &&
 		! ( strip.data.blocks || [] ).some(
 			( b ) => b.label === 'Credential 4'
 		),
