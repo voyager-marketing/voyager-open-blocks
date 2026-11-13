@@ -188,6 +188,7 @@ function register(): void {
 	register_find_posts();
 	register_get_post_blocks();
 	register_insert();
+	register_compose();
 	register_configure();
 	register_bind();
 	register_undo();

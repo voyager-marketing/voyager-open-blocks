@@ -50,15 +50,16 @@ Every skill teaches an agent the same three steps:
 
 = Abilities over REST and MCP =
 
-Eight WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
+Nine WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
 
 * `get-catalog`: the pack's blocks, its patterns and every bindable field with its exact arguments.
 * `find-posts`: find a page, post, template or template part by words in its title, its slug, or as the home page, and get its ID. It lists only what the user can edit, and no content.
 * `get-post-blocks`: a post's blocks with their paths, labels, text and bindings, and whether each binding has a value now.
 * `insert`: place a pattern, the icon block, the facts block or the contact details block in a post, at the top level or inside another block, such as an icon beside a header's call button. A pattern copy takes plain text for its named headings, paragraphs, buttons and list items, can leave named blocks out, and can repeat one, such as a fifth credential.
+* `compose`: build a whole draft page in one call from a list of sections, each with its text and section style, checked as insert checks a pattern. It returns the preview link and the Site Data the page shows that is still empty, and it writes drafts only.
 * `configure`: set attributes on a block that saves no HTML.
 * `bind`: write a block binding. The arguments must match a listed field exactly. In a template, it checks them against the post type the template shows.
-* `undo`: reverse a save made by insert, configure or bind. It is refused when the post was saved since, by a person or another agent, unless told to reverse those saves too.
+* `undo`: reverse a save made by insert, compose, configure or bind. It is refused when the post was saved since, by a person or another agent, unless told to reverse those saves too.
 * `validate`: check block markup, or a saved post, without saving anything.
 
 They are served over REST at `wp-abilities/v1`, and to MCP clients through the WordPress MCP Adapter, so an agent with only MCP access to your site can use the pack. Reading the catalog and finding posts need a user who can edit posts, and find-posts lists only the posts that user can edit. Every other ability needs a user who can edit the post it names.
@@ -118,7 +119,7 @@ The pack ships no form. Replace what is inside the group named "Form" with your 
 
 = Can an agent use it with only MCP access? =
 
-Yes. With the WordPress MCP Adapter on your site, the eight abilities appear as MCP tools. An agent with no shell and no command-line tools can find the page or header you name, read the catalog, insert a section or an icon inside one, bind it and check that each value resolves.
+Yes. With the WordPress MCP Adapter on your site, the nine abilities appear as MCP tools. An agent with no shell and no command-line tools can find the page or header you name, read the catalog, insert a section or an icon inside one, bind it and check that each value resolves.
 
 = Does it call an AI service? =
 
