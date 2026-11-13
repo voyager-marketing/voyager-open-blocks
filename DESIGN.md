@@ -183,6 +183,7 @@ Spacing uses the theme's spacing presets:
 | Where | Preset |
 | -- | -- |
 | top and bottom of a section | `60` |
+| top and bottom of the closing CTA, which ends the page | the larger of `60` and `70`, written `max(var(--wp--preset--spacing--60), var(--wp--preset--spacing--70, 0px))` |
 | top and bottom of a strip (proof strip, logo row) | `40` or `50` |
 | left and right of every section | `50` |
 | between a section's heading, text and buttons | `40` |
@@ -190,7 +191,9 @@ Spacing uses the theme's spacing presets:
 | between cards, and inside a card | `40` |
 | between the lines of a list of details | `20` |
 
-Use slugs `20` to `60` only. Twenty Twenty-Four stops at `60`, and a slug the theme does not define renders as no space at all. Twenty Twenty-Five defines `20` to `80` and turns off WordPress's default sizes (`defaultSpacingSizes: false`), so `10` renders as no space there.
+Use slugs `20` to `60` only. A slug the theme does not define renders as no space at all. Twenty Twenty-Five defines `20` to `80` and turns off WordPress's default sizes (`defaultSpacingSizes: false`), so `10` renders as no space there. Twenty Twenty-Four defines `10` to `60` and keeps WordPress's default sizes, so its `70` is WordPress's 3.38rem, well under its own `60`.
+
+The closing CTA is the one exception. It ends the page, so it takes more room than a section in the middle of one: `70` where that is larger than `60`, as on Twenty Twenty-Five (90px at 1280px, against 70px) and Ipsum, and `60` where it is not or the theme has no `70`, as on Twenty Twenty-Four. The `0px` fallback is what keeps a theme with no `70` at `60`.
 
 **Two adjacent sections never share a style other than Plain.**
 
@@ -257,7 +260,7 @@ Each rule names the check that enforces it, or says judge only. `lint`, `presets
 | `a11y` | axe-core reports a violation in a rendered section: the WCAG 2.0 and 2.1 A and AA rules, and `heading-order`, which on a recipe page reads the headings in page order, across its sections |
 | `impeccable` | Impeccable reports line length, gradient text, nested cards or grey text on colour in a rendered section, or a tap target in it is under 44px |
 | `motion` | anything moves in a reduced-motion render, the logo loop and the reveal included: an animation or transition is running in a section, or a box in it moves between two samples 400ms apart. With motion on, the run checks it sees the logo marquee and the revealed rows of the services and reviews sections animate in every style, so a still render with motion off is their reduced-motion rule at work |
-| `presets` | pattern markup sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug outside `20` to `60`, or uses `core/html` or HTML outside a block |
+| `presets` | pattern markup sets a colour, font size, font family, radius or shadow that is not a theme preset, uses a spacing slug outside `20` to `60` with no fallback, or uses `core/html` or HTML outside a block |
 | `rhythm` | a recipe or a composed page breaks the Layout rule on adjacent styles, or a recipe section names a pattern and layout no intent carries. `npm run check` reads every recipe in `recipes/`, and `compose` refuses a page that does either |
 | `validate` | the `validate` ability reports an image with no alt text or a placeholder left in place |
 
@@ -265,7 +268,7 @@ Each rule names the check that enforces it, or says judge only. `lint`, `presets
 - Do give two adjacent sections different styles, unless both are Plain. Check: `rhythm`.
 - Do keep every text colour at 4.5:1 or more against its background, in every style. Check: `contrast`.
 - Do take every colour and font size from the theme's presets. Check: `presets`.
-- Do use spacing slugs `20` to `60` only. Check: `presets`.
+- Do use spacing slugs `20` to `60` only, apart from the closing CTA's `max()` with `70`. Check: `presets`, which refuses a slug outside them with no fallback.
 - Do keep body copy short enough to stay under about 75 characters per line. Check: `impeccable`.
 - Do aim for tap targets at least 44px tall and wide. Check: `impeccable`, which measures the rendered size. Known gap: Twenty Twenty-Four's own button is 41.5px tall.
 - Do make every page work at 320px wide. Check: `overflow`.

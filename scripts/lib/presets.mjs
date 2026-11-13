@@ -212,7 +212,12 @@ const RAW_COLOUR_ATTRIBUTE = /^(custom|rgb)[A-Za-z]*(Color|Gradient)$/;
 const RESOLVED_COLOUR_ATTRIBUTE = /^([A-Za-z]+Color)Value$/;
 
 /**
- * Spacing presets in any attribute, in either form.
+ * Spacing presets in any attribute, in either form. A CSS reference with a
+ * fallback, such as `var(--wp--preset--spacing--70, 0px)`, is left out on
+ * purpose: where the theme has no such slug the fallback renders, never no
+ * space at all. The closing CTA's padding takes the larger of 60 and 70 that
+ * way (DESIGN.md, Layout). tests/fixtures/presets/allowed.html passes it, and
+ * tests/invalid/presets/spacing.html plants it with no fallback.
  */
 const SPACING_REFERENCE =
 	/var:preset\|spacing\|([^|"\s)]+)|var\(--wp--preset--spacing--([A-Za-z0-9_-]+)\)/g;

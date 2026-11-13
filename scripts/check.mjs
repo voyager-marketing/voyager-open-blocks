@@ -648,7 +648,7 @@ printEach( patternFindings );
 // breaks no other rule. The gate must refuse every one of those blocks for
 // that rule, so a rule that stops biting on any one case turns this red, and
 // so does a file that loses its cases. Raise the floor when you add a case.
-const PLANTED_CASES = 41;
+const PLANTED_CASES = 42;
 const plantedDir = 'tests/invalid/presets';
 const plantedFiles = readdirSync( join( root, plantedDir ) ).filter( ( file ) =>
 	file.endsWith( '.html' )
@@ -711,7 +711,7 @@ printEach( plantProblems );
 
 // The other direction: every preset form the gate accepts, written once.
 // A rule that has grown to refuse a preset reference or a slug fails here.
-const ALLOWED_CASES = 22;
+const ALLOWED_CASES = 23;
 const allowedFile = 'tests/fixtures/presets/allowed.html';
 const allowed = presets( allowedFile );
 const allowedFindings = allowed.error
