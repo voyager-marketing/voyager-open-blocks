@@ -40,7 +40,8 @@ $voyager_open_seed = static function (): void {
 		'voyager_site_social_x'         => 'https://x.com/example',
 		'voyager_site_services'         => "Drain cleaning\nWater heater repair\nLeak detection",
 		'voyager_site_service_area'     => "Springfield\nRiverside\nFairview",
-		'voyager_site_credentials'      => "Your first credential\nYour second credential\nYour third credential",
+		// Not the proof strip facts layout's stand-ins, so its demo shows the binding resolve. Still no claim.
+		'voyager_site_credentials'      => "First credential, from Site Data\nSecond credential, from Site Data\nThird credential, from Site Data",
 	];
 	foreach ( $site_data as $option => $value ) {
 		update_option( $option, $value );
@@ -88,7 +89,8 @@ $voyager_open_seed = static function (): void {
 		// The service area in both layouts: a list, then beside an image. Both show the Site Data service area.
 		'service-area'    => [ 'Service area', '<!-- wp:pattern {"slug":"voyager-open/service-area"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/service-area-split"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
-		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
+		// The proof strip in both layouts: credentials typed in, then the Credentials from Site Data.
+		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/proof-strip-facts"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
 		'closing-cta'     => [ 'Closing CTA', '<!-- wp:pattern {"slug":"voyager-open/closing-cta"} /-->' ],
 		'contact-section' => [ 'Contact section', '<!-- wp:pattern {"slug":"voyager-open/contact-section"} /-->' ],

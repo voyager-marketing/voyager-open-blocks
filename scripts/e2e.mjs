@@ -148,6 +148,19 @@
  *      used_on for the services, emptying them records a purge with the page,
  *      and the page shows the block's own items. Then it deletes the page and
  *      puts the services back.
+ * 13b. the proof strip's facts layout: get-catalog lists
+ *      voyager-open/proof-strip-facts (section proof-strip, layout facts,
+ *      copy_rules {}) with its facts block's items bound to the credentials,
+ *      and voyager-open/proof-strip as layout list. The credentials are set
+ *      to three lines through POST /wp/v2/settings, insert puts the layout in
+ *      a draft and the page is published: its section shows one
+ *      ul.wp-block-voyager-open-facts, in the Ticks style with its rules on
+ *      the page, holding those three li, in order. With the credentials
+ *      emptied it shows the block's own three stand-ins, and compose with
+ *      dry_run names credentials in empty and warns no placeholder: on the
+ *      bound list. insert and compose refuse omit "Credentials", and insert
+ *      omit "Row", as required, since the strip would show nothing. Then it
+ *      deletes the page and puts the credentials back.
  *  14. the contact details block: insert puts voyager-open/contact-details in
  *      a draft, bind ties its seven attributes to the seven Site Data keys,
  *      the fields are set to the values in tests/fixtures/site-data-keys.json
@@ -5214,6 +5227,228 @@ if ( factsId ) {
 }
 if ( typeof originalServices === 'string' ) {
 	await setServices( originalServices );
+}
+await api( recorder, { method: 'DELETE' } );
+
+// 13b. The proof strip's facts layout: the typed-in strip with a Ticks facts
+// block in the list's place, its items bound to the Site Data credentials.
+// get-catalog lists both layouts. With the credentials set to three lines
+// through POST /wp/v2/settings, a published page holding
+// voyager-open/proof-strip-facts shows one facts ul in its section with those
+// three li, in order; with them empty, it shows the block's own stand-ins,
+// and compose names credentials in empty. Then it deletes the page and puts
+// the credentials back.
+const stripFactsItem = 'voyager-open/proof-strip-facts';
+const stripFactsListed = ( catalog.data.patterns || [] ).find(
+	( p ) => p.name === stripFactsItem
+);
+const typedStripListed = ( catalog.data.patterns || [] ).find(
+	( p ) => p.name === 'voyager-open/proof-strip'
+);
+const stripFactsBlock = ( stripFactsListed?.blocks || [] ).find(
+	( b ) => b.label === 'Credentials'
+);
+const stripFactsBinding = stripFactsBlock?.bindings?.items;
+step(
+	"get-catalog lists voyager-open/proof-strip-facts as the proof strip's facts layout, its Credentials block a facts block whose items bind to Site Data's credentials, with no copy label and copy_rules {}, and voyager-open/proof-strip as its list layout",
+	stripFactsListed?.section === 'proof-strip' &&
+		stripFactsListed?.layout === 'facts' &&
+		typedStripListed?.section === 'proof-strip' &&
+		typedStripListed?.layout === 'list' &&
+		stripFactsBlock?.block === factsItem &&
+		stripFactsBinding?.source === 'voyager/site-data' &&
+		stripFactsBinding?.args?.key === 'credentials' &&
+		! ( stripFactsListed?.blocks || [] ).some( ( b ) => b.copy ) &&
+		JSON.stringify( stripFactsListed?.copy_rules ) === '{}',
+	stripFactsListed
+		? `${ stripFactsListed.section } ${
+				stripFactsListed.layout
+			}; ${ JSON.stringify( stripFactsBlock ) }; copy_rules ${ JSON.stringify(
+				stripFactsListed.copy_rules
+			) }`
+		: 'not listed'
+);
+
+const setStripFacts = ( value ) =>
+	api( '/wp/v2/settings', {
+		method: 'POST',
+		body: { voyager_site_credentials: value },
+	} );
+const stripFactsBefore = ( await api( '/wp/v2/settings' ) ).data
+	.voyager_site_credentials;
+const stripFactsSet = await setStripFacts(
+	'Licensed in three states\r\nHeating & cooling certified\r\nFamily owned'
+);
+const stripFactsDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E proof strip facts ${ stamp }`,
+		status: 'draft',
+		content: '',
+	},
+} );
+const stripFactsId = stripFactsDraft.data.id;
+const stripFactsPlaced = await run( `${ ns }/insert`, {
+	post_id: stripFactsId,
+	item: stripFactsItem,
+} );
+validate(
+	'proof-strip-facts as insert saves it',
+	stripFactsPlaced.data.markup || ''
+);
+const stripFactsPublished = await api( `/wp/v2/pages/${ stripFactsId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const stripFactsLink = stripFactsPublished.data.link;
+const stripFactsPage = async () =>
+	stripFactsLink ? ( await request( stripFactsLink ) ).text : '';
+
+/**
+ * The facts lists in each section of a page that holds one.
+ *
+ * @param {string} pageHtml A rendered page.
+ * @return {string[][][]} Per section that holds a facts list, its lists.
+ */
+const sectionFactsLists = ( pageHtml ) =>
+	[ ...pageHtml.matchAll( /<section\b[^>]*>([\s\S]*?)<\/section>/g ) ]
+		.map( ( section ) => factsLists( section[ 1 ] ) )
+		.filter( ( lists ) => lists.length > 0 );
+const stripFactsHtml = await stripFactsPage();
+const stripFactsShown = sectionFactsLists( stripFactsHtml );
+const stripFactsUl = stripFactsHtml.match(
+	/<ul\b[^>]*\bclass="[^"]*\bwp-block-voyager-open-facts\b[^"]*"[^>]*>/
+)?.[ 0 ];
+step(
+	'fitness: with the credentials set to three lines, a published page holding voyager-open/proof-strip-facts shows one ul.wp-block-voyager-open-facts in its section, holding those three li, in order',
+	stripFactsSet.status === 200 &&
+		stripFactsPlaced.status === 200 &&
+		stripFactsPlaced.data.saved === true &&
+		stripFactsPublished.status === 200 &&
+		stripFactsShown.length === 1 &&
+		stripFactsShown[ 0 ].length === 1 &&
+		JSON.stringify( stripFactsShown[ 0 ][ 0 ] ) ===
+			JSON.stringify( [
+				'Licensed in three states',
+				'Heating &amp; cooling certified',
+				'Family owned',
+			] ),
+	`settings ${ stripFactsSet.data?.code || stripFactsSet.status }; insert ${
+		stripFactsPlaced.data.code || `saved ${ stripFactsPlaced.data.saved }`
+	}; shown ${ JSON.stringify( stripFactsShown ) }`
+);
+step(
+	'the facts ul carries the Ticks class, and the page loads the Ticks rules for the facts block',
+	/\bis-style-voyager-open-ticks\b/.test( stripFactsUl || '' ) &&
+		stripFactsHtml.includes(
+			'.wp-block-voyager-open-facts.is-style-voyager-open-ticks{list-style:none'
+		),
+	stripFactsUl || 'no facts ul'
+);
+
+const stripFactsEmptied = await setStripFacts( '' );
+const stripFactsOwn = sectionFactsLists( await stripFactsPage() );
+step(
+	"with the credentials empty, the section shows the facts block's own stand-ins, which say what goes there",
+	stripFactsEmptied.status === 200 &&
+		JSON.stringify( stripFactsOwn ) ===
+			JSON.stringify( [
+				[
+					[
+						'Your first credential',
+						'Your second credential',
+						'Your third credential',
+					],
+				],
+			] ),
+	JSON.stringify( stripFactsOwn )
+);
+const stripFactsTrial = await run( `${ ns }/compose`, {
+	title: `E2E proof strip facts trial ${ stamp }`,
+	sections: [ { pattern: 'voyager-open/proof-strip', layout: 'facts' } ],
+	dry_run: true,
+} );
+const stripFactsPlaceholders = (
+	stripFactsTrial.data.validation?.warnings || []
+).filter( ( w ) => String( w ).startsWith( 'placeholder:' ) );
+step(
+	'with the credentials empty, compose with dry_run builds the facts layout, names credentials in empty, and validate warns no placeholder: on the bound list',
+	stripFactsTrial.status === 200 &&
+		stripFactsTrial.data.saved === false &&
+		stripFactsTrial.data.validation?.valid === true &&
+		Array.isArray( stripFactsTrial.data.validation?.warnings ) &&
+		( stripFactsTrial.data.empty || [] ).includes( 'credentials' ) &&
+		stripFactsPlaceholders.length === 0,
+	`${ JSON.stringify(
+		stripFactsTrial.data.empty ?? stripFactsTrial.data.code
+	) }; ${ JSON.stringify( stripFactsPlaceholders ) }`
+);
+
+// The facts block is no copy slot, so no copy rule makes it required. Left
+// out, or with the Row around it, the strip would save as an empty ruled
+// band: insert and compose refuse that omit as required, with dry_run too.
+for ( const label of [ 'Credentials', 'Row' ] ) {
+	const emptied = await run( `${ ns }/insert`, {
+		post_id: stripFactsId,
+		item: stripFactsItem,
+		dry_run: true,
+		omit: [ label ],
+	} );
+	const emptiedRows = emptied.data.data?.refused || [];
+	step(
+		`insert refuses omit "${ label }" on voyager-open/proof-strip-facts as required, since nothing would be left to show`,
+		emptied.status === 400 &&
+			emptied.data.code === 'voyager_open_blocks_copy_rules' &&
+			emptiedRows.length === 1 &&
+			emptiedRows[ 0 ].slot === label &&
+			emptiedRows[ 0 ].reason === 'required' &&
+			emptiedRows[ 0 ].omitted === label,
+		emptied.data.message ||
+			emptied.data.code ||
+			`status ${ emptied.status }`
+	);
+}
+const emptiedCompose = await run( `${ ns }/compose`, {
+	title: `E2E proof strip facts omit ${ stamp }`,
+	sections: [
+		{
+			pattern: 'voyager-open/proof-strip',
+			layout: 'facts',
+			omit: [ 'Credentials' ],
+		},
+	],
+	dry_run: true,
+} );
+const emptiedComposeRows = emptiedCompose.data.refused || [];
+step(
+	'compose refuses the same omit on a facts layout section, and saves nothing',
+	emptiedCompose.status === 200 &&
+		emptiedCompose.data.saved === false &&
+		emptiedComposeRows.length === 1 &&
+		emptiedComposeRows[ 0 ].slot === 'Credentials' &&
+		emptiedComposeRows[ 0 ].reason === 'required',
+	JSON.stringify(
+		emptiedComposeRows.length
+			? emptiedComposeRows
+			: emptiedCompose.data.code
+	)
+);
+
+if ( stripFactsId ) {
+	await api( `/wp/v2/pages/${ stripFactsId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+if ( typeof stripFactsBefore === 'string' ) {
+	const stripFactsBack = await setStripFacts( stripFactsBefore );
+	step(
+		'the credentials are put back as they were',
+		stripFactsBack.status === 200 &&
+			( await api( '/wp/v2/settings' ) ).data.voyager_site_credentials ===
+				stripFactsBefore,
+		`${ stripFactsBefore.split( /\r\n|\r|\n/ ).length } lines`
+	);
 }
 await api( recorder, { method: 'DELETE' } );
 

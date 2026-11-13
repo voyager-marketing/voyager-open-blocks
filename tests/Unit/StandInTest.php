@@ -204,6 +204,23 @@ final class StandInTest extends TestCase {
 		$this->assertContains( '0/0/0/4 Credential 5', self::warned( $strip ) );
 	}
 
+	public function test_the_proof_strip_s_facts_layout_adds_no_stand_in_and_is_never_warned(): void {
+		// Its stand-ins are the facts block's own items, which show only
+		// while Settings > Site Data holds no credentials: a bound fallback,
+		// which compose names in empty, not a numbered item's text. Markup
+		// cannot say whether the field is filled, so a warning here would
+		// fire on a strip that shows the owner's own list.
+		$facts = IntentBlocks::blocks( 'proof-strip-facts' );
+		$this->assertSame( [], Abilities\item_slots( $facts ), 'the facts layout holds no numbered item' );
+		$this->assertSame( [], Abilities\stand_in_warnings( $facts, self::index() ), 'proof-strip-facts as shipped' );
+
+		$others = array_diff_key( self::patterns(), [ 'proof-strip-facts' => true ] );
+		$this->assertSame( self::index(), Abilities\stand_in_index( array_merge( ...array_values( $others ) ) ), 'the facts layout adds nothing to the stand-ins validate looks for' );
+
+		// The typed-in strip beside it is still warned on its four stand-ins.
+		$this->assertCount( 4, Abilities\stand_in_warnings( IntentBlocks::blocks( 'proof-strip' ), self::index() ) );
+	}
+
 	public function test_an_item_whose_other_slots_hold_the_site_s_own_text_is_filled(): void {
 		// A real five-star review keeps the shipped "Rated 5 out of 5".
 		$review = IntentBlocks::blocks( 'reviews-single' );
