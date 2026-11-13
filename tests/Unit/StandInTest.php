@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\BlockTree;
@@ -109,8 +110,13 @@ final class StandInTest extends TestCase {
 	private static function fill( array &$blocks, string $label, string $text ): void {
 		foreach ( $blocks as &$block ) {
 			if ( ( $block['attrs']['metadata']['name'] ?? null ) === $label && is_string( $block['innerContent'][0] ?? null ) ) {
-				$block['innerContent'][0] = (string) preg_replace( '/>[^<]*</', '>' . htmlspecialchars( $text ) . '<', $block['innerContent'][0], 1 );
-				$block['innerHTML']       = $block['innerContent'][0];
+				/** @var array{blockName: string|null, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>} $block */
+				$old = htmlspecialchars( BlockTree\own_text( $block ), ENT_QUOTES );
+				self::assertStringContainsString( $old, $block['innerContent'][0], "{$label}: its text is in its first chunk" );
+
+				// The text's own element: a paragraph's p, a details block's summary.
+				$block['innerContent'][0] = str_replace( $old, htmlspecialchars( $text, ENT_QUOTES ), $block['innerContent'][0] );
+				$block['innerHTML']       = implode( '', array_filter( $block['innerContent'], 'is_string' ) );
 			}
 			/** @var array<int, array<mixed>> $inner */
 			$inner = $block['innerBlocks'];
@@ -214,6 +220,52 @@ final class StandInTest extends TestCase {
 		$services = IntentBlocks::blocks( 'services' );
 		self::fill( $services, 'Service 1 text', 'Leaks, drips and burst pipes, fixed on the first visit.' );
 		$this->assertNotContains( 'Service 1 heading', array_map( static fn ( string $row ): string => (string) substr( $row, (int) strpos( $row, ' ' ) + 1 ), self::warned( $services ) ) );
+	}
+
+	/**
+	 * Two-slot items with one slot filled: the pattern, the slot given copy,
+	 * its text, the other slot, and whether that one is still warned.
+	 *
+	 * The slot left is warned unless it is the item's title, its first text
+	 * slot and a short one, which a real item can share word for word with
+	 * the pack's: a service called Repairs, a step called "1. Get in touch",
+	 * a question a business is often asked. A body, a step's line or an
+	 * answer left at the pack's text is always warned.
+	 *
+	 * @return array<string, array{string, string, string, string, bool}>
+	 */
+	public static function one_of_two(): array {
+		return [
+			'services: the heading filled, the line left'   => [ 'services', 'Service 1 heading', 'Leak repairs', 'Service 1 text', true ],
+			'services: the line filled, the heading left'   => [ 'services', 'Service 1 text', 'Dripping taps and burst pipes, found and fixed.', 'Service 1 heading', false ],
+			'services list: the heading filled'             => [ 'services-list', 'Service 2 heading', 'Water heaters', 'Service 2 text', true ],
+			'process steps: the heading filled, the line left' => [ 'process-steps', 'Step 1 heading', '1. Book a visit', 'Step 1 text', true ],
+			'process steps: the line filled, the heading left' => [ 'process-steps', 'Step 1 text', 'Call or write, and we find a time that suits you.', 'Step 1 heading', false ],
+			'process steps list: the heading filled'        => [ 'process-steps-list', 'Step 3 heading', '3. We fix it', 'Step 3 text', true ],
+			'FAQ: the question filled, the answer left'     => [ 'faq', 'Question 1', 'Do you work weekends?', 'Question 1 answer', true ],
+			'FAQ: the answer filled, the question left'     => [ 'faq', 'Question 1 answer', 'Yes: we cover the whole county and the towns around it.', 'Question 1', false ],
+			'FAQ beside its heading: the question filled'   => [ 'faq-split', 'Question 2', 'Is a quote free?', 'Question 2 answer', true ],
+		];
+	}
+
+	#[DataProvider( 'one_of_two' )]
+	public function test_one_slot_of_a_two_slot_item_filled_leaves_the_other_warned_unless_it_is_a_short_title( string $pattern, string $filled, string $text, string $left, bool $warned ): void {
+		$blocks = IntentBlocks::blocks( $pattern );
+		self::fill( $blocks, $filled, $text );
+
+		$labels = array_map( static fn ( string $row ): string => (string) substr( $row, (int) strpos( $row, ' ' ) + 1 ), self::warned( $blocks ) );
+
+		$this->assertNotContains( $filled, $labels, "{$filled} holds the site's own text" );
+		$this->assertSame( $warned, in_array( $left, $labels, true ), $warned ? "{$left} still holds the pack's text" : "{$left} is the item's short title, which a real item can share" );
+	}
+
+	public function test_a_review_with_only_its_name_left_is_warned_on_the_name(): void {
+		$review = IntentBlocks::blocks( 'reviews-single' );
+		self::fill( $review, 'Review 1 rating', 'Rated 4 out of 5' );
+		self::fill( $review, 'Review 1 quote', 'They fixed the leak the same day.' );
+		self::fill( $review, 'Review 1 detail', 'Leak repair' );
+
+		$this->assertSame( [ 'Review 1 name' ], array_map( static fn ( string $row ): string => (string) substr( $row, (int) strpos( $row, ' ' ) + 1 ), self::warned( $review ) ) );
 	}
 
 	public function test_only_a_named_slot_of_a_numbered_item_holding_a_whole_stand_in_is_warned(): void {

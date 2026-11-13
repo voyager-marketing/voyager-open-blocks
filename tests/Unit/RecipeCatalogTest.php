@@ -301,11 +301,16 @@ final class RecipeCatalogTest extends TestCase {
 	 * @return array<string, array{mixed, string}>
 	 */
 	public static function faulty_omit(): array {
+		// The same reading RecipesTest gives the shipped files.
+		$reason = 'sections[1]: omit is not a non-empty list of block labels';
+
 		return [
-			'omit that is not a list'      => [ 'Credential 4', 'sections[1]: omit is not a list of block labels' ],
-			'omit written as an object'    => [ [ 'label' => 'Credential 4' ], 'sections[1]: omit is not a list of block labels' ],
-			'an empty label'               => [ [ 'Credential 4', '' ], 'sections[1]: omit is not a list of block labels' ],
-			'a label that is not a string' => [ [ 4 ], 'sections[1]: omit is not a list of block labels' ],
+			'omit that is not a list'      => [ 'Credential 4', $reason ],
+			'omit written as an object'    => [ [ 'label' => 'Credential 4' ], $reason ],
+			'an empty omit'                => [ [], $reason ],
+			'an empty label'               => [ [ 'Credential 4', '' ], $reason ],
+			'a label of spaces'            => [ [ ' ' ], $reason ],
+			'a label that is not a string' => [ [ 4 ], $reason ],
 		];
 	}
 
