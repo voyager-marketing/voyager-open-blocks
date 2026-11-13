@@ -1,0 +1,55 @@
+{
+	"title": "Services page",
+	"description": "Every service the business offers, one row each, with a way to ask when a visitor is not sure which they need.",
+	"page_type": "services",
+	"sections": [
+		{
+			"pattern": "voyager-open/hero",
+			"layout": "split",
+			"style": "plain",
+			"copy_guidance": {
+				"Eyebrow": "The trade, in a few words.",
+				"Heading": "All the work the business does, and where, in a line.",
+				"Body": "One line on how to find the right service, or to ask when unsure.",
+				"Primary button": "The action for a visitor who knows what they need, such as Get a quote."
+			}
+		},
+		{
+			"pattern": "voyager-open/services",
+			"layout": "list",
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "The h2 over the full list, such as Everything we do.",
+				"Intro": "One line on how the list is ordered, or the area it covers.",
+				"Service 1 heading": "The first service in Site Data's services list, or the site owner's first. Repeat the row for each one after it.",
+				"Service 1 text": "What that service covers, in one plain line. No price or promise unless the site owner gave it."
+			}
+		},
+		{
+			"pattern": "voyager-open/cta-band",
+			"layout": null,
+			"style": "accent",
+			"copy_guidance": {
+				"Heading": "A question for a visitor who does not see their job listed, such as Not sure which you need?",
+				"Body": "One line on how the business helps them choose.",
+				"Primary button": "An action that asks for help choosing, such as Ask us."
+			}
+		},
+		{
+			"pattern": "voyager-open/reviews",
+			"layout": "grid",
+			"style": "plain",
+			"copy_guidance": {
+				"Heading": "What customers say about the work, in a few words. No count or score."
+			}
+		},
+		{
+			"pattern": "voyager-open/closing-cta",
+			"layout": null,
+			"style": "inverted",
+			"copy_guidance": {
+				"Heading": "One short sentence that invites the visitor to get in touch about any service."
+			}
+		}
+	]
+}

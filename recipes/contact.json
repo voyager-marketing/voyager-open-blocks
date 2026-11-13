@@ -1,0 +1,37 @@
+{
+	"title": "Contact page",
+	"description": "Every way to reach the business, with a form slot, and one customer's words on how they were looked after.",
+	"page_type": "contact",
+	"sections": [
+		{
+			"pattern": "voyager-open/hero",
+			"layout": "split",
+			"style": "plain",
+			"copy_guidance": {
+				"Eyebrow": "The business's name or trade, in a few words.",
+				"Heading": "An invitation to get in touch, and what the visitor can ask about.",
+				"Body": "One line on the ways to reach the business. A reply time is a claim: give one only as the site owner states it."
+			}
+		},
+		{
+			"pattern": "voyager-open/contact-section",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "The h2 over the details and the form, such as Ways to reach us.",
+				"Body": "One line on when to call and when to write.",
+				"Form heading": "What the visitor can send, in a few words, such as Ask for a quote.",
+				"Form body": "One line on what to put in the message, so the business can answer it well."
+			}
+		},
+		{
+			"pattern": "voyager-open/reviews",
+			"layout": "single",
+			"style": "accent",
+			"copy_guidance": {
+				"Heading": "What a customer said about how they were looked after, in a few words. No count or score.",
+				"Review 1 quote": "A review the site owner gave you that speaks to how the business answered or turned up, in the customer's own words."
+			}
+		}
+	]
+}

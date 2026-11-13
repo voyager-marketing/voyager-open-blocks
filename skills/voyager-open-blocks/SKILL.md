@@ -48,6 +48,21 @@ Read them before you choose a section style, write copy or change a layout. If t
 
 A section's style is one of Plain, Panel, Inverted and Accent. `get-catalog` lists the three that are block styles under `styles`, each with its class; Plain is no style. Put one on a section with `configure`: the section's `path` and `"style": "accent"`, or `"style": "plain"` to take it off. Two sections next to each other never share a style other than Plain.
 
+## Page recipes
+
+To build a whole page, start from its recipe. The pack has one per page type, each a file in `recipes/` in the plugin folder and the repository: the sections in order, each with its layout, its style and a line of copy guidance for the slots that change from page to page. No ability lists them yet, so on route 1 take the order and styles from this table: on an empty page, insert each pattern at the end (`position` `-1`), top to bottom, then `configure` each section's style. Each guidance line says what a slot says on this page, and its copy still keeps to the pattern's copy rules. Where a slot is a claim, its guidance says where the fact comes from, and that is never you.
+
+| Page type | Recipe | Patterns to insert, in order, each with its style |
+|---|---|---|
+| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/closing-cta` (inverted) |
+| `services` | `recipes/services.json` | `voyager-open/hero` (plain), `voyager-open/services-list` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/closing-cta` (inverted) |
+| `service` | `recipes/service.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services-list` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews-single` (plain), `voyager-open/closing-cta` (inverted) |
+| `location` | `recipes/location.json` | `voyager-open/hero-cover` (plain), `voyager-open/services` (panel), `voyager-open/reviews` (plain), `voyager-open/cta-band` (accent), `voyager-open/contact-section` (plain) |
+| `contact` | `recipes/contact.json` | `voyager-open/hero` (plain), `voyager-open/contact-section` (panel), `voyager-open/reviews-single` (accent) |
+| `about` | `recipes/about.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/reviews-single` (inverted), `voyager-open/logo-marquee` (plain), `voyager-open/closing-cta` (accent) |
+
+In a recipe file, `pattern` names the section and `layout` picks one of its layouts, so `"pattern": "voyager-open/hero", "layout": "cover"` is the pattern `voyager-open/hero-cover` in this table. A plain section needs no `configure` call.
+
 ## The loop
 
 Every task reads the site, places blocks, binds them and checks them. There are two routes through that loop. Check your tools, then follow one route for the whole task.
