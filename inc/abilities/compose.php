@@ -1,8 +1,11 @@
 <?php
 /**
- * The compose ability: a whole draft page from a list of sections, in one call.
+ * The compose ability: a whole draft page from a list of sections, or from a
+ * page recipe, in one call.
  *
- * Contract 6 in docs/v2-contracts.md has the shapes. Each section names a pack
+ * Contract 6 in docs/v2-contracts.md has the shapes. A recipe (recipes.php)
+ * stands in for the list: its sections, each with its style and no copy, go
+ * through sections_input() and are built as a list is. Each section names a pack
  * pattern by its section and layout, resolved as contract 5 says, and is
  * inserted as a copy. Its copy is filled and checked the way insert fills and
  * checks a pattern's (copy-rules.php, then bound_copy_slots()), and its style
@@ -46,7 +49,7 @@ function register_compose(): void {
 		CATEGORY . '/compose',
 		[
 			'label'               => __( 'Compose a Voyager Open draft page', 'voyager-open-blocks' ),
-			'description'         => __( 'Builds a whole draft page in one call from a list of sections, each a pack pattern with its copy and section style, and saves it as a draft. Pass title to create a new draft page that you own, or post_id of a draft to replace its whole content. Anything but a draft is refused: change a live page with insert and configure. Each section names its pattern by section, such as voyager-open/hero or voyager-open/services, and layout, such as list (get-catalog lists each pattern\'s section and layout; null or left out is the section\'s first layout). It is inserted as a copy. Its copy works as insert\'s copy does, within the pattern\'s copy_rules, and its style (plain, panel, inverted or accent) goes on its top-level group as configure\'s style input sets it; plain sets none. Two sections next to each other may not share a style other than plain. When any slot is refused (too_long, claim, bound, or adjacent_style for two such sections), nothing is saved, saved is false and refused lists every refused slot with its section index. Returns post_id, revision_id (undo takes it to reverse the save), preview_url, validation (what validate returns for the page, placeholder: warnings included), empty (each Site Data key the page binds whose value is empty now, so the page shows the pattern\'s own text there until it is set) and refused. dry_run runs every check, saves nothing and creates no post. recipe is refused: recipes arrive in a later release.', 'voyager-open-blocks' ),
+			'description'         => __( 'Builds a whole draft page in one call from a list of sections, each a pack pattern with its copy and section style, and saves it as a draft. Pass title to create a new draft page that you own, or post_id of a draft to replace its whole content. Anything but a draft is refused: change a live page with insert and configure. Each section names its pattern by section, such as voyager-open/hero or voyager-open/services, and layout, such as list (get-catalog lists each pattern\'s section and layout; null or left out is the section\'s first layout). It is inserted as a copy. Its copy works as insert\'s copy does, within the pattern\'s copy_rules, and its style (plain, panel, inverted or accent) goes on its top-level group as configure\'s style input sets it; plain sets none. Two sections next to each other may not share a style other than plain. When any slot is refused (too_long, claim, bound, or adjacent_style for two such sections), nothing is saved, saved is false and refused lists every refused slot with its section index. Returns post_id, revision_id (undo takes it to reverse the save), preview_url, validation (what validate returns for the page, placeholder: warnings included), empty (each Site Data key the page binds whose value is empty now, so the page shows the pattern\'s own text there until it is set) and refused. dry_run runs every check, saves nothing and creates no post. Or pass recipe, the slug of a page recipe get-catalog lists under recipes, such as home, in place of sections: compose builds the recipe\'s sections in order, each in its layout and style, with each pattern\'s own text, so the draft holds the patterns\' stand-ins, such as "Your fourth credential", until they are replaced. To build a recipe\'s page with its copy in one call, read the recipe from get-catalog, fill each section\'s copy from its copy_guidance (each a line on what that slot says on this page, within the pattern\'s copy_rules), and pass the list as sections. Pass recipe or sections, not both.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -62,15 +65,12 @@ function register_compose(): void {
 						'pattern'     => '\S',
 						'description' => 'Title of a new draft page to create, owned by you. Pass title or post_id, not both.',
 					],
-					'recipe'   => [
-						'type'        => 'string',
-						'description' => 'Not yet: recipes arrive in a later release, and a recipe is refused. Pass sections.',
-					],
+					'recipe'   => recipe_input_schema(),
 					'sections' => [
 						'type'        => 'array',
 						'minItems'    => 1,
 						'maxItems'    => MAX_SECTIONS,
-						'description' => 'The page\'s sections, top to bottom.',
+						'description' => 'The page\'s sections, top to bottom. Pass sections or recipe, not both. For a recipe\'s page with its copy, pass the recipe\'s sections from get-catalog here, each with copy written from its copy_guidance.',
 						'items'       => [
 							'type'                 => 'object',
 							'properties'           => [
@@ -415,14 +415,15 @@ function section_error( int $index, string $pattern, WP_Error $error ): WP_Error
  * @return array<string, mixed>|WP_Error
  */
 function compose( array $input ) {
-	$has_post  = isset( $input['post_id'] );
-	$has_title = isset( $input['title'] );
-	$dry_run   = ! empty( $input['dry_run'] );
+	$has_post   = isset( $input['post_id'] );
+	$has_title  = isset( $input['title'] );
+	$has_recipe = isset( $input['recipe'] );
+	$dry_run    = ! empty( $input['dry_run'] );
 
-	if ( isset( $input['recipe'] ) ) {
+	if ( $has_recipe && isset( $input['sections'] ) ) {
 		return new WP_Error(
 			'voyager_open_blocks_invalid_recipe',
-			'Nothing was saved: recipes arrive in a later release. Pass sections instead, each a pattern get-catalog lists, with its layout, style and copy.',
+			'Nothing was saved: pass recipe or sections, not both. recipe builds a recipe\'s sections with the patterns\' own text. To give them copy, pass the recipe\'s sections from get-catalog as sections, each with its copy.',
 			[ 'status' => 400 ]
 		);
 	}
@@ -437,9 +438,27 @@ function compose( array $input ) {
 		);
 	}
 
-	$sections = sections_input( $input['sections'] ?? null );
+	if ( $has_recipe ) {
+		$slug   = Cast\to_string( $input['recipe'] );
+		$recipe = find_recipe( $slug );
+
+		if ( null === $recipe ) {
+			$slugs = array_column( recipes(), 'slug' );
+
+			return new WP_Error(
+				'voyager_open_blocks_invalid_recipe',
+				sprintf( 'Nothing was saved: no recipe "%1$s". get-catalog lists the recipes under recipes: %2$s.', $slug, [] === $slugs ? 'none on this site' : implode( ', ', $slugs ) ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		$sections = recipe_sections( $recipe );
+	} else {
+		$sections = sections_input( $input['sections'] ?? null );
+	}
+
 	if ( [] === $sections ) {
-		return new WP_Error( 'voyager_open_blocks_invalid_sections', 'Pass sections: the page\'s sections, top to bottom, each a pattern get-catalog lists.', [ 'status' => 400 ] );
+		return new WP_Error( 'voyager_open_blocks_invalid_sections', 'Pass sections, the page\'s sections, top to bottom, each a pattern get-catalog lists, or recipe, the slug of a page recipe get-catalog lists.', [ 'status' => 400 ] );
 	}
 
 	$post_id   = null;
