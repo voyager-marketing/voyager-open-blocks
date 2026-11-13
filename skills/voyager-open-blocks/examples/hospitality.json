@@ -1,5 +1,5 @@
 {
-	"business": "The Saltglass Inn is a twelve-room inn on the harbor road in Wrenmouth, a seaside town. Mira and Joe Calloway run it for couples, families and people traveling with a dog, and host small family gatherings in its garden. They gave the four facts on the proof strip: each of the twelve rooms has its own bath, breakfast is cooked to order, dogs are welcome in four rooms, and parking on site is free. They also gave three reviews from guests who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0174, its email, hello@saltglass-inn.example.com, and the three figures in its stats row (founded in 2006, an average rating of 4.8, and 241 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"business": "The Saltglass Inn is a twelve-room inn on the harbor road in Wrenmouth, a seaside town. Mira and Joe Calloway run it for couples, families and people traveling with a dog, and host small family gatherings in its garden. They gave the four facts on the proof strip: each of the twelve rooms has its own bath, breakfast is cooked to order, dogs are welcome in four rooms, and parking on site is free. They also gave three reviews from guests who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0174, its email, hello@saltglass-inn.example.com, and the three figures in its stats row (founded in 2006, an average rating of 4.8, and 241 reviews) are set in Settings > Site Data, so the page binds them and no copy types them. Its service area there lists the towns its guests visit from the inn, one per line.",
 	"compose": {
 		"title": "Home",
 		"sections": [
@@ -127,6 +127,16 @@
 					"Founded label": "Welcoming guests since",
 					"Rating label": "Average guest rating",
 					"Review count label": "Guest reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "plain",
+				"copy": {
+					"Heading": "Towns to visit from the inn",
+					"Intro": "Ask at the desk for directions to any of them, or for ideas for a day out.",
+					"Primary button": "Ask us for directions"
 				}
 			},
 			{

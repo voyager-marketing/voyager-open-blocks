@@ -179,6 +179,17 @@
  *      insert refuses copy for a value as a bound slot and omit of a value
  *      alone, and leaves a whole figure out with omit. Then it deletes the
  *      page and puts the three fields back.
+ *  17. the service area section: get-catalog lists its two layouts, each
+ *      with its copy labels and one facts block, "Places", whose items are
+ *      bound to service_area. insert places the list layout on a draft with
+ *      copy for its heading, the service area is set to three lines through
+ *      POST /wp/v2/settings and the page is published, and the page shows
+ *      one facts ul with those three li, in order, an ampersand escaped
+ *      once. The page counts in used_on for service_area, changing the field
+ *      records a purge with the page, and the page then shows the new
+ *      places. As insert saves them, the list layout validates with no
+ *      warning and the split layout with one placeholder warning, for its
+ *      image. Then it deletes the pages and puts the service area back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -5987,6 +5998,199 @@ await setStats(
 			.map( ( f ) => [ f.option, statsSettingsBefore[ f.option ] ] )
 	)
 );
+
+// 17. The service area section, in its two layouts. Each holds a facts block
+// bound to Site Data's service_area, so the places a page names follow
+// Settings > Site Data. get-catalog lists both with that binding. insert
+// places the list layout with copy for its heading on a draft, the service
+// area is set to three lines and the page published, and the page shows one
+// facts ul with those three li, in order. The page then counts in used_on
+// for service_area, changing the field records a purge with the page, and
+// the split layout as insert saves it warns placeholder once, for its image.
+const areaItems = [
+	[ 'voyager-open/service-area', 'list' ],
+	[ 'voyager-open/service-area-split', 'split' ],
+];
+const areaUse = 'voyager/site-data:service_area';
+for ( const [ item, layout ] of areaItems ) {
+	const areaListed = listedPattern( item );
+	const labels = ( areaListed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	const places = ( areaListed?.blocks || [] ).filter(
+		( b ) => b.block === 'voyager-open/facts'
+	);
+	step(
+		`get-catalog lists ${ item } with section "service-area", layout "${ layout }", its copy labels and one facts block whose items are bound to service_area`,
+		areaListed?.section === 'service-area' &&
+			areaListed?.layout === layout &&
+			JSON.stringify( labels ) ===
+				JSON.stringify( [ 'Heading', 'Intro', 'Primary button' ] ) &&
+			Object.keys( areaListed?.copy_rules || {} ).length === 3 &&
+			places.length === 1 &&
+			places[ 0 ].label === 'Places' &&
+			places[ 0 ].bindings?.items?.source === 'voyager/site-data' &&
+			places[ 0 ].bindings?.items?.args?.key === 'service_area',
+		areaListed
+			? JSON.stringify( {
+					section: areaListed.section,
+					layout: areaListed.layout,
+					labels,
+					places,
+				} )
+			: 'not listed'
+	);
+}
+
+const setServiceArea = ( value ) =>
+	api( '/wp/v2/settings', {
+		method: 'POST',
+		body: { voyager_site_service_area: value },
+	} );
+const originalServiceArea = ( await api( '/wp/v2/settings' ) ).data
+	.voyager_site_service_area;
+const areaPages = [];
+const areaDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E service area ${ stamp }`,
+		status: 'draft',
+		content: '',
+	},
+} );
+const areaId = areaDraft.data.id;
+areaPages.push( areaId );
+const areaInsert = await run( `${ ns }/insert`, {
+	post_id: areaId,
+	item: 'voyager-open/service-area',
+	copy: { Heading: 'Where we work' },
+} );
+step(
+	'insert voyager-open/service-area into a draft, with copy for its heading',
+	areaDraft.status === 201 &&
+		areaInsert.status === 200 &&
+		areaInsert.data.saved === true &&
+		( areaInsert.data.blocks || [] ).some(
+			( b ) => b.block === 'voyager-open/facts' && b.label === 'Places'
+		),
+	areaInsert.data.message || areaInsert.data.code || `post ${ areaId }`
+);
+validate( 'service-area as insert saved it', areaInsert.data.markup || '' );
+
+const areaUsedBefore = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ areaUse ];
+const threePlaces = await setServiceArea(
+	'Springfield\r\nChatham\r\nLewis & Clark County'
+);
+const areaPublished = await api( `/wp/v2/pages/${ areaId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const areaLink = areaPublished.data.link;
+const areaShown = areaLink
+	? factsLists( ( await request( areaLink ) ).text )
+	: [];
+step(
+	'fitness: with service_area set to three lines, the published page holding voyager-open/service-area shows one facts ul with those three li, in order',
+	threePlaces.status === 200 &&
+		areaPublished.status === 200 &&
+		areaShown.length === 1 &&
+		JSON.stringify( areaShown[ 0 ] ) ===
+			JSON.stringify( [
+				'Springfield',
+				'Chatham',
+				'Lewis &amp; Clark County',
+			] ),
+	`${ threePlaces.data.code || threePlaces.status }; ${ JSON.stringify(
+		areaShown
+	) }`
+);
+
+const areaUsedAfter = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ areaUse ];
+step(
+	'get-catalog used_on for service_area counts the published service area page',
+	Number.isInteger( areaUsedBefore?.posts ) &&
+		areaUsedAfter?.posts === areaUsedBefore.posts + 1,
+	`before ${ JSON.stringify( areaUsedBefore ) }, after ${ JSON.stringify(
+		areaUsedAfter
+	) }`
+);
+
+const areaPurge = await purgesDuring( () =>
+	setServiceArea( 'Fairview\nRiverside' )
+);
+step(
+	'changing the service area records one purge, for service_area, with the service area page',
+	areaPurge.changed.status === 200 &&
+		areaPurge.records.length === 1 &&
+		sameList( areaPurge.records[ 0 ].context?.keys || [], [
+			'service_area',
+		] ) &&
+		( areaPurge.records[ 0 ].urls || [] ).includes( areaLink ) &&
+		( areaPurge.records[ 0 ].context?.post_ids || [] ).includes( areaId ),
+	described( areaPurge.records )
+);
+const areaChanged = areaLink
+	? factsLists( ( await request( areaLink ) ).text )
+	: [];
+step(
+	'the page then shows the changed service area',
+	areaChanged.length === 1 &&
+		JSON.stringify( areaChanged[ 0 ] ) ===
+			JSON.stringify( [ 'Fairview', 'Riverside' ] ),
+	JSON.stringify( areaChanged )
+);
+
+// Each layout as insert saves it, on a draft of its own: the list layout has
+// no placeholder, the split layout one, its image slot.
+for ( const [ item, expected ] of [
+	[ 'voyager-open/service-area', [] ],
+	[
+		'voyager-open/service-area-split',
+		[ 'placeholder: core/image "Image" at ', 'placeholders/image-4x3.svg' ],
+	],
+] ) {
+	const draft = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: { title: `E2E: ${ item } ${ stamp }`, status: 'draft' },
+	} );
+	areaPages.push( draft.data.id );
+	const placed = await run( `${ ns }/insert`, {
+		post_id: draft.data.id,
+		item,
+	} );
+	validate( `${ item } as shipped`, placed.data.markup || '' );
+	const report = await checkMarkup( { post_id: draft.data.id } );
+	const warnings = report.data.warnings || [];
+	step(
+		expected.length
+			? `validate warns placeholder once, for its image slot, and nothing else, on a page holding ${ item } as insert saves it`
+			: `validate passes a page holding ${ item } as insert saves it, with no warning`,
+		placed.data.saved === true &&
+			clean( report ) &&
+			( expected.length
+				? warnings.length === 1 &&
+					warnings[ 0 ].startsWith( expected[ 0 ] ) &&
+					warnings[ 0 ].includes( expected[ 1 ] )
+				: warnings.length === 0 ),
+		`${ placed.data.code || `saved ${ placed.data.saved }` }; ${ warningSummary(
+			report
+		) }`
+	);
+}
+
+for ( const id of areaPages.filter( Boolean ) ) {
+	await api( `/wp/v2/pages/${ id }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+if ( typeof originalServiceArea === 'string' ) {
+	await setServiceArea( originalServiceArea );
+}
 await api( recorder, { method: 'DELETE' } );
 
 rmSync( scratch, { recursive: true, force: true } );

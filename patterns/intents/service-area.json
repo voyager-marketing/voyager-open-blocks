@@ -1,0 +1,104 @@
+{
+	"title": "Service area",
+	"section": "service-area",
+	"layout": "list",
+	"description": "Where a business works: a section heading, one line of intro, the towns it serves as a checkmarked list that shows the Site Data service area, and one button.",
+	"categories": [ "voyager-open", "about" ],
+	"keywords": [ "service area", "areas we serve", "towns", "locations", "where we work", "local" ],
+	"viewportWidth": 1280,
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: where the business works, in a few words, such as Areas we serve.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Intro": {
+			"purpose": "One line on the region the places sit in, or how to ask about a place the list leaves out. No travel time, response time or promise unless the site owner gave it.",
+			"min": 20,
+			"max": 120,
+			"required": false,
+			"claim": false
+		},
+		"Primary button": {
+			"purpose": "The section's one action, as what happens when it is pressed, such as Ask about your area.",
+			"min": 2,
+			"max": 24,
+			"required": false,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": { "name": "Service area" },
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|40"
+						}
+					},
+					"layout": { "type": "constrained" }
+				},
+				"children": [
+					{
+						"block": "core/group",
+						"attrs": { "metadata": { "name": "Lead" }, "layout": { "type": "default" } },
+						"children": [
+							{
+								"block": "core/heading",
+								"level": 2,
+								"text": "Areas we serve",
+								"attrs": { "metadata": { "name": "Heading" } }
+							},
+							{
+								"block": "core/paragraph",
+								"text": "One line on the region you work in, and how to ask about a place not listed.",
+								"attrs": { "metadata": { "name": "Intro" } }
+							}
+						]
+					},
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": { "name": "Places row" },
+							"layout": { "type": "flex", "flexWrap": "wrap" }
+						},
+						"children": [
+							{
+								"block": "voyager-open/facts",
+								"attrs": {
+									"items": "Your first town\nYour second town\nYour third town",
+									"className": "is-style-voyager-open-ticks",
+									"metadata": {
+										"name": "Places",
+										"bindings": {
+											"items": { "source": "voyager/site-data", "args": { "key": "service_area" } }
+										}
+									}
+								}
+							}
+						]
+					},
+					{
+						"block": "core/buttons",
+						"attrs": { "metadata": { "name": "Buttons" } },
+						"children": [
+							{ "block": "core/button", "text": "Ask about your area", "url": "/contact/", "attrs": { "metadata": { "name": "Primary button" } } }
+						]
+					}
+				]
+			}
+		]
+	}
+}
