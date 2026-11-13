@@ -109,25 +109,21 @@ None. The questions and answers are copy. Site Data reaches a page through the s
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/faq` and `voyager-open/faq-split` are in `patterns.items`.
-2. **Author.** Insert by reference, or an edited intent assembled as Customizing says.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/faq` and `voyager-open/faq-split` in `patterns.items`. Insert one by reference, or an edited intent assembled as Customizing says, then check it with `npx block-runner validate`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`. Each lists `Question 1` to `Question 3` and their answers with `copy: true`, and its `copy_rules`.
-2. **find-posts, then get-post-blocks.** For "my Drain cleaning page", call `find-posts` with `{"search": "Drain cleaning"}` and take `id`, say 123. Read `get-post-blocks` and count the top-level blocks (paths with no `/`) to pick `position`: before the closing CTA is usually the second to last.
+1. **get-catalog.** Confirm both patterns are in `patterns`.
+2. **Where.** Find the page with `find-posts`, say 123. Count the top-level blocks in `get-post-blocks` to pick `position`: before the closing CTA is usually the second to last.
 3. **Three questions:** `insert` with `copy` for the heading and each question and answer:
 
    ```json
    {"post_id": 123, "item": "voyager-open/faq", "position": 5, "dry_run": true, "copy": {"Heading": "Drain cleaning questions", "Question 1": "Do you work on weekends?", "Question 1 answer": "Yes, on Saturdays. Call us to book a time.", "Question 2": "Do you charge for a quote?", "Question 2 answer": "No. We look at the drain and give you a price before we start.", "Question 3": "How soon can you come out?", "Question 3 answer": "Most visits are booked within a day or two. Call us when it cannot wait."}}
    ```
 
-   Every answer above is the site owner's, given to you. Use `"item": "voyager-open/faq-split"` for the other layout. Plain text only, escaped on the way in: the question replaces the summary, the answer the paragraph. Read `validation`, then call `insert` again without `dry_run` to save.
+   Every answer above is the site owner's, given to you. Use `"item": "voyager-open/faq-split"` for the other layout. The question replaces the summary, the answer the paragraph. Then save without `dry_run`.
 4. **Four to eight questions:** `repeat` copies "Question 3", with its answer, after itself, one copy per new label. The answer in each copy takes its label: `Question 4` holds `Question 4 answer`, which `copy` then fills:
 
    ```json
@@ -136,10 +132,8 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
 
    Every question you add needs its question and answer in `copy`, or it repeats the third one's. More than eight makes a long section: say so and ask which to keep. A new label must be one no block has yet, and so must the label it gives the answer, or `insert` refuses with `voyager_open_blocks_invalid_repeat`.
 5. **Fewer than three:** `omit` drops a question with its answer: `"omit": ["Question 3"]`. Omitting an answer alone (`"Question 3 answer"`) is refused as `required`, and so is omitting the heading. Two questions is not much of a section; ask whether a paragraph would do.
-6. **validate** with `{"post_id": 123}`. `valid` should be `true`, with no warnings.
-7. **Report** the questions you placed, which answers came from the site owner, any shipped answer still in place, the layout, and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+6. **validate** the saved page: expect no warnings.
+7. **Report** the questions you placed, which answers came from the site owner, any shipped answer still in place, and the layout.
 
 ## Not in this section
 

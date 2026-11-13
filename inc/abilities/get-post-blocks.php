@@ -27,7 +27,7 @@ function register_get_post_blocks(): void {
 		CATEGORY . '/get-post-blocks',
 		[
 			'label'               => __( 'Get a post\'s blocks', 'voyager-open-blocks' ),
-			'description'         => __( 'Returns every block in a post with its path, block name, label (metadata.name), the start of its own text and its bindings. Each binding says whether its source returns a value now (resolution.status "resolved") or the block falls back to its authored text ("fell_back", with a reason). Paths are what insert (as parent), configure and bind take.', 'voyager-open-blocks' ),
+			'description'         => __( 'Returns every block in a post with its path, block name, label (metadata.name), the start of its own text and its bindings. A path with no / is a top-level section, and text tells blocks of one type apart, such as the call button among a header\'s buttons. Each binding\'s resolution.status is "resolved", with value_preview, or "fell_back" to the block\'s own text, with a reason: empty_value means its field is empty, so tell the user which Site Data field to fill. In a template, a post meta binding always falls back, as there is no post: check it with validate and post_type.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',

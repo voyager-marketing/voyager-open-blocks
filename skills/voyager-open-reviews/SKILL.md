@@ -108,38 +108,30 @@ None. Reviews are typed in. A later layout may show an overall rating from Site 
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/reviews` and `voyager-open/reviews-single` are in `patterns.items`, and `voyager-open/icon` is in `blocks.types`.
-2. **Author.** An edited intent assembled as Customizing says, with the owner's reviews.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. With the context, Block Runner knows the icon block is registered. Without it, each star warns `unregistered-block` and `--strict` fails. Do not save markup that fails.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/reviews` and `voyager-open/reviews-single` are in the Wesper manifest's `patterns.items`, and `voyager-open/icon` is in `blocks.types`. Assemble an edited intent with the owner's reviews, as Customizing says, then validate it with Block Runner and `--context site.context.json`: without the context, each star warns `unregistered-block` and `--strict` fails. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`, with their copy labels.
-2. **find-posts, then get-post-blocks.** For "my home page", call `find-posts` with `{"front_page": true}` and take `id`, say 123. Read `get-post-blocks` and count the top-level blocks (paths with no `/`) to pick `position`.
-3. **Three reviews:** `insert` with `copy` for every slot:
+1. **Find the page** with `find-posts` and `get-post-blocks`, say post 123, and pick `position`.
+2. **Three reviews:** `insert` with `copy` for every slot:
 
    ```json
    {"post_id": 123, "item": "voyager-open/reviews", "position": 4, "dry_run": true, "copy": {"Heading": "What customers say", "Review 1 rating": {"text": "Rated 5 out of 5", "source": "user"}, "Review 1 quote": {"text": "…", "source": "user"}, "Review 1 name": {"text": "…", "source": "user"}, "Review 1 detail": {"text": "…", "source": "user"}, "Review 2 rating": {"text": "…", "source": "user"}, "Review 2 quote": {"text": "…", "source": "user"}, "Review 2 name": {"text": "…", "source": "user"}, "Review 2 detail": {"text": "…", "source": "user"}, "Review 3 rating": {"text": "…", "source": "user"}, "Review 3 quote": {"text": "…", "source": "user"}, "Review 3 name": {"text": "…", "source": "user"}, "Review 3 detail": {"text": "…", "source": "user"}}}
    ```
 
-   Every `…` is the owner's text, never yours, so every rating, quote, name and detail goes in the object form, `{"text": "…", "source": "user"}`. `insert` refuses a plain string in a claim slot (reason `claim`), and text longer than its rule's `max` (reason `too_long`), and saves nothing; `data.refused` lists every slot to fix. Plain text only, escaped on the way in. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save.
-4. **A rating under five:** drop the stars above it with `omit`, and say the same number in `copy`. A four-star second review: `"omit": ["Review 2 star 5"]` with `"Review 2 rating": {"text": "Rated 4 out of 5", "source": "user"}`. Three stars: omit `Review 2 star 4` and `Review 2 star 5`. The pack has no half star: for 4.5, show four stars and say "Rated 4.5 out of 5".
-5. **Four to six reviews:** `repeat` copies "Review 3", with everything in it, after itself, one copy per new label. The blocks in each copy take its label (`Review 4 quote`, `Review 4 star 5`), which `copy` and `omit` then use:
+   Every `…` is the owner's text, never yours, so every rating, quote, name and detail goes in the object form, `{"text": "…", "source": "user"}`. `insert` refuses a plain string in a claim slot (reason `claim`).
+3. **A rating under five:** drop the stars above it with `omit`, and say the same number in `copy`. A four-star second review: `"omit": ["Review 2 star 5"]` with `"Review 2 rating": {"text": "Rated 4 out of 5", "source": "user"}`. Three stars: omit `Review 2 star 4` and `Review 2 star 5`. The pack has no half star: for 4.5, show four stars and say "Rated 4.5 out of 5".
+4. **Four to six reviews:** `repeat` copies "Review 3", with everything in it, after itself, one copy per new label. The blocks in each copy take its label (`Review 4 quote`, `Review 4 star 5`), which `copy` and `omit` then use:
 
    ```json
    {"post_id": 123, "item": "voyager-open/reviews", "position": 4, "repeat": {"Review 3": ["Review 4"]}, "omit": ["Review 2 star 5"], "copy": {"Heading": "What customers say", "Review 1 rating": {"text": "…", "source": "user"}, "Review 1 quote": {"text": "…", "source": "user"}, "Review 1 name": {"text": "…", "source": "user"}, "Review 1 detail": {"text": "…", "source": "user"}, "Review 2 rating": {"text": "Rated 4 out of 5", "source": "user"}, "Review 2 quote": {"text": "…", "source": "user"}, "Review 2 name": {"text": "…", "source": "user"}, "Review 2 detail": {"text": "…", "source": "user"}, "Review 3 rating": {"text": "…", "source": "user"}, "Review 3 quote": {"text": "…", "source": "user"}, "Review 3 name": {"text": "…", "source": "user"}, "Review 3 detail": {"text": "…", "source": "user"}, "Review 4 rating": {"text": "…", "source": "user"}, "Review 4 quote": {"text": "…", "source": "user"}, "Review 4 name": {"text": "…", "source": "user"}, "Review 4 detail": {"text": "…", "source": "user"}}}
    ```
 
-   Every review you add needs its rating, quote, name and detail in `copy`, or it shows the placeholders. A new label must be one no block has yet, and so must the labels it gives the blocks inside it, or `insert` refuses with `voyager_open_blocks_invalid_repeat` and lists the labels it can repeat.
-6. **Two reviews:** `"omit": ["Review 3"]` drops a card with everything in it. **One review:** use `voyager-open/reviews-single`, with `copy` for `Heading` and `Review 1 rating`, `quote`, `name` and `detail`.
-7. **validate** with `{"post_id": 123}`. `valid` should be `true`, with no warnings.
-8. **Report** the reviews you placed, who gave each one and the rating, the layout, and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+   Every review you add needs its rating, quote, name and detail in `copy`, or it shows the placeholders.
+5. **Two reviews:** `"omit": ["Review 3"]` drops a card with everything in it. **One review:** use `voyager-open/reviews-single`, with `copy` for `Heading` and `Review 1 rating`, `quote`, `name` and `detail`.
+6. **Then** `validate` the page, and report the reviews you placed, who gave each one and the rating, and the layout.
 
 ## Try it
 

@@ -129,7 +129,7 @@ function post_id_schema(): array {
 	return [
 		'type'        => 'integer',
 		'minimum'     => 1,
-		'description' => 'ID of the post or page to change.',
+		'description' => 'The post\'s ID, from find-posts.',
 	];
 }
 
@@ -155,7 +155,7 @@ function dry_run_schema(): array {
 	return [
 		'type'        => 'boolean',
 		'default'     => false,
-		'description' => 'Run every check and return the markup and validation without saving the post. A refusal is returned the same way as without dry_run.',
+		'description' => 'Run every check, refusals included, and save nothing.',
 	];
 }
 

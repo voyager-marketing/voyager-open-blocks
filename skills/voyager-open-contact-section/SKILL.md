@@ -91,29 +91,19 @@ In the block editor, the form slot's email fallback carries a "Replace this with
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm the pattern and `voyager/site-data`. Find the form plugin's block in `blocks.types`.
-2. **Author.** Assemble, then put the form block into the slot.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Check the data.** List any empty Site Data settings for the owner instead of filling them with guesses.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/contact-section` in `patterns.items` and `voyager/site-data` in `bindings.sources`, and find the form plugin's block in `blocks.types`. Assemble an edited intent, put the form block into the slot, then check it with `npx block-runner validate`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
-1. **Where.** Read `get-post-blocks` on the page to pick `position` among the top-level blocks (paths with no `/`). On an empty Contact page, leave `position` out.
-2. **insert** with copy: `{"post_id": 123, "item": "voyager-open/contact-section", "copy": {"Heading": "Visit or call", "Body": "We answer the phone during business hours.", "Form heading": "Ask a question"}}`. Add `"dry_run": true` first to check without saving, then call it again without `dry_run`. Labels: `Heading`, `Body`, `Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`, `Click to call`, `Form heading`, `Form body`, `Email button`. Never pass copy for a bound slot: the detail lines take their text from Site Data, so `insert` refuses copy for them with `voyager_open_blocks_bound_slot` and saves nothing; change them in Settings > Site Data instead. Only the buttons' links are bound, so `Click to call` and `Email button` take copy. Plain text only, escaped on the way in. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
+1. **Where.** On an empty Contact page, leave `position` out. Otherwise pick it from `get-post-blocks`.
+2. **insert** with copy: `{"post_id": 123, "item": "voyager-open/contact-section", "copy": {"Heading": "Visit or call", "Body": "We answer the phone during business hours.", "Form heading": "Ask a question"}}`. Never pass copy for a bound slot: the detail lines take their text from Site Data, so `insert` refuses copy for them with `voyager_open_blocks_bound_slot` and saves nothing; change them in Settings > Site Data instead. Only the buttons' links are bound, so `Click to call` and `Email button` take copy.
 3. **omit**, only when the owner asks: add `"omit": ["Hours"]` to the same insert to leave a line out. `["Address"]` drops the street and city lines together.
-4. **Check the data.** Call `get-post-blocks`. Each detail line and button carries `resolution` for its binding. `resolved` shows the value in `value_preview`. `fell_back` with `reason: "empty_value"` means the setting in the Bindings table is empty: list those settings for the user. Do not fill them with guesses.
-5. **validate** with `{"post_id": 123}` checks the saved page.
-6. **The form.** The form plugin's block goes in by hand or through that plugin's own tools. This pack does not insert third-party blocks.
+4. **Check the data** with `get-post-blocks` and `validate`. Every detail line and both buttons are bound: list each one that falls back, with its setting from the Bindings table. Do not fill them with guesses.
+5. **The form.** The form plugin's block goes in by hand or through that plugin's own tools. This pack does not insert third-party blocks.
 
-`bind` can add or change a binding: its path, and args from `get-catalog`. Every detail line arrives bound, so it is rarely needed.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+Every detail line arrives bound, so `bind` is rarely needed.
 
 ## Try it
 

@@ -199,7 +199,7 @@ function recipe_input_schema(): array {
 	$slugs  = array_column( recipes(), 'slug' );
 	$schema = [
 		'type'        => 'string',
-		'description' => 'The slug of a page recipe get-catalog lists under recipes, such as home, in place of sections. compose builds the recipe\'s sections in order, each in its layout and style, with each pattern\'s own text: stand-ins for the site owner to replace. To write the copy in the same call, pass the recipe\'s sections as sections instead, each with copy written from its copy_guidance. Pass recipe or sections, not both.',
+		'description' => 'A recipe\'s slug from get-catalog, such as home, in place of sections: its sections with each pattern\'s own stand-in text, for the site owner to replace. To write the copy in the same call, pass its sections as sections instead, each with copy from its copy_guidance.',
 	];
 
 	if ( [] !== $slugs ) {

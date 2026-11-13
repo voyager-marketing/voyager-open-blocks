@@ -55,23 +55,16 @@ The **Ticks** block style (`is-style-voyager-open-ticks`) shows the items as a w
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/facts` is in `blocks.types` and `bindings.supportedAttributes["voyager-open/facts"]` lists `items`.
-2. **Author.** Block Runner cannot assemble a custom block, so write the self-closing comment above with attributes only, inside native blocks you assemble around it. In the comment's JSON, a line break between items is `\n`.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
-4. **Bind.** `items` only, with the args from `get-catalog`.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/facts` in `blocks.types` and `voyager/site-data` in `bindings.sources`. Block Runner cannot assemble a custom block, so write the self-closing comment above with attributes only, inside native blocks you assemble around it. In the comment's JSON, a line break between items is `\n`. Check it with `npx block-runner validate`, then bind `items` only. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
 - **insert**: `{"post_id": 123, "item": "voyager-open/facts", "attributes": {"items": "Your first service\nYour second service"}}`. In the JSON input too, the line break is `\n`. With `parent`, the path of a group, it goes inside that block, at `position`.
-- **bind**: `{"post_id": 123, "path": "4", "attribute": "items", "source": "voyager/site-data", "args": {"key": "services"}}`. Copy `args` from `get-catalog`.
+- **bind**: `{"post_id": 123, "path": "4", "attribute": "items", "source": "voyager/site-data", "args": {"key": "services"}}`.
 - **configure**: `{"post_id": 123, "path": "4", "attributes": {"items": "Free estimates\nWeekend appointments"}}` changes the items of a block that is not bound. A bound `items` is refused with `voyager_open_blocks_bound_slot`, because its value comes from the binding: change the list in Settings > Site Data instead.
-- **get-post-blocks** proves the binding: `items` should read `resolution.status: "resolved"`, with the start of the list in `value_preview`. `fell_back` with `reason: "empty_value"` means the list is empty in Settings > Site Data: tell the user which one, from the table above.
-
-Paths come from the insert response or `get-post-blocks`.
+- **get-post-blocks**: if `items` falls back, that list is empty. Tell the user which one, from the table above.
 
 ## In the editor
 

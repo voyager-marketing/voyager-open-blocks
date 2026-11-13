@@ -65,39 +65,29 @@ No slot is a claim slot, and the shipped copy makes no claim. Do not put a licen
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/cta-band` is in `patterns.items` and `voyager/site-data` is in `bindings.sources`.
-2. **Author.** Insert by reference, or assemble an edited intent.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Bind.** Already bound. If Settings > Site Data has no phone, the button keeps its placeholder. Say so instead of inventing a number.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/cta-band` in `patterns.items` and `voyager/site-data` in `bindings.sources`. Insert it by reference, or assemble an edited intent, then check it with `npx block-runner validate`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write. Run them in this order.
+This is route 1: the abilities, over MCP or REST, with no markup to write. Run them in this order.
 
 1. **get-catalog.** Confirm `voyager-open/cta-band` is in `patterns`, and that the `voyager/site-data` source lists a field with args `{"key": "phone"}` and one with `{"key": "phone_link"}`.
-2. **find-posts, then get-post-blocks.** For "my Services page", call `find-posts` with `{"search": "Services"}` and take `id` from the row whose `title` is the page's name, say 123. No row: try `{"slug": "services"}`, or ask the user which page. Then `get-post-blocks` with `{"post_id": 123}`. Count the top-level blocks (paths with no `/`). To place the band before the last section, pass that count minus one as `position`. On an empty page, leave `position` out.
+2. **Where.** Find the page with `find-posts`, say 123. To place the band before the last section, count the top-level blocks in `get-post-blocks` and pass that count minus one as `position`. On an empty page, leave `position` out.
 3. **insert with dry_run.** Write the eyebrow, heading and line for the page:
 
    ```json
    {"post_id": 123, "item": "voyager-open/cta-band", "position": 4, "dry_run": true, "copy": {"Eyebrow": "Free estimates", "Heading": "Need a plumber today?", "Body": "Call before noon for a same-day visit.", "Primary button": "Book a visit"}}
    ```
 
-   Labels: `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call`. Plain text only, escaped on the way in. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels. To drop the eyebrow, pass `"omit": ["Eyebrow"]` instead of copy for it.
-4. **Keep the call button bound.** It arrives bound: `text` to `{"key": "phone"}` and `url` to `{"key": "phone_link"}`. Never pass copy for `Click to call`, a bound slot: `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing, so change the number in Settings > Site Data instead. Do not `bind` it again unless you want a different field. To re-point it, take its path from the insert response (label "Click to call") and pass args copied from `get-catalog`:
+   Then save without `dry_run`. To drop the eyebrow, pass `"omit": ["Eyebrow"]` instead of copy for it.
+4. **Keep the call button bound.** It arrives bound: `text` to `{"key": "phone"}` and `url` to `{"key": "phone_link"}`. Never pass copy for `Click to call`, a bound slot: `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing, so change the number in Settings > Site Data instead. Do not `bind` it again unless you want a different field. To re-point it, use the path labelled "Click to call":
 
    ```json
    {"post_id": 123, "path": "4/0/1/1", "attribute": "url", "source": "voyager/site-data", "args": {"key": "phone_link"}}
    ```
 
-5. **get-post-blocks** again. Find the block labelled "Click to call". Both of its bindings should read `resolution.status: "resolved"`, with the number in `value_preview`. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Phone number is empty: tell the user to fill it in, and do not type a number into the copy instead.
-6. **validate** with `{"post_id": 123}` checks the whole saved page. `valid` should be `true`.
-7. **Report** the heading and line you wrote, the phone binding's status, the primary button's link (`/contact/`), and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+5. Then check it with **get-post-blocks** and **validate**. Both bindings of "Click to call" should resolve to the number. If they fall back, Settings > Site Data > Phone number is empty: tell the user.
+6. **Report** the heading and line you wrote, the phone binding's status and the primary button's link (`/contact/`).
 
 ## Try it
 

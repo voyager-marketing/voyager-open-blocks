@@ -13,7 +13,7 @@ A pattern is a JSON intent that Block Runner assembles into block markup. You ne
 3. Give every block an agent may rewrite a `metadata.name`. Names must be unique within the pattern: the `insert` ability's `copy` input finds blocks by them.
 4. Bind business details to `voyager/site-data` with args copied from [the key list](use-in-your-theme.md#site-data-keys), and author real placeholder text beside each binding. Placeholder data uses example.com and the 555-01xx range.
 5. Run `npm run patterns:build`. It writes `patterns/<name>.html` and fails on an invalid block, a dropped attribute or a repeated name. Commit both files.
-6. Add `skills/voyager-open-<name>/SKILL.md` in the shape of [the CTA band's](../skills/voyager-open-cta-band/SKILL.md), and add the item to the table in [the entry skill](../skills/voyager-open-blocks/SKILL.md) and the [README](../README.md#what-is-in-the-pack).
+6. Add `skills/voyager-open-<name>/SKILL.md` in the shape of [the CTA band's](../skills/voyager-open-cta-band/SKILL.md), and add the item to the [README](../README.md#what-is-in-the-pack). The [entry skill](../skills/voyager-open-blocks/SKILL.md) is a quick card with no list of items, so it needs no row.
 7. Add a demo page for it to `$demos` in `playground/seed.php`, and `blueprints/<name>.json` landing on `/voyager-open/<name>/`. Copy an existing blueprint and change its `meta` and `landingPage`.
 
 It must pass:

@@ -72,40 +72,31 @@ The shipped intent already gives the list `children` of `core/list-item` nodes, 
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/proof-strip` is in `patterns.items` and the `voyager-open-ticks` style is in the `core/list` block's `styles`.
-2. **Author.** Assemble with the owner's facts, one item per fact.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/proof-strip` is in the Wesper manifest's `patterns.items` and the `voyager-open-ticks` style is in the `core/list` block's `styles`. Assemble `patterns/intents/proof-strip.json` with the owner's facts, one item per fact, then validate it with Block Runner. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **Which page:** for "my home page", call `find-posts` with `{"front_page": true}` and use the row's `id`. If its `note` says the home page lists the latest posts, the row is a template: that works the same way when its `id` is a number. When `id` is `null`, ask the user to save that template once in the Site Editor.
-- **Where:** "under the hero" is usually `position` 1. Read `get-post-blocks` first and count the top-level blocks (paths with no `/`): the hero is normally the one at path `0`, and the `text` of the heading inside it is the page's main headline.
+- **Where:** "under the hero" is usually `position` 1. In `get-post-blocks`, the hero is normally the top-level block at path `0`, and the `text` of the heading inside it is the page's main headline.
 - **Three or four facts:** `insert` with `copy` for one item per fact, each in the object form because the owner gave it, and `omit` for the item left over:
 
   ```json
   {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "copy": {"Credential 1": {"text": "Licensed and insured", "source": "user"}, "Credential 2": {"text": "Family owned since 1998", "source": "user"}, "Credential 3": {"text": "Written quotes", "source": "user"}}, "omit": ["Credential 4"]}
   ```
 
-  Labels: `Credential 1` to `Credential 4`. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label is refused with `voyager_open_blocks_invalid_copy`, `voyager_open_blocks_invalid_omit` or `voyager_open_blocks_invalid_repeat`, which list the valid labels. Only `Credential 4` can be omitted: the first three are required.
+  Labels: `Credential 1` to `Credential 4`. Only `Credential 4` can be omitted: the first three are required.
 - **Five or six facts:** `repeat` adds items after `Credential 4`, each with a new label, and `copy` fills them:
 
   ```json
   {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "repeat": {"Credential 4": ["Credential 5", "Credential 6"]}, "copy": {"Credential 1": {"text": "Licensed and insured", "source": "user"}, "Credential 2": {"text": "Family owned since 1998", "source": "user"}, "Credential 3": {"text": "Written quotes", "source": "user"}, "Credential 4": {"text": "Same-week scheduling", "source": "user"}, "Credential 5": {"text": "Free estimates", "source": "user"}, "Credential 6": {"text": "Two-year guarantee", "source": "user"}}}
   ```
 
-  Give each new item a label no block has yet. Every item you add needs a fact in `copy`, or it shows the fourth item's stand-in. More than six makes a crowded row: say so and ask which to keep.
+  Every item you add needs a fact in `copy`, or it shows the fourth item's stand-in. More than six makes a crowded row: say so and ask which to keep.
 - **No facts:** do not insert the strip. Ask the owner for them. When they are in Settings > Site Data > Credentials, insert a `voyager-open/facts` block in the Ticks style and bind its `items` instead (Copy rules, above).
 - **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. It shows the four stand-ins, so use it only on a demo page.
-- **bind:** optional. Bind a list item's `content` to an allowlisted post meta field by its path and the field's args from `get-catalog`.
-- **validate** with `{"post_id": 123}` checks the saved page.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+- **bind:** optional. Bind a list item's `content` to an allowlisted post meta field (Bindings, above).
+- Then `validate` the page.
 
 ## Try it
 

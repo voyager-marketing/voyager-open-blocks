@@ -67,13 +67,13 @@ To work on the pack itself, read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/devel
 
 ## Give it to your agent
 
-Install the skills, then give your agent a prompt. It reads your site first, checks every block before it saves, and tells you which values are still empty.
+Install the skills, then give your agent a prompt. It reads your site first, builds the page in one call, checks every block before it saves, and tells you which values are still empty.
 
 ```bash
 npx skills add voyager-marketing/voyager-open-blocks
 ```
 
-That adds an entry skill, which teaches the read, check and bind loop, and one skill per item. The skills follow the open Agent Skills layout (`skills/<name>/SKILL.md`), so any harness that reads that layout can load them. Start an agent at [skills/voyager-open-blocks](skills/voyager-open-blocks/SKILL.md).
+That adds an entry skill and one skill per item. The entry skill is a quick card under 500 words: read the catalog, build the page with `compose` from a page recipe and its copy, check it with `validate`, and tell the user which Site Data is still empty, under five rules (bind contact details, never type them; claims need a source; core blocks and theme presets only; placeholders get replaced; check before saving). The detail of each call is in that ability's own description, which an agent reads anyway as the tool definition, and the long guide is [docs/agents.md](docs/agents.md). The skills follow the open Agent Skills layout (`skills/<name>/SKILL.md`), so any harness that reads that layout can load them. Start an agent at [skills/voyager-open-blocks](skills/voyager-open-blocks/SKILL.md).
 
 The general prompt, with your task in the brackets:
 
@@ -152,7 +152,7 @@ composer require voyager-marketing/voyager-open-blocks
 
 Nine WordPress abilities (category `voyager-open-blocks`, REST at `wp-abilities/v1`, MCP through the WordPress MCP adapter) let an agent use the pack on a live site without writing markup: `get-catalog`, `find-posts`, `get-post-blocks`, `insert`, `compose`, `configure`, `bind`, `undo` and `validate`. `find-posts` turns "my Services page", "my home page" or "my header" into a post ID, and lists only what the user can edit. `insert` places at the top level or, with `parent`, inside a block, following each block's `allowedBlocks`, `parent` and `ancestor` rules and any lock. It takes `copy` for a pattern's named headings, paragraphs, buttons, list items and FAQ questions, `omit` for the named blocks to leave out, such as a fourth credential, and `repeat` for more of a named block, such as a fifth and sixth. `compose` builds a whole draft page in one call from a list of sections, each a pattern by its section and layout with its `copy` and section `style`, checked as `insert` checks one, and returns the preview link, the revision ID, the validation and the Site Data the page shows that is still empty. It writes drafts only. `bind` takes `post_type` in a template, so a single template can bind the post meta of the posts it shows. `undo` reverses a save made by `insert`, `compose`, `configure` or `bind`, and refuses when the post was saved since, unless told to reverse those saves too. `validate` checks markup, or a saved post, without saving anything. `get-post-blocks` reports `resolution` for every binding (`resolved` or `fell_back`, with a reason and a value preview), so a bound value can be proved without rendering the page. `bind` accepts only args that match a listed field exactly. `configure` touches only blocks that save no HTML.
 
-Inputs, permissions and return values are in the [API reference](docs/use-in-your-theme.md#abilities). The agent's view is in the [entry skill](skills/voyager-open-blocks/SKILL.md#abilities).
+Inputs, permissions and return values are in the [API reference](docs/use-in-your-theme.md#abilities). The agent's view is in each ability's own description, the [entry skill](skills/voyager-open-blocks/SKILL.md) and [docs/agents.md](docs/agents.md).
 
 ### How it is built
 

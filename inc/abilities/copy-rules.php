@@ -36,7 +36,7 @@ function copy_value_schema(): array {
 			],
 			[
 				'type'                 => 'object',
-				'description'          => 'Text the site owner gave you, such as a review in the customer\'s own words. The only value a claim slot takes.',
+				'description'          => 'Text the site owner gave you, such as a review in the customer\'s own words. A claim slot takes nothing else.',
 				'properties'           => [
 					'text'   => [
 						'type'      => 'string',

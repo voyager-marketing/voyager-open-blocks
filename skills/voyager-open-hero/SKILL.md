@@ -109,34 +109,24 @@ No ability changes an image. Tell the user to replace the placeholder in the edi
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/hero` and `voyager-open/hero-cover` are in `patterns.items` and `voyager/site-data` is in `bindings.sources`.
-2. **Author.** Insert by reference, or assemble an edited intent with the site's own image.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Bind.** Already bound. If Settings > Site Data has no phone, the button keeps its placeholder. Say so instead of inventing a number.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/hero` and `voyager-open/hero-cover` in `patterns.items` and `voyager/site-data` in `bindings.sources`. Insert one by reference, or assemble an edited intent with the site's own image, then check it with `npx block-runner validate`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write. Run them in this order.
+This is route 1: the abilities, over MCP or REST, with no markup to write. Run them in this order.
 
 1. **get-catalog.** Confirm both patterns are in `patterns`, and that the `voyager/site-data` source lists a field with args `{"key": "phone"}` and one with `{"key": "phone_link"}`.
-2. **find-posts, then get-post-blocks.** For "my home page", call `find-posts` with `{"front_page": true}` and take `id`, say 123. Then `get-post-blocks` with `{"post_id": 123}`. If the page already has a hero or another `h1` section at the top, ask the user before adding a second one.
+2. **Where.** Find the page with `find-posts`, say 123, and read it with `get-post-blocks`. If the page already has a hero or another `h1` section at the top, ask the user before adding a second one.
 3. **insert with dry_run,** at the top of the page:
 
    ```json
    {"post_id": 123, "item": "voyager-open/hero", "position": 0, "dry_run": true, "copy": {"Eyebrow": "Plumbing in Springfield", "Heading": "Plumbers for leaks, drains and water heaters", "Body": "Tell us what is wrong and we will give you a price before we start.", "Primary button": "Book a visit"}}
    ```
 
-   Use `"item": "voyager-open/hero-cover"` for the cover layout. Labels: `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call`. Keep each within its copy rule. Plain text only, escaped on the way in. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save.
+   Then save without `dry_run`. Use `"item": "voyager-open/hero-cover"` for the cover layout.
 4. **Keep the call button bound.** Never pass copy for `Click to call`, a bound slot: `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing. Change the number in Settings > Site Data instead.
-5. **get-post-blocks** again. The block labelled "Click to call" should read `resolution.status: "resolved"` for both bindings. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Phone number is empty: tell the user to fill it in.
-6. **validate** with `{"post_id": 123}`. `valid` should be `true`, with one `placeholder:` warning for the image slot.
-7. **Report** the copy you wrote, the phone binding's status, the primary button's link (`/contact/`), the placeholder image the user must replace in the editor (and, on the cover, the focal point to set), and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists both patterns' named blocks and their bindings before you insert them.
+5. Then check it with **get-post-blocks** and **validate**. Both bindings of "Click to call" should resolve. If they fall back, Settings > Site Data > Phone number is empty: tell the user. Expect one `placeholder:` warning, for the image slot.
+6. **Report** the copy you wrote, the phone binding's status, the primary button's link (`/contact/`), and the placeholder image the user must replace in the editor (and, on the cover, the focal point to set).
 
 ## Try it
 

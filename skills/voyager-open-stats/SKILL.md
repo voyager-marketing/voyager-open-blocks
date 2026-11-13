@@ -113,32 +113,23 @@ The text each layout ships: the values "Founded", "Score" and "Count", the label
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/stats` and `voyager-open/stats-band` are in `patterns.items`, and `voyager/site-data` is in `bindings.sources`. Wesper cannot list the source's keys: take them from the Bindings table, or from `get-catalog`.
-2. **Author.** An edited intent assembled as Customizing says, with every value still bound.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Verify.** After saving, `get-post-blocks` shows each value's `resolution`. Every figure on the page should read `resolved`.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/stats` and `voyager-open/stats-band` are in the Wesper manifest's `patterns.items`, and `voyager/site-data` is in `bindings.sources`. Wesper cannot list the source's keys: take them from the Bindings table, or from `get-catalog`. Assemble an edited intent as Customizing says, with every value still bound, and validate it with Block Runner. After saving, every figure should read `resolved` in `get-post-blocks`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`, with their copy labels and each value's binding.
-2. **find-posts, then get-post-blocks.** For "my home page", call `find-posts` with `{"front_page": true}` and take `id`, say 123. Read `get-post-blocks` and count the top-level blocks (paths with no `/`) to pick `position`.
-3. **The row, as shipped:** `{"post_id": 123, "item": "voyager-open/stats", "position": 5, "dry_run": true}`. Read `validation`, then call it again without `dry_run` to save, and keep the `revision_id`.
-4. **Check the figures.** Call `get-post-blocks`. Each value's binding should read `resolved`, with the figure in `value_preview`. One that reads `fell_back` with `reason: "empty_value"` has an empty field: `undo` the save with its `revision_id`, and insert again with that figure left out, `"omit": ["Review count"]`. Tell the user which field to fill in, from the table above.
-5. **The band:** copy for its heading and line, and for a label when the owner names the rating's source:
+1. **Find the page** with `find-posts` and `get-post-blocks`, say post 123, and pick `position`.
+2. **The row, as shipped:** `{"post_id": 123, "item": "voyager-open/stats", "position": 5, "dry_run": true}`. Save it, and keep the `revision_id`.
+3. **Check the figures** with `get-post-blocks`: each value should read `resolved`. For one that fell back with `empty_value`, `undo` the save with its `revision_id`, and insert again with that figure left out, `"omit": ["Review count"]`. Tell the user which field to fill in, from the table above.
+4. **The band:** copy for its heading and line, and for a label when the owner names the rating's source:
 
    ```json
    {"post_id": 123, "item": "voyager-open/stats-band", "position": 5, "dry_run": true, "omit": ["Review count"], "copy": {"Heading": "About us at a glance", "Body": "A few figures about the business, from its own records.", "Rating label": "Google rating"}}
    ```
 
    Never pass copy for a value, such as `"Rating value"`: `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing. Change the figure in Settings > Site Data instead.
-6. **validate** with `{"post_id": 123}`. `valid` should be `true`.
-7. **Report** the figures the page shows and which, if any, you left out because their field was empty, and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+5. **Then** `validate` the page, and report the figures the page shows and which, if any, you left out because their field was empty.
 
 ## Try it
 
