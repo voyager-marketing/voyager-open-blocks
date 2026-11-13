@@ -75,6 +75,7 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( 'voyager-open/services', self::resolve( 'voyager-open/services', null ) );
 		$this->assertSame( 'voyager-open/reviews', self::resolve( 'voyager-open/reviews', null ) );
 		$this->assertSame( 'voyager-open/closing-cta', self::resolve( 'voyager-open/closing-cta', null ) );
+		$this->assertSame( 'voyager-open/proof-strip', self::resolve( 'voyager-open/proof-strip', null ) );
 	}
 
 	public function test_a_layout_picks_the_intent_of_the_section_that_carries_it(): void {
@@ -83,6 +84,8 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( 'voyager-open/services-list', self::resolve( 'voyager-open/services', 'list' ) );
 		$this->assertSame( 'voyager-open/services', self::resolve( 'voyager-open/services', 'grid' ) );
 		$this->assertSame( 'voyager-open/reviews-single', self::resolve( 'voyager-open/reviews', 'single' ) );
+		$this->assertSame( 'voyager-open/proof-strip', self::resolve( 'voyager-open/proof-strip', 'list' ) );
+		$this->assertSame( 'voyager-open/proof-strip-facts', self::resolve( 'voyager-open/proof-strip', 'facts' ) );
 	}
 
 	public function test_a_layout_no_intent_of_the_section_carries_names_no_pattern(): void {
@@ -107,6 +110,7 @@ final class ComposeTest extends TestCase {
 
 		$this->assertSame( [ 'split', 'cover' ], array_column( $layouts['voyager-open/hero'] ?? [], 'layout' ) );
 		$this->assertSame( [ 'grid', 'list' ], array_column( $layouts['voyager-open/services'] ?? [], 'layout' ) );
+		$this->assertSame( [ 'list', 'facts' ], array_column( $layouts['voyager-open/proof-strip'] ?? [], 'layout' ) );
 		$this->assertSame( [ null ], array_column( $layouts['voyager-open/closing-cta'] ?? [], 'layout' ) );
 		$this->assertArrayNotHasKey( 'voyager-open/hero-cover', $layouts );
 		$this->assertCount( count( $files ), array_merge( ...array_values( $layouts ) ) );
