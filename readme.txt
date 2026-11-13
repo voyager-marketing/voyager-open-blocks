@@ -5,7 +5,7 @@ Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.1
 Release marker: x-release-please-start-version
-Stable tag: 0.8.0
+Stable tag: 0.9.0
 Release marker: x-release-please-end
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -156,6 +156,27 @@ In the plugin's `skills/` folder, one `SKILL.md` per item in the open Agent Skil
 7. Settings > Site Data: one screen for the business details every section reads.
 
 == Changelog ==
+
+= 0.9.0 =
+* `compose` builds a whole draft page in one call from a list of sections, each with its text and section style, checks it as `insert` checks a section, and returns its preview link and the Site Data it still needs.
+* `get-catalog` lists the page recipes, and `compose` builds a draft page from a recipe by its slug.
+* `compose` sections take `omit` and `repeat` as `insert` does, and `validate` warns on stand-in text left on a page, such as "Your fourth credential".
+* A new FAQ section, in two layouts: the questions one under another, or beside the section heading. Each question opens to show its answer with no script, and `insert` can now set a question, as it sets a heading or a paragraph.
+* `get-catalog` gives each pattern its section, layout and copy rules, and `insert` refuses copy that breaks them: text over the length limit, a claim such as a review typed in rather than given by the site owner, or a required slot left out, listing every refused slot at once and saving nothing.
+* Six page recipes ship in `recipes/`, one each for a home, services, service, location, contact and about page: the sections in order, each with its layout, its section style and copy guidance for agents.
+* A process steps section that says what happens once a visitor gets in touch, in order, in two layouts: three numbered steps side by side, or one under another, each a heading that starts with its number and one short line.
+* The proof strip comes in a second layout, "Proof strip from Site Data", which shows the credentials you list under Settings > Site Data and changes when you change them.
+* A service area section that names the towns you serve, in two layouts: on its own, or beside an image. The towns are a checkmarked list from your service area on Settings > Site Data, so they change everywhere when you change them there.
+* A Stats section shows your year founded, average rating and review count from Settings > Site Data, in a row or beside a heading, so a page never shows a figure you did not enter.
+* The contact section shows your address, phone, email and hours through the Contact details block, so a visitor on a phone taps the number to call and the email to write, and while a field in Settings > Site Data is empty it shows a label such as "Phone" instead of a sample number or address. `validate` now warns `stale_fallback` on a contact section saved with an earlier version, whose sample phone number and email address visitors see whenever those fields are empty: replace the section, or put a label in place of each sample.
+* The new `prompt` ability gives each skill's "Tell your agent" prompt, read from the skill itself, and version 0.3.0 and later of the WordPress MCP Adapter list it as an MCP prompt rather than a tool.
+* A Contact details block shows your address, phone, email and hours from Settings > Site Data, with the phone and email as links that dial and open a new message when a visitor taps them.
+* The proof strip ships stand-ins that say what goes there, such as "Your first credential", instead of credentials no site gave it, and the CTA band, proof strip, logo marquee, closing CTA and contact section now carry copy rules for agents.
+* A page whose icons have no animation no longer loads the CSS for all seven animations: each animation's CSS loads only on a page whose icon uses it.
+* When a bindable post meta field changes, a page or template that lists posts with that field in a Query Loop is refreshed too, not only the post that changed.
+* An icon on the scroll trigger plays as it enters the viewport, not once on load; the editor previews icon animations; and the Closing CTA has more room above and below on themes with a larger spacing step, such as Twenty Twenty-Five.
+* The skills show copy that fits: a home page for home services, a law firm, a vet clinic, an inn and a restaurant, each a `compose` call whose copy keeps to the copy rules, in `skills/voyager-open-blocks/examples/`.
+* The entry skill is now a quick card under 500 words: read the catalog, build the page with `compose`, check it with `validate`, and say which Site Data is still empty. The detail an agent needs is in each ability's own description, and the long guide is `docs/agents.md` in the repository.
 
 = 0.8.0 =
 * Settings > Site Data has a Business profile: services, service area and credentials (one per line), year founded, license number, rating and review count (typed in by hand, the pack calls no review service), and your main call to action. Each one is a new Site Data key your blocks can bind to.
