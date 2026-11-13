@@ -80,9 +80,15 @@
  *      it is blank; a 61-character heading with a claim given as a plain
  *      string, and two adjacent Accent sections with copy for a bound slot,
  *      are each refused with every fault and save nothing; a published page,
- *      a recipe, both post_id and title, and an unknown layout are refused; a
- *      dry run creates no post; and undo reverses a compose save byte for
- *      byte, on an existing draft and on a new one,
+ *      a recipe with sections, an unknown recipe, both post_id and title, and
+ *      an unknown layout are refused; a dry run creates no post; and undo
+ *      reverses a compose save byte for byte, on an existing draft and on a
+ *      new one. Then the page recipes: get-catalog lists every file in
+ *      recipes/ as it holds it, compose with the home recipe's slug saves a
+ *      draft whose top-level blocks are that recipe's sections in order, each
+ *      the pattern its section and layout name, as insert places it with no
+ *      copy, with its style class and no other, and validate passes it; and
+ *      a dry run of each recipe get-catalog lists is refused nothing,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
  *      binds its link to Site Data, then checks it resolves and validates,
@@ -146,11 +152,19 @@
  * `wp user application-password create admin e2e --porcelain`.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { parse } from '@wordpress/block-serialization-default-parser';
 
 import { flags, repo } from './lib/site.mjs';
 
@@ -3268,8 +3282,10 @@ step(
 		);
 	}
 
-	// Input compose refuses outright: a page that is not a draft, a recipe,
-	// both post_id and title, and a layout no intent of the section carries.
+	// Input compose refuses outright: a page that is not a draft, a recipe
+	// with sections, a recipe slug get-catalog does not list (refused by the
+	// input schema's enum, before compose runs), both post_id and title, and
+	// a layout no intent of the section carries.
 	const live = await api( '/wp/v2/pages', {
 		method: 'POST',
 		body: {
@@ -3297,10 +3313,23 @@ step(
 
 	const refusedInputs = [
 		[
-			'a recipe',
-			{ title: `E2E: compose recipe ${ stamp }`, recipe: 'home' },
+			'a recipe and sections together',
+			{
+				title: `E2E: compose recipe and sections ${ stamp }`,
+				recipe: 'home',
+				sections,
+			},
 			'voyager_open_blocks_invalid_recipe',
-			'recipes arrive in a later release',
+			'not both',
+		],
+		[
+			'a recipe slug that names no recipe',
+			{
+				title: `E2E: compose unknown recipe ${ stamp }`,
+				recipe: 'no-such-recipe',
+			},
+			'ability_invalid_input',
+			'input[recipe] is not one of',
 		],
 		[
 			'both post_id and title',
@@ -3411,6 +3440,239 @@ step(
 			undoNew.data.matches === true &&
 			( await contentOf( composedId ) ) === '',
 		undoNew.data.message || `restored revision ${ undoNew.data.restored }`
+	);
+
+	// Page recipes (contract 5): get-catalog lists every file in recipes/ as
+	// it holds it, with its slug, and compose with a recipe's slug builds the
+	// recipe's sections in order, each in its layout and style, with each
+	// pattern's own text. Each section's pattern is found from get-catalog's
+	// patterns, by the section and layout they list, not by compose's own
+	// resolver.
+	const canonical = ( value ) =>
+		JSON.stringify( value, ( key, item ) =>
+			item && typeof item === 'object' && ! Array.isArray( item )
+				? Object.fromEntries(
+						Object.entries( item ).sort( ( [ a ], [ b ] ) =>
+							a < b ? -1 : 1
+						)
+					)
+				: item
+		);
+	const recipeFiles = readdirSync( join( repo, 'recipes' ) )
+		.filter( ( file ) => file.endsWith( '.json' ) )
+		.sort();
+	const recipeOf = ( file ) =>
+		JSON.parse( readFileSync( join( repo, 'recipes', file ), 'utf8' ) );
+	const listedRecipes = Array.isArray( catalog.data.recipes )
+		? catalog.data.recipes
+		: [];
+	const unlike = recipeFiles.filter( ( file, index ) => {
+		const { slug, ...listed } = listedRecipes[ index ] || {};
+		return (
+			slug !== file.replace( /\.json$/, '' ) ||
+			canonical( listed ) !== canonical( recipeOf( file ) )
+		);
+	} );
+	step(
+		'get-catalog lists every recipe in recipes/, six of them, each with its slug and its title, description, page_type and sections as its file holds them',
+		recipeFiles.length === 6 &&
+			listedRecipes.length === recipeFiles.length &&
+			unlike.length === 0,
+		catalog.data.recipes
+			? `listed ${ listedRecipes
+					.map( ( r ) => r.slug )
+					.join( ', ' ) }; listed unlike the file: ${
+					unlike.join( ', ' ) || 'none'
+				}`
+			: `no recipes key; get-catalog returned ${ Object.keys(
+					catalog.data
+				).join( ', ' ) }`
+	);
+
+	const styleClass = /^is-style-voyager-open-(panel|inverted|accent)$/;
+	const tokens = ( classes ) =>
+		String( classes || '' )
+			.split( /\s+/ )
+			.filter( Boolean );
+	const styleTokens = ( classes ) =>
+		tokens( classes ).filter( ( c ) => styleClass.test( c ) );
+	const otherTokens = ( classes ) =>
+		tokens( classes )
+			.filter( ( c ) => ! styleClass.test( c ) )
+			.join( ' ' );
+	const wrapperClass = ( chunk ) =>
+		/^\s*<[a-z][a-z0-9-]*\b[^>]*?\bclass="([^"]*)"/i.exec(
+			typeof chunk === 'string' ? chunk : ''
+		)?.[ 1 ] ?? '';
+	const withoutClassName = ( attrs ) => {
+		const { className, ...rest } = attrs || {};
+		return rest;
+	};
+	const topLevel = ( markup ) =>
+		parse( markup || '' ).filter( ( block ) => block.blockName );
+	const patternFor = ( section ) =>
+		( catalog.data.patterns || [] ).find( ( p ) =>
+			section.layout === null || section.layout === undefined
+				? p.name === section.pattern
+				: `voyager-open/${ p.section }` === section.pattern &&
+					p.layout === section.layout
+		)?.name ?? null;
+	// Each saved top-level block against what insert places for its
+	// section's pattern with no copy: the same block, attributes, inner
+	// blocks and HTML, but for the section style class on the block and on
+	// its wrapper, which must be the recipe's style and nothing else.
+	const sectionMismatches = ( top, expected ) => {
+		const out = [];
+		if ( top.length !== expected.length ) {
+			out.push(
+				`${ top.length } top-level blocks for ${ expected.length } sections`
+			);
+		}
+		expected.forEach( ( want, index ) => {
+			const got = top[ index ];
+			const ship = want.blocks[ 0 ];
+			const at = `section ${ index } (${ want.name }, ${ want.style })`;
+			if ( ! got || ! ship ) {
+				out.push( `${ at }: missing` );
+				return;
+			}
+			const style =
+				want.style === 'plain'
+					? '[]'
+					: JSON.stringify( [
+							`is-style-voyager-open-${ want.style }`,
+						] );
+			const wrapper = wrapperClass( got.innerContent?.[ 0 ] );
+			if (
+				JSON.stringify( styleTokens( got.attrs?.className ) ) !== style
+			) {
+				out.push(
+					`${ at }: its comment's className is "${
+						got.attrs?.className ?? ''
+					}"`
+				);
+			}
+			if ( JSON.stringify( styleTokens( wrapper ) ) !== style ) {
+				out.push( `${ at }: its wrapper's class is "${ wrapper }"` );
+			}
+			if (
+				got.blockName !== ship.blockName ||
+				otherTokens( got.attrs?.className ) !==
+					otherTokens( ship.attrs?.className ) ||
+				otherTokens( wrapper ) !==
+					otherTokens( wrapperClass( ship.innerContent?.[ 0 ] ) ) ||
+				canonical( withoutClassName( got.attrs ) ) !==
+					canonical( withoutClassName( ship.attrs ) ) ||
+				canonical( got.innerBlocks ) !==
+					canonical( ship.innerBlocks ) ||
+				canonical( ( got.innerContent || [] ).slice( 1 ) ) !==
+					canonical( ( ship.innerContent || [] ).slice( 1 ) )
+			) {
+				out.push(
+					`${ at }: is ${ got.blockName } "${
+						got.attrs?.metadata?.name ?? ''
+					}", not the pattern as insert places it`
+				);
+			}
+		} );
+		return out;
+	};
+
+	// The fitness check: compose with title and recipe "home".
+	const home = recipeOf( 'home.json' );
+	const recipeTitle = `E2E: compose from the home recipe ${ stamp }`;
+	const fromRecipe = await run( composeAbility, {
+		title: recipeTitle,
+		recipe: 'home',
+	} );
+	const recipeId = Number.isInteger( fromRecipe.data.post_id )
+		? fromRecipe.data.post_id
+		: 0;
+	if ( recipeId ) {
+		created.push( recipeId );
+	}
+	const recipePage = recipeId
+		? await api( `/wp/v2/pages/${ recipeId }`, {
+				query: { context: 'edit' },
+			} )
+		: { data: {} };
+	const recipeRaw = recipePage.data.content?.raw || '';
+	const recipeReport = recipeId
+		? await checkMarkup( { post_id: recipeId } )
+		: { status: 0, data: {} };
+	const expectedTop = [];
+	for ( const section of home.sections ) {
+		const name = patternFor( section );
+		const shipped =
+			name && recipeId
+				? await run( `${ ns }/insert`, {
+						post_id: recipeId,
+						item: name,
+						dry_run: true,
+					} )
+				: { data: {} };
+		expectedTop.push( {
+			name,
+			style: section.style,
+			blocks: topLevel( shipped.data.markup ),
+		} );
+	}
+	const recipeProblems = sectionMismatches(
+		topLevel( recipeRaw ),
+		expectedTop
+	);
+	step(
+		'fitness: compose with title and recipe "home" saves a draft page whose top-level blocks are recipes/home.json\'s sections in order, each the pattern its section and layout name, as insert places it with no copy, with its style class and no other, and validate on the saved page reports no error',
+		fromRecipe.status === 200 &&
+			fromRecipe.data.saved === true &&
+			!! recipeId &&
+			recipePage.data.status === 'draft' &&
+			recipePage.data.type === 'page' &&
+			recipePage.data.title?.raw === recipeTitle &&
+			Number.isInteger( fromRecipe.data.revision_id ) &&
+			JSON.stringify( fromRecipe.data.refused ) === '[]' &&
+			fromRecipe.data.validation?.valid === true &&
+			home.sections.length > 0 &&
+			expectedTop.every(
+				( want ) => want.name && want.blocks.length === 1
+			) &&
+			recipeProblems.length === 0 &&
+			clean( recipeReport ),
+		`${ composeSummary( fromRecipe ) }; ${
+			recipeProblems.join( '; ' ) || 'every section matches'
+		}; validate: ${ warningSummary( recipeReport ) }`
+	);
+	validate( 'compose from the home recipe', recipeRaw );
+
+	// Every recipe get-catalog lists builds: a dry run of each is refused
+	// nothing, validates and creates no post.
+	const recipeTrials = [];
+	for ( const recipe of listedRecipes ) {
+		const recipeTrialTitle = `E2E: compose recipe ${ recipe.slug } ${ stamp }`;
+		const tried = await run( composeAbility, {
+			title: recipeTrialTitle,
+			recipe: recipe.slug,
+			dry_run: true,
+		} );
+		recipeTrials.push( {
+			slug: recipe.slug,
+			ok:
+				tried.status === 200 &&
+				tried.data.saved === false &&
+				tried.data.post_id === null &&
+				JSON.stringify( tried.data.refused ) === '[]' &&
+				tried.data.validation?.valid === true &&
+				( tried.data.validation?.errors || [] ).length === 0 &&
+				( await titled( recipeTrialTitle ) ).length === 0,
+			summary: composeSummary( tried ),
+		} );
+	}
+	step(
+		'compose with dry_run builds each of the six recipes get-catalog lists: nothing refused, valid with no error, and no post',
+		recipeTrials.length === 6 && recipeTrials.every( ( t ) => t.ok ),
+		recipeTrials
+			.map( ( t ) => `${ t.slug }: ${ t.summary }` )
+			.join( '; ' ) || 'no recipes listed'
 	);
 
 	for ( const id of created ) {
