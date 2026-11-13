@@ -6,6 +6,7 @@
  *   npm run check:usage-index
  *   npm run check:usage-index -- --plant activation
  *   npm run check:usage-index -- --plant reindex
+ *   npm run check:usage-index -- --plant lists
  *   npm run check:usage-index -- --plant crash
  *   npm run check:usage-index -- --help
  *
@@ -27,11 +28,20 @@
  * 3. order: the "Shown on" line's query (shown_on() in
  *    inc/freshness/usage.php) lists pages in the database's title order, so
  *    "Usage check 10" comes before "Usage check 2".
+ * 4. lists: a page whose Query Loop binds a field in its post template, and a
+ *    template part in the theme that does too, hold it as a list row on save;
+ *    a page that shows its own value holds none; posts_listing() and
+ *    used_on find the pages; and a change to the field plans a purge of the
+ *    page that changed and the page that lists it, with purge_all for the
+ *    part. Then reindex and the backfill must each put every list row back.
+ *    A rebuild whose own path failed above is not judged again here.
  *
  * --plant puts a fault in through an mu-plugin, and the run passes only when
  * the check fails that path and passes the others: `activation` takes the
- * backfill off the activation hook, and `reindex` replaces the command with
- * one that reports success and indexes nothing. CI runs all three
+ * backfill off the activation hook, `reindex` replaces the command with
+ * one that reports success and indexes nothing, and `lists` lets the saves
+ * write list rows and then stops every later write of one, so reindex and the
+ * backfill put back everything but the list rows. CI runs the first three
  * (.github/workflows/e2e.yml). `crash` makes the harness throw before it boots
  * the site, and the run must exit 2: a crash is never a pass
  * (scripts/test-usage-index-check.mjs, which npm run check runs).
@@ -52,6 +62,7 @@ const TIMEOUT_MINUTES = 15;
 const PLUGIN = 'voyager-open-blocks/voyager-open-blocks.php';
 const PROBES = 60;
 const USAGE = '\\VoyagerOpenBlocks\\Usage\\';
+const PURGE = '\\VoyagerOpenBlocks\\Purge\\';
 
 /** Options the harness keeps its facts in, inside the throwaway site. */
 const FACTS = 'voyager_open_usage_check';
@@ -59,6 +70,16 @@ const PLANTED = 'voyager_open_usage_check_planted';
 
 /** The post meta key the "Usage check" pages bind. */
 const ORDER_KEY = 'voyager_open_usage_check_order';
+
+/** The post meta key the Query Loop pages and part list, and its row. */
+const LIST_KEY = 'voyager_open_usage_check_listed';
+const LIST_ROW = `voyager/post-meta-text:${ LIST_KEY }`;
+
+/** The list rows' meta key, spelled out: it must work with the plugin off. */
+const LISTS = '_voyager_open_blocks_lists';
+
+/** The template part the harness adds to the active theme, as a file. */
+const PART_SLUG = 'voyager-open-usage-check-list';
 
 const MU_PLUGIN =
 	'/wordpress/wp-content/mu-plugins/voyager-open-usage-check-plant.php';
@@ -98,6 +119,23 @@ add_action(
 	20
 );
 `,
+	lists: `<?php
+// Planted by scripts/usage-index-check.mjs --plant lists: once the harness has
+// recorded the index the saves left, no list row is written again, so reindex
+// and the backfill put back every row but those.
+add_filter(
+	'add_post_metadata',
+	static function ( $check, $object_id, $meta_key ) {
+		if ( '${ LISTS }' === $meta_key && false !== get_option( '${ FACTS }' ) ) {
+			update_option( '${ PLANTED }', 'lists', false );
+			return false;
+		}
+		return $check;
+	},
+	10,
+	3
+);
+`,
 };
 
 /**
@@ -114,10 +152,10 @@ Checks that the usage index's backfill on activation and
 Playground site.
 
   --plant <fault>  Plant a fault and pass only when the check catches it:
-                   activation (no backfill on activation) or reindex (a
-                   reindex command that indexes nothing). crash makes the
-                   harness throw before it boots the site, and the run must
-                   exit 2.
+                   activation (no backfill on activation), reindex (a
+                   reindex command that indexes nothing) or lists (no list
+                   row written after the saves). crash makes the harness
+                   throw before it boots the site, and the run must exit 2.
   --port <n>       Port to serve on. Default 9400, or a free one.
   --wp <version>   WordPress version. Default latest.
   --php <version>  PHP version. Default 8.3.
@@ -150,6 +188,43 @@ function bound( source, key, text ) {
 }
 
 /**
+ * A Query Loop of pages whose post template shows LIST_KEY, inside a group,
+ * so the binding is not a direct child of the post template.
+ *
+ * @return {string} Block markup.
+ */
+function queryLoop() {
+	return [
+		'<!-- wp:query {"queryId":7,"query":{"perPage":3,"pages":0,"offset":0,"postType":"page","order":"asc","orderBy":"title","inherit":false}} -->',
+		'<div class="wp-block-query"><!-- wp:post-template -->',
+		'<!-- wp:group {"layout":{"type":"constrained"}} -->',
+		`<div class="wp-block-group">${ bound(
+			'voyager/post-meta-text',
+			LIST_KEY,
+			'Listed'
+		) }</div>`,
+		'<!-- /wp:group -->',
+		'<!-- /wp:post-template --></div>',
+		'<!-- /wp:query -->',
+	].join( '\n' );
+}
+
+/**
+ * PHP: add a template part to the active theme, as a file only, holding the
+ * Query Loop. A request of its own, before seed() reads the theme's parts.
+ */
+const PART = `$dir = get_stylesheet_directory() . '/parts';
+if ( ! wp_is_block_theme() || ! wp_mkdir_p( $dir ) ) {
+	return [ 'written' => false, 'theme' => get_stylesheet() ];
+}
+return [
+	'written' => false !== file_put_contents( $dir . '/${ PART_SLUG }.html', ${ phpString(
+		queryLoop()
+	) } ),
+	'id'      => get_stylesheet() . '//${ PART_SLUG }',
+];`;
+
+/**
  * PHP: a published page.
  *
  * @param {string} title   Title, as PHP.
@@ -164,9 +239,37 @@ function page( title, content ) {
 
 /**
  * PHP: `$index()` reads every post's rows, and `$compare( $expected )` lists
- * how the index differs from them. Needs the plugin loaded.
+ * how the index differs from them. `$lists()` and `$compare_lists()` do the
+ * same for list rows. Needs the plugin loaded.
  */
 const COMPARE = `global $wpdb;
+$lists = static function (): array {
+	global $wpdb;
+	$out = [];
+	foreach ( $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", '${ LISTS }' ) ) as $id ) {
+		$out[ (int) $id ] = ${ USAGE }stored( (int) $id, '${ LISTS }' );
+	}
+	ksort( $out );
+	return $out;
+};
+$compare_lists = static function ( array $expected ) use ( $lists ): array {
+	$now      = $lists();
+	$problems = [];
+	foreach ( $expected as $id => $rows ) {
+		$got = $now[ (int) $id ] ?? [];
+		if ( $got !== $rows ) {
+			$problems[] = sprintf( 'post %d lists %s, expected %s', $id, wp_json_encode( $got, JSON_UNESCAPED_SLASHES ), wp_json_encode( $rows, JSON_UNESCAPED_SLASHES ) );
+		}
+	}
+	foreach ( array_diff_key( $now, $expected ) as $id => $rows ) {
+		$problems[] = sprintf( 'post %d lists %s, expected nothing', $id, wp_json_encode( $rows, JSON_UNESCAPED_SLASHES ) );
+	}
+	return [
+		'posts'    => count( $expected ),
+		'missing'  => count( $problems ),
+		'problems' => array_slice( $problems, 0, 4 ),
+	];
+};
 $index   = static function (): array {
 	global $wpdb;
 	$out = [];
@@ -201,11 +304,57 @@ $compare = static function ( array $expected, array $theme ) use ( $index ): arr
 };`;
 
 /**
- * PHP: add the probes and the order pages, record the index as the saves
- * left it, then delete it.
+ * PHP: what the saves should have listed. Problems, [] when all is as it
+ * should be. Reads through functions main had too, so a missing feature
+ * fails the path rather than crashing the harness.
+ *
+ * @param {string} part The template part's ID, from PART.
+ * @return {string} PHP setting $listed.
  */
-const SEED = `${ COMPARE }
+function listedOnSave( part ) {
+	return `$row     = '${ LIST_ROW }';
+$part    = ${ phpString( part ) };
+$theme   = ${ USAGE }theme_index();
+$listed  = [];
+$json    = static fn ( $value ) => wp_json_encode( $value, JSON_UNESCAPED_SLASHES );
+if ( [ $row ] !== ${ USAGE }stored( $list_page, '${ LISTS }' ) ) {
+	$listed[] = 'the Query Loop page lists ' . $json( ${ USAGE }stored( $list_page, '${ LISTS }' ) );
+}
+if ( ! in_array( $row, ${ USAGE }uses( $list_page ), true ) ) {
+	$listed[] = 'the Query Loop page does not show the field too';
+}
+if ( [] !== ${ USAGE }stored( $own_page, '${ LISTS }' ) ) {
+	$listed[] = 'the page that shows its own value lists ' . $json( ${ USAGE }stored( $own_page, '${ LISTS }' ) );
+}
+$listing = function_exists( '${ USAGE }posts_listing' ) ? ${ USAGE }posts_listing( 'voyager/post-meta-text', '${ LIST_KEY }' ) : 'no posts_listing()';
+if ( [ $list_page ] !== $listing ) {
+	$listed[] = 'posts_listing() found ' . $json( $listing );
+}
+$counted = ${ USAGE }counts( [ $row ] )[ $row ] ?? null;
+if ( 3 !== ( $counted['posts'] ?? null ) || 1 !== ( $counted['template_parts'] ?? null ) ) {
+	$listed[] = 'used_on counts ' . $json( $counted ) . ', expected 3 posts and 1 template part';
+}
+if ( [ $row ] !== ( $theme[ $part ]['lists'] ?? null ) ) {
+	$listed[] = 'the theme part lists ' . $json( $theme[ $part ]['lists'] ?? null );
+}
+$plan    = ${ PURGE }post_meta_plan( [ $own_page => [ '${ LIST_KEY }' ] ] );
+$planned = [ 'post_ids' => $plan['context']['post_ids'] ?? null, 'templates' => $plan['context']['templates'] ?? null, 'purge_all' => $plan['context']['purge_all'] ?? null ];
+if ( [ 'post_ids' => [ $own_page, $list_page ], 'templates' => [ $part ], 'purge_all' => true ] !== $planned ) {
+	$listed[] = 'a change on the page that shows its own value plans ' . $json( $planned ) . ', expected it, the Query Loop page and the part';
+}`;
+}
+
+/**
+ * PHP: add the probes, the order pages and the list pages, record the index
+ * as the saves left it, then delete it.
+ *
+ * @param {string} part The template part's ID, from PART.
+ * @return {string} PHP returning what it seeded.
+ */
+function seed( part ) {
+	return `${ COMPARE }
 wp_set_current_user( 1 );
+${ USAGE }rebuild_theme();
 $probes = [];
 for ( $i = 1; $i <= ${ PROBES }; $i++ ) {
 	$probes[] = ${ page(
@@ -216,24 +365,36 @@ for ( $i = 1; $i <= ${ PROBES }; $i++ ) {
 foreach ( [ 'Usage check 2', 'Usage check 10' ] as $title ) {
 	${ page( '$title', bound( 'voyager/post-meta-text', ORDER_KEY, 'Price' ) ) };
 }
+$list_page = ${ page( "'Usage list'", queryLoop() ) };
+$own_page  = ${ page(
+		"'Usage own'",
+		bound( 'voyager/post-meta-text', LIST_KEY, 'Own' )
+	) };
+${ page( "'Usage third'", bound( 'voyager/post-meta-text', LIST_KEY, 'Third' ) ) };
+${ listedOnSave( part ) }
 $shown = ${ USAGE }shown_on( [ 'voyager/post-meta-text:${ ORDER_KEY }' ] );
 $facts = [
 	'probed'   => count( array_filter( $probes, static fn ( $id ) => [ 'voyager/site-data:phone' ] === ${ USAGE }uses( $id ) ) ),
 	'order'    => array_map( static fn ( $post ) => $post->post_title, $shown['posts'] ),
 	'expected' => $index(),
+	'lists'    => $lists(),
 	'theme'    => ${ USAGE }theme_index(),
 ];
 update_option( '${ FACTS }', $facts, false );
 delete_post_meta_by_key( ${ USAGE }META );
 delete_post_meta_by_key( ${ USAGE }REFS );
+delete_post_meta_by_key( '${ LISTS }' );
 delete_option( ${ USAGE }THEME_OPTION );
 return [
 	'probed'  => $facts['probed'],
 	'order'   => $facts['order'],
+	'listed'  => $listed,
 	'posts'   => count( $facts['expected'] ),
-	'left'    => count( $index() ),
+	'listing' => count( $facts['lists'] ),
+	'left'    => count( $index() ) + count( $lists() ),
 	'planted' => get_option( '${ PLANTED }', null ),
 ];`;
+}
 
 /**
  * PHP: the index against the snapshot.
@@ -259,6 +420,11 @@ ${ more }
 return $compare( $expected, $facts['theme'] );`;
 }
 
+/** PHP: the list rows against the snapshot. */
+const COMPARED_LISTS = `${ COMPARE }
+$facts = get_option( '${ FACTS }' );
+return $compare_lists( $facts['lists'] );`;
+
 /** PHP: deactivate the plugin, and note what the init check will see. */
 const DEACTIVATE = `require_once ABSPATH . 'wp-admin/includes/plugin.php';
 $version = (string) get_option( 'voyager_open_blocks_usage_version' );
@@ -273,6 +439,7 @@ const WHILE_OFF = `global $wpdb;
 wp_set_current_user( 1 );
 delete_post_meta_by_key( '_voyager_open_blocks_uses' );
 delete_post_meta_by_key( '_voyager_open_blocks_refs' );
+delete_post_meta_by_key( '${ LISTS }' );
 delete_option( 'voyager_open_blocks_theme_uses' );
 delete_option( 'voyager_open_blocks_usage_cursor' );
 wp_clear_scheduled_hook( 'voyager_open_blocks_usage_backfill' );
@@ -283,7 +450,7 @@ $id = ${ page(
 ) };
 return [
 	'loaded' => function_exists( ${ phpString( `${ USAGE }index_post` ) } ),
-	'rows'   => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s, %s)", '_voyager_open_blocks_uses', '_voyager_open_blocks_refs' ) ),
+	'rows'   => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s, %s, %s)", '_voyager_open_blocks_uses', '_voyager_open_blocks_refs', '${ LISTS }' ) ),
 	'post'   => $id,
 ];`;
 
@@ -371,6 +538,60 @@ function verdict( found ) {
 }
 
 /**
+ * The lists path's verdict: what the saves listed, then what each rebuild put
+ * back. A rebuild whose own path failed is not judged here again, so a fault
+ * planted in reindex or activation fails that path alone.
+ *
+ * @param {string[]}                                                                   onSave   What the saves listed wrong, [] when nothing.
+ * @param {Array<[string, {missing: number, posts: number, problems: string[]}|null]>} rebuilds Each rebuild's name and its list rows compared, null when not judged.
+ * @return {{status: string, detail: string}} The path's verdict.
+ */
+export function listsVerdict( onSave, rebuilds ) {
+	if ( onSave.length ) {
+		return { status: 'fail', detail: `on save, ${ onSave.join( '; ' ) }` };
+	}
+	const judged = rebuilds.filter( ( [ , found ] ) => found );
+	const failed = judged.filter( ( [ , found ] ) => found.missing > 0 );
+	if ( failed.length ) {
+		return {
+			status: 'fail',
+			detail: failed
+				.map(
+					( [ name, found ] ) =>
+						`after ${ name }, ${
+							found.missing
+						} differences: ${ found.problems.join( '; ' ) }`
+				)
+				.join( '; ' ),
+		};
+	}
+	if ( ! judged.length ) {
+		return {
+			status: 'unmeasured',
+			detail: 'the saves listed what they should, and no rebuild could be judged',
+		};
+	}
+	const skipped = rebuilds
+		.filter( ( [ , found ] ) => ! found )
+		.map(
+			( [ name ] ) => `${ name } not judged, since its own path failed`
+		);
+	return {
+		status: 'pass',
+		detail: [
+			'the saves listed what they should',
+			...judged.map(
+				( [ name, found ] ) =>
+					`${ name } put back every list row, on ${ found.posts } ${
+						found.posts === 1 ? 'post' : 'posts'
+					}`
+			),
+			...skipped,
+		].join( '; ' ),
+	};
+}
+
+/**
  * Run every path.
  *
  * @param {Object}                                           opts    Parsed flags.
@@ -419,7 +640,14 @@ async function measure( opts, results ) {
 		}
 		console.log( `ok   booted ${ site.url }` );
 
-		const seeded = await runPhp( site, SEED );
+		const part = await runPhp( site, PART );
+		need(
+			part?.written === true,
+			`Could not add a template part to the active theme: ${ JSON.stringify(
+				part
+			) }.`
+		);
+		const seeded = await runPhp( site, seed( part.id ) );
 		need(
 			seeded?.probed === PROBES,
 			`On save, the index recorded ${ seeded?.probed } of the ${ PROBES } probe pages, so it cannot be what the paths are checked against.`
@@ -428,8 +656,14 @@ async function measure( opts, results ) {
 			seeded.left === 0,
 			`${ seeded.left } posts kept rows after the index was deleted.`
 		);
+		need(
+			Array.isArray( seeded.listed ),
+			`The list facts did not come back: ${ JSON.stringify(
+				seeded.listed
+			) }.`
+		);
 		console.log(
-			`ok   ${ seeded.posts } posts had rows after their saves; deleted them all`
+			`ok   ${ seeded.posts } posts had rows and ${ seeded.listing } had list rows after their saves; deleted them all`
 		);
 		results.order =
 			JSON.stringify( seeded.order ) ===
@@ -458,6 +692,10 @@ async function measure( opts, results ) {
 			opts.plant !== 'reindex' || planted === 'reindex',
 			`The reindex plant did not take: ${ planted }.`
 		);
+		need(
+			opts.plant !== 'lists' || planted === 'lists',
+			`The lists plant did not take: ${ planted }.`
+		);
 		const reindexed = verdict( await runPhp( site, compared() ) );
 		results.reindex =
 			cli.code === 0
@@ -468,6 +706,10 @@ async function measure( opts, results ) {
 							-300
 						) }; ${ reindexed.detail }`,
 					};
+		const relisted =
+			results.reindex.status === 'pass'
+				? await runPhp( site, COMPARED_LISTS )
+				: null;
 
 		const off = await runPhp( site, DEACTIVATE );
 		need( off?.active === false, 'The plugin is still active.' );
@@ -504,6 +746,14 @@ async function measure( opts, results ) {
 				on.scheduled ? 'a' : 'no'
 			} backfill, which ran ${ ran.runs } times; ${ backfilled.detail }`,
 		};
+		const rebackfilled =
+			results.activation.status === 'pass'
+				? await runPhp( site, COMPARED_LISTS )
+				: null;
+		results.lists = listsVerdict( seeded.listed, [
+			[ 'reindex', relisted ],
+			[ 'the backfill', rebackfilled ],
+		] );
 	} finally {
 		if ( site ) {
 			if ( reportPhpLog( await phpLog( site ) ) ) {
@@ -603,6 +853,7 @@ export async function run( argv, steps = {} ) {
 			reindex: { status: 'unmeasured', detail: '' },
 			activation: { status: 'unmeasured', detail: '' },
 			order: { status: 'unmeasured', detail: '' },
+			lists: { status: 'unmeasured', detail: '' },
 		};
 		let crashed = false;
 		try {

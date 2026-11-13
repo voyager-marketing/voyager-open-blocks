@@ -19,7 +19,7 @@ import { test } from 'node:test';
 // run() writes annotations in GitHub Actions. They do not belong in CI's log
 // from a test, so they are off before it is imported.
 process.env.GITHUB_ACTIONS = 'false';
-const { report, run } = await import( './usage-index-check.mjs' );
+const { listsVerdict, report, run } = await import( './usage-index-check.mjs' );
 
 const script = fileURLToPath(
 	new URL( './usage-index-check.mjs', import.meta.url )
@@ -46,7 +46,12 @@ const boom = () => {
 	throw new Error( 'planted crash' );
 };
 const quiet = { report: ( results, plant ) => report( results, plant ) };
-const PASS = { reindex: 'pass', activation: 'pass', order: 'pass' };
+const PASS = {
+	reindex: 'pass',
+	activation: 'pass',
+	order: 'pass',
+	lists: 'pass',
+};
 
 /**
  * run() with console output held back, so the test log stays readable.
@@ -90,7 +95,7 @@ test( 'a path left unmeasured: exit 2', async () => {
 } );
 
 test( 'a planted fault caught, and the other paths passing: exit 0', async () => {
-	for ( const plant of [ 'activation', 'reindex' ] ) {
+	for ( const plant of [ 'activation', 'reindex', 'lists' ] ) {
 		assert.equal(
 			await quietly( [ '--plant', plant ], {
 				measure: measured( { ...PASS, [ plant ]: 'fail' } ),
@@ -116,7 +121,10 @@ test( 'a crash before any path is measured: exit 2', async () => {
 
 test( 'a crash after the paths it reached passed: exit 2, never 0', async () => {
 	for ( const [ name, statuses ] of [
-		[ 'reindex and order passed', { reindex: 'pass', order: 'pass' } ],
+		[
+			'reindex, order and lists passed',
+			{ reindex: 'pass', order: 'pass', lists: 'pass' },
+		],
 		[ 'every path passed, then stopping the site threw', PASS ],
 	] ) {
 		assert.equal(
@@ -160,6 +168,75 @@ test( 'a usage error: exit 2', async () => {
 			argv.join( ' ' )
 		);
 	}
+} );
+
+const rebuilt = { posts: 4, missing: 0, problems: [] };
+const lost = { posts: 4, missing: 1, problems: [ 'post 9 lists []' ] };
+
+test( 'lists: the saves and both rebuilds right is a pass', () => {
+	assert.equal(
+		listsVerdict(
+			[],
+			[
+				[ 'reindex', rebuilt ],
+				[ 'the backfill', rebuilt ],
+			]
+		).status,
+		'pass'
+	);
+} );
+
+test( 'lists: a save that listed the wrong rows fails, whatever the rebuilds did', () => {
+	assert.equal(
+		listsVerdict(
+			[ 'the Query Loop page lists []' ],
+			[
+				[ 'reindex', rebuilt ],
+				[ 'the backfill', rebuilt ],
+			]
+		).status,
+		'fail'
+	);
+} );
+
+test( 'lists: a rebuild that lost list rows fails', () => {
+	for ( const rebuilds of [
+		[
+			[ 'reindex', lost ],
+			[ 'the backfill', rebuilt ],
+		],
+		[
+			[ 'reindex', null ],
+			[ 'the backfill', lost ],
+		],
+	] ) {
+		assert.equal( listsVerdict( [], rebuilds ).status, 'fail' );
+	}
+} );
+
+test( 'lists: a rebuild not judged, since its own path failed, leaves the other to decide', () => {
+	const found = listsVerdict(
+		[],
+		[
+			[ 'reindex', null ],
+			[ 'the backfill', rebuilt ],
+		]
+	);
+	assert.equal( found.status, 'pass' );
+	assert.match( found.detail, /reindex not judged/ );
+} );
+
+test( 'lists: no rebuild judged at all is unmeasured, never a pass', () => {
+	assert.equal(
+		listsVerdict(
+			[],
+			[
+				[ 'reindex', null ],
+				[ 'the backfill', null ],
+			]
+		).status,
+		'unmeasured'
+	);
 } );
 
 test( 'the real script with --plant crash exits 2', () => {

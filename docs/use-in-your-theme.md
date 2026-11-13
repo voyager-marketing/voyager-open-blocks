@@ -259,13 +259,13 @@ Each active adapter is called once per purge: `purge_all()` when the purge is `p
 do_action( 'voyager_open_blocks_purge', array $urls, array $context );
 ```
 
-- `$urls`: the pages to purge, absolute, after `voyager_open_blocks_purge_urls`. For Site Data, the published posts that show the field, or a field made from it (`phone_link` for `phone`, `copyright` for `company` and `year`), and the front page. For post meta, that post only: a Query Loop or a template that lists other posts with the field is not refreshed when one of those posts changes it.
-- `$context`: `source` (`voyager/site-data` or `voyager/post-meta-text`), `keys` (the keys that changed), `post_ids`, `templates` (the active theme's templates and parts that show a key), `reason` (`site-data` or `post-meta`) and `purge_all` (bool).
-- `purge_all` is true when the URL list cannot be complete: a Site Data field shown in a template or template part, or more than 50 posts to purge, of which the list holds the first 50. An adapter then gets `purge_all()`.
+- `$urls`: the pages to purge, absolute, after `voyager_open_blocks_purge_urls`. For Site Data, the published posts that show the field, or a field made from it (`phone_link` for `phone`, `copyright` for `company` and `year`), and the front page. For post meta, that post, and, when that post is published, the published pages that list the field in a Query Loop (a binding inside its post template). A page that shows only its own value is refreshed only for its own change.
+- `$context`: `source` (`voyager/site-data` or `voyager/post-meta-text`), `keys` (the keys that changed), `post_ids`, `templates` (the active theme's templates and parts that show a Site Data key, or list a post meta key in a Query Loop), `reason` (`site-data` or `post-meta`) and `purge_all` (bool).
+- `purge_all` is true when the URL list cannot be complete: a Site Data field shown in a template or template part, a post meta field listed in a template or template part's Query Loop, or more than 50 posts to purge, of which the list holds the first 50. An adapter then gets `purge_all()`.
 - Before the action, `clean_post_cache()` runs on each post in `post_ids`, which some page caches listen to. Only published posts of `public` post types are listed; a type registered `public => false, publicly_queryable => true` is not.
 - Nothing shows the field, or the filter emptied the list: no action. The last purge is shown on Settings > Site Data.
 
-Which pages show a field comes from the plugin's usage index, post meta `_voyager_open_blocks_uses` on each post, kept on save. `wp voyager-open-blocks reindex` rebuilds it for every post at once, and activation starts a background rebuild through WP-Cron.
+Which pages show a field comes from the plugin's usage index, post meta `_voyager_open_blocks_uses` on each post, kept on save, and which list it in a Query Loop from `_voyager_open_blocks_lists`. `wp voyager-open-blocks reindex` rebuilds it for every post at once, and activation starts a background rebuild through WP-Cron.
 
 The plugin hooks these:
 

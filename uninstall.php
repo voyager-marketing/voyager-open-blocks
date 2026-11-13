@@ -4,9 +4,10 @@
  *
  * Removes only the plugin's own state: the flag that records Site Data was
  * started, each user's dismissal of the first-run notice, and the usage index
- * (the `_voyager_open_blocks_uses` and `_voyager_open_blocks_refs` post meta,
- * its options and its scheduled events), the record of the last purge, and
- * the year the purge last saw, with its daily check.
+ * (the `_voyager_open_blocks_uses`, `_voyager_open_blocks_lists` and
+ * `_voyager_open_blocks_refs` post meta, its options and its scheduled
+ * events), the record of the last purge, and the year the purge last saw,
+ * with its daily check.
  * The index is read from the content, and activation builds it again.
  *
  * Kept on purpose:
@@ -29,6 +30,7 @@ function voyager_open_blocks_uninstall_site(): void {
 	delete_option( 'voyager_open_blocks_site_data_started' );
 
 	delete_post_meta_by_key( '_voyager_open_blocks_uses' );
+	delete_post_meta_by_key( '_voyager_open_blocks_lists' );
 	delete_post_meta_by_key( '_voyager_open_blocks_refs' );
 	delete_option( 'voyager_open_blocks_theme_uses' );
 	delete_option( 'voyager_open_blocks_usage_version' );

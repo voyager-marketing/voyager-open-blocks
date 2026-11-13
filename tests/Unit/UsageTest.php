@@ -28,8 +28,9 @@ final class UsageTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
-		$GLOBALS['voyager_test_options'] = [];
-		$GLOBALS['voyager_test_events']  = [];
+		$GLOBALS['voyager_test_options']   = [];
+		$GLOBALS['voyager_test_events']    = [];
+		$GLOBALS['voyager_test_post_meta'] = [];
 	}
 
 	/**
@@ -103,11 +104,166 @@ final class UsageTest extends TestCase {
 
 		$this->assertSame(
 			[
-				'rows' => [],
-				'refs' => [],
+				'rows'  => [],
+				'lists' => [],
+				'refs'  => [],
 			],
 			$found
 		);
+	}
+
+	/**
+	 * A Query Loop whose post template holds the given blocks.
+	 *
+	 * @param array<array<string, mixed>> $template Blocks inside core/post-template.
+	 * @param array<array<string, mixed>> $around   Blocks inside core/query but outside its post template.
+	 * @return array<string, mixed>
+	 */
+	private function query_loop( array $template, array $around = [] ): array {
+		return $this->block(
+			'core/query',
+			[
+				'queryId' => 1,
+				'query'   => [ 'postType' => 'service' ],
+			],
+			[ $this->block( 'core/post-template', [], $template ), ...$around ]
+		);
+	}
+
+	public function test_a_binding_in_a_post_template_is_a_list_row_and_a_row(): void {
+		$found = $this->walk(
+			[
+				$this->query_loop(
+					[ $this->block( 'core/group', [], [ $this->block( 'core/columns', [], [ $this->bound( 'price.amount', PostMetaText\SOURCE ) ] ) ] ) ],
+					[ $this->block( 'core/query-no-results', [], [ $this->bound( 'subtitle', PostMetaText\SOURCE ) ] ) ]
+				),
+			]
+		);
+
+		$this->assertSame( [ 'voyager/post-meta-text:price' ], $found['lists'], 'At any depth inside the post template, and by field, as rows are.' );
+		$this->assertSame( [ 'voyager/post-meta-text:price', 'voyager/post-meta-text:subtitle' ], $found['rows'], 'The page shows both. Outside the post template the binding reads the page, so subtitle is not a list row.' );
+	}
+
+	public function test_a_page_that_shows_its_own_value_lists_nothing(): void {
+		$found = $this->walk(
+			[
+				$this->bound( 'price', PostMetaText\SOURCE ),
+				$this->block( 'core/group', [], [ $this->bound( 'phone' ) ] ),
+			]
+		);
+
+		$this->assertSame( [ 'voyager/post-meta-text:price', 'voyager/site-data:phone' ], $found['rows'] );
+		$this->assertSame( [], $found['lists'] );
+	}
+
+	public function test_patterns_inside_a_post_template_list_everything_they_bind(): void {
+		$found = Usage\walk(
+			[
+				$this->query_loop(
+					[
+						$this->block( 'core/block', [ 'ref' => 12 ] ),
+						$this->block( 'core/pattern', [ 'slug' => 'theme/price-row' ] ),
+						$this->block( 'core/pattern', [ 'slug' => 'voyager-open/known' ] ),
+					]
+				),
+				$this->block( 'core/pattern', [ 'slug' => 'voyager-open/outside' ] ),
+			],
+			fn ( int $ref ): array => 12 === $ref ? [ $this->bound( 'stats.0.value', PostMetaText\SOURCE ) ] : [],
+			fn ( string $slug ): array => match ( $slug ) {
+				'theme/price-row'      => [
+					'rows'   => [],
+					'blocks' => [ $this->bound( 'price', PostMetaText\SOURCE ) ],
+				],
+				'voyager-open/known'   => [
+					'rows'   => [ 'voyager/site-data:phone' ],
+					'blocks' => [],
+				],
+				'voyager-open/outside' => [
+					'rows'   => [ 'voyager/site-data:email' ],
+					'blocks' => [],
+				],
+				default                => [
+					'rows'   => [],
+					'blocks' => [],
+				],
+			}
+		);
+
+		$this->assertSame( [ 'voyager/post-meta-text:price', 'voyager/post-meta-text:stats', 'voyager/site-data:phone' ], $found['lists'], 'A synced pattern, a theme pattern and a pack pattern with rows from its intents, all inside the post template.' );
+		$this->assertSame( [ 'voyager/post-meta-text:price', 'voyager/post-meta-text:stats', 'voyager/site-data:email', 'voyager/site-data:phone' ], $found['rows'] );
+		$this->assertSame( [ 12 ], $found['refs'] );
+	}
+
+	public function test_a_synced_pattern_that_holds_a_query_loop_passes_its_list_rows_on(): void {
+		$found = $this->walk(
+			[ $this->block( 'core/group', [], [ $this->block( 'core/block', [ 'ref' => 7 ] ) ] ) ],
+			[ 7 => [ $this->bound( 'phone' ), $this->query_loop( [ $this->bound( 'price', PostMetaText\SOURCE ) ] ) ] ]
+		);
+
+		$this->assertSame( [ 'voyager/post-meta-text:price' ], $found['lists'] );
+		$this->assertSame( [ 'voyager/post-meta-text:price', 'voyager/site-data:phone' ], $found['rows'] );
+		$this->assertSame( [ 7 ], $found['refs'] );
+	}
+
+	public function test_a_synced_pattern_that_holds_itself_inside_a_post_template_stops(): void {
+		$found = $this->walk(
+			[ $this->query_loop( [ $this->block( 'core/block', [ 'ref' => 7 ] ) ] ) ],
+			[ 7 => [ $this->bound( 'price', PostMetaText\SOURCE ), $this->block( 'core/block', [ 'ref' => 7 ] ) ] ]
+		);
+
+		$this->assertSame( [ 'voyager/post-meta-text:price' ], $found['lists'] );
+		$this->assertSame( [ 7 ], $found['refs'] );
+	}
+
+	public function test_no_pack_pattern_holds_a_post_template(): void {
+		$files = glob( dirname( __DIR__, 2 ) . '/patterns/*.html' );
+		$this->assertNotEmpty( $files );
+
+		foreach ( $files as $file ) {
+			$this->assertStringNotContainsString(
+				'<!-- wp:post-template',
+				(string) file_get_contents( $file ),
+				basename( $file ) . ': the index reads a pack pattern\'s rows from its intent, which does not say what sits in a post template. Teach registered_pattern() to walk this one before adding a Query Loop to it.'
+			);
+		}
+	}
+
+	public function test_a_posts_list_rows_are_read_sorted_and_once(): void {
+		$GLOBALS['voyager_test_post_meta'] = [
+			20 => [
+				Usage\LISTS => [ 'voyager/post-meta-text:price', 'voyager/post-meta-text:area', 'voyager/post-meta-text:price' ],
+				Usage\META  => [ 'voyager/site-data:phone' ],
+			],
+		];
+
+		$this->assertSame( '_voyager_open_blocks_lists', Usage\LISTS );
+		$this->assertSame( [ 'voyager/post-meta-text:area', 'voyager/post-meta-text:price' ], Usage\lists( 20 ) );
+		$this->assertSame( [ 'voyager/site-data:phone' ], Usage\uses( 20 ) );
+		$this->assertSame( [], Usage\lists( 21 ) );
+	}
+
+	public function test_the_theme_index_keeps_list_rows_and_templates_are_matched_on_them(): void {
+		$GLOBALS['voyager_test_options'][ Usage\THEME_OPTION ] = [
+			'theme//archive-service' => [
+				'type'  => 'wp_template',
+				'title' => 'Services archive',
+				'uses'  => [ 'voyager/post-meta-text:price' ],
+				'lists' => [ 'voyager/post-meta-text:price' ],
+			],
+			'theme//single-service'  => [
+				'type'  => 'wp_template',
+				'title' => 'Single service',
+				'uses'  => [ 'voyager/post-meta-text:price' ],
+			],
+		];
+
+		$index = Usage\theme_index();
+		$this->assertSame( [ 'voyager/post-meta-text:price' ], $index['theme//archive-service']['lists'] );
+		$this->assertSame( [], $index['theme//single-service']['lists'], 'An entry stored before list rows existed reads as listing nothing.' );
+
+		$rows = [ 'voyager/post-meta-text:price' ];
+		$this->assertSame( [ 'theme//archive-service', 'theme//single-service' ], array_column( Usage\templates_with( $rows ), 'id' ) );
+		$this->assertSame( [ 'theme//archive-service' ], array_column( Usage\templates_with( $rows, Usage\LISTS ), 'id' ), 'The single template shows each service its own price; only the archive lists it.' );
 	}
 
 	public function test_bindings_are_found_at_any_depth_once_each_and_sorted(): void {

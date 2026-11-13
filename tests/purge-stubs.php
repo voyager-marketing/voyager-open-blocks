@@ -12,6 +12,8 @@
  *                            restore_current_blog() as `restore`
  * - voyager_test_recurrence  WP-Cron hook => recurrence, from wp_schedule_event()
  * - voyager_test_timezone    what wp_timezone() names, default UTC
+ * - voyager_test_post_status post ID => status, read by get_post_status().
+ *                            A post not listed is published.
  *
  * Each stub is guarded, so one tests/wp-stubs.php adds later wins.
  *
@@ -62,6 +64,12 @@ if ( ! function_exists( 'human_time_diff' ) ) {
 
 if ( ! function_exists( '_prime_post_caches' ) ) {
 	function _prime_post_caches( array $ids, bool $update_term_cache = true, bool $update_meta_cache = true ): void {}
+}
+
+if ( ! function_exists( 'get_post_status' ) ) {
+	function get_post_status( mixed $post = null ): string|false {
+		return $GLOBALS['voyager_test_post_status'][ $post ] ?? 'publish';
+	}
 }
 
 if ( ! function_exists( 'get_current_blog_id' ) ) {
