@@ -78,6 +78,8 @@ $voyager_open_seed = static function (): void {
 		'services'        => [ 'Services', '<!-- wp:pattern {"slug":"voyager-open/services"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/services-list"} /-->' ],
 		// The reviews section in both layouts: cards in a row, then one large quote.
 		'reviews'         => [ 'Reviews', '<!-- wp:pattern {"slug":"voyager-open/reviews"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/reviews-single"} /-->' ],
+		// The process steps in both layouts: side by side, then one under another.
+		'process-steps'   => [ 'Process steps', '<!-- wp:pattern {"slug":"voyager-open/process-steps"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/process-steps-list"} /-->' ],
 		// The stats section in both layouts: figures in a row, then beside a heading.
 		// The seed sets no figure, so each shows its own text until Site Data has it.
 		'stats'           => [ 'Stats', '<!-- wp:paragraph --><p>Each figure below is the year founded, the rating or the review count from Site Data, never typed in. Until those fields are filled in under Settings, Site Data, each figure shows its own text, which names the field.</p><!-- /wp:paragraph -->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats-band"} /-->' ],
