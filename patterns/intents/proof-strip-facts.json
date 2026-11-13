@@ -1,0 +1,93 @@
+{
+	"title": "Proof strip from Site Data",
+	"section": "proof-strip",
+	"layout": "facts",
+	"description": "One ruled row of checkmarked credentials, usually right under a hero, that shows the Credentials list from Settings > Site Data and follows it. Uses the facts block in the Ticks style. Until the list is filled in, it shows three stand-ins, never a credential.",
+	"categories": [
+		"voyager-open",
+		"about"
+	],
+	"keywords": [
+		"proof",
+		"credentials",
+		"trust",
+		"site data",
+		"strip",
+		"checkmarks"
+	],
+	"viewportWidth": 1280,
+	"copy_rules": {},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Proof strip"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|40",
+								"bottom": "var:preset|spacing|40",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						},
+						"border": {
+							"top": {
+								"width": "1px",
+								"style": "solid"
+							},
+							"bottom": {
+								"width": "1px",
+								"style": "solid"
+							}
+						}
+					},
+					"layout": {
+						"type": "constrained",
+						"contentSize": "var(--wp--style--global--wide-size, 1200px)"
+					}
+				},
+				"children": [
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Row"
+							},
+							"layout": {
+								"type": "flex",
+								"flexWrap": "wrap",
+								"justifyContent": "center"
+							}
+						},
+						"children": [
+							{
+								"block": "voyager-open/facts",
+								"attrs": {
+									"items": "Your first credential\nYour second credential\nYour third credential",
+									"className": "is-style-voyager-open-ticks",
+									"metadata": {
+										"name": "Credentials",
+										"bindings": {
+											"items": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "credentials"
+												}
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

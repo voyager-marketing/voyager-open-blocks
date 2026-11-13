@@ -2,7 +2,7 @@
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
 		"title": "Proof strip pattern",
-		"description": "voyager-open/proof-strip: one ruled row of checkmarked credentials.",
+		"description": "voyager-open/proof-strip and voyager-open/proof-strip-facts: one ruled row of checkmarked credentials, typed in or from Site Data.",
 		"author": "voyager-marketing",
 		"categories": [
 			"Blocks"

@@ -1,5 +1,7 @@
 {
 	"title": "Proof strip",
+	"section": "proof-strip",
+	"layout": "list",
 	"description": "One ruled row of three to six checkmarked credentials, usually right under a hero. Uses the core/list Ticks style.",
 	"categories": [
 		"voyager-open",

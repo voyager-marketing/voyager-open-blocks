@@ -47,6 +47,16 @@ final class PatternLayoutsTest extends TestCase {
 	];
 
 	/**
+	 * The items the proof strip's facts layout shows while Settings > Site Data
+	 * holds no credentials: what goes there, never a credential.
+	 */
+	private const CREDENTIAL_LIST_STAND_INS = [
+		'Your first credential',
+		'Your second credential',
+		'Your third credential',
+	];
+
+	/**
 	 * The intents whose copy_rules may hold a claim slot, each because a test
 	 * below checks what its claim slots ship.
 	 */
@@ -202,7 +212,7 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'hero', $intents['hero-cover']['section'] ?? null );
 		$this->assertSame( 'cover', $intents['hero-cover']['layout'] ?? null );
 
-		foreach ( [ 'cta-band', 'proof-strip', 'logo-marquee', 'closing-cta', 'contact-section' ] as $one ) {
+		foreach ( [ 'cta-band', 'logo-marquee', 'closing-cta', 'contact-section' ] as $one ) {
 			$this->assertArrayNotHasKey( 'section', $intents[ $one ], "{$one} has one layout" );
 		}
 	}
@@ -223,6 +233,15 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'grid', $intents['reviews']['layout'] ?? null );
 		$this->assertSame( 'reviews', $intents['reviews-single']['section'] ?? null );
 		$this->assertSame( 'single', $intents['reviews-single']['layout'] ?? null );
+	}
+
+	public function test_the_proof_strip_comes_in_two_layouts_list_first_then_facts(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'proof-strip', $intents['proof-strip']['section'] ?? null );
+		$this->assertSame( 'list', $intents['proof-strip']['layout'] ?? null );
+		$this->assertSame( 'proof-strip', $intents['proof-strip-facts']['section'] ?? null );
+		$this->assertSame( 'facts', $intents['proof-strip-facts']['layout'] ?? null );
 	}
 
 	public function test_process_steps_comes_in_two_layouts_row_first_then_list(): void {
@@ -728,6 +747,99 @@ final class PatternLayoutsTest extends TestCase {
 	}
 
 	/**
+	 * The facts blocks in an intent whose items a Site Data list supplies, by label.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return array<string, string> Label => the Site Data key its items bind.
+	 */
+	private static function bound_lists( array $intent ): array {
+		$out = [];
+		foreach ( is_array( $intent['intent']['blocks'] ?? null ) ? $intent['intent']['blocks'] : [] as $top ) {
+			foreach ( self::nodes( is_array( $top ) ? $top : [] ) as $row ) {
+				$node    = $row['node'];
+				$binding = $node['attrs']['metadata']['bindings']['items'] ?? null;
+				$label   = $node['attrs']['metadata']['name'] ?? null;
+				if ( 'voyager-open/facts' === ( $node['block'] ?? null ) && is_string( $label ) && 'voyager/site-data' === ( $binding['source'] ?? null ) ) {
+					$out[ $label ] = (string) ( $binding['args']['key'] ?? '' );
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	public function test_the_facts_layout_is_the_typed_in_strip_with_a_ticks_facts_block_bound_to_the_credentials_in_the_list_s_place(): void {
+		$intents = self::intents();
+		$this->assertArrayHasKey( 'proof-strip-facts', $intents, 'no intent for voyager-open/proof-strip-facts' );
+
+		$list  = $intents['proof-strip']['intent']['blocks'] ?? [];
+		$facts = $intents['proof-strip-facts']['intent']['blocks'] ?? [];
+		$this->assertIsArray( $list );
+		$this->assertIsArray( $facts );
+		$this->assertCount( 1, $facts, 'proof-strip-facts is one section' );
+
+		// The same ruled, full-width section and the same flex Row as the
+		// typed-in strip: Ticks makes that Row a size container, so the ticks
+		// stack when it is narrower than 32em (Block styles, ticks_css()).
+		$this->assertSame( $list[0]['block'], $facts[0]['block'] ?? null );
+		$this->assertSame( $list[0]['attrs'], $facts[0]['attrs'] ?? null, 'the section is the typed-in strip\'s, "Proof strip", ruled top and bottom' );
+		$row = $facts[0]['children'] ?? [];
+		$this->assertIsArray( $row );
+		$this->assertCount( 1, $row, 'the section holds the Row and nothing else' );
+		$this->assertSame( $list[0]['children'][0]['block'], $row[0]['block'] ?? null );
+		$this->assertSame( $list[0]['children'][0]['attrs'], $row[0]['attrs'] ?? null, 'the Row is the typed-in strip\'s flex group' );
+		$this->assertSame( 'flex', $row[0]['attrs']['layout']['type'] ?? null, 'the Row is a flex group' );
+
+		// In the Row, one facts block where the typed-in strip has its list.
+		$inside = $row[0]['children'] ?? [];
+		$this->assertIsArray( $inside );
+		$this->assertCount( 1, $inside, 'the Row holds the facts block and nothing else' );
+		$this->assertSame( 'voyager-open/facts', $inside[0]['block'] ?? null );
+		$this->assertArrayNotHasKey( 'children', $inside[0], 'the facts block is dynamic, and holds no blocks' );
+		$attrs = is_array( $inside[0]['attrs'] ?? null ) ? $inside[0]['attrs'] : [];
+		$this->assertSame( [ 'className', 'items', 'metadata' ], self::sorted_keys( $attrs ), 'the facts block sets its items, its style and its label, and nothing else' );
+		$this->assertSame( 'is-style-voyager-open-ticks', $attrs['className'], 'the facts block takes the Ticks style' );
+		$this->assertSame( 'Credentials', $attrs['metadata']['name'] ?? null, 'the facts block keeps the list\'s label' );
+		$this->assertSame(
+			[
+				'items' => [
+					'source' => 'voyager/site-data',
+					'args'   => [ 'key' => 'credentials' ],
+				],
+			],
+			$attrs['metadata']['bindings'] ?? null,
+			'its items bind to Site Data\'s credentials, and nothing else of it binds'
+		);
+
+		// No row of items for the layout check, as the typed-in strip has none.
+		$this->assertSame( [], self::rows_of_items( $intents['proof-strip-facts'] ), 'proof-strip-facts holds no columns or grid row' );
+	}
+
+	public function test_the_facts_layout_ships_three_stand_in_items_that_say_what_goes_there_and_make_no_claim(): void {
+		$facts = self::intents()['proof-strip-facts']['intent']['blocks'][0] ?? null;
+		$this->assertIsArray( $facts, 'no intent for voyager-open/proof-strip-facts' );
+		$node = self::labelled( $facts, 'Credentials' );
+		$this->assertIsArray( $node );
+
+		// The block's own items show while Settings > Site Data holds no
+		// credentials (src/facts/render.php). The no-claim test below reads
+		// named text blocks only, and the facts block is not one, so this is
+		// what keeps them honest.
+		$items = explode( "\n", (string) ( $node['attrs']['items'] ?? '' ) );
+		$this->assertSame( self::CREDENTIAL_LIST_STAND_INS, $items, 'the facts layout ships three stand-ins, one per line' );
+		foreach ( $items as $item ) {
+			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $item, "proof-strip-facts: the stand-in \"{$item}\" makes a claim" );
+		}
+	}
+
+	public function test_a_stand_in_item_that_names_a_credential_is_caught(): void {
+		// The same pattern the facts layout's stand-ins are held to.
+		foreach ( [ 'Licensed and insured', 'Certified installers', 'Bonded', 'Fully insured', 'Licence 4471' ] as $planted ) {
+			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
+		}
+	}
+
+	/**
 	 * The text a figure's label slot ships with, or null for a slot that is
 	 * no figure's label.
 	 *
@@ -829,11 +941,18 @@ final class PatternLayoutsTest extends TestCase {
 		$without = array_keys( array_filter( $intents, static fn ( array $intent ): bool => ! array_key_exists( 'copy_rules', $intent ) ) );
 		$this->assertSame( [], $without, 'every intent carries copy_rules' );
 
+		$read = 0;
 		foreach ( $intents as $name => $intent ) {
 			$rules = $intent['copy_rules'];
 			$texts = self::text_blocks( $intent );
 			$this->assertIsArray( $rules, $name );
-			$this->assertNotSame( [], $texts, $name );
+			if ( [] === $texts ) {
+				// A section whose words all come from a Site Data list, such
+				// as the proof strip's facts layout, has no copy slot: the
+				// list changes in Settings > Site Data, never through copy.
+				$this->assertNotSame( [], self::bound_lists( $intent ), "{$name} names no text block and shows no Site Data list" );
+			}
+			$read += count( $texts );
 			$this->assertEqualsCanonicalizing( array_keys( $texts ), array_keys( $rules ), "{$name}: copy_rules and the named text blocks differ" );
 
 			foreach ( $rules as $label => $rule ) {
@@ -854,6 +973,8 @@ final class PatternLayoutsTest extends TestCase {
 				$this->assertLessThanOrEqual( $rule['max'], $length, "{$at}: the shipped copy is longer than max" );
 			}
 		}
+
+		$this->assertGreaterThan( 0, $read, 'no named text block was read in any intent' );
 	}
 
 	/**

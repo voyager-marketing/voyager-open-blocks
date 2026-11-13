@@ -9,29 +9,7 @@
 <p>Call, email or stop by during business hours.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:group {"metadata":{"name":"Details"},"style":{"spacing":{"blockGap":"var:preset|spacing|20"}},"layout":{"type":"default"}} -->
-<div class="wp-block-group"><!-- wp:paragraph {"metadata":{"name":"Phone","bindings":{"content":{"source":"voyager/site-data","args":{"key":"phone"}}}}} -->
-<p>(555) 010-0100</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph {"metadata":{"name":"Email","bindings":{"content":{"source":"voyager/site-data","args":{"key":"email"}}}}} -->
-<p>hello@example.com</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:group {"metadata":{"name":"Address"},"style":{"spacing":{"blockGap":"0px"}},"layout":{"type":"default"}} -->
-<div class="wp-block-group"><!-- wp:paragraph {"metadata":{"name":"Street address","bindings":{"content":{"source":"voyager/site-data","args":{"key":"address"}}}}} -->
-<p>100 Main Street</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph {"metadata":{"name":"City, state, postal code","bindings":{"content":{"source":"voyager/site-data","args":{"key":"address_locality"}}}}} -->
-<p>Springfield, ST 00000</p>
-<!-- /wp:paragraph --></div>
-<!-- /wp:group -->
-
-<!-- wp:paragraph {"metadata":{"name":"Hours","bindings":{"content":{"source":"voyager/site-data","args":{"key":"hours"}}}}} -->
-<p>Monday to Friday, 9am to 5pm</p>
-<!-- /wp:paragraph --></div>
-<!-- /wp:group -->
+<!-- wp:voyager-open/contact-details {"phone":"Phone","email":"Email","address":"Street address","addressLocality":"City, state, postal code","hours":"Hours","metadata":{"name":"Details","bindings":{"phone":{"source":"voyager/site-data","args":{"key":"phone"}},"phoneLink":{"source":"voyager/site-data","args":{"key":"phone_link"}},"email":{"source":"voyager/site-data","args":{"key":"email"}},"emailLink":{"source":"voyager/site-data","args":{"key":"email_link"}},"address":{"source":"voyager/site-data","args":{"key":"address"}},"addressLocality":{"source":"voyager/site-data","args":{"key":"address_locality"}},"hours":{"source":"voyager/site-data","args":{"key":"hours"}}}}} /-->
 
 <!-- wp:buttons -->
 <div class="wp-block-buttons"><!-- wp:button {"metadata":{"name":"Click to call","bindings":{"url":{"source":"voyager/site-data","args":{"key":"phone_link"}}}},"className":"is-style-outline"} -->

@@ -90,7 +90,7 @@ function register_insert(): void {
 						'additionalProperties' => copy_value_schema(),
 						'description'          => 'Text by copy label, matched exactly, case and commas included: a block get-catalog marks copy: true, such as {"Heading": "Need a plumber today?"}. On an FAQ question, a details block, it sets the summary. Plain text, escaped, within the pattern\'s copy_rules, and longer than max is refused (too_long; min is guidance). A claim slot, such as a review or a credential, takes only the object form, with what the site owner gave you (claim). A bound slot, such as "Click to call", takes none: its value is set in Settings > Site Data (bound).',
 					],
-					'omit'       => omit_schema( 'Labels of blocks to leave out, with what they hold, such as ["Credential 4"] for three facts. A required slot, or a block holding one, is refused (required) unless the block is its whole item, such as "Service 3".' ),
+					'omit'       => omit_schema( 'Labels of blocks to leave out, with what they hold, such as ["Credential 4"] for three facts. A required slot, or a block holding one, is refused (required) unless the block is its whole item, such as "Service 3", and so is an omit that leaves nothing to show.' ),
 					'repeat'     => repeat_schema( 'New labels for copies of a named block, placed right after it, such as {"Credential 4": ["Credential 5", "Credential 6"]} for six facts. Labels inside it that start with its own and a space take the new one: "Service 3 heading" becomes "Service 4 heading". Fill them with copy. Runs before omit and copy.' ),
 					'dry_run'    => dry_run_schema(),
 				],

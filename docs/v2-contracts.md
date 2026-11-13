@@ -121,7 +121,7 @@ What text each named block in a pattern takes, so an agent's copy fits the desig
   | `reason` | Refused when | Also carries |
   | -- | -- | -- |
   | `too_long` | the text, trimmed, is longer than `max` characters, counted with `mb_strlen()`. Text under `min` is accepted: `min` is guidance. | `message`, `max`, `length` |
-  | `required` | `omit` names a slot whose rule says `required: true`, or a block that holds one. Leaving out a whole item, a block whose label starts the slot's own and a space (`Service 3` holding `Service 3 heading`), takes its slots with it and is not refused. | `message`, `omitted` (the label `omit` named) |
+  | `required` | `omit` names a slot whose rule says `required: true`, or a block that holds one. Leaving out a whole item, a block whose label starts the slot's own and a space (`Service 3` holding `Service 3 heading`), takes its slots with it and is not refused. `omit` is also refused as `required` when it would leave the pattern nothing to show, only blocks that hold others (group, columns, column, buttons, list, quote), as `"Credentials"` would in the proof strip's facts layout, whose facts block no copy rule covers. Then `slot` and `omitted` are the first label `omit` named that took something shown. | `message`, `omitted` (the label `omit` named) |
   | `claim` | a slot whose rule says `claim: true` got a plain string, even one equal to a Site Data value: typed-in copy of a value goes stale when the value changes. `message` gives both ways out: the object form, when the site owner gave the text, or no copy for the slot and a binding to the Site Data field that holds it. | `message` |
   | `bound` | the slot's text comes from a binding, so copy would be saved only as its fallback. A bound slot is not checked against its rule too. | `block`, `path`, `attribute`, `source`, `key` |
 
@@ -175,7 +175,7 @@ A page as an ordered list of sections, for `compose` to build.
     { "title": "Hero over a background", "section": "hero", "layout": "cover" }
     ```
 
-  - An intent with no `section` key is a section with one layout, as the CTA band, proof strip, logo marquee, closing CTA and contact section are. It has no `layout` key either.
+  - An intent with no `section` key is a section with one layout, as the CTA band, logo marquee, closing CTA and contact section are. It has no `layout` key either.
 - How a recipe section finds its layout. `pattern` names the section by its slug, and `layout` picks one of its layouts:
   - `"pattern": "voyager-open/hero", "layout": "cover"` resolves to the intent whose `section` is `hero` and whose `layout` is `cover`, so the pattern `voyager-open/hero-cover`.
   - `"layout": null`, or no `layout` key, is the section's first layout, the pattern that keeps the section's slug: `voyager-open/hero`.

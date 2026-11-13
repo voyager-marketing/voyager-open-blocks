@@ -146,7 +146,10 @@ function repeated_rules( array $rules, array $repeat ): array {
  * - required: omit names a required slot, or a block that holds one. A block
  *   whose label starts the slot's own and a space is the slot's item ("Service 3"
  *   for "Service 3 heading"): leaving out a whole item takes its slots with it,
- *   so it is not refused.
+ *   so it is not refused. When no required slot is refused, omit is also
+ *   refused as required when it would leave the pattern nothing to show
+ *   (emptying_label()), such as the proof strip's facts layout without its one
+ *   facts block, which no copy rule covers.
  *
  * @param array<string, array<mixed>>                    $rules Label => rule, from the intent's copy_rules.
  * @param array<string, array{text: string, user: bool}> $copy  From copy_values().
@@ -212,7 +215,90 @@ function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows
 		}
 	}
 
+	if ( [] === $dropped ) {
+		$emptying = emptying_label( $rows, $omit );
+
+		if ( null !== $emptying ) {
+			$dropped[ $emptying ] = [
+				'slot'    => $emptying,
+				'reason'  => 'required',
+				'message' => sprintf( 'Leaving out %1$s leaves the section with nothing to show: only the blocks that held what you left out would be saved. Keep "%2$s", or leave the section out.', '"' . implode( '", "', $omit ) . '"', $emptying ),
+				'omitted' => $emptying,
+			];
+		}
+	}
+
 	return array_merge( $refused, array_values( $dropped ) );
+}
+
+/**
+ * Blocks that show nothing of their own: they hold other blocks and lay them
+ * out. A section left holding only these saves as an empty band.
+ */
+const LAYOUT_BLOCKS = [ 'core/group', 'core/columns', 'core/column', 'core/buttons', 'core/list', 'core/quote' ];
+
+/**
+ * The label omit names that would leave a pattern with nothing to show, or null.
+ *
+ * Once omit has run, a pattern must still hold a block that shows something:
+ * any block not in LAYOUT_BLOCKS, such as a heading, a paragraph, an image, an
+ * icon or a facts list. A copy rule makes a text slot required, but a block
+ * that is no copy slot has no rule, so this is what keeps the proof strip's
+ * facts layout from saving without its facts block, or without the Row that
+ * holds it.
+ *
+ * @param array<int, Row>    $rows The pattern's blocks as BlockTree\describe() lists them, after repeat and before omit.
+ * @param array<int, string> $omit Labels to leave out.
+ * @return string|null The first label in omit whose blocks show something, when nothing shown would be left; null when something would be.
+ */
+function emptying_label( array $rows, array $omit ): ?string {
+	$gone = [];
+
+	foreach ( $rows as $row ) {
+		if ( in_array( $row['label'] ?? null, $omit, true ) ) {
+			$gone[] = $row['path'];
+		}
+	}
+
+	if ( [] === $gone ) {
+		return null;
+	}
+
+	$shown = array_values( array_filter( $rows, static fn ( array $row ): bool => ! in_array( $row['block'], LAYOUT_BLOCKS, true ) ) );
+
+	foreach ( $shown as $row ) {
+		if ( ! path_within( $row['path'], $gone ) ) {
+			return null;
+		}
+	}
+
+	foreach ( $omit as $label ) {
+		$tops = array_column( array_filter( $rows, static fn ( array $row ): bool => ( $row['label'] ?? null ) === $label ), 'path' );
+
+		foreach ( $shown as $row ) {
+			if ( path_within( $row['path'], $tops ) ) {
+				return $label;
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Whether a block's path is one of the given paths, or inside one of them.
+ *
+ * @param string        $path  A path from BlockTree\describe(), such as 0/0/1.
+ * @param array<string> $paths Paths of blocks, such as the ones omit names.
+ */
+function path_within( string $path, array $paths ): bool {
+	foreach ( $paths as $top ) {
+		if ( $path === $top || str_starts_with( $path, $top . '/' ) ) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /**
