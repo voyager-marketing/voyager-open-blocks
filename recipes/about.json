@@ -1,6 +1,6 @@
 {
 	"title": "About page",
-	"description": "Who the business is: what it does, the credentials it holds, one customer's words about working with it, and the names it works with.",
+	"description": "Who the business is: what it does, the credentials it holds, one customer's words about working with it, the names it works with, and its figures from Site Data.",
 	"page_type": "about",
 	"sections": [
 		{
@@ -45,6 +45,15 @@
 			"style": "plain",
 			"copy_guidance": {
 				"Eyebrow": "Whose logos these are, such as the suppliers, partners or memberships the site owner names. No count."
+			}
+		},
+		{
+			"pattern": "voyager-open/stats",
+			"layout": "band",
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "What the figures say about the business, in a few words, such as At a glance. No figure in it.",
+				"Body": "One line that leads into the figures, with no figure or claim of its own."
 			}
 		},
 		{

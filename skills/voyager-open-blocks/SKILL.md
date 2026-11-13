@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Three blocks, two binding sources and eleven patterns, built so an agent can use them correctly without guessing.
+Three blocks, two binding sources and thirteen patterns, built so an agent can use them correctly without guessing.
 
 ## Tell your agent
 
@@ -34,13 +34,15 @@ Each item skill has its own prompt under "Tell your agent".
 | `voyager-open/services-list` | pattern (services as rows) | `voyager-open-services` | `Heading`, `Intro`, `Service 1 heading`, `Service 1 text`, `Service 2 heading`, `Service 2 text`, `Service 3 heading`, `Service 3 text` |
 | `voyager-open/reviews` | pattern (reviews as cards) | `voyager-open-reviews` | `Heading`, `Review 1 rating`, `Review 1 quote`, `Review 1 name`, `Review 1 detail`, `Review 2 rating`, `Review 2 quote`, `Review 2 name`, `Review 2 detail`, `Review 3 rating`, `Review 3 quote`, `Review 3 name`, `Review 3 detail` |
 | `voyager-open/reviews-single` | pattern (one review, a large quote) | `voyager-open-reviews` | `Heading`, `Review 1 rating`, `Review 1 quote`, `Review 1 name`, `Review 1 detail` |
+| `voyager-open/stats` | pattern (three figures from Site Data in a row) | `voyager-open-stats` | `Founded value`, `Founded label`, `Rating value`, `Rating label`, `Review count value`, `Review count label` |
+| `voyager-open/stats-band` | pattern (the same figures beside a heading) | `voyager-open-stats` | `Heading`, `Body`, `Founded value`, `Founded label`, `Rating value`, `Rating label`, `Review count value`, `Review count label` |
 | `voyager-open/cta-band` | pattern | `voyager-open-cta-band` | `Eyebrow`, `Heading`, `Body`, `Primary button`, `Click to call` |
 | `voyager-open/proof-strip` | pattern | `voyager-open-proof-strip` | `Credential 1`, `Credential 2`, `Credential 3`, `Credential 4` |
 | `voyager-open/logo-marquee` | pattern | `voyager-open-logo-marquee` | `Eyebrow` |
 | `voyager-open/closing-cta` | pattern | `voyager-open-closing-cta` | `Heading`, `Body`, `Primary button`, `Email button` |
 | `voyager-open/contact-section` | pattern | `voyager-open-contact-section` | `Heading`, `Body`, `Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`, `Click to call`, `Form heading`, `Form body`, `Email button` |
 
-Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. A copy of a block that holds labelled blocks, such as the services card `Service 3`, gives them its own label too: `Service 4 heading`, `Service 4 text`. The reviews section's `rating`, `quote`, `name` and `detail` slots and the proof strip's credentials are claims: fill them only with what the site owner gives you, reviews in the customer's own words (the `voyager-open-reviews` and `voyager-open-proof-strip` skills), as `{"text": "...", "source": "user"}`. `insert` refuses a plain string in a claim slot. Never pass copy for a bound slot: the hero's and the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels, the pattern's blocks with `copy: true`, and each pattern's `copy_rules`: what goes in each label, how long it may be, and whether it is required or a claim.
+Copy labels are the keys of `insert`'s `copy` input. Match them exactly, including case and commas. `repeat` adds a copy of a labelled block under a new label, such as `Credential 5` after `Credential 4`, and `copy` then fills it. A copy of a block that holds labelled blocks, such as the services card `Service 3`, gives them its own label too: `Service 4 heading`, `Service 4 text`. The reviews section's `rating`, `quote`, `name` and `detail` slots and the proof strip's credentials are claims: fill them only with what the site owner gives you, reviews in the customer's own words (the `voyager-open-reviews` and `voyager-open-proof-strip` skills), as `{"text": "...", "source": "user"}`. `insert` refuses a plain string in a claim slot. Never pass copy for a bound slot: the hero's and the CTA band's `Click to call` and the contact section's detail lines (`Phone`, `Email`, `Street address`, `City, state, postal code`, `Hours`) and the stats section's values (`Founded value`, `Rating value`, `Review count value`) take their text from Site Data, so `insert` refuses the whole call with `voyager_open_blocks_bound_slot` and saves nothing; change the value in Settings > Site Data instead. `get-catalog` lists the same labels, the pattern's blocks with `copy: true`, and each pattern's `copy_rules`: what goes in each label, how long it may be, and whether it is required or a claim.
 
 ## Design rules
 
@@ -54,12 +56,12 @@ To build a whole page, start from its recipe. The pack has one per page type, ea
 
 | Page type | Recipe | Patterns to insert, in order, each with its style |
 |---|---|---|
-| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/closing-cta` (inverted) |
+| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/stats` (panel), `voyager-open/closing-cta` (inverted) |
 | `services` | `recipes/services.json` | `voyager-open/hero` (plain), `voyager-open/services-list` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/closing-cta` (inverted) |
 | `service` | `recipes/service.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services-list` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews-single` (plain), `voyager-open/closing-cta` (inverted) |
 | `location` | `recipes/location.json` | `voyager-open/hero-cover` (plain), `voyager-open/services` (panel), `voyager-open/reviews` (plain), `voyager-open/cta-band` (accent), `voyager-open/contact-section` (plain) |
 | `contact` | `recipes/contact.json` | `voyager-open/hero` (plain), `voyager-open/contact-section` (panel), `voyager-open/reviews-single` (accent) |
-| `about` | `recipes/about.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/reviews-single` (inverted), `voyager-open/logo-marquee` (plain), `voyager-open/closing-cta` (accent) |
+| `about` | `recipes/about.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/reviews-single` (inverted), `voyager-open/logo-marquee` (plain), `voyager-open/stats-band` (panel), `voyager-open/closing-cta` (accent) |
 
 In a recipe file, `pattern` names the section and `layout` picks one of its layouts, so `"pattern": "voyager-open/hero", "layout": "cover"` is the pattern `voyager-open/hero-cover` in this table. A plain section needs no `configure` call.
 
