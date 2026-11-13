@@ -15,6 +15,7 @@ namespace VoyagerOpenBlocks\Catalog;
 
 use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
+use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\PostMetaText;
 use VoyagerOpenBlocks\SiteData;
 use WP_Error;
@@ -65,6 +66,9 @@ function blocks(): array {
  * The pack's patterns, each with its named blocks and their bindings.
  *
  * A named block whose text insert's `copy` input can replace carries `copy: true`.
+ * `section`, `layout` and `copy_rules` come from the pattern's intent
+ * (Patterns\intent_meta()). `copy_rules` is an object, so a pattern with
+ * none gives `{}` in JSON, never `[]`.
  *
  * @return array<int, array<string, mixed>>
  */
@@ -78,11 +82,16 @@ function patterns(): array {
 			continue;
 		}
 
+		$intent = Patterns\intent_meta( $name );
+
 		$out[] = [
 			'name'        => $name,
 			'title'       => $pattern['title'] ?? '',
 			'description' => $pattern['description'] ?? '',
 			'categories'  => $pattern['categories'] ?? [],
+			'section'     => $intent['section'],
+			'layout'      => $intent['layout'],
+			'copy_rules'  => (object) $intent['copy_rules'],
 			'blocks'      => array_values(
 				array_map(
 					/**

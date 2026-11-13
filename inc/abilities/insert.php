@@ -12,6 +12,7 @@ namespace VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
+use VoyagerOpenBlocks\Patterns;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -50,7 +51,7 @@ function register_insert(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates), the icon block or the facts block into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, plain text for its named headings, paragraphs, buttons and list items whose text is not bound; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block. dry_run runs every check and saves nothing. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or one of the pack\'s blocks (get-catalog\'s blocks) into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, the text of the named blocks get-catalog marks copy: true, each within the pattern\'s copy_rules; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block. Copy or omit that breaks a copy rule, or copy for a bound slot, refuses the whole call: nothing is saved, and data.refused lists every refused slot. dry_run runs every check and saves nothing. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -86,11 +87,8 @@ function register_insert(): void {
 					'copy'       => [
 						'type'                 => 'object',
 						'default'              => [],
-						'additionalProperties' => [
-							'type'      => 'string',
-							'minLength' => 1,
-						],
-						'description'          => 'Patterns in copy mode only. Plain text by label (a block\'s metadata.name, listed by get-catalog with copy: true), such as {"Heading": "...", "Body": "..."}. Replaces the text of headings, paragraphs, button labels and list items, escaped. A label whose text is bound, such as the CTA band\'s "Click to call" or the contact section\'s detail lines, is refused with voyager_open_blocks_bound_slot and nothing is saved: its text comes from the binding, so change the value in Settings > Site Data instead.',
+						'additionalProperties' => copy_value_schema(),
+						'description'          => 'Patterns in copy mode only. Text by label: the metadata.name of a block get-catalog lists with copy: true in the pattern\'s blocks, such as {"Heading": "...", "Body": "..."}. Each value is plain text, or {"text": "...", "source": "user"} for text the site owner gave you. It replaces the block\'s text, escaped. get-catalog\'s copy_rules give each label its purpose, min, max, required and claim. Refused, with nothing saved and every refused slot in data.refused: text longer than max once trimmed (too_long; min is guidance only); a plain string for a claim slot (claim), whose text comes from the site owner, as the object form, or from a binding to the Site Data field that holds it; and a label whose text is bound, such as "Click to call" (bound): its text comes from the binding, so change the value in Settings > Site Data instead. The code is voyager_open_blocks_bound_slot when every refused slot is bound, else voyager_open_blocks_copy_rules.',
 					],
 					'omit'       => [
 						'type'        => 'array',
@@ -99,7 +97,7 @@ function register_insert(): void {
 							'type'      => 'string',
 							'minLength' => 1,
 						],
-						'description' => 'Patterns in copy mode only. Labels of blocks to leave out, with everything inside them, such as ["Credential 4"] for a proof strip with three facts or ["Hours"] in the contact section. Not the label of the whole pattern.',
+						'description' => 'Patterns in copy mode only. Labels of blocks to leave out, with everything inside them, such as ["Credential 4"] for a proof strip with three facts or ["Hours"] in the contact section. Not the label of the whole pattern. A slot whose copy rule is required, or a block that holds one, is refused (required), unless the block is the slot\'s whole item, such as "Service 3" for "Service 3 heading".',
 					],
 					'repeat'     => [
 						'type'                 => 'object',
@@ -164,11 +162,13 @@ function insert( array $input ) {
 	$position   = isset( $input['position'] ) ? Cast\to_int( $input['position'] ) : -1;
 	$mode       = isset( $input['mode'] ) ? Cast\to_string( $input['mode'] ) : 'copy';
 	$attributes = assoc( $input['attributes'] ?? null );
-	$copy       = array_map( static fn ( mixed $text ): string => Cast\to_string( $text ), assoc( $input['copy'] ?? null ) );
+	$values     = copy_values( $input['copy'] ?? null );
+	$copy       = copy_texts( $values );
 	$omit       = array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), (array) ( $input['omit'] ?? [] ) ) ) );
 	$repeat     = repeat_input( $input['repeat'] ?? null );
 	$dry_run    = ! empty( $input['dry_run'] );
 	$parent     = null;
+	$broken     = [];
 
 	if ( isset( $input['parent'] ) ) {
 		$parent = BlockTree\parse_path( Cast\to_string( $input['parent'] ) );
@@ -217,6 +217,14 @@ function insert( array $input ) {
 			if ( is_wp_error( $repeated ) ) {
 				return $repeated;
 			}
+		}
+
+		// The copy rules, against the blocks as repeat left them, before omit
+		// drops any. A copy repeat made keeps the rule of the block it copies.
+		// What they refuse is returned with the bound slots below.
+		if ( $values || $omit ) {
+			$rules  = repeated_rules( Patterns\intent_meta( $item )['copy_rules'], $repeat );
+			$broken = copy_rule_refusals( $rules, $values, $omit, BlockTree\describe( $new ) );
 		}
 
 		if ( $omit ) {
@@ -300,14 +308,13 @@ function insert( array $input ) {
 		)
 	);
 
-	// Copy for a bound slot refuses the whole call, before anything is saved,
-	// so a section is never saved half filled. Checked once the blocks are
-	// placed, so each refused slot is named by its path in the post.
-	if ( $copy ) {
-		$refused = bound_copy_slots( $rows, $copy );
-		if ( [] !== $refused ) {
-			return bound_slot_error( 'copy', $refused );
-		}
+	// Copy for a bound slot, or copy or omit a copy rule refuses, refuses the
+	// whole call before anything is saved, dry run or not, so a section is
+	// never saved half filled. Bound slots are checked once the blocks are
+	// placed, so each is named by its path in the post.
+	$bound = $copy ? bound_copy_slots( $rows, $copy ) : [];
+	if ( [] !== $bound || [] !== $broken ) {
+		return copy_error( $bound, $broken );
 	}
 
 	$revision = [ 'revision_id' => null ];
