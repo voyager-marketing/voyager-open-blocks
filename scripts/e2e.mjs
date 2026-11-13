@@ -61,6 +61,16 @@
  *      undo refuses another post's revision and a contributor on a page they
  *      cannot edit, while a contributor can undo on their own draft, and undo
  *      refuses to reverse a person's later edit unless forced,
+ *  6c. compose: one call builds a draft page from four sections (the hero,
+ *      the services section as a list, the reviews section styled Panel and
+ *      the closing CTA), each with copy, and validate passes it; each section
+ *      is what insert places with the same copy; empty lists the phone while
+ *      it is blank; a 61-character heading with a claim given as a plain
+ *      string, and two adjacent Accent sections with copy for a bound slot,
+ *      are each refused with every fault and save nothing; a published page,
+ *      a recipe, both post_id and title, and an unknown layout are refused; a
+ *      dry run creates no post; and undo reverses a compose save byte for
+ *      byte, on an existing draft and on a new one,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
  *      binds its link to Site Data, then checks it resolves and validates,
@@ -101,7 +111,13 @@
  *      no mailto: link render while the rest still does. validate warns
  *      stale_fallback on the block bound to the phone whose own phone holds
  *      a phone number. Then it deletes the page and puts the fields back.
- *  15. the stats section: get-catalog lists voyager-open/stats and
+ *  15. the icon's CSS, split by animation: a published page holding one
+ *      icon with no animation loads under 1,024 bytes of icon CSS (every
+ *      <link> whose id starts with voyager-open-icon, fetched, and every
+ *      <style> whose id does) and no keyframes, and a page holding one pulse
+ *      icon loads the base and the pulse keyframes, no other animation's, and
+ *      the reduced-motion rule that stops it. Then it deletes both pages.
+ *  16. the stats section: get-catalog lists voyager-open/stats and
  *      voyager-open/stats-band with their copy labels, each value bound to
  *      founded, rating or review_count. The year founded, the rating and the
  *      review count are set to 1998, 4.80 and 0127 through POST
@@ -309,7 +325,8 @@ const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.sort();
 step(
 	'abilities listed',
-	names.length === 8 &&
+	names.length === 9 &&
+		names.includes( `${ ns }/compose` ) &&
 		names.includes( `${ ns }/validate` ) &&
 		names.includes( `${ ns }/find-posts` ) &&
 		names.includes( `${ ns }/undo` ),
@@ -2554,6 +2571,514 @@ step(
 	}
 }
 
+// 6c. compose (contract 6): a whole draft page from a list of sections, in
+// one write. Each section names a pack pattern by its section and layout, its
+// copy is filled the way insert fills it and its style is set the way
+// configure sets it. A refusal saves nothing and lists every refused slot
+// with its section's index. A dry run creates no post. undo reverses a
+// compose save. The block keeps its names to itself; it deletes what it
+// creates and puts the phone back.
+{
+	const composeAbility = `${ ns }/compose`;
+	const created = [];
+	const contentOf = async ( id ) =>
+		( await api( `/wp/v2/pages/${ id }`, { query: { context: 'edit' } } ) )
+			.data.content?.raw ?? null;
+	const titled = async ( title ) => {
+		const found = await api( '/wp/v2/pages', {
+			query: {
+				search: title,
+				status: 'any',
+				context: 'edit',
+				per_page: 20,
+			},
+		} );
+		return ( Array.isArray( found.data ) ? found.data : [] )
+			.filter( ( p ) => p.title?.raw === title )
+			.map( ( p ) => p.id );
+	};
+	const rowsOf = ( response ) =>
+		( response.data.refused || [] ).map(
+			( r ) => `${ r.section } ${ r.slot } ${ r.reason }`
+		);
+	const composeSummary = ( response ) =>
+		response.data.code
+			? `${ response.status } ${ response.data.code }: ${ response.data.message }`
+			: `${ response.status }, saved ${ response.data.saved }, post ${
+					response.data.post_id
+				}, refused [${ rowsOf( response ).join( '; ' ) }]`;
+	const owner = ( text ) => ( { text, source: 'user' } );
+	const startingContent =
+		'<!-- wp:paragraph -->\n<p>Before compose: Smith &amp; Sons, "since 1998".</p>\n<!-- /wp:paragraph -->';
+
+	const heroCopy = {
+		Heading: 'Plumbing repairs in Springfield, done today',
+		Body: 'Tell us what is leaking, and a plumber comes the same day.',
+		'Primary button': 'Book a repair',
+	};
+	const servicesCopy = {
+		Heading: 'What we fix',
+		Intro: 'Homes and small shops across Springfield and Riverside.',
+		'Service 1 heading': 'Leaks and drips',
+		'Service 1 text':
+			'Taps, pipes and joints found and fixed on the first visit.',
+		'Service 2 heading': 'Blocked drains',
+		'Service 2 text':
+			'Sinks, showers and main lines cleared without digging.',
+		'Service 3 heading': 'Water heaters',
+		'Service 3 text':
+			'Repairs and replacements for tank and tankless heaters.',
+	};
+	const reviewsCopy = { Heading: 'What customers say' };
+	for ( const [ n, quote, name, detail ] of [
+		[
+			1,
+			'They came the same day and fixed the leak for good.',
+			'Dana R.',
+			'Leak repair',
+		],
+		[
+			2,
+			'The drain had been slow for months. It runs clear now.',
+			'Sam P.',
+			'Drain cleaning',
+		],
+		[
+			3,
+			'Our new water heater was in and working by the evening.',
+			'Lee T.',
+			'Water heater',
+		],
+	] ) {
+		reviewsCopy[ `Review ${ n } rating` ] = owner( 'Rated 5 out of 5' );
+		reviewsCopy[ `Review ${ n } quote` ] = owner( quote );
+		reviewsCopy[ `Review ${ n } name` ] = owner( name );
+		reviewsCopy[ `Review ${ n } detail` ] = owner( detail );
+	}
+	const ctaCopy = {
+		Heading: 'Ready when the next drip starts?',
+		Body: 'Call or email us, and we will tell you when a plumber can be there.',
+		'Primary button': 'Book a repair',
+		'Email button': 'Email us',
+	};
+	const sections = [
+		{ pattern: 'voyager-open/hero', copy: heroCopy },
+		{
+			pattern: 'voyager-open/services',
+			layout: 'list',
+			copy: servicesCopy,
+		},
+		{ pattern: 'voyager-open/reviews', style: 'panel', copy: reviewsCopy },
+		{ pattern: 'voyager-open/closing-cta', copy: ctaCopy },
+	];
+
+	// The fitness check: one write call builds the page, and validate passes it.
+	const composeTitle = `E2E: compose ${ stamp }`;
+	const composed = await run( composeAbility, {
+		title: composeTitle,
+		sections,
+	} );
+	const composedId = Number.isInteger( composed.data.post_id )
+		? composed.data.post_id
+		: 0;
+	if ( composedId ) {
+		created.push( composedId );
+	}
+	const composedPage = composedId
+		? await api( `/wp/v2/pages/${ composedId }`, {
+				query: { context: 'edit' },
+			} )
+		: { data: {} };
+	const composedRaw = composedPage.data.content?.raw || '';
+	const composedReport = composedId
+		? await checkMarkup( { post_id: composedId } )
+		: { status: 0, data: {} };
+	step(
+		'fitness: one compose call with title and four sections (the hero, the services section as a list, the reviews section styled panel, the closing CTA), each with copy, saves a draft page, returns revision_id and preview_url, and validate on the saved page reports no error',
+		composed.status === 200 &&
+			composed.data.saved === true &&
+			!! composedId &&
+			composedPage.data.status === 'draft' &&
+			composedPage.data.type === 'page' &&
+			composedPage.data.title?.raw === composeTitle &&
+			Number.isInteger( composed.data.revision_id ) &&
+			typeof composed.data.preview_url === 'string' &&
+			composed.data.preview_url.includes( 'preview=true' ) &&
+			JSON.stringify( composed.data.refused ) === '[]' &&
+			clean( composedReport ),
+		`${ composeSummary( composed ) }; validate: ${ warningSummary(
+			composedReport
+		) }`
+	);
+	validate( 'compose saved page', composedRaw );
+
+	step(
+		"compose's validation is what validate returns for the page: valid, with the hero's image placeholder as its one placeholder: warning",
+		composed.data.validation?.valid === true &&
+			( composed.data.validation?.errors || [] ).length === 0 &&
+			JSON.stringify( composed.data.validation?.warnings ) ===
+				JSON.stringify( composedReport.data.warnings ) &&
+			codedWarnings(
+				{ data: composed.data.validation || {} },
+				'placeholder'
+			).length === 1,
+		JSON.stringify( composed.data.validation?.warnings ?? null )
+	);
+
+	// The page's top-level blocks are the four sections in order. Each is what
+	// insert places for the same pattern and copy, byte for byte, apart from
+	// the reviews section's panel style, so each is a copy, never a reference,
+	// and the second is voyager-open/services-list, not the grid.
+	const asInserted = async ( item, copy ) =>
+		composedId
+			? ( (
+					await run( `${ ns }/insert`, {
+						post_id: composedId,
+						item,
+						copy,
+						dry_run: true,
+					} )
+				).data.markup ?? null )
+			: null;
+	const heroMarkup = await asInserted( 'voyager-open/hero', heroCopy );
+	const listMarkup = await asInserted(
+		'voyager-open/services-list',
+		servicesCopy
+	);
+	const ctaMarkup = await asInserted( 'voyager-open/closing-cta', ctaCopy );
+	const head = `${ heroMarkup }\n\n${ listMarkup }\n\n`;
+	const tail = `\n\n${ ctaMarkup }`;
+	const reviewsSaved =
+		heroMarkup && listMarkup && ctaMarkup
+			? composedRaw.slice( head.length, composedRaw.length - tail.length )
+			: '';
+	const composedTree = composedId
+		? await run( `${ ns }/get-post-blocks`, { post_id: composedId }, true )
+		: { data: {} };
+	const topLabels = ( composedTree.data.blocks || [] )
+		.filter( ( b ) => ! b.path.includes( '/' ) )
+		.map( ( b ) => `${ b.block } ${ b.label }` );
+	const styleClasses = ( markup ) =>
+		( markup || '' ).match(
+			/is-style-voyager-open-(panel|inverted|accent)/g
+		) || [];
+	step(
+		'the saved page holds the hero, the services list, the reviews and the closing CTA in that order, each as insert places it with the same copy, and only the reviews section carries is-style-voyager-open-panel, in its comment and on its wrapper',
+		JSON.stringify( topLabels ) ===
+			JSON.stringify( [
+				'core/group Hero',
+				'core/group Services',
+				'core/group Reviews',
+				'core/group Closing CTA',
+			] ) &&
+			!! heroMarkup &&
+			!! listMarkup &&
+			!! ctaMarkup &&
+			composedRaw.startsWith( head ) &&
+			composedRaw.endsWith( tail ) &&
+			listMarkup.includes( '"metadata":{"name":"Items"}' ) &&
+			reviewsSaved.startsWith( '<!-- wp:group ' ) &&
+			reviewsSaved.includes( '"metadata":{"name":"Reviews"}' ) &&
+			reviewsSaved.includes( reviewsCopy[ 'Review 1 quote' ].text ) &&
+			JSON.stringify(
+				styleClasses( reviewsSaved.split( '\n' )[ 0 ] )
+			) === JSON.stringify( [ 'is-style-voyager-open-panel' ] ) &&
+			JSON.stringify(
+				styleClasses( reviewsSaved.split( '\n' )[ 1 ] )
+			) === JSON.stringify( [ 'is-style-voyager-open-panel' ] ) &&
+			styleClasses( composedRaw ).length === 2,
+		`top level: ${ topLabels.join( ', ' ) }; head ${ composedRaw.startsWith(
+			head
+		) }, tail ${ composedRaw.endsWith( tail ) }; classes ${ styleClasses(
+			composedRaw
+		).join( ' ' ) }`
+	);
+
+	// empty: the Site Data keys the page binds whose value is empty now. The
+	// hero's call button binds the phone, which the demo site sets.
+	const phoneBefore = ( await api( '/wp/v2/settings' ) ).data
+		.voyager_site_phone;
+	const setPhoneTo = ( phone ) =>
+		api( '/wp/v2/settings', {
+			method: 'POST',
+			body: { voyager_site_phone: phone },
+		} );
+	const blanked = await setPhoneTo( '' );
+	const whileBlank = await run( composeAbility, {
+		title: `E2E: compose while the phone is blank ${ stamp }`,
+		sections,
+		dry_run: true,
+	} );
+	const restored = await setPhoneTo( phoneBefore );
+	const whileSet = await run( composeAbility, {
+		title: `E2E: compose with the phone set ${ stamp }`,
+		sections,
+		dry_run: true,
+	} );
+	step(
+		"compose's empty lists phone while the site's phone is empty, and not once it is set",
+		typeof phoneBefore === 'string' &&
+			phoneBefore !== '' &&
+			blanked.status === 200 &&
+			restored.status === 200 &&
+			restored.data.voyager_site_phone === phoneBefore &&
+			whileBlank.status === 200 &&
+			( whileBlank.data.empty || [] ).includes( 'phone' ) &&
+			whileSet.status === 200 &&
+			Array.isArray( whileSet.data.empty ) &&
+			! whileSet.data.empty.includes( 'phone' ) &&
+			Array.isArray( composed.data.empty ) &&
+			! composed.data.empty.includes( 'phone' ),
+		`blank: ${ JSON.stringify(
+			whileBlank.data.empty ?? whileBlank.data.code
+		) }; set: ${ JSON.stringify( whileSet.data.empty ?? whileSet.data.code ) }`
+	);
+
+	// Refusals: every fault in refused, each with its section's index, and
+	// nothing written, with title (no post is created) and with post_id (the
+	// draft keeps its content).
+	const target = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E: compose target ${ stamp }`,
+			status: 'draft',
+			content: startingContent,
+		},
+	} );
+	const targetId = target.data.id;
+	if ( targetId ) {
+		created.push( targetId );
+	}
+	const targetBefore = targetId ? await contentOf( targetId ) : null;
+	// longHeading is the 61-character heading the copy rules step refuses.
+	const longAndClaim = sections.map( ( section, index ) => {
+		if ( 0 === index ) {
+			return { ...section, copy: { ...heroCopy, Heading: longHeading } };
+		}
+		if ( 2 === index ) {
+			return {
+				...section,
+				copy: {
+					...reviewsCopy,
+					'Review 1 quote': reviewsCopy[ 'Review 1 quote' ].text,
+				},
+			};
+		}
+		return section;
+	} );
+	const adjacentAndBound = sections.map( ( section, index ) => {
+		if ( 0 === index ) {
+			return {
+				...section,
+				copy: { ...heroCopy, 'Click to call': '(555) 010-0199' },
+			};
+		}
+		return 1 === index || 2 === index
+			? { ...section, style: 'accent' }
+			: section;
+	} );
+	for ( const [ label, faulty, rows ] of [
+		[
+			'a 61-character hero Heading and a review quote given as a plain string',
+			longAndClaim,
+			[ '0 Heading too_long', '2 Review 1 quote claim' ],
+		],
+		[
+			'two adjacent accent sections and copy for the bound "Click to call"',
+			adjacentAndBound,
+			[ '0 Click to call bound', '2 style adjacent_style' ],
+		],
+	] ) {
+		const faultTitle = `E2E: compose refused ${ rows.length } ${ stamp }`;
+		const withTitle = await run( composeAbility, {
+			title: faultTitle,
+			sections: faulty,
+		} );
+		const byPost = targetId
+			? await run( composeAbility, {
+					post_id: targetId,
+					sections: faulty,
+				} )
+			: { status: 0, data: {} };
+		const adjacent = ( withTitle.data.refused || [] ).find(
+			( r ) => r.reason === 'adjacent_style'
+		);
+		step(
+			`compose with ${ label } returns saved: false with both faults in refused, each with its section's index, creates no post and leaves a draft unchanged`,
+			longHeading.length === 61 &&
+				withTitle.status === 200 &&
+				withTitle.data.saved === false &&
+				withTitle.data.post_id === null &&
+				withTitle.data.revision_id === null &&
+				JSON.stringify( rowsOf( withTitle ) ) ===
+					JSON.stringify( rows ) &&
+				( ! adjacent ||
+					JSON.stringify( adjacent.sections ) === '[1,2]' ) &&
+				( await titled( faultTitle ) ).length === 0 &&
+				byPost.status === 200 &&
+				byPost.data.saved === false &&
+				JSON.stringify( rowsOf( byPost ) ) === JSON.stringify( rows ) &&
+				!! targetBefore &&
+				( await contentOf( targetId ) ) === targetBefore,
+			`${ composeSummary( withTitle ) }; with post_id: ${ composeSummary(
+				byPost
+			) }`
+		);
+	}
+
+	// Input compose refuses outright: a page that is not a draft, a recipe,
+	// both post_id and title, and a layout no intent of the section carries.
+	const live = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E: compose live ${ stamp }`,
+			status: 'publish',
+			content: startingContent,
+		},
+	} );
+	if ( live.data.id ) {
+		created.push( live.data.id );
+	}
+	const liveBefore = live.data.id ? await contentOf( live.data.id ) : null;
+	const onLive = await run( composeAbility, {
+		post_id: live.data.id,
+		sections,
+	} );
+	step(
+		'compose refuses a published page with voyager_open_blocks_invalid_post_id, and the page is unchanged',
+		onLive.status === 400 &&
+			onLive.data.code === 'voyager_open_blocks_invalid_post_id' &&
+			!! liveBefore &&
+			( await contentOf( live.data.id ) ) === liveBefore,
+		composeSummary( onLive )
+	);
+
+	const refusedInputs = [
+		[
+			'a recipe',
+			{ title: `E2E: compose recipe ${ stamp }`, recipe: 'home' },
+			'voyager_open_blocks_invalid_recipe',
+			'recipes arrive in a later release',
+		],
+		[
+			'both post_id and title',
+			{
+				post_id: targetId,
+				title: `E2E: compose both ${ stamp }`,
+				sections,
+			},
+			'voyager_open_blocks_invalid_post_id',
+			'not both',
+		],
+		[
+			'a layout the hero does not come in',
+			{
+				title: `E2E: compose layout ${ stamp }`,
+				sections: [
+					{ pattern: 'voyager-open/hero', layout: 'grid' },
+					...sections.slice( 1 ),
+				],
+			},
+			'voyager_open_blocks_invalid_layout',
+			'voyager-open/hero',
+		],
+		[
+			'a layout for a section with one layout',
+			{
+				title: `E2E: compose one layout ${ stamp }`,
+				sections: [
+					...sections.slice( 0, 3 ),
+					{ pattern: 'voyager-open/closing-cta', layout: 'split' },
+				],
+			},
+			'voyager_open_blocks_invalid_layout',
+			'voyager-open/closing-cta',
+		],
+	];
+	for ( const [ label, input, code, words ] of refusedInputs ) {
+		const refused = await run( composeAbility, input );
+		step(
+			`compose refuses ${ label } with ${ code }, creates no post and leaves the draft unchanged`,
+			refused.status === 400 &&
+				refused.data.code === code &&
+				( refused.data.message || '' ).includes( words ) &&
+				( await titled( input.title ) ).length === 0 &&
+				!! targetBefore &&
+				( await contentOf( targetId ) ) === targetBefore,
+			composeSummary( refused )
+		);
+	}
+
+	// dry_run: the same shape, saved: false, and no post.
+	const trialTitle = `E2E: compose dry run ${ stamp }`;
+	const trial = await run( composeAbility, {
+		title: trialTitle,
+		sections,
+		dry_run: true,
+	} );
+	step(
+		'compose with dry_run returns saved: false, no post_id or revision_id, the validation and refused [], and creates no post',
+		trial.status === 200 &&
+			trial.data.saved === false &&
+			trial.data.post_id === null &&
+			trial.data.revision_id === null &&
+			trial.data.preview_url === null &&
+			trial.data.validation?.valid === true &&
+			JSON.stringify( trial.data.refused ) === '[]' &&
+			Array.isArray( trial.data.empty ) &&
+			( await titled( trialTitle ) ).length === 0,
+		composeSummary( trial )
+	);
+
+	// undo reverses a compose save: on an existing draft, byte for byte, and
+	// on the new draft, which then holds no content, as before its first save.
+	const onDraft = targetId
+		? await run( composeAbility, { post_id: targetId, sections } )
+		: { status: 0, data: {} };
+	const afterCompose = targetId ? await contentOf( targetId ) : null;
+	const undoDraft = await run( `${ ns }/undo`, {
+		post_id: targetId,
+		revision_id: onDraft.data.revision_id,
+	} );
+	step(
+		"undo with the revision_id of a compose save on an existing draft restores the draft's content byte for byte",
+		onDraft.status === 200 &&
+			onDraft.data.saved === true &&
+			onDraft.data.post_id === targetId &&
+			Number.isInteger( onDraft.data.revision_id ) &&
+			!! afterCompose &&
+			afterCompose !== targetBefore &&
+			afterCompose === composedRaw &&
+			undoDraft.status === 200 &&
+			undoDraft.data.matches === true &&
+			!! targetBefore &&
+			( await contentOf( targetId ) ) === targetBefore,
+		undoDraft.data.message ||
+			onDraft.data.message ||
+			`restored revision ${ undoDraft.data.restored }`
+	);
+
+	const undoNew = await run( `${ ns }/undo`, {
+		post_id: composedId,
+		revision_id: composed.data.revision_id,
+	} );
+	step(
+		'undo with the revision_id of the first compose save of a new draft leaves the draft with no content, as it was before',
+		!! composedId &&
+			undoNew.status === 200 &&
+			undoNew.data.matches === true &&
+			( await contentOf( composedId ) ) === '',
+		undoNew.data.message || `restored revision ${ undoNew.data.restored }`
+	);
+
+	for ( const id of created ) {
+		await api( `/wp/v2/pages/${ id }`, {
+			method: 'DELETE',
+			query: { force: true },
+		} );
+	}
+}
+
 // 7. The icon prompt, end to end: "Add a phone icon next to the call button
 // in my header, linked to my Site Data phone number." The header is a
 // template part with a post of its own, as one saved in the Site Editor is.
@@ -3679,7 +4204,197 @@ await setContact(
 );
 await api( recorder, { method: 'DELETE' } );
 
-// 15. The stats section. Every figure binds to the business profile in Site
+// 15. The icon's CSS, split by animation. The base rules load with every
+// icon; an animation's keyframes, trigger rules and reduced-motion rule load
+// only on a page whose icon uses it. Each page below holds one icon, is
+// published and is fetched as a visitor. The icon's CSS is every <link>
+// whose id starts with voyager-open-icon, fetched, and every <style> whose
+// id does, so a stylesheet WordPress inlines counts the same as a file.
+const ICON_CSS_CEILING = 1024;
+const iconType = ( catalog.data.blocks || [] ).find(
+	( b ) => b.name === 'voyager-open/icon'
+);
+const iconAnimations = ( iconType?.attributes?.animation?.enum || [] ).filter(
+	( name ) => name !== ''
+);
+step(
+	'get-catalog lists the icon with its seven animations',
+	iconAnimations.length === 7,
+	JSON.stringify( iconAnimations )
+);
+
+/**
+ * One attribute of an HTML tag, entities for & decoded, or null.
+ *
+ * @param {string} tag  An opening tag.
+ * @param {string} name The attribute.
+ * @return {string|null} Its value.
+ */
+const tagAttribute = ( tag, name ) => {
+	const match = tag.match(
+		new RegExp( `\\s${ name }=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i' )
+	);
+	return match
+		? ( match[ 1 ] ?? match[ 2 ] ?? match[ 3 ] ).replace(
+				/&#0?38;|&amp;/g,
+				'&'
+			)
+		: null;
+};
+
+/**
+ * The icon's CSS on a page, and what it is made of.
+ *
+ * @param {string} pageHtml The page as a visitor gets it.
+ * @return {Promise<{bytes: number, css: string, parts: string[]}>} Bytes and text of every icon stylesheet and inline style, and one "id: bytes" per part.
+ */
+async function iconCss( pageHtml ) {
+	const parts = [];
+	let css = '';
+	let bytes = 0;
+	const add = ( id, text ) => {
+		const size = Buffer.byteLength( text, 'utf8' );
+		parts.push( `${ id }: ${ size }` );
+		css += text;
+		bytes += size;
+	};
+	for ( const [ tag ] of pageHtml.matchAll( /<link\b[^>]*>/gi ) ) {
+		const id = tagAttribute( tag, 'id' ) || '';
+		const href = tagAttribute( tag, 'href' );
+		if ( id.startsWith( 'voyager-open-icon' ) ) {
+			add(
+				id,
+				href ? ( await request( new URL( href, base ) ) ).text : ''
+			);
+		}
+	}
+	for ( const [ , open, text ] of pageHtml.matchAll(
+		/(<style\b[^>]*>)([\s\S]*?)<\/style>/gi
+	) ) {
+		const id = tagAttribute( open, 'id' ) || '';
+		if ( id.startsWith( 'voyager-open-icon' ) ) {
+			add( id, text );
+		}
+	}
+	return { bytes, css, parts };
+}
+
+/**
+ * The names of the `@keyframes` rules in some CSS.
+ *
+ * @param {string} css CSS.
+ * @return {string[]} Names, sorted.
+ */
+const keyframeNames = ( css ) =>
+	[ ...css.matchAll( /@keyframes\s+([\w-]+)/g ) ]
+		.map( ( m ) => m[ 1 ] )
+		.sort();
+
+/**
+ * Publish a page holding one icon, fetch it as a visitor, and read the
+ * icon's CSS.
+ *
+ * @param {string} label What the page is for.
+ * @param {Object} attrs The icon's attributes.
+ * @return {Promise<Object>} The page's id, its HTML, the icon's wrapper class and its CSS.
+ */
+async function iconPage( label, attrs ) {
+	const created = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E icon CSS ${ label } ${ stamp }`,
+			status: 'publish',
+			content: `<!-- wp:voyager-open/icon ${ JSON.stringify(
+				attrs
+			) } /-->`,
+		},
+	} );
+	const pageHtml = created.data.link
+		? ( await request( created.data.link ) ).text
+		: '';
+	const wrapper = pageHtml.match(
+		/<div\b[^>]*\bclass="([^"]*\bwp-block-voyager-open-icon\b[^"]*)"/
+	);
+	return {
+		id: created.data.id,
+		status: created.status,
+		html: pageHtml,
+		className: wrapper ? wrapper[ 1 ] : null,
+		...( await iconCss( pageHtml ) ),
+	};
+}
+
+const stillIcon = await iconPage( 'still', { icon: 'star', size: 48 } );
+step(
+	`fitness: a page with one icon and no animation loads under ${ ICON_CSS_CEILING } bytes of icon CSS`,
+	stillIcon.status === 201 &&
+		stillIcon.className !== null &&
+		stillIcon.parts.some( ( cssPart ) =>
+			cssPart.startsWith( 'voyager-open-icon-style' )
+		) &&
+		stillIcon.bytes > 0 &&
+		stillIcon.bytes < ICON_CSS_CEILING,
+	`${ stillIcon.bytes } bytes: ${ stillIcon.parts.join( ', ' ) || 'no icon CSS on the page' }`
+);
+step(
+	"the still icon's page loads no animation's keyframes",
+	stillIcon.className !== null && keyframeNames( stillIcon.css ).length === 0,
+	JSON.stringify( keyframeNames( stillIcon.css ) )
+);
+
+const pulseIcon = await iconPage( 'pulse', {
+	icon: 'star',
+	size: 48,
+	animation: 'pulse',
+	animationTrigger: 'always',
+} );
+const pulseClasses = ( pulseIcon.className || '' ).split( /\s+/ );
+step(
+	'the pulse icon renders with its animation and trigger classes',
+	pulseIcon.status === 201 &&
+		pulseClasses.includes( 'has-animation-pulse' ) &&
+		pulseClasses.includes( 'is-trigger-always' ),
+	JSON.stringify( pulseIcon.className )
+);
+step(
+	"a page with one pulse icon loads the base and the pulse CSS, and no other animation's keyframes",
+	pulseIcon.parts.some( ( cssPart ) =>
+		cssPart.startsWith( 'voyager-open-icon-style' )
+	) &&
+		JSON.stringify( keyframeNames( pulseIcon.css ) ) ===
+			JSON.stringify( [ 'voyager-open-icon-pulse' ] ) &&
+		/\.has-animation-pulse\.is-trigger-always\s+\.wp-block-voyager-open-icon__svg\s*\{\s*animation:\s*voyager-open-icon-pulse\b/.test(
+			pulseIcon.css
+		),
+	`${ pulseIcon.bytes } bytes: ${ pulseIcon.parts.join(
+		', '
+	) }; keyframes ${ JSON.stringify( keyframeNames( pulseIcon.css ) ) }`
+);
+const reducedMotion = [
+	...pulseIcon.css.matchAll(
+		/@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g
+	),
+].map( ( m ) => m[ 1 ] );
+step(
+	"the pulse icon's page loads its reduced-motion rule, which stops the icon's animation",
+	reducedMotion.some( ( rules ) =>
+		/\.wp-block-voyager-open-icon(?:\.has-animation-pulse)?\s+\.wp-block-voyager-open-icon__svg\s*\{\s*animation:\s*none\s*!important\s*;?\s*\}/.test(
+			rules
+		)
+	),
+	JSON.stringify( reducedMotion )
+);
+
+for ( const iconPost of [ stillIcon, pulseIcon ] ) {
+	if ( iconPost.id ) {
+		await api( `/wp/v2/pages/${ iconPost.id }`, {
+			method: 'DELETE',
+			query: { force: true },
+		} );
+	}
+}
+
+// 16. The stats section. Every figure binds to the business profile in Site
 // Data, so a page shows only the year founded, the rating and the review
 // count the site owner typed in. The three options are set through
 // POST /wp/v2/settings in forms the resolvers tidy (1998, 4.80 and 0127), and

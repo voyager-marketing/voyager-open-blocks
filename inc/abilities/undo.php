@@ -1,6 +1,6 @@
 <?php
 /**
- * The undo ability: reverse a save made by insert, configure or bind.
+ * The undo ability: reverse a save made by insert, compose, configure or bind.
  *
  * Each of those returns revision_id, the revision WordPress made for its save.
  * That revision holds the post after the save, so undo restores the one
@@ -34,7 +34,7 @@ function register_undo(): void {
 		CATEGORY . '/undo',
 		[
 			'label'               => __( 'Undo a Voyager Open save', 'voyager-open-blocks' ),
-			'description'         => __( 'Reverses a save made by insert, configure or bind. Pass the post_id and the revision_id that save returned: undo restores the post\'s content as it was just before that save, with wp_restore_post_revision(). If the post was saved after that save, by a person or another agent, undo is refused, changes nothing and lists those saves; pass force: true to reverse them too. The title and excerpt are not restored. Like every revision restore in WordPress, it also replaces the post meta WordPress keeps in revisions (core\'s footnotes, and meta a plugin registers with revisions_enabled) with that revision\'s copy. Nothing is deleted: the content undo replaces is stored as a revision first, and the revision_id undo returns reverses the undo. Refused when the revision belongs to another post.', 'voyager-open-blocks' ),
+			'description'         => __( 'Reverses a save made by insert, compose, configure or bind. Pass the post_id and the revision_id that save returned: undo restores the post\'s content as it was just before that save, with wp_restore_post_revision(). If the post was saved after that save, by a person or another agent, undo is refused, changes nothing and lists those saves; pass force: true to reverse them too. The title and excerpt are not restored. Like every revision restore in WordPress, it also replaces the post meta WordPress keeps in revisions (core\'s footnotes, and meta a plugin registers with revisions_enabled) with that revision\'s copy. Nothing is deleted: the content undo replaces is stored as a revision first, and the revision_id undo returns reverses the undo. Refused when the revision belongs to another post.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -43,7 +43,7 @@ function register_undo(): void {
 					'revision_id' => [
 						'type'        => 'integer',
 						'minimum'     => 1,
-						'description' => 'The revision_id that insert, configure or bind returned for the save to reverse.',
+						'description' => 'The revision_id that insert, compose, configure or bind returned for the save to reverse.',
 					],
 					'force'       => [
 						'type'        => 'boolean',
@@ -131,11 +131,11 @@ function undo( array $input ) {
 	// post from one they cannot edit.
 	$revision = revision( $revision_id );
 	if ( null === $revision || Cast\to_int( $revision->post_parent ) !== $post_id ) {
-		return invalid_revision( sprintf( 'Revision %1$d is not a revision of post %2$d. Pass the revision_id that insert, configure or bind returned when it saved post %2$d.', $revision_id, $post_id ) );
+		return invalid_revision( sprintf( 'Revision %1$d is not a revision of post %2$d. Pass the revision_id that insert, compose, configure or bind returned when it saved post %2$d.', $revision_id, $post_id ) );
 	}
 
 	if ( is_autosave( $revision_id ) ) {
-		return invalid_revision( sprintf( 'Revision %d is an autosave, not a save. Pass the revision_id that insert, configure or bind returned.', $revision_id ) );
+		return invalid_revision( sprintf( 'Revision %d is an autosave, not a save. Pass the revision_id that insert, compose, configure or bind returned.', $revision_id ) );
 	}
 
 	$prior = prior_revision( revision_ids( $post_id ), $revision_id, is_autosave( ... ) );

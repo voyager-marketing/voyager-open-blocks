@@ -2,7 +2,7 @@
   "$schema": "https://schemas.wp.org/trunk/block.json",
   "apiVersion": 3,
   "name": "voyager-open/icon",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "Icon",
   "category": "design",
   "icon": "star-filled",
@@ -120,7 +120,16 @@
     }
   },
   "editorScript": "file:./index.js",
-  "editorStyle": "file:./index.css",
+  "editorStyle": [
+    "file:./index.css",
+    "voyager-open-icon-animation-bounce",
+    "voyager-open-icon-animation-pulse",
+    "voyager-open-icon-animation-spin",
+    "voyager-open-icon-animation-float",
+    "voyager-open-icon-animation-wiggle",
+    "voyager-open-icon-animation-fade-in",
+    "voyager-open-icon-animation-zoom-in"
+  ],
   "style": "file:./style-index.css",
   "render": "file:./render.php"
 }

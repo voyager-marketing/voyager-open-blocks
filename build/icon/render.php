@@ -44,6 +44,10 @@ $voyager_open_icon_classes   = [];
 if ( '' !== $voyager_open_icon_animation ) {
 	$voyager_open_icon_classes[] = 'has-animation-' . sanitize_html_class( $voyager_open_icon_animation );
 	$voyager_open_icon_classes[] = 'is-trigger-' . sanitize_html_class( (string) ( $attributes['animationTrigger'] ?? 'hover' ) );
+
+	// The block's style holds no animation. This animation's rules load here,
+	// so a page holds only the animations its icons use.
+	\VoyagerOpenBlocks\Icons\enqueue_animation( $voyager_open_icon_animation );
 }
 
 if ( '' !== $voyager_open_icon_url ) {
