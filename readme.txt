@@ -14,7 +14,7 @@ Ready-made business sections and an icon block that show your phone, email and a
 
 == Description ==
 
-Voyager Open Blocks adds eleven ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
+Voyager Open Blocks adds twelve ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
 
 You need no code and no AI agent. Insert the sections from the "Business sections (Open Blocks)" category in the pattern inserter, like any other pattern. See every section live at [demo.voyagermark.com/open-blocks](https://demo.voyagermark.com/open-blocks/).
 
@@ -26,6 +26,7 @@ You need no code and no AI agent. Insert the sections from the "Business section
 * **Process steps**: what happens once a visitor gets in touch, as three numbered steps side by side or one under another, each a heading that starts with its number and one line. Add a fourth or fifth step, or drop one.
 * **Stats**: three figures, the year you started, your average rating and your review count, in a row or beside a heading. Each one comes from Settings > Site Data and follows it, so a page never shows a number you did not enter.
 * **FAQ**: the questions visitors ask before they get in touch, one under another or beside the section heading. Each question opens to show its answer, with no script. Add up to eight questions, or drop one.
+* **Service area**: where you work, as a heading, one line and the towns you serve as a checkmarked list, on its own or beside an image. The towns come from your service area on Settings > Site Data and follow it.
 * **CTA band**: a heading and one line beside your main button and a click-to-call button that dials your phone number. Use it mid-page.
 * **Proof strip**: a row of three to six checkmarked facts, such as "Licensed and insured", under your hero.
 * **Logo marquee**: a row of client or partner logos that drifts sideways when it is wider than the screen. You replace the placeholder logos with your own.
@@ -52,7 +53,7 @@ Every skill teaches an agent the same three steps:
 
 = Abilities over REST and MCP =
 
-Nine WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
+Ten WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
 
 * `get-catalog`: the pack's blocks, its patterns and every bindable field with its exact arguments.
 * `find-posts`: find a page, post, template or template part by words in its title, its slug, or as the home page, and get its ID. It lists only what the user can edit, and no content.
@@ -63,6 +64,7 @@ Nine WordPress abilities in the `voyager-open-blocks` category let an agent use 
 * `bind`: write a block binding. The arguments must match a listed field exactly. In a template, it checks them against the post type the template shows.
 * `undo`: reverse a save made by insert, compose, configure or bind. It is refused when the post was saved since, by a person or another agent, unless told to reverse those saves too.
 * `validate`: check block markup, or a saved post, without saving anything.
+* `prompt`: the prompt a person gives their agent for one of the pack's skills, the text under its "Tell your agent" heading, as one user message. Version 0.3.0 and later of the WordPress MCP Adapter serve it as an MCP prompt, not a tool.
 
 They are served over REST at `wp-abilities/v1`, and to MCP clients through the WordPress MCP Adapter, so an agent with only MCP access to your site can use the pack. Reading the catalog and finding posts need a user who can edit posts, and find-posts lists only the posts that user can edit. Every other ability needs a user who can edit the post it names.
 
@@ -121,7 +123,7 @@ The pack ships no form. Replace what is inside the group named "Form" with your 
 
 = Can an agent use it with only MCP access? =
 
-Yes. With the WordPress MCP Adapter on your site, the nine abilities appear as MCP tools. An agent with no shell and no command-line tools can find the page or header you name, read the catalog, insert a section or an icon inside one, bind it and check that each value resolves.
+Yes. With the WordPress MCP Adapter on your site, the abilities appear as MCP tools, all but `prompt`, which adapter 0.3.0 and later list as an MCP prompt that gives each skill's prompt. An agent with no shell and no command-line tools can find the page or header you name, read the catalog, insert a section or an icon inside one, bind it and check that each value resolves.
 
 = Does it call an AI service? =
 

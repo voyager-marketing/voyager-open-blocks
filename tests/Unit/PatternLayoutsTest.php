@@ -311,6 +311,112 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertNotSame( false, $rows[0]['attrs']['isStackedOnMobile'] ?? true, 'faq-split: the columns stack on a phone' );
 	}
 
+	public function test_service_area_comes_in_two_layouts_list_first_then_split(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'service-area', $intents['service-area']['section'] ?? null );
+		$this->assertSame( 'list', $intents['service-area']['layout'] ?? null );
+		$this->assertSame( 'service-area', $intents['service-area-split']['section'] ?? null );
+		$this->assertSame( 'split', $intents['service-area-split']['layout'] ?? null );
+	}
+
+	/**
+	 * The blocks of an intent, flattened, each with its parent node.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return list<array{node: array<mixed>, parent: array<mixed>|null}>
+	 */
+	private static function with_parents( array $intent ): array {
+		$out  = [];
+		$walk = static function ( array $nodes, ?array $parent ) use ( &$walk, &$out ): void {
+			foreach ( $nodes as $node ) {
+				if ( is_array( $node ) ) {
+					$out[] = [
+						'node'   => $node,
+						'parent' => $parent,
+					];
+					$walk( is_array( $node['children'] ?? null ) ? $node['children'] : [], $node );
+				}
+			}
+		};
+
+		$blocks = $intent['intent']['blocks'] ?? [];
+		$walk( is_array( $blocks ) ? $blocks : [], null );
+
+		return $out;
+	}
+
+	public function test_each_service_area_layout_lists_the_places_from_site_data_in_one_ticks_facts_block(): void {
+		foreach ( [ 'service-area', 'service-area-split' ] as $name ) {
+			$nodes  = self::with_parents( self::intents()[ $name ] );
+			$blocks = array_map( static fn ( array $row ): mixed => $row['node']['block'] ?? null, $nodes );
+			$facts  = array_values( array_filter( $nodes, static fn ( array $row ): bool => 'voyager-open/facts' === ( $row['node']['block'] ?? null ) ) );
+
+			$this->assertCount( 1, $facts, "{$name} holds one facts block" );
+			$node   = $facts[0]['node'];
+			$parent = $facts[0]['parent'];
+			$this->assertIsArray( $node['attrs'] ?? null, $name );
+			$this->assertSame( 'Places', $node['attrs']['metadata']['name'] ?? null, "{$name}: the facts block is named Places" );
+			$this->assertSame( 'is-style-voyager-open-ticks', $node['attrs']['className'] ?? null, "{$name}: the places are a tick list" );
+			$this->assertSame(
+				[
+					'items' => [
+						'source' => 'voyager/site-data',
+						'args'   => [ 'key' => 'service_area' ],
+					],
+				],
+				$node['attrs']['metadata']['bindings'] ?? null,
+				"{$name}: the places come from Site Data's service_area, and nothing else is bound"
+			);
+
+			// The Ticks style stacks only inside a flex group (Block styles,
+			// ticks_css()), so the list reads as a column in a narrow one.
+			$this->assertIsArray( $parent, "{$name}: the facts block sits inside a group" );
+			$this->assertSame( 'core/group', $parent['block'] ?? null, $name );
+			$this->assertSame( 'flex', $parent['attrs']['layout']['type'] ?? null, "{$name}: the tick list sits directly in a flex group, so it stacks when the group is narrow" );
+
+			// Its own items show while the field is empty: what goes there,
+			// never a real place.
+			$items = explode( "\n", (string) ( $node['attrs']['items'] ?? '' ) );
+			$this->assertGreaterThanOrEqual( 1, count( $items ), $name );
+			foreach ( $items as $item ) {
+				$this->assertMatchesRegularExpression( '/^Your [a-z ]*town$/', $item, "{$name}: \"{$item}\" must say what goes there, not name a place" );
+				$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $item, $name );
+			}
+
+			$headings = array_values( array_filter( $nodes, static fn ( array $row ): bool => 'core/heading' === ( $row['node']['block'] ?? null ) ) );
+			$this->assertCount( 1, $headings, "{$name} holds one heading" );
+			$this->assertSame( 2, $headings[0]['node']['level'] ?? null, "{$name}: the heading is the section's h2" );
+			$this->assertLessThanOrEqual( 1, count( array_keys( $blocks, 'core/button', true ) ), "{$name} holds at most one button" );
+		}
+	}
+
+	public function test_the_service_area_list_holds_no_row_and_the_split_holds_a_4x3_image_slot(): void {
+		$intents = self::intents();
+
+		$list = array_map( static fn ( array $row ): mixed => $row['node']['block'] ?? null, self::with_parents( $intents['service-area'] ) );
+		$this->assertNotContains( 'core/columns', $list, 'service-area holds no row, so design-check lists no columns for it' );
+		$this->assertNotContains( 'core/image', $list, 'service-area holds no image slot' );
+		foreach ( self::with_parents( $intents['service-area'] ) as $row ) {
+			$this->assertNotSame( 'grid', $row['node']['attrs']['layout']['type'] ?? null, 'service-area holds no grid row' );
+		}
+
+		$images = array_values(
+			array_filter(
+				self::with_parents( $intents['service-area-split'] ),
+				static fn ( array $row ): bool => 'core/image' === ( $row['node']['block'] ?? null )
+			)
+		);
+		$this->assertCount( 1, $images, 'service-area-split holds one image slot' );
+		$image = $images[0]['node'];
+		$this->assertSame( 'Image', $image['attrs']['metadata']['name'] ?? null );
+		$this->assertSame( '4/3', $image['attrs']['aspectRatio'] ?? null );
+		$this->assertSame( 'cover', $image['attrs']['scale'] ?? null );
+		$this->assertSame( '/voyager-open-blocks-assets/placeholders/image-4x3.svg', $image['url'] ?? null, 'the slot ships the pack\'s 4:3 placeholder' );
+		$this->assertSame( '', $image['alt'] ?? null, 'the placeholder ships with empty alt text' );
+		$this->assertSame( 'core/column', $images[0]['parent']['block'] ?? null, 'the image is the second column of the row' );
+	}
+
 	/**
 	 * The blocks labelled "Service <n>" in an intent, the items insert's
 	 * repeat and omit work on, by label.

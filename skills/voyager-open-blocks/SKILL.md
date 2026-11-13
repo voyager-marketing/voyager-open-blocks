@@ -30,10 +30,10 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 | Page | Recipe | Sections, with style |
 |---|---|---|
-| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/stats` (panel), `voyager-open/closing-cta` (inverted) |
+| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/stats` (panel), `voyager-open/service-area` (plain), `voyager-open/closing-cta` (inverted) |
 | `services` | `recipes/services.json` | `voyager-open/hero` (plain), `voyager-open/services-list` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/process-steps-list` (panel), `voyager-open/closing-cta` (inverted) |
 | `service` | `recipes/service.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services-list` (plain), `voyager-open/process-steps` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews-single` (plain), `voyager-open/faq` (panel), `voyager-open/closing-cta` (inverted) |
-| `location` | `recipes/location.json` | `voyager-open/hero-cover` (plain), `voyager-open/services` (panel), `voyager-open/reviews` (plain), `voyager-open/cta-band` (accent), `voyager-open/faq` (panel), `voyager-open/contact-section` (plain) |
+| `location` | `recipes/location.json` | `voyager-open/hero-cover` (plain), `voyager-open/services` (panel), `voyager-open/reviews` (plain), `voyager-open/service-area-split` (panel), `voyager-open/cta-band` (accent), `voyager-open/faq` (panel), `voyager-open/contact-section` (plain) |
 | `contact` | `recipes/contact.json` | `voyager-open/hero` (plain), `voyager-open/contact-section` (panel), `voyager-open/reviews-single` (accent) |
 | `about` | `recipes/about.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/reviews-single` (inverted), `voyager-open/logo-marquee` (plain), `voyager-open/stats-band` (panel), `voyager-open/closing-cta` (accent) |
 
@@ -52,4 +52,4 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 ## More
 
-Each item has a skill, such as `voyager-open-hero`. `examples/` holds a home page for five kinds of business, each a `compose` call. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.
+Each item has a skill, such as `voyager-open-hero`; `prompt` returns its "Tell your agent" prompt, an MCP prompt on MCP Adapter 0.3.0+. `examples/` holds a home page for five kinds of business, each a `compose` call. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.

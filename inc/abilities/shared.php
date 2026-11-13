@@ -193,6 +193,7 @@ function register(): void {
 	register_bind();
 	register_undo();
 	register_validate();
+	register_prompt();
 }
 add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\register' );
 

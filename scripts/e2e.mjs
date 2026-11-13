@@ -10,6 +10,13 @@
  *      and each ability's description and input schema descriptions as the
  *      listing gives them, under 3,000 words, each part printed, with the
  *      same rule refusing the listing plus a planted 3,000-word description,
+ *  1b. the prompt ability: its `item` enum lists every skill under skills/
+ *      with a "Tell your agent" prompt, read here from each SKILL.md on its
+ *      own, and its listing says the MCP Adapter serves it as a prompt.
+ *      item voyager-open-hero returns one user message holding the hero
+ *      skill's blockquote as written, item voyager-open-blocks with a task
+ *      returns the quick card's prompt with [task] filled in, and a task for
+ *      the hero, whose prompt has no [task], and an unknown item are refused,
  *   2. creates a page, finds it with find-posts by title words and by slug, and
  *      inserts the CTA band (bound to voyager/site-data), sets its section style
  *      with configure (Accent, rendered on the front end, then Inverted, then
@@ -168,6 +175,17 @@
  *      insert refuses copy for a value as a bound slot and omit of a value
  *      alone, and leaves a whole figure out with omit. Then it deletes the
  *      page and puts the three fields back.
+ *  17. the service area section: get-catalog lists its two layouts, each
+ *      with its copy labels and one facts block, "Places", whose items are
+ *      bound to service_area. insert places the list layout on a draft with
+ *      copy for its heading, the service area is set to three lines through
+ *      POST /wp/v2/settings and the page is published, and the page shows
+ *      one facts ul with those three li, in order, an ampersand escaped
+ *      once. The page counts in used_on for service_area, changing the field
+ *      records a purge with the page, and the page then shows the new
+ *      places. As insert saves them, the list layout validates with no
+ *      warning and the split layout with one placeholder warning, for its
+ *      image. Then it deletes the pages and puts the service area back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -374,11 +392,12 @@ const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.sort();
 step(
 	'abilities listed',
-	names.length === 9 &&
+	names.length === 10 &&
 		names.includes( `${ ns }/compose` ) &&
 		names.includes( `${ ns }/validate` ) &&
 		names.includes( `${ ns }/find-posts` ) &&
-		names.includes( `${ ns }/undo` ),
+		names.includes( `${ ns }/undo` ) &&
+		names.includes( `${ ns }/prompt` ),
 	names.join( ', ' )
 );
 
@@ -403,7 +422,7 @@ console.log( `     the quick card (${ ENTRY_SKILL }): ${ reading.card }` );
 step(
 	`reading budget: ${ reading.total } words, under ${ READING_LIMIT }`,
 	reading.fits &&
-		reading.parts.length === 9 &&
+		reading.parts.length === 10 &&
 		reading.parts.every( ( part ) => part.description > 0 ) &&
 		reading.card > 0,
 	`${ reading.parts.length } abilities and the card`
@@ -424,6 +443,120 @@ step(
 	! plantedReading.fits &&
 		plantedReading.total === reading.total + READING_LIMIT,
 	`${ plantedReading.total } words`
+);
+
+// 1b. The prompt ability. Each skill's prompt is read here from its own
+// SKILL.md, with a reader of this script's: the blockquote under the "Tell
+// your agent" heading, its lines joined. The ability must return that text,
+// so a reader in PHP that drifts from the file turns this red.
+function tellYourAgent( markdown ) {
+	const lines = markdown.split( /\r?\n/ );
+	const at = lines.findIndex( ( line ) =>
+		/^#{1,6}\s+Tell your agent\s*#*\s*$/i.test( line )
+	);
+	if ( at < 0 ) {
+		return null;
+	}
+	let i = at + 1;
+	while ( i < lines.length && lines[ i ].trim() === '' ) {
+		i++;
+	}
+	const quote = [];
+	while ( i < lines.length && lines[ i ].startsWith( '>' ) ) {
+		quote.push( lines[ i ].replace( /^>\s?/, '' ).trimEnd() );
+		i++;
+	}
+	return quote.length ? quote.join( '\n' ).trim() : null;
+}
+const skillPrompts = new Map();
+for ( const entry of readdirSync( join( repo, 'skills' ), {
+	withFileTypes: true,
+} ) ) {
+	if ( ! entry.isDirectory() ) {
+		continue;
+	}
+	let markdown = '';
+	try {
+		markdown = readFileSync(
+			join( repo, 'skills', entry.name, 'SKILL.md' ),
+			'utf8'
+		);
+	} catch {}
+	const text = tellYourAgent( markdown );
+	if ( text ) {
+		skillPrompts.set( entry.name, text );
+	}
+}
+const promptAbility = abilityList.find( ( a ) => a.name === `${ ns }/prompt` );
+const promptItems = [
+	...( promptAbility?.input_schema?.properties?.item?.enum || [] ),
+].sort();
+const expectedItems = [ ...skillPrompts.keys() ].sort();
+step(
+	'prompt: item lists every skill with a "Tell your agent" prompt, and the listing serves it as an MCP prompt',
+	expectedItems.length >= 17 &&
+		JSON.stringify( promptItems ) === JSON.stringify( expectedItems ) &&
+		promptAbility?.meta?.mcp?.type === 'prompt' &&
+		promptAbility?.meta?.mcp?.public === true,
+	`${ promptItems.length } items, ${ expectedItems.length } skills with a prompt, meta.mcp ${ JSON.stringify( promptAbility?.meta?.mcp ) }`
+);
+
+const messageText = ( result ) =>
+	Array.isArray( result.data.messages ) &&
+	result.data.messages.length === 1 &&
+	result.data.messages[ 0 ].role === 'user' &&
+	result.data.messages[ 0 ].content?.type === 'text'
+		? result.data.messages[ 0 ].content.text
+		: null;
+
+const heroPrompt = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-hero' },
+	true
+);
+step(
+	'prompt: voyager-open-hero returns one user message holding the blockquote under "Tell your agent" in its SKILL.md',
+	heroPrompt.status === 200 &&
+		!! skillPrompts.get( 'voyager-open-hero' ) &&
+		messageText( heroPrompt ) === skillPrompts.get( 'voyager-open-hero' ),
+	`status ${ heroPrompt.status }: ${ JSON.stringify(
+		messageText( heroPrompt ) ?? heroPrompt.data
+	).slice( 0, 160 ) }`
+);
+
+const task = 'build my home page';
+const cardPrompt = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-blocks', task },
+	true
+);
+const card = skillPrompts.get( 'voyager-open-blocks' ) || '';
+step(
+	"prompt: voyager-open-blocks with a task returns the quick card's prompt with [task] filled in",
+	cardPrompt.status === 200 &&
+		card.includes( '[task]' ) &&
+		messageText( cardPrompt ) === card.replaceAll( '[task]', task ),
+	`status ${ cardPrompt.status }: ${ JSON.stringify(
+		messageText( cardPrompt ) ?? cardPrompt.data
+	).slice( 0, 160 ) }`
+);
+
+const heroTask = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-hero', task },
+	true
+);
+const unknownItem = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-nothing' },
+	true
+);
+step(
+	'prompt: a task for a prompt with no [task], and an unknown item, are refused',
+	heroTask.status === 400 &&
+		heroTask.data.code === 'voyager_open_blocks_invalid_task' &&
+		unknownItem.status === 400,
+	`${ heroTask.status } ${ heroTask.data.code }; ${ unknownItem.status } ${ unknownItem.data.code }`
 );
 
 const catalog = await run( `${ ns }/get-catalog`, { post_type: 'page' }, true );
@@ -5804,6 +5937,199 @@ await setStats(
 			.map( ( f ) => [ f.option, statsSettingsBefore[ f.option ] ] )
 	)
 );
+
+// 17. The service area section, in its two layouts. Each holds a facts block
+// bound to Site Data's service_area, so the places a page names follow
+// Settings > Site Data. get-catalog lists both with that binding. insert
+// places the list layout with copy for its heading on a draft, the service
+// area is set to three lines and the page published, and the page shows one
+// facts ul with those three li, in order. The page then counts in used_on
+// for service_area, changing the field records a purge with the page, and
+// the split layout as insert saves it warns placeholder once, for its image.
+const areaItems = [
+	[ 'voyager-open/service-area', 'list' ],
+	[ 'voyager-open/service-area-split', 'split' ],
+];
+const areaUse = 'voyager/site-data:service_area';
+for ( const [ item, layout ] of areaItems ) {
+	const areaListed = listedPattern( item );
+	const labels = ( areaListed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	const places = ( areaListed?.blocks || [] ).filter(
+		( b ) => b.block === 'voyager-open/facts'
+	);
+	step(
+		`get-catalog lists ${ item } with section "service-area", layout "${ layout }", its copy labels and one facts block whose items are bound to service_area`,
+		areaListed?.section === 'service-area' &&
+			areaListed?.layout === layout &&
+			JSON.stringify( labels ) ===
+				JSON.stringify( [ 'Heading', 'Intro', 'Primary button' ] ) &&
+			Object.keys( areaListed?.copy_rules || {} ).length === 3 &&
+			places.length === 1 &&
+			places[ 0 ].label === 'Places' &&
+			places[ 0 ].bindings?.items?.source === 'voyager/site-data' &&
+			places[ 0 ].bindings?.items?.args?.key === 'service_area',
+		areaListed
+			? JSON.stringify( {
+					section: areaListed.section,
+					layout: areaListed.layout,
+					labels,
+					places,
+				} )
+			: 'not listed'
+	);
+}
+
+const setServiceArea = ( value ) =>
+	api( '/wp/v2/settings', {
+		method: 'POST',
+		body: { voyager_site_service_area: value },
+	} );
+const originalServiceArea = ( await api( '/wp/v2/settings' ) ).data
+	.voyager_site_service_area;
+const areaPages = [];
+const areaDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E service area ${ stamp }`,
+		status: 'draft',
+		content: '',
+	},
+} );
+const areaId = areaDraft.data.id;
+areaPages.push( areaId );
+const areaInsert = await run( `${ ns }/insert`, {
+	post_id: areaId,
+	item: 'voyager-open/service-area',
+	copy: { Heading: 'Where we work' },
+} );
+step(
+	'insert voyager-open/service-area into a draft, with copy for its heading',
+	areaDraft.status === 201 &&
+		areaInsert.status === 200 &&
+		areaInsert.data.saved === true &&
+		( areaInsert.data.blocks || [] ).some(
+			( b ) => b.block === 'voyager-open/facts' && b.label === 'Places'
+		),
+	areaInsert.data.message || areaInsert.data.code || `post ${ areaId }`
+);
+validate( 'service-area as insert saved it', areaInsert.data.markup || '' );
+
+const areaUsedBefore = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ areaUse ];
+const threePlaces = await setServiceArea(
+	'Springfield\r\nChatham\r\nLewis & Clark County'
+);
+const areaPublished = await api( `/wp/v2/pages/${ areaId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const areaLink = areaPublished.data.link;
+const areaShown = areaLink
+	? factsLists( ( await request( areaLink ) ).text )
+	: [];
+step(
+	'fitness: with service_area set to three lines, the published page holding voyager-open/service-area shows one facts ul with those three li, in order',
+	threePlaces.status === 200 &&
+		areaPublished.status === 200 &&
+		areaShown.length === 1 &&
+		JSON.stringify( areaShown[ 0 ] ) ===
+			JSON.stringify( [
+				'Springfield',
+				'Chatham',
+				'Lewis &amp; Clark County',
+			] ),
+	`${ threePlaces.data.code || threePlaces.status }; ${ JSON.stringify(
+		areaShown
+	) }`
+);
+
+const areaUsedAfter = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ areaUse ];
+step(
+	'get-catalog used_on for service_area counts the published service area page',
+	Number.isInteger( areaUsedBefore?.posts ) &&
+		areaUsedAfter?.posts === areaUsedBefore.posts + 1,
+	`before ${ JSON.stringify( areaUsedBefore ) }, after ${ JSON.stringify(
+		areaUsedAfter
+	) }`
+);
+
+const areaPurge = await purgesDuring( () =>
+	setServiceArea( 'Fairview\nRiverside' )
+);
+step(
+	'changing the service area records one purge, for service_area, with the service area page',
+	areaPurge.changed.status === 200 &&
+		areaPurge.records.length === 1 &&
+		sameList( areaPurge.records[ 0 ].context?.keys || [], [
+			'service_area',
+		] ) &&
+		( areaPurge.records[ 0 ].urls || [] ).includes( areaLink ) &&
+		( areaPurge.records[ 0 ].context?.post_ids || [] ).includes( areaId ),
+	described( areaPurge.records )
+);
+const areaChanged = areaLink
+	? factsLists( ( await request( areaLink ) ).text )
+	: [];
+step(
+	'the page then shows the changed service area',
+	areaChanged.length === 1 &&
+		JSON.stringify( areaChanged[ 0 ] ) ===
+			JSON.stringify( [ 'Fairview', 'Riverside' ] ),
+	JSON.stringify( areaChanged )
+);
+
+// Each layout as insert saves it, on a draft of its own: the list layout has
+// no placeholder, the split layout one, its image slot.
+for ( const [ item, expected ] of [
+	[ 'voyager-open/service-area', [] ],
+	[
+		'voyager-open/service-area-split',
+		[ 'placeholder: core/image "Image" at ', 'placeholders/image-4x3.svg' ],
+	],
+] ) {
+	const draft = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: { title: `E2E: ${ item } ${ stamp }`, status: 'draft' },
+	} );
+	areaPages.push( draft.data.id );
+	const placed = await run( `${ ns }/insert`, {
+		post_id: draft.data.id,
+		item,
+	} );
+	validate( `${ item } as shipped`, placed.data.markup || '' );
+	const report = await checkMarkup( { post_id: draft.data.id } );
+	const warnings = report.data.warnings || [];
+	step(
+		expected.length
+			? `validate warns placeholder once, for its image slot, and nothing else, on a page holding ${ item } as insert saves it`
+			: `validate passes a page holding ${ item } as insert saves it, with no warning`,
+		placed.data.saved === true &&
+			clean( report ) &&
+			( expected.length
+				? warnings.length === 1 &&
+					warnings[ 0 ].startsWith( expected[ 0 ] ) &&
+					warnings[ 0 ].includes( expected[ 1 ] )
+				: warnings.length === 0 ),
+		`${ placed.data.code || `saved ${ placed.data.saved }` }; ${ warningSummary(
+			report
+		) }`
+	);
+}
+
+for ( const id of areaPages.filter( Boolean ) ) {
+	await api( `/wp/v2/pages/${ id }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+if ( typeof originalServiceArea === 'string' ) {
+	await setServiceArea( originalServiceArea );
+}
 await api( recorder, { method: 'DELETE' } );
 
 rmSync( scratch, { recursive: true, force: true } );

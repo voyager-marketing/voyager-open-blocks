@@ -33,6 +33,15 @@
 			}
 		},
 		{
+			"pattern": "voyager-open/service-area",
+			"layout": "split",
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "The places around this area the business also covers, in a few words.",
+				"Intro": "One line on how to ask about a town near this one that the list leaves out."
+			}
+		},
+		{
 			"pattern": "voyager-open/cta-band",
 			"layout": null,
 			"style": "accent",

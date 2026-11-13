@@ -85,6 +85,8 @@ $voyager_open_seed = static function (): void {
 		'stats'           => [ 'Stats', '<!-- wp:paragraph --><p>Each figure below is the year founded, the rating or the review count from Site Data, never typed in. Until those fields are filled in under Settings, Site Data, each figure shows its own text, which names the field.</p><!-- /wp:paragraph -->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats-band"} /-->' ],
 		// The FAQ in both layouts: questions one under another, then beside the heading.
 		'faq'             => [ 'FAQ', '<!-- wp:pattern {"slug":"voyager-open/faq"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/faq-split"} /-->' ],
+		// The service area in both layouts: a list, then beside an image. Both show the Site Data service area.
+		'service-area'    => [ 'Service area', '<!-- wp:pattern {"slug":"voyager-open/service-area"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/service-area-split"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
