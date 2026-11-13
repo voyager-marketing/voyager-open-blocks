@@ -269,14 +269,7 @@ final class RecipesTest extends TestCase {
 					continue;
 				}
 
-				$keys = get_object_vars( $section );
-				foreach ( array_diff( self::SECTION_KEYS, array_keys( $keys ) ) as $key ) {
-					$problems[] = "{$where}: missing key \"{$key}\"";
-				}
-				foreach ( array_diff( array_keys( $keys ), self::SECTION_KEYS ) as $key ) {
-					$problems[] = "{$where}: unknown key \"{$key}\"";
-				}
-
+				$keys    = get_object_vars( $section );
 				$pattern = $keys['pattern'] ?? null;
 				$layout  = $keys['layout'] ?? null;
 				$style   = $keys['style'] ?? null;
@@ -285,6 +278,13 @@ final class RecipesTest extends TestCase {
 				if ( is_string( $pattern ) ) {
 					$where .= " ({$pattern})";
 				}
+				foreach ( array_diff( self::SECTION_KEYS, array_keys( $keys ) ) as $key ) {
+					$problems[] = "{$where}: missing key \"{$key}\"";
+				}
+				foreach ( array_diff( array_keys( $keys ), self::SECTION_KEYS ) as $key ) {
+					$problems[] = "{$where}: unknown key \"{$key}\"";
+				}
+
 				if ( null !== $layout && ! is_string( $layout ) ) {
 					$problems[] = "{$where}: layout is neither a layout's name nor null";
 				} elseif ( ! is_string( $pattern ) ) {
@@ -296,7 +296,9 @@ final class RecipesTest extends TestCase {
 					}
 				}
 
-				if ( ! is_string( $style ) || ! in_array( $style, self::STYLES, true ) ) {
+				if ( ! array_key_exists( 'style', $keys ) ) {
+					$style = null;
+				} elseif ( ! is_string( $style ) || ! in_array( $style, self::STYLES, true ) ) {
 					$problems[] = "{$where}: style is not one of " . implode( ', ', self::STYLES );
 				} elseif ( $style === $previous && 'plain' !== $style ) {
 					$problems[] = "{$where}: shares the style \"{$style}\" with the section before it, and only plain sections sit next to each other in one style";
@@ -379,6 +381,23 @@ final class RecipesTest extends TestCase {
 		$recipes = self::recipes();
 		$this->assertNotSame( [], $recipes, 'no recipe files were read' );
 		$this->assertSame( [], self::problems( $recipes ) );
+	}
+
+	public function test_the_entry_skill_lists_each_recipe_s_patterns_and_styles_in_order(): void {
+		$skill = (string) file_get_contents( __DIR__ . '/../../skills/voyager-open-blocks/SKILL.md' );
+
+		foreach ( self::recipes() as $slug => $recipe ) {
+			$this->assertInstanceOf( stdClass::class, $recipe, $slug );
+			$type = (string) $recipe->page_type;
+			$this->assertSame( 1, preg_match( '/^\| `' . preg_quote( $type, '/' ) . '` \| `recipes\/' . preg_quote( (string) $slug, '/' ) . '\.json` \| (.+) \|$/m', $skill, $row ), "the entry skill's recipe table has no row for {$slug}" );
+			preg_match_all( '/`(voyager-open\/[a-z0-9-]+)` \(([a-z]+)\)/', $row[1], $listed, PREG_SET_ORDER );
+
+			$expected = [];
+			foreach ( $recipe->sections as $section ) {
+				$expected[] = [ 'voyager-open/' . self::resolve( $section->pattern, $section->layout ), $section->style ];
+			}
+			$this->assertSame( $expected, array_map( static fn ( array $match ): array => [ $match[1], $match[2] ], $listed ), "the entry skill lists {$slug}'s sections differently from the recipe" );
+		}
 	}
 
 	public function test_the_hero_is_the_only_section_with_an_h1(): void {

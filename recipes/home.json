@@ -1,0 +1,65 @@
+{
+	"title": "Home page",
+	"description": "The front page: what the business does and where, the credentials a visitor checks, its main services, what customers say, and one way to get in touch.",
+	"page_type": "home",
+	"sections": [
+		{
+			"pattern": "voyager-open/hero",
+			"layout": "split",
+			"style": "plain",
+			"copy_guidance": {
+				"Eyebrow": "The trade and the area, in a few words. Leave it out when the heading names both.",
+				"Heading": "What the business does and where, in the words a customer would search with.",
+				"Body": "What a first-time visitor gets, and the one thing to do next.",
+				"Primary button": "The one action the whole site leads to, such as Get a quote."
+			}
+		},
+		{
+			"pattern": "voyager-open/proof-strip",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {
+				"Credential 1": "The credential a visitor looks for first, such as a licence, from Site Data's credentials list or as the site owner gave it."
+			}
+		},
+		{
+			"pattern": "voyager-open/services",
+			"layout": "grid",
+			"style": "plain",
+			"copy_guidance": {
+				"Heading": "What the business does, in a few words.",
+				"Intro": "One line on the kind of work it takes on, or where.",
+				"Service 1 heading": "The service most visitors come for, named as Site Data's services list or the site owner names it.",
+				"Service 2 heading": "The next service on that list.",
+				"Service 3 heading": "The third. Leave the card out when the business offers two."
+			}
+		},
+		{
+			"pattern": "voyager-open/cta-band",
+			"layout": null,
+			"style": "accent",
+			"copy_guidance": {
+				"Heading": "A short question that invites the visitor to take the next step.",
+				"Body": "What happens once they get in touch, such as a call back or a visit, as the site owner describes it.",
+				"Primary button": "The same action as the hero's button, in the same words."
+			}
+		},
+		{
+			"pattern": "voyager-open/reviews",
+			"layout": "grid",
+			"style": "plain",
+			"copy_guidance": {
+				"Heading": "What customers say about the work, in a few words. No count or score."
+			}
+		},
+		{
+			"pattern": "voyager-open/closing-cta",
+			"layout": null,
+			"style": "inverted",
+			"copy_guidance": {
+				"Heading": "One short sentence that invites the visitor to get in touch.",
+				"Body": "How to reach the business, and what happens next."
+			}
+		}
+	]
+}
