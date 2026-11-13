@@ -25,12 +25,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Blocks whose saved text set_copy() can replace, with the attribute that holds it.
+ *
+ * A details block's text is its summary, an FAQ's question. WordPress 7.1
+ * declares the attribute rich text with the selector `summary`
+ * (wp-includes/blocks/details/block.json), the element replace_text() finds.
  */
 const TEXT_ATTRIBUTES = [
 	'core/heading'   => 'content',
 	'core/paragraph' => 'content',
 	'core/button'    => 'text',
 	'core/list-item' => 'content',
+	'core/details'   => 'summary',
 ];
 
 /**
@@ -827,9 +832,9 @@ function copy_labels( array $blocks ): array {
  * Replace the saved text of named blocks with plain text.
  *
  * Each key of $copy is a label (metadata.name), and every block carrying it
- * must be a heading, paragraph, button or list item. Attributes and bindings
- * are left alone, so a bound block keeps its binding and the new text becomes
- * its fallback.
+ * must be a heading, paragraph, button, list item or details block, whose
+ * text is its summary. Attributes and bindings are left alone, so a bound
+ * block keeps its binding and the new text becomes its fallback.
  *
  * @param array<int, Block>     $blocks Blocks, by reference. Unchanged on error.
  * @param array<string, string> $copy   Label => plain text.
@@ -850,7 +855,7 @@ function set_copy( array &$blocks, array $copy ) {
 
 		foreach ( $matches as $row ) {
 			if ( ! isset( TEXT_ATTRIBUTES[ $row['block'] ] ) ) {
-				return invalid_copy( sprintf( '"%s" is a %s. copy replaces the text of a heading, paragraph, button or list item.', $label, $row['block'] ), $labels );
+				return invalid_copy( sprintf( '"%s" is a %s. copy replaces the text of a heading, paragraph, button, list item or details summary.', $label, $row['block'] ), $labels );
 			}
 			$targets[] = [ $row['path'], (string) $text ];
 		}
@@ -1269,10 +1274,11 @@ function invalid_copy( string $message, array $labels ): WP_Error {
  * Replace one text block's saved text, escaped.
  *
  * The element is found with the block type's own selector for its text
- * attribute (h1-h6, p, a or button, li), as core does when it renders a
- * binding. Everything between the element's tags is replaced, so inline
- * formatting goes too. A list item's own text sits before its nested list,
- * so only the first chunk of its inner content is touched.
+ * attribute (h1-h6, p, a or button, li, summary), as core does when it
+ * renders a binding. Everything between the element's tags is replaced, so
+ * inline formatting goes too. A list item's own text sits before its nested
+ * list, and a details block's summary before its inner blocks, so only the
+ * first chunk of its inner content is touched.
  *
  * @param Block  $block Block, by reference.
  * @param string $text  Plain text.

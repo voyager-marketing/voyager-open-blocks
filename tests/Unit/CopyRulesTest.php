@@ -210,6 +210,39 @@ final class CopyRulesTest extends TestCase {
 		$this->assertSame( [ 'Heading: required' ], self::reasons( self::check( 'services', [], [ 'Lead' ] ) ) );
 	}
 
+	public function test_omitting_a_question_takes_its_answer_and_an_answer_alone_cannot_go(): void {
+		foreach ( [ 'faq', 'faq-split' ] as $slug ) {
+			// The question is the item: its answer starts with its label and a space.
+			$this->assertSame( [], self::check( $slug, [], [ 'Question 3' ] ), $slug );
+			$this->assertSame( [ 'Question 3 answer: required' ], self::reasons( self::check( $slug, [], [ 'Question 3 answer' ] ) ), $slug );
+			$this->assertSame( [], self::check( $slug, [], [ 'Intro' ] ), $slug );
+			$this->assertSame( [ 'Heading: required' ], self::reasons( self::check( $slug, [], [ 'Heading' ] ) ), $slug );
+			$this->assertSame(
+				[ 'Question 1 answer: required', 'Question 2 answer: required', 'Question 3 answer: required' ],
+				self::reasons( self::check( $slug, [], [ 'Questions' ] ) ),
+				"{$slug}: leaving out every question leaves no FAQ"
+			);
+		}
+	}
+
+	public function test_a_question_is_held_to_its_max_and_a_fourth_keeps_the_thirds_rules(): void {
+		$this->assertSame( [ 'Question 1: too_long' ], self::reasons( self::check( 'faq', [ 'Question 1' => str_repeat( 'a', 80 ) . '?' ] ) ) );
+		$this->assertSame( [], self::check( 'faq', [ 'Question 1' => 'Do you work weekends?' ] ) );
+
+		$rules = Abilities\repeated_rules( self::rules( 'faq' ), [ 'Question 3' => [ 'Question 4' ] ] );
+		$this->assertSame( self::rules( 'faq' )['Question 3'], $rules['Question 4'] ?? null );
+		$this->assertSame( self::rules( 'faq' )['Question 3 answer'], $rules['Question 4 answer'] ?? null );
+		$this->assertSame(
+			[ 'Question 4 answer: too_long' ],
+			self::reasons( Abilities\copy_rule_refusals( $rules, Abilities\copy_values( [ 'Question 4 answer' => str_repeat( 'a', 301 ) ] ), [], self::rows( 'faq' ) ) )
+		);
+		// No question or answer is a claim: a plain string fills it. Its purpose says where a fact comes from.
+		foreach ( self::rules( 'faq' ) as $label => $rule ) {
+			$this->assertFalse( $rule['claim'], (string) $label );
+		}
+		$this->assertMatchesRegularExpression( '/site owner.*Site Data/', (string) self::rules( 'faq' )['Question 1 answer']['purpose'] );
+	}
+
 	public function test_a_slot_with_no_rule_is_not_checked(): void {
 		$long = str_repeat( 'a', 500 );
 
