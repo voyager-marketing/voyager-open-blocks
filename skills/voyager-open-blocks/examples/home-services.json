@@ -53,16 +53,6 @@
 				}
 			},
 			{
-				"pattern": "voyager-open/service-area",
-				"layout": null,
-				"style": "panel",
-				"copy": {
-					"Heading": "Where we work",
-					"Intro": "Our electricians come to the towns below. Ask about a town that is not listed.",
-					"Primary button": "Ask about your town"
-				}
-			},
-			{
 				"pattern": "voyager-open/cta-band",
 				"layout": null,
 				"style": "accent",
@@ -137,6 +127,16 @@
 					"Founded label": "In business since",
 					"Rating label": "Average rating",
 					"Review count label": "Homeowner reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "plain",
+				"copy": {
+					"Heading": "Where we work",
+					"Intro": "Our electricians come to the towns below. Ask about a town that is not listed.",
+					"Primary button": "Ask about your town"
 				}
 			},
 			{

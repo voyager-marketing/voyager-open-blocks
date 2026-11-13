@@ -35,15 +35,6 @@
 			}
 		},
 		{
-			"pattern": "voyager-open/service-area",
-			"layout": null,
-			"style": "panel",
-			"copy_guidance": {
-				"Heading": "Where the business works, in a few words.",
-				"Intro": "One line on the region the places sit in, or how to ask about a town the list leaves out."
-			}
-		},
-		{
 			"pattern": "voyager-open/cta-band",
 			"layout": null,
 			"style": "accent",
@@ -67,6 +58,15 @@
 			"style": "panel",
 			"copy_guidance": {
 				"Rating label": "What the rating is, in a few words, such as Average rating. Name the review site only as the site owner names it."
+			}
+		},
+		{
+			"pattern": "voyager-open/service-area",
+			"layout": null,
+			"style": "plain",
+			"copy_guidance": {
+				"Heading": "Where the business works, in a few words.",
+				"Intro": "One line on the region the places sit in, or how to ask about a town the list leaves out."
 			}
 		},
 		{

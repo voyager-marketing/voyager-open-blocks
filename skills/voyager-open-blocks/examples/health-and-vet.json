@@ -53,16 +53,6 @@
 				}
 			},
 			{
-				"pattern": "voyager-open/service-area",
-				"layout": null,
-				"style": "panel",
-				"copy": {
-					"Heading": "Where our families come from",
-					"Intro": "Pets come to us from the towns below. Ask us if yours is not on the list.",
-					"Primary button": "Ask about your town"
-				}
-			},
-			{
 				"pattern": "voyager-open/cta-band",
 				"layout": null,
 				"style": "accent",
@@ -137,6 +127,16 @@
 					"Founded label": "Caring for pets since",
 					"Rating label": "Average rating",
 					"Review count label": "Pet owner reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "plain",
+				"copy": {
+					"Heading": "Where our families come from",
+					"Intro": "Pets come to us from the towns below. Ask us if yours is not on the list.",
+					"Primary button": "Ask about your town"
 				}
 			},
 			{

@@ -53,16 +53,6 @@
 				}
 			},
 			{
-				"pattern": "voyager-open/service-area",
-				"layout": null,
-				"style": "panel",
-				"copy": {
-					"Heading": "Towns to visit from the inn",
-					"Intro": "Ask at the desk for directions to any of them, or for ideas for a day out.",
-					"Primary button": "Ask us for directions"
-				}
-			},
-			{
 				"pattern": "voyager-open/cta-band",
 				"layout": null,
 				"style": "accent",
@@ -137,6 +127,16 @@
 					"Founded label": "Welcoming guests since",
 					"Rating label": "Average guest rating",
 					"Review count label": "Guest reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "plain",
+				"copy": {
+					"Heading": "Towns to visit from the inn",
+					"Intro": "Ask at the desk for directions to any of them, or for ideas for a day out.",
+					"Primary button": "Ask us for directions"
 				}
 			},
 			{

@@ -53,16 +53,6 @@
 				}
 			},
 			{
-				"pattern": "voyager-open/service-area",
-				"layout": null,
-				"style": "panel",
-				"copy": {
-					"Heading": "Where we bring group orders",
-					"Intro": "Group orders go to offices and homes in the towns below. Ask about one not listed.",
-					"Primary button": "Ask about a group order"
-				}
-			},
-			{
 				"pattern": "voyager-open/cta-band",
 				"layout": null,
 				"style": "accent",
@@ -137,6 +127,16 @@
 					"Founded label": "Cooking since",
 					"Rating label": "Average rating",
 					"Review count label": "Reviews from diners"
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "plain",
+				"copy": {
+					"Heading": "Where we bring group orders",
+					"Intro": "Group orders go to offices and homes in the towns below. Ask about one not listed.",
+					"Primary button": "Ask about a group order"
 				}
 			},
 			{

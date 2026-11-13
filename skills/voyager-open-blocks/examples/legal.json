@@ -53,16 +53,6 @@
 				}
 			},
 			{
-				"pattern": "voyager-open/service-area",
-				"layout": null,
-				"style": "panel",
-				"copy": {
-					"Heading": "Where our clients live",
-					"Intro": "We meet clients from the towns below. Ask us if yours is not on the list.",
-					"Primary button": "Ask for a callback"
-				}
-			},
-			{
 				"pattern": "voyager-open/cta-band",
 				"layout": null,
 				"style": "accent",
@@ -137,6 +127,16 @@
 					"Founded label": "Firm founded",
 					"Rating label": "Average client rating",
 					"Review count label": "Client reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "plain",
+				"copy": {
+					"Heading": "Where our clients live",
+					"Intro": "We meet clients from the towns below. Ask us if yours is not on the list.",
+					"Primary button": "Ask for a callback"
 				}
 			},
 			{

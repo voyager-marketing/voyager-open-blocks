@@ -62,7 +62,7 @@ To build a whole page, start from its recipe. The pack has one per page type, ea
 
 | Page type | Recipe | Patterns to insert, in order, each with its style |
 |---|---|---|
-| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/service-area` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/stats` (panel), `voyager-open/closing-cta` (inverted) |
+| `home` | `recipes/home.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services` (plain), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/stats` (panel), `voyager-open/service-area` (plain), `voyager-open/closing-cta` (inverted) |
 | `services` | `recipes/services.json` | `voyager-open/hero` (plain), `voyager-open/services-list` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews` (plain), `voyager-open/process-steps-list` (panel), `voyager-open/closing-cta` (inverted) |
 | `service` | `recipes/service.json` | `voyager-open/hero` (plain), `voyager-open/proof-strip` (panel), `voyager-open/services-list` (plain), `voyager-open/process-steps` (panel), `voyager-open/cta-band` (accent), `voyager-open/reviews-single` (plain), `voyager-open/faq` (panel), `voyager-open/closing-cta` (inverted) |
 | `location` | `recipes/location.json` | `voyager-open/hero-cover` (plain), `voyager-open/services` (panel), `voyager-open/reviews` (plain), `voyager-open/service-area-split` (panel), `voyager-open/cta-band` (accent), `voyager-open/faq` (panel), `voyager-open/contact-section` (plain) |
