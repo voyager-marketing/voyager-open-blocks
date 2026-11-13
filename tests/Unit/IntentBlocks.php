@@ -84,14 +84,16 @@ final class IntentBlocks {
 			return self::with( $name, $attrs, [], [ $html ] );
 		}
 
-		$content = [ "\n<div>" ];
+		// A details block saves its summary, its text, before its inner blocks.
+		$open    = 'core/details' === $name ? "\n<details><summary>{$text}</summary>" : "\n<div>";
+		$content = [ $open ];
 		foreach ( array_keys( $inner ) as $index ) {
 			if ( $index > 0 ) {
 				$content[] = "\n\n";
 			}
 			$content[] = null;
 		}
-		$content[] = "</div>\n";
+		$content[] = 'core/details' === $name ? "</details>\n" : "</div>\n";
 
 		return self::with( $name, $attrs, $inner, $content );
 	}

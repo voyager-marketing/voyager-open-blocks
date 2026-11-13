@@ -52,9 +52,11 @@
  *      the FAQ's two layouts (listed with their copy labels, each question
  *      a details block; the list with copy for "Question 1" and its answer,
  *      a fourth question through repeat and the second dropped through omit,
- *      the new summaries read back from the saved page; the split layout
- *      filled by copy; omit of an answer without its question refused as
- *      required; each passing both validators with no warning),
+ *      the new summaries read back from the saved page, passing both
+ *      validators with no warning; the split layout with copy for its second
+ *      question, passing both with a placeholder: warning on each question
+ *      and answer of the two left as shipped; omit of an answer without its
+ *      question refused as required),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
  *      hero and the CTA band; insert refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
@@ -2174,10 +2176,28 @@ step(
 		summariesIn( faqSplitMarkup )[ 1 ] === 'Do you give a written quote?',
 	faqSplit.placed.data.code || summariesIn( faqSplitMarkup ).join( ' | ' )
 );
+// Only the second question was given copy, so the first and the third keep
+// the stand-ins the FAQ ships, and validate warns placeholder: on each
+// question and answer left: four, and nothing else.
+const faqSplitStandIns = codedWarnings( faqSplit.report, 'placeholder' ).filter(
+	( w ) => w.includes( 'the stand-in text the pack ships there' )
+);
 step(
-	'validate passes the page with the FAQ beside its heading, with no warning',
+	'validate passes the page with the FAQ beside its heading, and warns placeholder: on the question and answer of each of the two questions left as shipped, and nothing else',
 	clean( faqSplit.report ) &&
-		( faqSplit.report.data.warnings || [] ).length === 0,
+		( faqSplit.report.data.warnings || [] ).length === 4 &&
+		faqSplitStandIns.length === 4 &&
+		[
+			'Question 1',
+			'Question 1 answer',
+			'Question 3',
+			'Question 3 answer',
+		].every(
+			( label ) =>
+				faqSplitStandIns.filter( ( w ) =>
+					w.includes( ` "${ label }" ` )
+				).length === 1
+		),
 	warningSummary( faqSplit.report )
 );
 

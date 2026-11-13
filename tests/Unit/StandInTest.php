@@ -149,6 +149,9 @@ final class StandInTest extends TestCase {
 			'services-list'      => 6,
 			'process-steps'      => 6,
 			'process-steps-list' => 6,
+			// Each question's summary and its answer.
+			'faq'                => 6,
+			'faq-split'          => 6,
 		];
 
 		foreach ( self::patterns() as $name => $blocks ) {
