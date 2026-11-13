@@ -42,7 +42,7 @@ The pack's patterns were checked with Block Runner when they were built. `copy` 
 
 ## What the abilities check
 
-These checks run before anything is saved. When one fails, nothing is saved, and the error names the input to fix: `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat`, `markup`, `revision`, `style`, `layout`, `recipe` or `sections`. Read the message, fix that input and retry.
+These checks run before anything is saved. When one fails, nothing is saved, and the error names the input to fix: `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat`, `markup`, `revision`, `style`, `layout`, `recipe`, `sections` or `task`. Read the message, fix that input and retry.
 
 - **find-posts** (read only)
   - Lists only posts the user can both edit and read, with no content: `id`, `title`, `slug`, `post_type`, `status`, `link`, `front_page`, and for templates `source` and, for template parts, `area`. At most 20 at a time, 10 by default.
