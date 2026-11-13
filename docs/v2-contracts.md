@@ -116,7 +116,7 @@ What text each named block in a pattern takes, so an agent's copy fits the desig
 
   The object takes `text` and `source`, both, and no other key. `source` takes `user` only: the site owner gave the text. An empty string, or an empty `text`, is refused by the input schema.
 - `claim: true` marks a factual claim, such as a credential, a year or a rating. Its text comes from the site owner, or from Site Data or the business profile (contract 7) through a binding. Copy text never comes from Site Data, so only the object form, with `"source": "user"`, fills a claim slot.
-- `insert` and `compose` check the copy they are given against the pattern's copy rules before anything is saved, with `dry_run` too. A slot with no rule is not checked, and neither is the text a pattern ships with. When any slot is refused, nothing is saved, and every refused slot is listed, not only the first. Each is `{ "slot", "reason" }` plus what the reason needs, and a refusal under a copy rule carries `message`, which says how to fix it.
+- `insert` and `compose` check the copy and the `omit` they are given against the pattern's copy rules before anything is saved, with `dry_run` too. A slot with no rule is not checked, and neither is the text a pattern ships with. When any slot is refused, nothing is saved, and every refused slot is listed, not only the first. Each is `{ "slot", "reason" }` plus what the reason needs, and a refusal under a copy rule carries `message`, which says how to fix it.
 
   | `reason` | Refused when | Also carries |
   | -- | -- | -- |
@@ -156,13 +156,15 @@ A page as an ordered list of sections, for `compose` to build.
   			"pattern": "voyager-open/<slug>",
   			"layout": "<name>|null",
   			"style": "plain|panel|inverted|accent",
-  			"copy_guidance": { "<slot>": "string" }
+  			"copy_guidance": { "<slot>": "string" },
+  			"omit"?: [ "<label>" ]
   		}
   	]
   }
   ```
 
 - Two sections next to each other never share a style other than `plain`.
+- `omit`, which a section may leave out, names blocks the page type does without, such as the hero's main button on the contact page, which would link to the page it is on. `compose` leaves them out as a section's `omit` does (contract 6), under the same copy rules, so a recipe never omits a required slot. `get-catalog` lists it as the file holds it, so a recipe's sections passed to `compose` as `sections` keep it.
 - **Layouts.** A section can come in more than one layout, such as the hero's image beside the text and text over a background. Each layout is its own intent file in `patterns/intents/` and its own registered pattern:
   - The section's first layout keeps the section's slug: `patterns/intents/hero.json` is `voyager-open/hero`.
   - Every other layout is the section's slug, a hyphen and the layout's name: `patterns/intents/hero-cover.json` is `voyager-open/hero-cover`.
@@ -193,12 +195,22 @@ A new ability that builds a draft page from a recipe or a list of sections.
   	"post_id"?: int,
   	"title"?: string,
   	"recipe"?: string,
-  	"sections"?: [ { "pattern", "layout"?, "style"?, "copy"?: { "<slot>": copy value } } ],
+  	"sections"?: [ {
+  		"pattern", "layout"?, "style"?,
+  		"copy"?: { "<slot>": copy value },
+  		"omit"?: [ "<label>" ],
+  		"repeat"?: { "<label>": [ "<new label>" ] }
+  	} ],
   	"dry_run"?: bool
   }
   ```
 
   Exactly one of `post_id` and `title`, and exactly one of `recipe` and `sections`. A copy value is a string or `{ "text", "source": "user" }`, as in contract 3.
+- A section's `omit` and `repeat` are `insert`'s, with the same meaning, the same refusals and the same code, which both call. `omit` leaves out named blocks, such as `"Credential 4"` for a proof strip with three facts. `repeat` adds copies of a named block right after it, one per new label, such as `{ "Credential 4": [ "Credential 5" ] }`. For each section, `repeat` runs first, then contract 3's copy rules check the section's `copy` and `omit` against the blocks as `repeat` left them, then `omit`, then `copy`. So:
+  - `omit` of a slot whose rule says `required: true`, or of a block that holds one, is refused as `required`. Leaving out a whole item, a block whose label starts the slot's own and a space (`Service 3` holding `Service 3 heading`), takes its slots with it and is not refused.
+  - A copy `repeat` makes keeps the copy rule of the block it copies: copy for `Credential 5` is a claim, as for `Credential 4`.
+  - A label `omit` or `repeat` cannot apply, such as one no block carries, the whole section, or a `repeat` label already taken, is refused as `insert` refuses it (`voyager_open_blocks_invalid_omit`, `voyager_open_blocks_invalid_repeat`), with the section's index, and nothing is saved.
+- A section built with the same `copy`, `omit` and `repeat` holds the blocks `insert` places for its pattern with them, but for the section style class.
 - `compose` writes drafts only. It refuses a published post; changes to a live page go through `insert` and `configure`.
 - Given `post_id` of a draft, `compose` replaces that post's content, because it builds whole pages.
 - Refusal works like `insert`'s: if any slot is refused, nothing is saved. `saved` is `false`, and `refused` lists every refused slot, not only the first.

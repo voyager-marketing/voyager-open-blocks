@@ -19,7 +19,11 @@ namespace VoyagerOpenBlocks\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\BlockTree;
+
+require_once dirname( __DIR__, 2 ) . '/inc/patterns.php';
+require_once dirname( __DIR__, 2 ) . '/inc/abilities.php';
 
 final class RecipesTest extends TestCase {
 
@@ -34,6 +38,12 @@ final class RecipesTest extends TestCase {
 
 	/** A recipe section's keys, sorted. */
 	private const SECTION_KEYS = [ 'copy_guidance', 'layout', 'pattern', 'style' ];
+
+	/** The keys a recipe section may leave out. */
+	private const OPTIONAL_SECTION_KEYS = [ 'omit' ];
+
+	/** The path every pack pattern's contact button links to: the contact page. */
+	private const CONTACT_URL = '/contact/';
 
 	/** Plain and the three section styles (contract 4). */
 	private const STYLES = [ 'plain', 'panel', 'inverted', 'accent' ];
@@ -201,6 +211,50 @@ final class RecipesTest extends TestCase {
 	}
 
 	/**
+	 * What is wrong with a recipe section's omit, and the labels it drops.
+	 *
+	 * omit is a non-empty list of labels, each a named block inside the
+	 * section's pattern, and the copy rules refuse none of them, read with
+	 * Abilities\copy_rule_refusals(), the check insert and compose run.
+	 *
+	 * @param string      $where Where the section is, for the problem lines.
+	 * @param mixed       $omit  The section's omit, as decoded.
+	 * @param string|null $name  The intent the section names, null when none.
+	 * @return array{0: list<string>, 1: list<string>} The problems, and every label the omit drops.
+	 */
+	private static function omit_problems( string $where, mixed $omit, ?string $name ): array {
+		$labels = is_array( $omit ) && array_is_list( $omit ) ? $omit : null;
+
+		if ( null === $labels || [] === $labels || [] !== array_filter( $labels, static fn ( mixed $label ): bool => ! is_string( $label ) || '' === trim( $label ) ) ) {
+			return [ [ "{$where}: omit is not a non-empty list of block labels" ], [] ];
+		}
+		if ( null === $name ) {
+			return [ [], [] ];
+		}
+
+		/** @var list<string> $labels */
+		$rows     = BlockTree\describe( IntentBlocks::blocks( $name ) );
+		$inside   = array_column( array_filter( $rows, static fn ( array $row ): bool => isset( $row['label'] ) && str_contains( $row['path'], '/' ) ), 'label' );
+		$rules    = self::intents()[ $name ]['copy_rules'] ?? [];
+		$problems = [];
+		$dropped  = [];
+
+		foreach ( $labels as $label ) {
+			if ( ! in_array( $label, $inside, true ) ) {
+				$problems[] = "{$where}: omits \"{$label}\", which names no block inside voyager-open/{$name}";
+			}
+			array_push( $dropped, ...Abilities\held_labels( $rows, $label ) );
+		}
+
+		/** @var array<string, array<mixed>> $rules */
+		foreach ( Abilities\copy_rule_refusals( is_array( $rules ) ? $rules : [], [], $labels, $rows ) as $row ) {
+			$problems[] = "{$where}: omits \"{$row['slot']}\", and its copy rule refuses that ({$row['reason']})";
+		}
+
+		return [ $problems, array_values( array_unique( $dropped ) ) ];
+	}
+
+	/**
 	 * Every way the recipes break contract 5 or DESIGN.md, one line each.
 	 *
 	 * @param array<string, mixed> $recipes Slug => the file as json_decode() returns it, objects as stdClass.
@@ -281,7 +335,7 @@ final class RecipesTest extends TestCase {
 				foreach ( array_diff( self::SECTION_KEYS, array_keys( $keys ) ) as $key ) {
 					$problems[] = "{$where}: missing key \"{$key}\"";
 				}
-				foreach ( array_diff( array_keys( $keys ), self::SECTION_KEYS ) as $key ) {
+				foreach ( array_diff( array_keys( $keys ), self::SECTION_KEYS, self::OPTIONAL_SECTION_KEYS ) as $key ) {
 					$problems[] = "{$where}: unknown key \"{$key}\"";
 				}
 
@@ -317,6 +371,14 @@ final class RecipesTest extends TestCase {
 					}
 				}
 
+				// omit: the blocks this page type does without, under the same
+				// copy rules insert and compose hold an omit to.
+				$dropped = [];
+				if ( array_key_exists( 'omit', $keys ) ) {
+					[ $omit_problems, $dropped ] = self::omit_problems( $where, $keys['omit'], $name );
+					array_push( $problems, ...$omit_problems );
+				}
+
 				if ( ! array_key_exists( 'copy_guidance', $keys ) ) {
 					continue;
 				}
@@ -335,6 +397,8 @@ final class RecipesTest extends TestCase {
 					$slot = (string) $slot;
 					if ( ! is_string( $line ) || '' === trim( $line ) ) {
 						$problems[] = "{$where}: the guidance for \"{$slot}\" is not a non-empty string";
+					} elseif ( in_array( $slot, $dropped, true ) ) {
+						$problems[] = "{$where}: guidance for \"{$slot}\", which the section omits";
 					} elseif ( ! in_array( $slot, $slots['text'], true ) ) {
 						$problems[] = "{$where}: guidance for \"{$slot}\", which is not a named text block of voyager-open/{$name}";
 					} elseif ( ! is_array( $rules[ $slot ] ?? null ) ) {
@@ -595,7 +659,110 @@ final class RecipesTest extends TestCase {
 				},
 				'about: page_type is not one of',
 			],
+			'omit of a required slot'                 => [
+				static function ( array $recipes ) use ( $section ): void {
+					$section( $recipes, 'home', 0 )->omit = [ 'Heading' ];
+				},
+				'home section 1 (voyager-open/hero): omits "Heading", and its copy rule refuses that (required)',
+			],
+			'omit of a block that holds a required slot' => [
+				static function ( array $recipes ) use ( $section ): void {
+					$section( $recipes, 'home', 0 )->omit = [ 'Lead' ];
+				},
+				'omits "Heading", and its copy rule refuses that (required)',
+			],
+			'omit of a block the pattern does not hold' => [
+				static function ( array $recipes ) use ( $section ): void {
+					$section( $recipes, 'home', 1 )->omit = [ 'Credential 9' ];
+				},
+				'home section 2 (voyager-open/proof-strip): omits "Credential 9", which names no block inside voyager-open/proof-strip',
+			],
+			'omit of the whole section'               => [
+				static function ( array $recipes ) use ( $section ): void {
+					$section( $recipes, 'home', 1 )->omit = [ 'Proof strip' ];
+				},
+				'omits "Proof strip", which names no block inside',
+			],
+			'omit written as one label'               => [
+				static function ( array $recipes ) use ( $section ): void {
+					$section( $recipes, 'home', 1 )->omit = 'Credential 4';
+				},
+				'home section 2 (voyager-open/proof-strip): omit is not a non-empty list of block labels',
+			],
+			'an empty omit'                           => [
+				static function ( array $recipes ) use ( $section ): void {
+					$section( $recipes, 'home', 1 )->omit = [];
+				},
+				'omit is not a non-empty list of block labels',
+			],
+			'guidance for an omitted slot'            => [
+				static function ( array $recipes ) use ( $section ): void {
+					$strip                                 = $section( $recipes, 'home', 1 );
+					$strip->omit                           = [ 'Credential 4' ];
+					$strip->copy_guidance->{'Credential 4'} = 'A fourth fact from the site owner.';
+				},
+				'guidance for "Credential 4", which the section omits',
+			],
 		];
+	}
+
+	/**
+	 * The links a recipe's page holds that no binding replaces, one line each:
+	 * each core/button whose url is not bound, in each section as its pattern
+	 * ships it, less the blocks the section omits.
+	 *
+	 * @param stdClass $recipe A decoded recipe.
+	 * @return list<string> "<section> <label>: <url>".
+	 */
+	private static function static_links( stdClass $recipe ): array {
+		$out = [];
+
+		foreach ( $recipe->sections as $index => $section ) {
+			$name = self::resolve( (string) $section->pattern, $section->layout );
+			self::assertNotNull( $name );
+
+			$blocks = IntentBlocks::blocks( $name );
+			$omit   = isset( $section->omit ) && is_array( $section->omit ) ? $section->omit : [];
+			if ( [] !== $omit ) {
+				self::assertTrue( BlockTree\omit( $blocks, $omit ), "section {$index}: its omit applies" );
+			}
+
+			$walk = static function ( array $blocks ) use ( &$walk, &$out, $index ): void {
+				foreach ( $blocks as $block ) {
+					$metadata = $block['attrs']['metadata'] ?? [];
+					if ( 'core/button' === $block['blockName'] && ! isset( $metadata['bindings']['url'] ) ) {
+						preg_match( '/href="([^"]*)"/', (string) ( $block['innerContent'][0] ?? '' ), $href );
+						$out[] = sprintf( '%d %s: %s', $index, (string) ( $metadata['name'] ?? '' ), html_entity_decode( $href[1] ?? '' ) );
+					}
+					$walk( $block['innerBlocks'] );
+				}
+			};
+			$walk( $blocks );
+		}
+
+		return $out;
+	}
+
+	public function test_the_contact_page_holds_no_link_to_the_contact_page_that_no_binding_replaces(): void {
+		$recipes = self::recipes();
+		$contact = array_values( array_filter( $recipes, static fn ( mixed $recipe ): bool => $recipe instanceof stdClass && 'contact' === ( $recipe->page_type ?? null ) ) );
+		$this->assertCount( 1, $contact );
+
+		$self = static fn ( array $links ): array => array_values( array_filter( $links, static fn ( string $link ): bool => str_ends_with( $link, ': ' . self::CONTACT_URL ) ) );
+
+		$this->assertSame( [], $self( self::static_links( $contact[0] ) ), 'a button on the contact page links to the contact page' );
+
+		// The check can fail: without its omit, the hero's main button is found.
+		$planted           = clone $contact[0];
+		$planted->sections = array_map(
+			static function ( stdClass $section ): stdClass {
+				$section = clone $section;
+				unset( $section->omit );
+				return $section;
+			},
+			$planted->sections
+		);
+		$this->assertSame( [ '0 Primary button: ' . self::CONTACT_URL ], $self( self::static_links( $planted ) ) );
 	}
 
 	/**

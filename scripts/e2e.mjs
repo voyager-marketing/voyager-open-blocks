@@ -39,7 +39,8 @@
  *      validators with no warning), the reviews section's two layouts
  *      (listed with their copy labels; the grid as shipped, published and
  *      fetched, shows three star rows, each five stars hidden from screen
- *      readers and one name, "Rated 5 out of 5"; a fourth card through
+ *      readers and one name, "Rated 5 out of 5", and validate warns
+ *      placeholder: on each of its twelve stand-ins; a fourth card through
  *      repeat with a four-star review through omit, and the single quote,
  *      each filled by copy and passing both validators with no warning),
  *      the process steps section's two layouts (listed with their section,
@@ -51,9 +52,11 @@
  *      the FAQ's two layouts (listed with their copy labels, each question
  *      a details block; the list with copy for "Question 1" and its answer,
  *      a fourth question through repeat and the second dropped through omit,
- *      the new summaries read back from the saved page; the split layout
- *      filled by copy; omit of an answer without its question refused as
- *      required; each passing both validators with no warning),
+ *      the new summaries read back from the saved page, passing both
+ *      validators with no warning; the split layout with copy for its second
+ *      question, passing both with a placeholder: warning on each question
+ *      and answer of the two left as shipped; omit of an answer without its
+ *      question refused as required),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
  *      hero and the CTA band; insert refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
@@ -88,7 +91,16 @@
  *      draft whose top-level blocks are that recipe's sections in order, each
  *      the pattern its section and layout name, as insert places it with no
  *      copy, with its style class and no other, and validate passes it; and
- *      a dry run of each recipe get-catalog lists is refused nothing,
+ *      a dry run of each recipe get-catalog lists is refused nothing. Then
+ *      omit and repeat on a section: the home recipe's sections with omit
+ *      "Credential 4" on the proof strip save a strip of three items and no
+ *      fourth stand-in, and validate warns placeholder: on the three left;
+ *      sections with copy, omit and repeat are what insert places with the
+ *      same input; omit of a required slot, a claim given as a plain string
+ *      for a repeated item, and omit or repeat that cannot apply are refused
+ *      as insert refuses them; and the contact recipe saves a page whose
+ *      hero has no main button and no button links to the contact page but
+ *      through a bound link's fallback,
  *  6d. the copy examples in skills/voyager-open-blocks/examples/, a home page
  *      for each of five kinds of business: each file's compose input, run with
  *      dry_run, returns refused [] and a valid validation, and the same input
@@ -1751,10 +1763,24 @@ step(
 	}; ${ reviewsFront.status }; ${ rowSummary( shownRows ) }`
 );
 const reviewsReport = await checkMarkup( { post_id: reviewsPage.data.id } );
+// Each part of each review ships a stand-in that says what goes there, and
+// validate warns placeholder: on each one left: twelve, and nothing else.
+const reviewStandIns = codedWarnings( reviewsReport, 'placeholder' ).filter(
+	( w ) => w.includes( 'the stand-in text the pack ships there' )
+);
 step(
-	'validate passes the page holding the reviews grid as shipped, with no warning',
+	"validate passes the page holding the reviews grid as shipped, and warns placeholder: once on each of its three reviews' rating, quote, name and detail, and nothing else",
 	clean( reviewsReport ) &&
-		( reviewsReport.data.warnings || [] ).length === 0,
+		( reviewsReport.data.warnings || [] ).length === 12 &&
+		reviewStandIns.length === 12 &&
+		[ 1, 2, 3 ].every( ( n ) =>
+			[ 'rating', 'quote', 'name', 'detail' ].every(
+				( part ) =>
+					reviewStandIns.filter( ( w ) =>
+						w.includes( `"Review ${ n } ${ part }"` )
+					).length === 1
+			)
+		),
 	warningSummary( reviewsReport )
 );
 
@@ -2155,10 +2181,28 @@ step(
 		summariesIn( faqSplitMarkup )[ 1 ] === 'Do you give a written quote?',
 	faqSplit.placed.data.code || summariesIn( faqSplitMarkup ).join( ' | ' )
 );
+// Only the second question was given copy, so the first and the third keep
+// the stand-ins the FAQ ships, and validate warns placeholder: on each
+// question and answer left: four, and nothing else.
+const faqSplitStandIns = codedWarnings( faqSplit.report, 'placeholder' ).filter(
+	( w ) => w.includes( 'the stand-in text the pack ships there' )
+);
 step(
-	'validate passes the page with the FAQ beside its heading, with no warning',
+	'validate passes the page with the FAQ beside its heading, and warns placeholder: on the question and answer of each of the two questions left as shipped, and nothing else',
 	clean( faqSplit.report ) &&
-		( faqSplit.report.data.warnings || [] ).length === 0,
+		( faqSplit.report.data.warnings || [] ).length === 4 &&
+		faqSplitStandIns.length === 4 &&
+		[
+			'Question 1',
+			'Question 1 answer',
+			'Question 3',
+			'Question 3 answer',
+		].every(
+			( label ) =>
+				faqSplitStandIns.filter( ( w ) =>
+					w.includes( ` "${ label }" ` )
+				).length === 1
+		),
 	warningSummary( faqSplit.report )
 );
 
@@ -3679,6 +3723,295 @@ step(
 			.map( ( t ) => `${ t.slug }: ${ t.summary }` )
 			.join( '; ' ) || 'no recipes listed'
 	);
+
+	// A compose section takes omit and repeat (contract 6), insert's, through
+	// the code insert uses. The fitness check: the home recipe's sections,
+	// as get-catalog lists them, passed as sections with omit: ["Credential
+	// 4"] on the proof strip. The strip holds three items, none of them the
+	// fourth's stand-in, and validate warns placeholder: on the three
+	// stand-ins left, so the agent sees what is still to fill.
+	const blocksIn = ( block ) =>
+		block
+			? [ block, ...( block.innerBlocks || [] ).flatMap( blocksIn ) ]
+			: [];
+	const textOf = ( block ) =>
+		( block?.innerHTML || '' )
+			.replace( /<[^>]+>/g, '' )
+			.replace( /\s+/g, ' ' )
+			.trim();
+	const asSections = ( recipe, extra = {} ) =>
+		( recipe?.sections || [] ).map( ( section, index ) => ( {
+			pattern: section.pattern,
+			layout: section.layout,
+			style: section.style,
+			...( section.omit ? { omit: section.omit } : {} ),
+			...( extra[ index ] || {} ),
+		} ) );
+	const homeListed = listedRecipes.find( ( r ) => r.slug === 'home' );
+	const stripAt = ( homeListed?.sections || [] ).findIndex(
+		( s ) => s.pattern === 'voyager-open/proof-strip'
+	);
+	const omitTitle = `E2E: compose the home recipe with three credentials ${ stamp }`;
+	const withOmit = await run( composeAbility, {
+		title: omitTitle,
+		sections: asSections( homeListed, {
+			[ stripAt ]: { omit: [ 'Credential 4' ] },
+		} ),
+	} );
+	if ( Number.isInteger( withOmit.data.post_id ) ) {
+		created.push( withOmit.data.post_id );
+	}
+	const omitRaw = Number.isInteger( withOmit.data.post_id )
+		? ( await contentOf( withOmit.data.post_id ) ) || ''
+		: '';
+	const omitTop = topLevel( omitRaw );
+	const stripItems = blocksIn( omitTop[ stripAt ] )
+		.filter( ( b ) => b.blockName === 'core/list-item' )
+		.map( textOf );
+	const standIns = ( report ) =>
+		( report?.warnings || [] ).filter(
+			( w ) =>
+				w.startsWith( 'placeholder: ' ) &&
+				w.includes( 'the stand-in text the pack ships there' )
+		);
+	const credentialStandIns = standIns( withOmit.data.validation ).filter(
+		( w ) => / "Credential \d+" /.test( w )
+	);
+	step(
+		'fitness: compose with the home recipe\'s sections and omit: ["Credential 4"] on its proof strip saves a draft whose strip holds three items and no "Your fourth credential", and validate warns placeholder: on each of the three stand-ins left',
+		stripAt > 0 &&
+			withOmit.status === 200 &&
+			withOmit.data.saved === true &&
+			JSON.stringify( withOmit.data.refused ) === '[]' &&
+			omitTop.length === ( homeListed?.sections || [] ).length &&
+			JSON.stringify( stripItems ) ===
+				JSON.stringify( [
+					'Your first credential',
+					'Your second credential',
+					'Your third credential',
+				] ) &&
+			! omitRaw.includes( 'Your fourth credential' ) &&
+			! omitRaw.includes( '"name":"Credential 4"' ) &&
+			credentialStandIns.length === 3 &&
+			[ 1, 2, 3 ].every( ( n ) =>
+				credentialStandIns.some( ( w ) =>
+					w.includes( `"Credential ${ n }"` )
+				)
+			),
+		`${ composeSummary( withOmit ) }; strip items ${ JSON.stringify(
+			stripItems
+		) }; ${ credentialStandIns.join( ' ' ) || 'no credential stand-in warned' }`
+	);
+	validate( 'compose the home recipe with omit', omitRaw );
+
+	// The same section, insert's: each section compose saves with copy, omit
+	// and repeat is what insert places for its pattern with them, but for the
+	// style class. repeat adds a fifth credential, omit drops the fourth and
+	// a whole service card, and copy fills the rest; the fifth is a claim,
+	// as the fourth it copies is.
+	const stripInput = {
+		repeat: { 'Credential 4': [ 'Credential 5' ] },
+		omit: [ 'Credential 4' ],
+		copy: {
+			'Credential 1': owner( 'Licensed in three states' ),
+			'Credential 2': owner( 'Insured for every job' ),
+			'Credential 3': owner( 'Written quotes' ),
+			'Credential 5': owner( 'Family owned since 1998' ),
+		},
+	};
+	const servicesInput = {
+		omit: [ 'Service 3' ],
+		copy: {
+			Heading: 'What we fix',
+			'Service 1 heading': 'Leaks and drips',
+			'Service 1 text':
+				'Taps, pipes and joints found and fixed on the first visit.',
+			'Service 2 heading': 'Blocked drains',
+			'Service 2 text':
+				'Sinks, showers and main lines cleared without digging.',
+		},
+	};
+	const shapedSections = [
+		{ pattern: 'voyager-open/hero', copy: heroCopy },
+		{ pattern: 'voyager-open/proof-strip', style: 'panel', ...stripInput },
+		{ pattern: 'voyager-open/services', ...servicesInput },
+	];
+	const shaped = await run( composeAbility, {
+		title: `E2E: compose with omit and repeat ${ stamp }`,
+		sections: shapedSections,
+	} );
+	if ( Number.isInteger( shaped.data.post_id ) ) {
+		created.push( shaped.data.post_id );
+	}
+	const shapedRaw = Number.isInteger( shaped.data.post_id )
+		? ( await contentOf( shaped.data.post_id ) ) || ''
+		: '';
+	const shapedExpected = [];
+	for ( const section of shapedSections ) {
+		const { pattern, style, ...input } = section;
+		const placed = Number.isInteger( shaped.data.post_id )
+			? await run( `${ ns }/insert`, {
+					post_id: shaped.data.post_id,
+					item: pattern,
+					dry_run: true,
+					...input,
+				} )
+			: { data: {} };
+		shapedExpected.push( {
+			name: pattern,
+			style: style || 'plain',
+			blocks: topLevel( placed.data.markup ),
+		} );
+	}
+	const shapedProblems = sectionMismatches(
+		topLevel( shapedRaw ),
+		shapedExpected
+	);
+	const shapedItems = blocksIn( topLevel( shapedRaw )[ 1 ] )
+		.filter( ( b ) => b.blockName === 'core/list-item' )
+		.map( textOf );
+	step(
+		'compose with omit and repeat on its sections saves each as insert places its pattern with the same copy, omit and repeat: four credentials, the fifth a copy of the fourth, and two service cards',
+		shaped.status === 200 &&
+			shaped.data.saved === true &&
+			JSON.stringify( shaped.data.refused ) === '[]' &&
+			shapedExpected.every( ( want ) => want.blocks.length === 1 ) &&
+			shapedProblems.length === 0 &&
+			JSON.stringify( shapedItems ) ===
+				JSON.stringify( [
+					'Licensed in three states',
+					'Insured for every job',
+					'Written quotes',
+					'Family owned since 1998',
+				] ) &&
+			shapedRaw.includes( '"name":"Credential 5"' ) &&
+			! shapedRaw.includes( '"name":"Service 3' ) &&
+			standIns( shaped.data.validation ).length === 0,
+		`${ composeSummary( shaped ) }; ${
+			shapedProblems.join( '; ' ) || 'every section matches'
+		}; items ${ JSON.stringify( shapedItems ) }`
+	);
+	validate( 'compose with omit and repeat', shapedRaw );
+
+	// And the same faults: what insert refuses for a pattern, compose refuses
+	// for a section of it, with the section's index, and saves nothing.
+	const insertRows = ( response ) =>
+		( response.data.data?.refused || [] ).map(
+			( r ) => `${ r.slot } ${ r.reason }`
+		);
+	const composeRows = ( response ) =>
+		( response.data.refused || [] ).map(
+			( r ) => `${ r.section } ${ r.slot } ${ r.reason }`
+		);
+	for ( const [ label, input, rows, code ] of [
+		[
+			'omit of a required credential',
+			{ omit: [ 'Credential 1' ] },
+			[ 'Credential 1 required' ],
+			null,
+		],
+		[
+			'copy for a repeated credential given as a plain string, a claim as the one it copies',
+			{
+				repeat: { 'Credential 4': [ 'Credential 5' ] },
+				copy: { 'Credential 5': 'Family owned since 1998' },
+			},
+			[ 'Credential 5 claim' ],
+			null,
+		],
+		[
+			'omit of a label no block has',
+			{ omit: [ 'Credential 9' ] },
+			[],
+			'voyager_open_blocks_invalid_omit',
+		],
+		[
+			'repeat to a label already used',
+			{ repeat: { 'Credential 4': [ 'Credential 2' ] } },
+			[],
+			'voyager_open_blocks_invalid_repeat',
+		],
+	] ) {
+		const faultTitle = `E2E: compose ${ label } ${ stamp }`;
+		const byInsert = await run( `${ ns }/insert`, {
+			post_id: targetId,
+			item: 'voyager-open/proof-strip',
+			dry_run: true,
+			...input,
+		} );
+		const byCompose = await run( composeAbility, {
+			title: faultTitle,
+			sections: [
+				{ pattern: 'voyager-open/hero', copy: heroCopy },
+				{ pattern: 'voyager-open/proof-strip', ...input },
+			],
+		} );
+		const same = code
+			? byInsert.status === 400 &&
+				byInsert.data.code === code &&
+				byCompose.status === 400 &&
+				byCompose.data.code === code &&
+				byCompose.data.data?.section === 1 &&
+				( byCompose.data.message || '' ).includes( 'section 1' )
+			: byInsert.status === 400 &&
+				byInsert.data.code === 'voyager_open_blocks_copy_rules' &&
+				JSON.stringify( insertRows( byInsert ) ) ===
+					JSON.stringify( rows ) &&
+				byCompose.status === 200 &&
+				byCompose.data.saved === false &&
+				JSON.stringify( composeRows( byCompose ) ) ===
+					JSON.stringify( rows.map( ( row ) => `1 ${ row }` ) );
+		step(
+			`compose refuses ${ label } in a section as insert refuses it for the pattern, and creates no post`,
+			same && ( await titled( faultTitle ) ).length === 0,
+			`insert: ${ byInsert.status } ${ byInsert.data.code || '' } [${ insertRows(
+				byInsert
+			).join( '; ' ) }]; compose: ${ composeSummary( byCompose ) }`
+		);
+	}
+
+	// The contact recipe leaves out the hero's main button, which links to
+	// the contact page, so a page composed from it never links to itself.
+	// Its other buttons link there only as the fallback of a bound link,
+	// which shows the phone or email link once Site Data holds it.
+	const contactListed = listedRecipes.find( ( r ) => r.slug === 'contact' );
+	const fromContact = await run( composeAbility, {
+		title: `E2E: compose from the contact recipe ${ stamp }`,
+		recipe: 'contact',
+	} );
+	if ( Number.isInteger( fromContact.data.post_id ) ) {
+		created.push( fromContact.data.post_id );
+	}
+	const contactRaw = Number.isInteger( fromContact.data.post_id )
+		? ( await contentOf( fromContact.data.post_id ) ) || ''
+		: '';
+	const contactButtons = topLevel( contactRaw )
+		.flatMap( blocksIn )
+		.filter( ( b ) => b.blockName === 'core/button' );
+	const staticSelfLinks = contactButtons
+		.filter(
+			( b ) =>
+				! b.attrs?.metadata?.bindings?.url &&
+				/href="\/contact\/"/.test( b.innerHTML || '' )
+		)
+		.map( ( b ) => b.attrs?.metadata?.name || '(unnamed)' );
+	step(
+		'compose with recipe "contact" saves a draft whose hero has no main button, and no button on it links to the contact page but through a bound link\'s fallback',
+		JSON.stringify( contactListed?.sections?.[ 0 ]?.omit ) ===
+			JSON.stringify( [ 'Primary button' ] ) &&
+			fromContact.status === 200 &&
+			fromContact.data.saved === true &&
+			JSON.stringify( fromContact.data.refused ) === '[]' &&
+			contactButtons.length > 0 &&
+			! contactButtons.some(
+				( b ) => b.attrs?.metadata?.name === 'Primary button'
+			) &&
+			staticSelfLinks.length === 0,
+		`${ composeSummary( fromContact ) }; ${ contactButtons.length } buttons; linking to /contact/ with no binding: ${
+			staticSelfLinks.join( ', ' ) || 'none'
+		}`
+	);
+	validate( 'compose from the contact recipe', contactRaw );
 
 	for ( const id of created ) {
 		await api( `/wp/v2/pages/${ id }`, {
