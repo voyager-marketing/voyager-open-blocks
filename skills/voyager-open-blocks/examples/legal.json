@@ -1,0 +1,145 @@
+{
+	"business": "Marsh & Okonjo Employment Law is a two-lawyer firm in Fennick Cross that acts only for employees: people who were let go, not paid for their hours, or handed a severance offer they do not understand. Odette Marsh and Kemi Okonjo gave the four facts on the proof strip: Odette was admitted to the state bar in 2009, the firm has taken employment cases only since 2014, the first consultation is free, and fees are agreed in writing before any work starts. They also gave three reviews from clients who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0172, its email, hello@marsh-okonjo.example.com, and the three figures in its stats row (founded in 2014, an average rating of 4.8, and 64 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"compose": {
+		"title": "Home",
+		"sections": [
+			{
+				"pattern": "voyager-open/hero",
+				"layout": "split",
+				"style": "plain",
+				"copy": {
+					"Eyebrow": "Employment law in Fennick Cross",
+					"Heading": "Help for workers who were fired or not paid",
+					"Body": "Tell us what happened at work. A lawyer reads it and calls you back to talk it through.",
+					"Primary button": "Ask for a callback"
+				}
+			},
+			{
+				"pattern": "voyager-open/proof-strip",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Credential 1": {
+						"text": "Admitted to the state bar in 2009",
+						"source": "user"
+					},
+					"Credential 2": {
+						"text": "Employment law only, since 2014",
+						"source": "user"
+					},
+					"Credential 3": {
+						"text": "Free first consultation",
+						"source": "user"
+					},
+					"Credential 4": {
+						"text": "Fees agreed in writing up front",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/services",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "Problems we handle at work",
+					"Intro": "We act for employees, never employers, in Fennick Cross and the towns around it.",
+					"Service 1 heading": "Wrongful dismissal",
+					"Service 1 text": "You were let go for a reason the law does not allow.",
+					"Service 2 heading": "Unpaid wages and overtime",
+					"Service 2 text": "Hours you worked and were never paid for, overtime included.",
+					"Service 3 heading": "Severance review",
+					"Service 3 text": "Before you sign, we read the offer and tell you what it means for you."
+				}
+			},
+			{
+				"pattern": "voyager-open/cta-band",
+				"layout": null,
+				"style": "accent",
+				"copy": {
+					"Eyebrow": "Not sure you have a case?",
+					"Heading": "Talk it through with a lawyer first",
+					"Body": "Send a few lines about what happened, and we will call you back.",
+					"Primary button": "Ask for a callback"
+				}
+			},
+			{
+				"pattern": "voyager-open/reviews",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "What clients say",
+					"Review 1 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 1 quote": {
+						"text": "Kemi explained every step in plain words. I never felt lost or rushed.",
+						"source": "user"
+					},
+					"Review 1 name": {
+						"text": "Dana L.",
+						"source": "user"
+					},
+					"Review 1 detail": {
+						"text": "Wrongful dismissal",
+						"source": "user"
+					},
+					"Review 2 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 2 quote": {
+						"text": "I was nervous to call. Odette listened, then told me straight what my options were.",
+						"source": "user"
+					},
+					"Review 2 name": {
+						"text": "Raj P.",
+						"source": "user"
+					},
+					"Review 2 detail": {
+						"text": "Severance review",
+						"source": "user"
+					},
+					"Review 3 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 3 quote": {
+						"text": "They answered my emails the same day, every time, for the whole case.",
+						"source": "user"
+					},
+					"Review 3 name": {
+						"text": "Helen C.",
+						"source": "user"
+					},
+					"Review 3 detail": {
+						"text": "Unpaid overtime",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/stats",
+				"layout": "row",
+				"style": "panel",
+				"copy": {
+					"Founded label": "Firm founded",
+					"Rating label": "Average client rating",
+					"Review count label": "Client reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/closing-cta",
+				"layout": null,
+				"style": "inverted",
+				"copy": {
+					"Heading": "Tell us what happened at work",
+					"Body": "Call or email us with a few lines, and a lawyer will call you back.",
+					"Primary button": "Ask for a callback",
+					"Email button": "Email us"
+				}
+			}
+		]
+	}
+}

@@ -1,0 +1,145 @@
+{
+	"business": "Larkholt Animal Clinic is a small veterinary practice in Larkholt for dogs and cats, run by Dr. Ines Halvorsen with two other vets and a team of nurses. Its clients are local families, from first-time puppy owners to people caring for an old cat. Dr. Halvorsen gave the four facts on the proof strip: a licensed vet works every shift, the clinic has its own lab and digital X-ray, sick pets are seen the same day, and the clinic has cared for Larkholt pets since 2011. She also gave three reviews from clients who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0173, its email, hello@larkholt-animal-clinic.example.com, and the three figures in its stats row (founded in 2011, an average rating of 4.9, and 312 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"compose": {
+		"title": "Home",
+		"sections": [
+			{
+				"pattern": "voyager-open/hero",
+				"layout": "split",
+				"style": "plain",
+				"copy": {
+					"Eyebrow": "Vet clinic in Larkholt",
+					"Heading": "Care for your dogs and cats, close to home",
+					"Body": "Book a check-up, or call when your pet seems unwell and we will help you decide what to do.",
+					"Primary button": "Book an appointment"
+				}
+			},
+			{
+				"pattern": "voyager-open/proof-strip",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Credential 1": {
+						"text": "Licensed vets on every shift",
+						"source": "user"
+					},
+					"Credential 2": {
+						"text": "In-house lab and digital X-ray",
+						"source": "user"
+					},
+					"Credential 3": {
+						"text": "Same-day visits for sick pets",
+						"source": "user"
+					},
+					"Credential 4": {
+						"text": "Caring for Larkholt pets since 2011",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/services",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "How we look after your pet",
+					"Intro": "Dogs and cats of every age, from a puppy's first shots to care for an older friend.",
+					"Service 1 heading": "Check-ups and vaccines",
+					"Service 1 text": "A nose-to-tail exam each year, with the vaccines your pet is due for.",
+					"Service 2 heading": "Dental care",
+					"Service 2 text": "A full cleaning while your pet sleeps, with X-rays to check the roots.",
+					"Service 3 heading": "Surgery",
+					"Service 3 text": "Spays, neuters and lump removals, and a call as soon as your pet wakes up."
+				}
+			},
+			{
+				"pattern": "voyager-open/cta-band",
+				"layout": null,
+				"style": "accent",
+				"copy": {
+					"Eyebrow": "Due for a check-up?",
+					"Heading": "Book your pet's next visit",
+					"Body": "Ask for a time that suits you, and we will confirm it by phone or email.",
+					"Primary button": "Book an appointment"
+				}
+			},
+			{
+				"pattern": "voyager-open/reviews",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "What pet owners say",
+					"Review 1 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 1 quote": {
+						"text": "Dr. Halvorsen took her time with our old cat and explained every option.",
+						"source": "user"
+					},
+					"Review 1 name": {
+						"text": "Grace N.",
+						"source": "user"
+					},
+					"Review 1 detail": {
+						"text": "Senior cat check-up",
+						"source": "user"
+					},
+					"Review 2 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 2 quote": {
+						"text": "Our puppy was nervous. The whole team was patient and kind with him.",
+						"source": "user"
+					},
+					"Review 2 name": {
+						"text": "Luis M.",
+						"source": "user"
+					},
+					"Review 2 detail": {
+						"text": "Puppy vaccines",
+						"source": "user"
+					},
+					"Review 3 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 3 quote": {
+						"text": "They saw our dog the same afternoon I called. He was home by dinner.",
+						"source": "user"
+					},
+					"Review 3 name": {
+						"text": "Anna B.",
+						"source": "user"
+					},
+					"Review 3 detail": {
+						"text": "Sick visit",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/stats",
+				"layout": "row",
+				"style": "panel",
+				"copy": {
+					"Founded label": "Caring for pets since",
+					"Rating label": "Average rating",
+					"Review count label": "Pet owner reviews"
+				}
+			},
+			{
+				"pattern": "voyager-open/closing-cta",
+				"layout": null,
+				"style": "inverted",
+				"copy": {
+					"Heading": "We are here when your pet needs us",
+					"Body": "Call or email us to book, or to ask whether your pet needs to be seen.",
+					"Primary button": "Book an appointment",
+					"Email button": "Email us"
+				}
+			}
+		]
+	}
+}

@@ -89,6 +89,11 @@
  *      the pattern its section and layout name, as insert places it with no
  *      copy, with its style class and no other, and validate passes it; and
  *      a dry run of each recipe get-catalog lists is refused nothing,
+ *  6d. the copy examples in skills/voyager-open-blocks/examples/, a home page
+ *      for each of five kinds of business: each file's compose input, run with
+ *      dry_run, returns refused [] and a valid validation, and the same input
+ *      with each claim given as a plain string is refused, every claim slot
+ *      with reason claim and nothing else,
  *   7. the icon prompt end to end: creates a header template part with a call
  *      button, finds it with find-posts, puts a phone icon beside the button and
  *      binds its link to Site Data, then checks it resolves and validates,
@@ -3681,6 +3686,146 @@ step(
 			query: { force: true },
 		} );
 	}
+}
+
+// 6d. The copy examples (skills/voyager-open-blocks/examples/): each file is
+// a fictional business and the compose call that builds its home page. A dry
+// run of each must pass the copy rules and validate, and saves nothing. Then
+// each claim, given as plain text instead of the object form the site owner's
+// text takes, must be refused: every claim slot, with reason claim, and no
+// other slot.
+{
+	const examplesDir = join(
+		repo,
+		'skills',
+		'voyager-open-blocks',
+		'examples'
+	);
+	const verticals = [
+		'health-and-vet',
+		'home-services',
+		'hospitality',
+		'legal',
+		'restaurants',
+	];
+	let files = [];
+	try {
+		files = readdirSync( examplesDir )
+			.filter( ( file ) => file.endsWith( '.json' ) )
+			.sort();
+	} catch {}
+	const examples = files.map( ( file ) => {
+		try {
+			return {
+				file,
+				input: JSON.parse(
+					readFileSync( join( examplesDir, file ), 'utf8' )
+				).compose,
+			};
+		} catch ( error ) {
+			return { file, input: null, error: error.message };
+		}
+	} );
+	const summary = ( response ) =>
+		response.data.code
+			? `${ response.status } ${ response.data.code }: ${ response.data.message }`
+			: `${ response.status }, saved ${ response.data.saved }, refused [${ (
+					response.data.refused || []
+				)
+					.map( ( r ) => `${ r.section } ${ r.slot } ${ r.reason }` )
+					.join( '; ' ) }], ${
+					( response.data.validation?.errors || [] ).length
+				} validation errors`;
+	// A claim slot holds the object form; as plain text it is a claim typed in.
+	const asStrings = ( input ) => ( {
+		...input,
+		sections: ( input.sections || [] ).map( ( section ) => ( {
+			...section,
+			copy: Object.fromEntries(
+				Object.entries( section.copy || {} ).map(
+					( [ slot, value ] ) => [
+						slot,
+						typeof value === 'object' && value !== null
+							? value.text
+							: value,
+					]
+				)
+			),
+		} ) ),
+	} );
+	const claimRows = ( input ) =>
+		( input.sections || [] ).flatMap( ( section, index ) =>
+			Object.entries( section.copy || {} )
+				.filter( ( [ , value ] ) => typeof value === 'object' )
+				.map( ( [ slot ] ) => `${ index } ${ slot } claim` )
+		);
+	const rowsOf = ( response ) =>
+		( response.data.refused || [] ).map(
+			( r ) => `${ r.section } ${ r.slot } ${ r.reason }`
+		);
+
+	let passed = 0;
+	let refusedAsStrings = 0;
+	let claimSlots = 0;
+	const lines = [];
+	const stringLines = [];
+
+	for ( const { file, input, error } of examples ) {
+		if ( ! input || typeof input !== 'object' ) {
+			lines.push( `${ file }: no compose input (${ error || 'none' })` );
+			continue;
+		}
+
+		const trial = await run( `${ ns }/compose`, {
+			...input,
+			dry_run: true,
+		} );
+		const ok =
+			trial.status === 200 &&
+			trial.data.saved === false &&
+			trial.data.post_id === null &&
+			trial.data.revision_id === null &&
+			JSON.stringify( trial.data.refused ) === '[]' &&
+			trial.data.validation?.valid === true &&
+			( trial.data.validation?.errors || [] ).length === 0;
+		passed += ok ? 1 : 0;
+		lines.push( `${ file }: ${ ok ? 'pass' : summary( trial ) }` );
+
+		const expected = claimRows( input ).sort();
+		claimSlots += expected.length;
+		const typed = await run( `${ ns }/compose`, {
+			...asStrings( input ),
+			dry_run: true,
+		} );
+		const typedOk =
+			expected.length > 0 &&
+			typed.status === 200 &&
+			typed.data.saved === false &&
+			JSON.stringify( rowsOf( typed ).sort() ) ===
+				JSON.stringify( expected );
+		refusedAsStrings += typedOk ? 1 : 0;
+		stringLines.push(
+			`${ file }: ${ expected.length } claim slots, ${
+				typedOk ? 'each refused as claim' : summary( typed )
+			}`
+		);
+	}
+
+	const allFiles =
+		JSON.stringify( files ) ===
+		JSON.stringify( verticals.map( ( v ) => `${ v }.json` ) );
+	step(
+		`fitness: compose dry_run: ${ passed } of ${ verticals.length } examples pass the copy rules`,
+		allFiles && passed === verticals.length,
+		lines.length ? lines.join( '; ' ) : `no examples in ${ examplesDir }`
+	);
+	step(
+		`compose dry_run refuses the examples' claims typed in as plain text: ${ refusedAsStrings } of ${ verticals.length } examples, ${ claimSlots } claim slots, each refused with reason claim and no other slot`,
+		allFiles && refusedAsStrings === verticals.length,
+		stringLines.length
+			? stringLines.join( '; ' )
+			: `no examples in ${ examplesDir }`
+	);
 }
 
 // 7. The icon prompt, end to end: "Add a phone icon next to the call button
