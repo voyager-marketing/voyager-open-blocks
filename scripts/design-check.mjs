@@ -96,7 +96,9 @@
  * The run fails when any check fails outside the known failures, when fewer
  * renders or pairs were measured or scanned than the fixture expects, when a
  * scan did not run, when a positive control or a planted control fails, or on
- * a PHP fatal error.
+ * a PHP fatal error. --themes runs some of the themes, held to their share of
+ * the fixture's floors, and every plant still goes on each theme it runs, so
+ * one --plant run per theme proves each check fails its plants on that theme.
  *
  * Needs Chrome, Chromium or Edge (set CHROME_PATH to pick one) and the Node
  * in .nvmrc. The first run downloads WordPress; later runs reuse it.
@@ -392,7 +394,9 @@ its own check, or if the readable cover control does not pass.
                    fails, and 3 when the run fails any other way or a check
                    misses its plant.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
-                   The render and pair counts are then not checked.
+                   The render counts expected are those themes' own, and the
+                   fixture's floors on renders and pairs scale to their share
+                   of its themes. CI runs one job per theme this way.
   --no-variations  Skip the style variations.
   --port <n>       Port to serve on. Default 9400, or a free port if 9400 is taken.
   --wp <version>   WordPress version for every theme, such as 7.1.4. Default
@@ -3900,6 +3904,9 @@ async function run( opts ) {
 		);
 		return 2;
 	}
+	// The fixture's floors are for every theme. A run on some of them, such
+	// as one CI job per theme, is held to their share.
+	const share = themes.length / fixture.themes.length;
 	const chrome = findChrome();
 	if ( ! chrome ) {
 		annotate(
@@ -4147,7 +4154,7 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 	const recipeExpected = keys.recipe.length * widths.length * themes.length;
 
 	if ( want.contrast ) {
-		checkContrast( out, themes, fixture, opts, !! only );
+		checkContrast( out, themes, fixture, opts, share );
 	}
 
 	const verdicts = {
@@ -4196,37 +4203,33 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 			base.length > 0 && failed.length === 0,
 			failed.length ? `\n${ renderTable( failed ) }` : both
 		);
-		if ( ! only ) {
-			expect(
-				`${ check }: ${ expected } section renders scanned (${ counts })`,
-				scanned.length === expected,
-				`${ scanned.length } scanned`
-			);
-			expect(
-				`${ check }: ${ recipeExpected } recipe section renders scanned (${ recipeCounts })`,
-				recipeExpected > 0 && recipeScanned.length === recipeExpected,
-				`${ recipeScanned.length } scanned`
-			);
-		}
+		expect(
+			`${ check }: ${ expected } section renders scanned (${ counts })`,
+			scanned.length === expected,
+			`${ scanned.length } scanned`
+		);
+		expect(
+			`${ check }: ${ recipeExpected } recipe section renders scanned (${ recipeCounts })`,
+			recipeExpected > 0 && recipeScanned.length === recipeExpected,
+			`${ recipeScanned.length } scanned`
+		);
 	}
 	if ( want.impeccable ) {
 		checkTapGaps( out, themes, fixture, keys );
 	}
 	printAdvisories( out.advisories );
 
-	if ( ! only ) {
-		expect(
-			`at least ${ fixture.min_renders } section renders (${ counts })`,
-			out.renderCount >= fixture.min_renders &&
-				out.renderCount === expected,
-			`${ out.renderCount } of ${ expected }`
-		);
-		expect(
-			`one recipe page per recipe on each theme at each width: ${ recipeExpected } recipe section renders (${ recipeCounts })`,
-			recipeExpected > 0 && out.recipeCount === recipeExpected,
-			`${ out.recipeCount } of ${ recipeExpected }`
-		);
-	}
+	const minRenders = Math.ceil( fixture.min_renders * share );
+	expect(
+		`at least ${ minRenders } section renders (${ counts })`,
+		out.renderCount >= minRenders && out.renderCount === expected,
+		`${ out.renderCount } of ${ expected }`
+	);
+	expect(
+		`one recipe page per recipe on each theme at each width: ${ recipeExpected } recipe section renders (${ recipeCounts })`,
+		recipeExpected > 0 && out.recipeCount === recipeExpected,
+		`${ out.recipeCount } of ${ recipeExpected }`
+	);
 
 	const failed = checks.filter( ( c ) => ! c.ok );
 	const on = Object.entries( out.versions )
@@ -4448,13 +4451,13 @@ function checkTapGaps( out, themes, fixture, keys ) {
  * themes and the style variations: every pair under the floor must be
  * listed, and every listed pair that was measured must still fail.
  *
- * @param {Object}        out      The run's rows.
- * @param {Array<Object>} themes   The fixture's theme entries this run covered.
- * @param {Object}        fixture  tests/fixtures/contrast.json.
- * @param {Object}        opts     Parsed flags.
- * @param {boolean}       narrowed Whether --themes picked some themes only.
+ * @param {Object}        out     The run's rows.
+ * @param {Array<Object>} themes  The fixture's theme entries this run covered.
+ * @param {Object}        fixture tests/fixtures/contrast.json.
+ * @param {Object}        opts    Parsed flags.
+ * @param {number}        share   The run's themes over the fixture's, which scales the floor on pairs.
  */
-function checkContrast( out, themes, fixture, opts, narrowed ) {
+function checkContrast( out, themes, fixture, opts, share ) {
 	const { floor } = fixture;
 	const known = new Map();
 	for ( const entry of themes ) {
@@ -4527,13 +4530,12 @@ function checkContrast( out, themes, fixture, opts, narrowed ) {
 				: `${ rows.length } pairs, ${ listedRows.length } of them known failures`
 		);
 	}
-	if ( ! narrowed ) {
-		expect(
-			`contrast: at least ${ fixture.min_pairs } pairs measured`,
-			out.contrast.length >= fixture.min_pairs,
-			`${ out.contrast.length } pairs`
-		);
-	}
+	const minPairs = Math.ceil( fixture.min_pairs * share );
+	expect(
+		`contrast: at least ${ minPairs } pairs measured`,
+		out.contrast.length >= minPairs,
+		`${ out.contrast.length } pairs`
+	);
 	if ( unlisted.length ) {
 		console.log(
 			`\nTo list a pair as a known failure, add it to its theme's known_failures in tests/fixtures/contrast.json ("variation": "" is the theme's own styles):\n${ [
