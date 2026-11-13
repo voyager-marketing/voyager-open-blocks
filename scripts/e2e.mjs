@@ -42,6 +42,12 @@
  *      readers and one name, "Rated 5 out of 5"; a fourth card through
  *      repeat with a four-star review through omit, and the single quote,
  *      each filled by copy and passing both validators with no warning),
+ *      the FAQ's two layouts (listed with their copy labels, each question
+ *      a details block; the list with copy for "Question 1" and its answer,
+ *      a fourth question through repeat and the second dropped through omit,
+ *      the new summaries read back from the saved page; the split layout
+ *      filled by copy; omit of an answer without its question refused as
+ *      required; each passing both validators with no warning),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
  *      hero and the CTA band; insert refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
@@ -1790,6 +1796,156 @@ step(
 	clean( oneReview.report ) &&
 		( oneReview.report.data.warnings || [] ).length === 0,
 	warningSummary( oneReview.report )
+);
+
+// The FAQ in its two layouts. Each question is a core/details block labelled
+// "Question <n>" whose summary is the question, holding its answer, a
+// paragraph labelled "Question <n> answer". So copy writes the summary,
+// repeat adds a question with its answer, and omit drops one with its answer.
+const faqLabels = ( numbers ) => [
+	'Heading',
+	'Intro',
+	...numbers.flatMap( ( n ) => [
+		`Question ${ n }`,
+		`Question ${ n } answer`,
+	] ),
+];
+for ( const [ item, layout ] of [
+	[ 'voyager-open/faq', 'list' ],
+	[ 'voyager-open/faq-split', 'split' ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } (section "faq", layout "${ layout }") with Question 1 to Question 3 and their answers as copy labels`,
+		listed?.section === 'faq' &&
+			listed?.layout === layout &&
+			JSON.stringify( labels ) ===
+				JSON.stringify( faqLabels( [ 1, 2, 3 ] ) ) &&
+			( listed?.blocks || [] )
+				.filter( ( b ) => /^Question \d$/.test( b.label || '' ) )
+				.every( ( b ) => b.block === 'core/details' && b.copy ),
+		listed ? labels.join( ', ' ) : 'not listed'
+	);
+}
+
+const faqCopy = {
+	Heading: 'Questions about our plumbing',
+	'Question 1': 'Do you work on weekends?',
+	'Question 1 answer':
+		'E2E answer 1: the words the site owner gave for weekend work.',
+	'Question 3': 'Can I be there while you work?',
+	'Question 3 answer': 'E2E answer 3: the words the site owner gave.',
+	'Question 4': 'Do you clean up afterwards?',
+	'Question 4 answer': 'E2E answer 4: the words the site owner gave.',
+};
+// The summaries a page holds, in order, and its details blocks.
+const summariesIn = ( markup ) =>
+	[ ...markup.matchAll( /<summary>([^<]*)<\/summary>/g ) ].map(
+		( m ) => m[ 1 ]
+	);
+const detailsIn = ( markup ) =>
+	( markup.match( /<!-- wp:details /g ) || [] ).length;
+
+// The fitness check: copy for Question 1 and its answer, a fourth question
+// through repeat, the second dropped through omit, and the new summary read
+// back from the saved page.
+const faq = await insertServices(
+	'faq with a fourth question and one dropped',
+	{
+		item: 'voyager-open/faq',
+		repeat: { 'Question 3': [ 'Question 4' ] },
+		omit: [ 'Question 2' ],
+		copy: faqCopy,
+	}
+);
+const faqSaved =
+	(
+		await api( `/wp/v2/pages/${ faq.postId }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw ?? '';
+validate( 'faq as the page saved it', faqSaved );
+const faqBlocks = ( faq.placed.data.blocks || [] ).map( ( b ) => b.label );
+step(
+	'fitness: insert voyager-open/faq with copy for "Question 1" and "Question 1 answer", a fourth question through repeat and the second dropped through omit; the saved page holds the new summaries in order and none of the second',
+	faq.placed.status === 200 &&
+		faq.placed.data.saved === true &&
+		faq.placed.data.validation?.round_trip === true &&
+		detailsIn( faqSaved ) === 3 &&
+		JSON.stringify( summariesIn( faqSaved ) ) ===
+			JSON.stringify( [
+				faqCopy[ 'Question 1' ],
+				faqCopy[ 'Question 3' ],
+				faqCopy[ 'Question 4' ],
+			] ) &&
+		faqSaved.includes( `<p>${ faqCopy[ 'Question 1 answer' ] }</p>` ) &&
+		faqSaved.includes( `<p>${ faqCopy[ 'Question 4 answer' ] }</p>` ) &&
+		! faqSaved.includes( 'Do you charge for a quote?' ) &&
+		! faqSaved.includes( 'Question 2' ) &&
+		[ 'Question 4', 'Question 4 answer' ].every( ( name ) =>
+			faqBlocks.includes( name )
+		),
+	faq.placed.data.code ||
+		`${ detailsIn( faqSaved ) } questions: ${ summariesIn( faqSaved ).join(
+			' | '
+		) }`
+);
+step(
+	'validate passes the page with the FAQ, with no warning',
+	clean( faq.report ) && ( faq.report.data.warnings || [] ).length === 0,
+	warningSummary( faq.report )
+);
+
+// The split layout, filled by copy: the heading column beside the questions.
+const faqSplit = await insertServices( 'faq beside its heading', {
+	item: 'voyager-open/faq-split',
+	copy: {
+		Heading: 'Questions about our plumbing',
+		'Question 2': 'Do you give a written quote?',
+		'Question 2 answer': 'E2E answer 2: the words the site owner gave.',
+	},
+} );
+const faqSplitMarkup = faqSplit.placed.data.markup || '';
+step(
+	'insert the FAQ beside its heading, filled by copy: one row of two columns, the heading first, three questions',
+	faqSplit.placed.status === 200 &&
+		faqSplit.placed.data.saved === true &&
+		( faqSplitMarkup.match( /<!-- wp:column[ {]/g ) || [] ).length === 2 &&
+		faqSplitMarkup.indexOf( 'Questions about our plumbing' ) <
+			faqSplitMarkup.indexOf( '<summary>' ) &&
+		detailsIn( faqSplitMarkup ) === 3 &&
+		summariesIn( faqSplitMarkup )[ 1 ] === 'Do you give a written quote?',
+	faqSplit.placed.data.code || summariesIn( faqSplitMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with the FAQ beside its heading, with no warning',
+	clean( faqSplit.report ) &&
+		( faqSplit.report.data.warnings || [] ).length === 0,
+	warningSummary( faqSplit.report )
+);
+
+// A question may be left out with its answer, never its answer alone.
+const answerAlone = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/faq',
+	dry_run: true,
+	omit: [ 'Question 2 answer' ],
+} );
+step(
+	'insert refuses omit of an answer without its question, as required',
+	answerAlone.status === 400 &&
+		answerAlone.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify(
+			( answerAlone.data.data?.refused || [] ).map(
+				( r ) => `${ r.slot } ${ r.reason }`
+			)
+		) === JSON.stringify( [ 'Question 2 answer required' ] ),
+	answerAlone.data.message || answerAlone.data.code
 );
 
 // Copy rules (contract 3). get-catalog gives each pattern its section, its

@@ -190,6 +190,83 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'single', $intents['reviews-single']['layout'] ?? null );
 	}
 
+	public function test_the_faq_comes_in_two_layouts_list_first_then_split(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'faq', $intents['faq']['section'] ?? null );
+		$this->assertSame( 'list', $intents['faq']['layout'] ?? null );
+		$this->assertSame( 'faq', $intents['faq-split']['section'] ?? null );
+		$this->assertSame( 'split', $intents['faq-split']['layout'] ?? null );
+	}
+
+	/**
+	 * The rows of items in an intent, as the design checks' layout check finds
+	 * them: core/columns, and groups with the grid layout.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return list<array<mixed>>
+	 */
+	private static function rows_of_items( array $intent ): array {
+		$out = [];
+		foreach ( is_array( $intent['intent']['blocks'] ?? null ) ? $intent['intent']['blocks'] : [] as $top ) {
+			foreach ( self::nodes( is_array( $top ) ? $top : [] ) as $row ) {
+				$node = $row['node'];
+				if ( 'core/columns' === ( $node['block'] ?? null ) || 'grid' === ( $node['attrs']['layout']['type'] ?? null ) ) {
+					$out[] = $node;
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	public function test_every_question_is_a_details_block_holding_only_its_answer_and_only_the_first_ships_open(): void {
+		foreach ( [ 'faq', 'faq-split' ] as $name ) {
+			$intent = self::intents()[ $name ];
+			$items  = self::service_items( $intent, 'Question' );
+			$this->assertSame( [ 'Question 1', 'Question 2', 'Question 3' ], array_keys( $items ), $name );
+
+			$first = null;
+			foreach ( $items as $label => $item ) {
+				$at = "{$name} \"{$label}\"";
+				$this->assertSame( 'core/details', $item['block'] ?? null, "{$at}: a question is a core/details block, which opens and closes with no script" );
+				$this->assertSame( 'is-style-voyager-open-question', $item['attrs']['className'] ?? null, "{$at}: the Question style makes its summary a 44px tap target" );
+				$this->assertSame( 'Question 1' === $label, $item['attrs']['showContent'] ?? false, "{$at}: only the first question ships open" );
+				$this->assertArrayNotHasKey( 'name', $item['attrs'], "{$at}: no exclusive accordion" );
+				$this->assertMatchesRegularExpression( '/\?$/', (string) ( $item['text'] ?? '' ), "{$at}: the question is its summary, asked as a visitor asks it" );
+
+				$answer = is_array( $item['children'] ?? null ) ? $item['children'] : [];
+				$this->assertCount( 1, $answer, "{$at} holds its answer and nothing else" );
+				$this->assertSame( 'core/paragraph', $answer[0]['block'] ?? null, $at );
+				$this->assertSame( "{$label} answer", $answer[0]['attrs']['metadata']['name'] ?? null, "{$at}: the answer carries the question's label, so repeat and omit take it along" );
+
+				$shape = self::shape( $item, $label );
+				unset( $shape['attrs']['showContent'] );
+				$first = $first ?? $shape;
+				$this->assertSame( $first, $shape, "{$at} is built differently from \"Question 1\"" );
+			}
+		}
+	}
+
+	public function test_the_faq_list_holds_no_row_and_the_split_one_row_of_two_with_the_heading_beside_the_questions(): void {
+		$intents = self::intents();
+
+		// tests/fixtures/contrast.json's layout.columns lists the patterns that hold a row.
+		$this->assertSame( [], self::rows_of_items( $intents['faq'] ), 'faq: the questions sit one under another at content width' );
+		foreach ( array_slice( self::nodes( $intents['faq']['intent']['blocks'][0] ), 1 ) as $row ) {
+			$this->assertArrayNotHasKey( 'align', $row['node']['attrs'] ?? [], 'faq: everything in the full-width section stays at content width' );
+		}
+
+		$rows = self::rows_of_items( $intents['faq-split'] );
+		$this->assertCount( 1, $rows, 'faq-split holds one row' );
+		$this->assertSame( 'wide', $rows[0]['attrs']['align'] ?? null, 'faq-split: the row is at wide width' );
+		$columns = is_array( $rows[0]['children'] ?? null ) ? $rows[0]['children'] : [];
+		$this->assertCount( 2, $columns, 'faq-split: the heading column, then the questions' );
+		$this->assertSame( [ 'Lead', 'Heading', 'Intro' ], self::labels_in( $columns[0] ), 'faq-split: the heading and intro come first, so on a phone the questions stack under them' );
+		$this->assertSame( 'Question 1', self::service_items( [ 'intent' => [ 'blocks' => [ $columns[1] ] ] ], 'Question' )['Question 1']['attrs']['metadata']['name'] ?? null );
+		$this->assertNotSame( false, $rows[0]['attrs']['isStackedOnMobile'] ?? true, 'faq-split: the columns stack on a phone' );
+	}
+
 	/**
 	 * The blocks labelled "Service <n>" in an intent, the items insert's
 	 * repeat and omit work on, by label.
