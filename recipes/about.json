@@ -1,0 +1,60 @@
+{
+	"title": "About page",
+	"description": "Who the business is: what it does, the credentials it holds, one customer's words about working with it, and the names it works with.",
+	"page_type": "about",
+	"sections": [
+		{
+			"pattern": "voyager-open/hero",
+			"layout": "split",
+			"style": "plain",
+			"copy_guidance": {
+				"Eyebrow": "The business's name or trade, in a few words.",
+				"Heading": "Who the business is and what it does, in a line.",
+				"Body": "One line on who runs it or how it works. The year it started is a claim: use Site Data's year founded, and leave it out when that is empty."
+			}
+		},
+		{
+			"pattern": "voyager-open/proof-strip",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {
+				"Credential 1": "A licence, insurance or membership, from Site Data's credentials list or as the site owner gave it."
+			}
+		},
+		{
+			"pattern": "voyager-open/services",
+			"layout": "grid",
+			"style": "plain",
+			"copy_guidance": {
+				"Heading": "What the business does, in a few words.",
+				"Intro": "One line on the kind of work it takes on, or for whom."
+			}
+		},
+		{
+			"pattern": "voyager-open/reviews",
+			"layout": "single",
+			"style": "inverted",
+			"copy_guidance": {
+				"Heading": "What one customer said about working with the business, in a few words. No count or score.",
+				"Review 1 quote": "A review the site owner gave you that speaks to the people or the way they work, in the customer's own words."
+			}
+		},
+		{
+			"pattern": "voyager-open/logo-marquee",
+			"layout": null,
+			"style": "plain",
+			"copy_guidance": {
+				"Eyebrow": "Whose logos these are, such as the suppliers, partners or memberships the site owner names. No count."
+			}
+		},
+		{
+			"pattern": "voyager-open/closing-cta",
+			"layout": null,
+			"style": "accent",
+			"copy_guidance": {
+				"Heading": "One short sentence that invites the visitor to get in touch.",
+				"Body": "How to reach the business, and what happens next."
+			}
+		}
+	]
+}

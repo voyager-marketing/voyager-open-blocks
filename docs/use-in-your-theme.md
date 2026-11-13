@@ -368,3 +368,20 @@ Panel, Inverted and Accent are the section styles; a section with none is Plain.
 | `voyager-open/contact-section` | contact | **Heading**, **Body**, **Phone**, **Email**, **Street address**, **City, state, postal code**, **Hours**, **Click to call**, **Form heading**, **Form body**, **Email button**; the group "Form" is the form slot | Phone `phone`, Email `email`, Street address `address`, City line `address_locality`, Hours `hours` (all `content`); Click to call `url` <- `phone_link`; Email button `url` <- `email_link` |
 
 Every binding above uses `voyager/site-data`. Each pattern's full block tree is its intent in [`patterns/intents/`](../patterns/intents/). `voyager-open/hero` and `voyager-open/hero-cover` are one section, the hero, in two layouts: their intents name it in `section` (`hero`) and each layout in `layout` (`split`, `cover`), and the first layout keeps the section's slug. `voyager-open/services` and `voyager-open/services-list` are the services section in its two layouts, `grid` and `list`, and `voyager-open/reviews` and `voyager-open/reviews-single` the reviews section in its two, `grid` and `single`.
+
+### Page recipes
+
+A page recipe is a whole page as data, for an agent to build from: its sections in order, each with a layout, a section style and a line of copy guidance. These are not the three how-to recipes at the top of this page. The pack ships six in [`recipes/`](../recipes/), in the plugin folder and the repository, one per page type: `home.json`, `services.json`, `service.json`, `location.json`, `contact.json` and `about.json`. No ability reads them yet, and a theme or plugin cannot add its own.
+
+| Key | What it holds |
+|---|---|
+| `title` | The recipe's name, such as "Home page". |
+| `description` | One sentence on what the page holds. |
+| `page_type` | `home`, `services`, `service`, `location`, `contact` or `about`. Each page type has one recipe. |
+| `sections` | The page's sections, top to bottom. The first is the hero, the page's one `h1`, and no other section is a hero. |
+| `sections[].pattern` | The section, by its slug, such as `voyager-open/hero`. A section with layouts is named by the slug its first layout keeps, never by another layout's pattern name, such as `voyager-open/hero-cover`. |
+| `sections[].layout` | One of the section's layouts, as its intents name them in `layout`, such as `cover` for `voyager-open/hero-cover`, or `null` for its first layout. A section with one layout takes `null`. |
+| `sections[].style` | `plain`, `panel`, `inverted` or `accent`, the section style to put on it. Two sections next to each other never share a style other than `plain`, and two strong ones, `inverted` and `accent`, never touch. |
+| `sections[].copy_guidance` | An object, copy label => one line on what that slot says on this page. Each label is a named text block of the pattern with a copy rule, and never one whose text a binding fills. The copy still keeps to the pattern's copy rules, and guidance for a claim slot says where its fact comes from: Site Data or the site owner. |
+
+`tests/Unit/RecipesTest.php` in the repository checks every recipe against these rules and against the intents in `patterns/intents/`.

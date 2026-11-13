@@ -187,6 +187,8 @@ Use slugs `20` to `60` only. Twenty Twenty-Four stops at `60`, and a slug the th
 
 **Two adjacent sections never share a style other than Plain.**
 
+**How the page recipes were built.** The six recipes in `recipes/`, one per page type, follow the rules above. Each opens with the hero in Plain, because it holds the page's one `h1`. The second section is Panel, so the hero's edge shows. Quiet sections carry the rest, and a strong one, Accent or Inverted, breaks each run of them, never two strong ones in a row. Each strong section is a call to act or a single review, the sections built to carry a bold move. Every page but the contact page ends on a way to get in touch, the closing CTA or the contact section. The contact page puts its contact section second and closes on one customer's words. `tests/Unit/RecipesTest.php` checks the one hero and where it sits, the adjacent styles and that no two strong sections touch. The rest is judge only.
+
 ## Elevation & Depth
 
 Flat. Nothing has a shadow. Hierarchy comes from the section's background, from type size and from 1px solid rules. The proof strip's top and bottom rules and the form slot's border set no colour, so today they render in the text colour (`currentColor`). Every line is 1px.
