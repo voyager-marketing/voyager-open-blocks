@@ -14,7 +14,7 @@ Ready-made business sections and an icon block that show your phone, email and a
 
 == Description ==
 
-Voyager Open Blocks adds nine ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
+Voyager Open Blocks adds ten ready-made page sections, an icon block, a facts block and a contact details block to the block editor. The sections that show your business details read them from one screen, Settings > Site Data. Enter your phone number, email, address, hours and social links there once. When your phone number changes, change it there, and every section that shows it follows.
 
 You need no code and no AI agent. Insert the sections from the "Business sections (Open Blocks)" category in the pattern inserter, like any other pattern. See every section live at [demo.voyagermark.com/open-blocks](https://demo.voyagermark.com/open-blocks/).
 
@@ -24,6 +24,7 @@ You need no code and no AI agent. Insert the sections from the "Business section
 * **Services**: what you do, as three cards in a row or as rows, each service an icon, a name and one line. Add a fourth service, or more in the list, or drop one.
 * **Reviews**: what your customers say, as cards or as one large quote, each with its star rating in words, the quote, the customer's name and one detail. It ships with placeholders, never a review: you add real reviews, in your customers' own words and with their permission.
 * **Process steps**: what happens once a visitor gets in touch, as three numbered steps side by side or one under another, each a heading that starts with its number and one line. Add a fourth or fifth step, or drop one.
+* **Stats**: three figures, the year you started, your average rating and your review count, in a row or beside a heading. Each one comes from Settings > Site Data and follows it, so a page never shows a number you did not enter.
 * **CTA band**: a heading and one line beside your main button and a click-to-call button that dials your phone number. Use it mid-page.
 * **Proof strip**: a row of three to six checkmarked facts, such as "Licensed and insured", under your hero.
 * **Logo marquee**: a row of client or partner logos that drifts sideways when it is wider than the screen. You replace the placeholder logos with your own.

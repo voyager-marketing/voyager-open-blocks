@@ -129,6 +129,18 @@
  *      <style> whose id does) and no keyframes, and a page holding one pulse
  *      icon loads the base and the pulse keyframes, no other animation's, and
  *      the reduced-motion rule that stops it. Then it deletes both pages.
+ *  16. the stats section: get-catalog lists voyager-open/stats and
+ *      voyager-open/stats-band with their copy labels, each value bound to
+ *      founded, rating or review_count. The year founded, the rating and the
+ *      review count are set to 1998, 4.80 and 0127 through POST
+ *      /wp/v2/settings, and a published page holding voyager-open/stats
+ *      shows 1998, 4.8 and 127 in its section, in that order. The page counts
+ *      in used_on for the rating, changing the rating records a purge with
+ *      the page, and with the rating emptied its figure shows its own text
+ *      and compose with dry_run names rating in empty.
+ *      insert refuses copy for a value as a bound slot and omit of a value
+ *      alone, and leaves a whole figure out with omit. Then it deletes the
+ *      page and puts the three fields back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -4829,6 +4841,287 @@ for ( const iconPost of [ stillIcon, pulseIcon ] ) {
 		} );
 	}
 }
+
+// 16. The stats section. Every figure binds to the business profile in Site
+// Data, so a page shows only the year founded, the rating and the review
+// count the site owner typed in. The three options are set through
+// POST /wp/v2/settings in forms the resolvers tidy (1998, 4.80 and 0127), and
+// a published page holding voyager-open/stats shows 1998, 4.8 and 127, in
+// that order. Changing the rating records a purge with the page, and a field
+// emptied shows the figure's own text, which names the field. Copy for a
+// value is refused as a bound slot, even as text the site owner gave.
+const statsFigures = [
+	{
+		figure: 'Founded',
+		key: 'founded',
+		option: 'voyager_site_founded',
+		stored: '1998',
+		shown: '1998',
+	},
+	{
+		figure: 'Rating',
+		key: 'rating',
+		option: 'voyager_site_rating',
+		stored: '4.80',
+		shown: '4.8',
+	},
+	{
+		figure: 'Review count',
+		key: 'review_count',
+		option: 'voyager_site_review_count',
+		stored: '0127',
+		shown: '127',
+	},
+];
+for ( const [ item, layout, lead ] of [
+	[ 'voyager-open/stats', 'row', [] ],
+	[ 'voyager-open/stats-band', 'band', [ 'Heading', 'Body' ] ],
+] ) {
+	const statsListed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( statsListed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	const expected = [
+		...lead,
+		...statsFigures.flatMap( ( f ) => [
+			`${ f.figure } value`,
+			`${ f.figure } label`,
+		] ),
+	];
+	const unbound = statsFigures.filter( ( f ) => {
+		const content = ( statsListed?.blocks || [] ).find(
+			( b ) => b.label === `${ f.figure } value`
+		)?.bindings?.content;
+		return ! (
+			content?.source === 'voyager/site-data' &&
+			content?.args?.key === f.key
+		);
+	} );
+	step(
+		`get-catalog lists ${ item } (section stats, layout ${ layout }) with its copy labels, each value bound to founded, rating or review_count`,
+		statsListed?.section === 'stats' &&
+			statsListed?.layout === layout &&
+			JSON.stringify( labels ) === JSON.stringify( expected ) &&
+			unbound.length === 0 &&
+			statsListed?.copy_rules?.[ 'Rating value' ]?.claim === true,
+		statsListed
+			? `labels ${ labels.join( ', ' ) }; unbound ${
+					unbound.map( ( f ) => f.figure ).join( ', ' ) || 'none'
+				}`
+			: 'not listed'
+	);
+}
+
+/**
+ * The figures of each stats section on a page: the text of every value, the
+ * paragraphs at the figure role's x-large size, in order.
+ *
+ * @param {string} pageHtml A rendered page.
+ * @return {string[][]} One list per section that holds figures.
+ */
+const figuresIn = ( pageHtml ) =>
+	[ ...pageHtml.matchAll( /<section\b[^>]*>([\s\S]*?)<\/section>/g ) ]
+		.map( ( match ) =>
+			[
+				...match[ 1 ].matchAll(
+					/<p\b[^>]*\bclass="[^"]*\bhas-x-large-font-size\b[^"]*"[^>]*>([\s\S]*?)<\/p>/g
+				),
+			].map( ( value ) => value[ 1 ].replace( /<[^>]*>/g, '' ).trim() )
+		)
+		.filter( ( values ) => values.length > 0 );
+const statsSettingsBefore = ( await api( '/wp/v2/settings' ) ).data;
+const setStats = ( values ) =>
+	api( '/wp/v2/settings', { method: 'POST', body: values } );
+const statsSet = await setStats(
+	Object.fromEntries( statsFigures.map( ( f ) => [ f.option, f.stored ] ) )
+);
+const statsDraft = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: { title: `E2E stats ${ stamp }`, status: 'draft', content: '' },
+} );
+const statsId = statsDraft.data.id;
+const statsPlaced = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats',
+} );
+validate( 'stats as insert saves it', statsPlaced.data.markup || '' );
+const statsUse = 'voyager/site-data:rating';
+const statsUsedBefore = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ statsUse ];
+const statsPublished = await api( `/wp/v2/pages/${ statsId }`, {
+	method: 'POST',
+	body: { status: 'publish' },
+} );
+const statsLink = statsPublished.data.link;
+const statsShown = async () =>
+	statsLink ? figuresIn( ( await request( statsLink ) ).text ) : [];
+const shownStats = await statsShown();
+step(
+	'fitness: with the year founded, the rating and the review count set to 1998, 4.80 and 0127, a published page holding voyager-open/stats shows 1998, 4.8 and 127 in its section, in that order',
+	statsSet.status === 200 &&
+		statsFigures.every(
+			( f ) => statsSet.data?.[ f.option ] === f.shown
+		) &&
+		statsPlaced.data.saved === true &&
+		statsPublished.status === 200 &&
+		shownStats.length === 1 &&
+		JSON.stringify( shownStats[ 0 ] ) ===
+			JSON.stringify( statsFigures.map( ( f ) => f.shown ) ),
+	`settings ${ statsSet.data?.code || statsSet.status } ${ JSON.stringify(
+		statsFigures.map( ( f ) => statsSet.data?.[ f.option ] )
+	) }; insert ${
+		statsPlaced.data.code || `saved ${ statsPlaced.data.saved }`
+	}; shown ${ JSON.stringify( shownStats ) }`
+);
+validate(
+	'the published stats page',
+	( await api( `/wp/v2/pages/${ statsId }`, { query: { context: 'edit' } } ) )
+		.data.content?.raw || ''
+);
+
+const statsUsedAfter = (
+	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
+).data.used_on?.[ statsUse ];
+step(
+	'get-catalog used_on for the rating counts the published stats page',
+	Number.isInteger( statsUsedBefore?.posts ) &&
+		statsUsedAfter?.posts === statsUsedBefore.posts + 1,
+	`before ${ JSON.stringify( statsUsedBefore ) }, after ${ JSON.stringify(
+		statsUsedAfter
+	) }`
+);
+
+const statsPurge = await purgesDuring( () =>
+	setStats( { voyager_site_rating: '4.7' } )
+);
+const afterPurge = await statsShown();
+step(
+	'changing the rating records one purge, for the rating, with the stats page, and the page shows the new rating',
+	statsPurge.changed.status === 200 &&
+		statsPurge.records.length === 1 &&
+		( statsPurge.records[ 0 ].context?.keys || [] ).includes( 'rating' ) &&
+		( statsPurge.records[ 0 ].urls || [] ).includes( statsLink ) &&
+		( statsPurge.records[ 0 ].context?.post_ids || [] ).includes(
+			statsId
+		) &&
+		JSON.stringify( afterPurge[ 0 ] ) ===
+			JSON.stringify( [ '1998', '4.7', '127' ] ),
+	`${ described( statsPurge.records ) }; shown ${ JSON.stringify(
+		afterPurge
+	) }`
+);
+
+const noRating = await setStats( { voyager_site_rating: '' } );
+const withoutRating = await statsShown();
+step(
+	'with the rating empty, its figure shows its own text, which names the field and holds no number, and the other two still show',
+	noRating.status === 200 &&
+		noRating.data?.voyager_site_rating === '' &&
+		withoutRating.length === 1 &&
+		withoutRating[ 0 ].length === 3 &&
+		withoutRating[ 0 ][ 0 ] === '1998' &&
+		withoutRating[ 0 ][ 1 ] === 'Score' &&
+		withoutRating[ 0 ][ 2 ] === '127',
+	JSON.stringify( withoutRating )
+);
+const statsTrial = await run( `${ ns }/compose`, {
+	title: `E2E stats trial ${ stamp }`,
+	sections: [ { pattern: 'voyager-open/stats' } ],
+	dry_run: true,
+} );
+step(
+	'with the rating empty, compose with dry_run names rating in empty, and not the year founded or the review count',
+	statsTrial.status === 200 &&
+		statsTrial.data.saved === false &&
+		JSON.stringify( statsTrial.data.empty ) ===
+			JSON.stringify( [ 'rating' ] ),
+	JSON.stringify( statsTrial.data.empty ?? statsTrial.data.code )
+);
+
+const statsRaw = async () =>
+	(
+		await api( `/wp/v2/pages/${ statsId }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw ?? null;
+const beforeStatsCopy = await statsRaw();
+const statsCopy = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats',
+	copy: { 'Rating value': { text: '4.8', source: 'user' } },
+} );
+const statsRefused = statsCopy.data.data?.refused || [];
+step(
+	'insert refuses copy for the bound "Rating value" with voyager_open_blocks_bound_slot, even as text the site owner gave, and the page is unchanged',
+	statsCopy.status === 400 &&
+		statsCopy.data.code === 'voyager_open_blocks_bound_slot' &&
+		statsRefused.length === 1 &&
+		statsRefused[ 0 ].slot === 'Rating value' &&
+		statsRefused[ 0 ].reason === 'bound' &&
+		statsRefused[ 0 ].key === 'rating' &&
+		!! beforeStatsCopy &&
+		( await statsRaw() ) === beforeStatsCopy,
+	statsCopy.data.message || statsCopy.data.code
+);
+
+const statsOmit = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats-band',
+	dry_run: true,
+	omit: [ 'Review count' ],
+	copy: {
+		Heading: 'About us at a glance',
+		'Rating label': 'Customer rating',
+	},
+} );
+const omitMarkup = statsOmit.data.markup || '';
+step(
+	'insert with omit leaves out a whole figure, its value and its label, and takes plain copy for the band heading and a label',
+	statsOmit.status === 200 &&
+		statsOmit.data.saved === false &&
+		omitMarkup.includes( '"key":"founded"' ) &&
+		omitMarkup.includes( '"key":"rating"' ) &&
+		! omitMarkup.includes( '"key":"review_count"' ) &&
+		! omitMarkup.includes( 'Review count label' ) &&
+		omitMarkup.includes( '>About us at a glance</h2>' ) &&
+		omitMarkup.includes( '>Customer rating</p>' ),
+	statsOmit.data.message || statsOmit.data.code || 'markup checked'
+);
+const valueOmit = await run( `${ ns }/insert`, {
+	post_id: statsId,
+	item: 'voyager-open/stats',
+	dry_run: true,
+	omit: [ 'Rating value' ],
+} );
+step(
+	'insert refuses omit of a value alone, which would leave its label with no figure',
+	valueOmit.status === 400 &&
+		valueOmit.data.code === 'voyager_open_blocks_copy_rules' &&
+		( valueOmit.data.data?.refused || [] ).some(
+			( r ) => r.slot === 'Rating value' && r.reason === 'required'
+		),
+	valueOmit.data.message || valueOmit.data.code
+);
+
+if ( statsId ) {
+	await api( `/wp/v2/pages/${ statsId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+await setStats(
+	Object.fromEntries(
+		statsFigures
+			.filter(
+				( f ) => typeof statsSettingsBefore[ f.option ] === 'string'
+			)
+			.map( ( f ) => [ f.option, statsSettingsBefore[ f.option ] ] )
+	)
+);
+await api( recorder, { method: 'DELETE' } );
 
 rmSync( scratch, { recursive: true, force: true } );
 console.log(

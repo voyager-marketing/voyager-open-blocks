@@ -400,6 +400,22 @@ final class RecipesTest extends TestCase {
 		}
 	}
 
+	public function test_the_home_and_about_pages_show_the_stats_section_once(): void {
+		$recipes = self::recipes();
+
+		foreach ( [ 'home', 'about' ] as $slug ) {
+			$this->assertInstanceOf( stdClass::class, $recipes[ $slug ] ?? null, "recipes/{$slug}.json" );
+			$stats = array_values(
+				array_filter(
+					$recipes[ $slug ]->sections,
+					static fn ( mixed $section ): bool => $section instanceof stdClass && 'voyager-open/stats' === ( $section->pattern ?? null )
+				)
+			);
+			$this->assertCount( 1, $stats, "{$slug} shows the stats section once" );
+			$this->assertNotNull( self::resolve( $stats[0]->pattern, $stats[0]->layout ), "{$slug}: the stats section's layout names a pattern" );
+		}
+	}
+
 	public function test_the_hero_is_the_only_section_with_an_h1(): void {
 		$intents = self::intents();
 		$this->assertNotSame( [], $intents, 'no intent files were read' );
