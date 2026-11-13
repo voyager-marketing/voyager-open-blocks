@@ -418,6 +418,15 @@ final class ComposeTest extends TestCase {
 		$stats   = IntentBlocks::blocks( 'stats' );
 		$refused = Abilities\fill_pattern( $stats, self::rules( 'stats' ), [], [ 'Founded', 'Rating', 'Review count' ], [] );
 		$this->assertSame( [ 'Founded required' ], self::refusals( $refused ) );
+
+		// First in omit's order, not the page's: Review count is the last
+		// figure on the page. fill_pattern() changed $stats above, so a fresh
+		// copy.
+		$stats   = IntentBlocks::blocks( 'stats' );
+		$refused = Abilities\fill_pattern( $stats, self::rules( 'stats' ), [], [ 'Review count', 'Founded', 'Rating' ], [] );
+		$this->assertSame( [ 'Review count required' ], self::refusals( $refused ) );
+		$this->assertIsArray( $refused );
+		$this->assertSame( 'Review count', $refused[0]['omitted'] ?? null );
 	}
 
 	public function test_an_omit_that_leaves_something_to_show_is_not_refused_as_empty(): void {

@@ -23,10 +23,12 @@ final class PatternLayoutsTest extends TestCase {
 	/**
 	 * Words and marks of a factual claim or a promise: a credential, a year, a
 	 * rating, an award, a price or a time. Default copy holds none of them
-	 * (contract 3). "star", "top" and "free" are whole words, so "started",
-	 * "stop" and "freeze" make no claim.
+	 * (contract 3). "star", "top", "free", "rated", "best", "since" and
+	 * "leading" are whole words, and a word starts with "warrant", so
+	 * "started", "stop", "freeze", "operated", "asbestos", "sincere",
+	 * "misleading" and "unwarranted" make no claim.
 	 */
-	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|\bstars?\b|years?\b|since|established|guarantee|warrant|best|\btop\b|leading|\bfree\b|same[- ]day|#|\d/i';
+	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|\brated\b|rating|review|\bstars?\b|years?\b|\bsince\b|established|guarantee|\bwarrant|\bbest\b|\btop\b|\bleading\b|\bfree\b|same[- ]day|#|\d/i';
 
 	/**
 	 * How a step's heading starts: its number, a full stop and a space
@@ -1032,7 +1034,7 @@ final class PatternLayoutsTest extends TestCase {
 	}
 
 	public function test_the_claim_pattern_catches_a_planted_claim(): void {
-		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county', 'Free estimates', 'Same-day repairs', 'Same day visits' ] as $planted ) {
+		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county', 'Free estimates', 'Same-day repairs', 'Same day visits', 'Top-rated plumbers', 'Highly rated', 'The best in town', 'Serving you since our first job', 'Every job under warranty', 'Our work is warranted', 'An industry-leading team' ] as $planted ) {
 			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
 		}
 	}
@@ -1055,8 +1057,8 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
-	public function test_the_claim_pattern_passes_words_that_only_hold_star_top_or_free(): void {
-		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover', 'Pipes that freeze in winter' ] as $plain ) {
+	public function test_the_claim_pattern_passes_words_that_only_hold_a_claim_word(): void {
+		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover', 'Pipes that freeze in winter', 'Family operated', 'Asbestos removal', 'A sincere thank you', 'Nothing misleading', 'No unwarranted charges' ] as $plain ) {
 			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $plain, $plain );
 		}
 	}
