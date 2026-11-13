@@ -52,4 +52,4 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 ## More
 
-Each item has a skill, such as `voyager-open-hero`. `examples/` holds a home page for five kinds of business, each a `compose` call. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.
+Each item has a skill, such as `voyager-open-hero`; `prompt` returns its "Tell your agent" prompt, an MCP prompt on MCP Adapter 0.3.0+. `examples/` holds a home page for five kinds of business, each a `compose` call. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.
