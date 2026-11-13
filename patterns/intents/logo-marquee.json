@@ -4,6 +4,15 @@
 	"categories": [ "voyager-open", "media" ],
 	"keywords": [ "logos", "clients", "partners", "marquee", "brands", "strip" ],
 	"viewportWidth": 1280,
+	"copy_rules": {
+		"Eyebrow": {
+			"purpose": "The section's only heading, an h2 at the small size: whose logos these are, such as clients, partners or suppliers. No count of customers, and no claim the logos do not show.",
+			"min": 10,
+			"max": 50,
+			"required": true,
+			"claim": false
+		}
+	},
 	"intent": {
 		"blocks": [
 			{

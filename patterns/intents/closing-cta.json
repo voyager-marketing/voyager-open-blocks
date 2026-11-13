@@ -4,6 +4,36 @@
 	"categories": [ "voyager-open", "call-to-action" ],
 	"keywords": [ "cta", "closing", "final", "contact", "email" ],
 	"viewportWidth": 1280,
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The page's last h2: one short sentence that invites the reader to get in touch.",
+			"min": 10,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on how to reach the business and what happens next.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Primary button": {
+			"purpose": "The page's last main action, as what happens when it is pressed, such as Book an estimate.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Email button": {
+			"purpose": "The second button's label. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as Email us, never the address.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
 	"intent": {
 		"blocks": [
 			{

@@ -9,13 +9,14 @@ license: GPL-2.0-or-later
 ## When to use
 
 - Directly under a hero, to back the headline with facts.
-- Only with real, verifiable facts. If the owner has not given you any, do not place the strip on a live page: ask for them. On a demo or draft page the shipped placeholders can stay, and you say they need replacing. Never invent a license, an award, a rating or a number of years.
+- Only with real, verifiable facts. If the owner has not given you any, do not place the strip on a live page: ask for them. On a demo or draft page the shipped stand-ins can stay, and you say they need replacing. Never invent a license, an award, a rating or a number of years.
+- When the owner keeps the credentials in Settings > Site Data, show that list through a `voyager-open/facts` block in the Ticks style instead (Copy rules, below).
 
 ## Tell your agent
 
 > Add the Voyager Open Blocks proof strip under the hero on my home page with these credentials: [three to six short facts]. Use only what I give you.
 
-The shipped items read like real claims ("Licensed and insured"). On a live page, an item the owner gave no fact for must go, not stay as a placeholder.
+The shipped items are stand-ins that say what goes there ("Your first credential"), not facts. On a live page, an item the owner gave no fact for must go, not stay as a stand-in.
 
 ## Structure
 
@@ -31,6 +32,21 @@ core/group (section, full width, ruled top and bottom)   "Proof strip"
 The Row group centres a short list in the strip; a long one fills the row and wraps. A flex group holding a Ticks list is also a size container (`voyager-open-ticks`), so when the Row is narrower than 32em the ticks stack as one column. That follows the strip's width, not the screen's. Keep the list inside the Row group: on its own the list keeps the wrapping row at every width.
 
 The intent tree is `patterns/intents/proof-strip.json`. The markup is `patterns/proof-strip.html`.
+
+## Copy rules
+
+The intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` (contract 3). Lengths count characters of plain text.
+
+| Label | What goes there | Min | Max | Required | Claim |
+|---|---|---|---|---|---|
+| `Credential 1` to `Credential 3` | One fact the site owner gave you and can show proof of, such as a licence, insurance or a membership. A short phrase with no full stop. | 3 | 40 | yes | yes |
+| `Credential 4` | The same, for a fourth fact. | 3 | 40 | no | yes |
+
+An item added with `repeat` takes the same rules as the one it copies, so `Credential 5` and `Credential 6` are optional too. Three items is the fewest the strip shows.
+
+Every item is a claim slot. `claim: true` means its text comes from the site owner, never from you. Pass each fact in contract 3's object form, `{"text": "Licensed in Illinois", "source": "user"}`, which says the owner gave it. The shipped text makes no claim and says what goes there: "Your first credential" to "Your fourth credential". Replace each one you have a fact for and drop the rest, or leave the strip off a live page.
+
+**Credentials kept in Site Data.** When Settings > Site Data > Business profile > Credentials holds the list, do not type it into this strip. Place a `voyager-open/facts` block in the Ticks style (`is-style-voyager-open-ticks`) with its `items` bound to `voyager/site-data`, `{"key": "credentials"}`, so the page follows the setting. It looks the same as this strip's list. The `voyager-open-facts` skill shows how.
 
 ## Customizing
 
@@ -68,22 +84,22 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
 
 - **Which page:** for "my home page", call `find-posts` with `{"front_page": true}` and use the row's `id`. If its `note` says the home page lists the latest posts, the row is a template: that works the same way when its `id` is a number. When `id` is `null`, ask the user to save that template once in the Site Editor.
 - **Where:** "under the hero" is usually `position` 1. Read `get-post-blocks` first and count the top-level blocks (paths with no `/`): the hero is normally the one at path `0`, and the `text` of the heading inside it is the page's main headline.
-- **Three or four facts:** `insert` with `copy` for one item per fact, and `omit` for the items left over:
+- **Three or four facts:** `insert` with `copy` for one item per fact, each in the object form because the owner gave it, and `omit` for the item left over:
 
   ```json
-  {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "copy": {"Credential 1": "Licensed and insured", "Credential 2": "Family owned since 1998", "Credential 3": "Written quotes"}, "omit": ["Credential 4"]}
+  {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "copy": {"Credential 1": {"text": "Licensed and insured", "source": "user"}, "Credential 2": {"text": "Family owned since 1998", "source": "user"}, "Credential 3": {"text": "Written quotes", "source": "user"}}, "omit": ["Credential 4"]}
   ```
 
-  Labels: `Credential 1` to `Credential 4`. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label is refused with `voyager_open_blocks_invalid_copy`, `voyager_open_blocks_invalid_omit` or `voyager_open_blocks_invalid_repeat`, which list the valid labels.
+  Labels: `Credential 1` to `Credential 4`. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label is refused with `voyager_open_blocks_invalid_copy`, `voyager_open_blocks_invalid_omit` or `voyager_open_blocks_invalid_repeat`, which list the valid labels. Only `Credential 4` can be omitted: the first three are required.
 - **Five or six facts:** `repeat` adds items after `Credential 4`, each with a new label, and `copy` fills them:
 
   ```json
-  {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "repeat": {"Credential 4": ["Credential 5", "Credential 6"]}, "copy": {"Credential 1": "Licensed and insured", "Credential 2": "Family owned since 1998", "Credential 3": "Written quotes", "Credential 4": "Same-week scheduling", "Credential 5": "Free estimates", "Credential 6": "Two-year guarantee"}}
+  {"post_id": 123, "item": "voyager-open/proof-strip", "position": 1, "repeat": {"Credential 4": ["Credential 5", "Credential 6"]}, "copy": {"Credential 1": {"text": "Licensed and insured", "source": "user"}, "Credential 2": {"text": "Family owned since 1998", "source": "user"}, "Credential 3": {"text": "Written quotes", "source": "user"}, "Credential 4": {"text": "Same-week scheduling", "source": "user"}, "Credential 5": {"text": "Free estimates", "source": "user"}, "Credential 6": {"text": "Two-year guarantee", "source": "user"}}}
   ```
 
-  Give each new item a label no block has yet. Every item you add needs a fact in `copy`, or it shows the fourth item's placeholder text. More than six makes a crowded row: say so and ask which to keep.
-- **No facts:** do not insert the strip. Ask the owner for them.
-- **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. It shows the four shipped claims, so use it only on a demo page.
+  Give each new item a label no block has yet. Every item you add needs a fact in `copy`, or it shows the fourth item's stand-in. More than six makes a crowded row: say so and ask which to keep.
+- **No facts:** do not insert the strip. Ask the owner for them. When they are in Settings > Site Data > Credentials, insert a `voyager-open/facts` block in the Ticks style and bind its `items` instead (Copy rules, above).
+- **As shipped:** `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates. It shows the four stand-ins, so use it only on a demo page.
 - **bind:** optional. Bind a list item's `content` to an allowlisted post meta field by its path and the field's args from `get-catalog`.
 - **validate** with `{"post_id": 123}` checks the saved page.
 
