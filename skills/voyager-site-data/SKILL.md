@@ -63,7 +63,7 @@ The stored options are `voyager_site_phone`, `voyager_site_email`, `voyager_site
 A paragraph:
 
 ```json
-{ "block": "core/paragraph", "text": "(555) 010-0100", "attrs": { "metadata": { "bindings": { "content": { "source": "voyager/site-data", "args": { "key": "phone" } } } } } }
+{ "block": "core/paragraph", "text": "Phone", "attrs": { "metadata": { "bindings": { "content": { "source": "voyager/site-data", "args": { "key": "phone" } } } } } }
 ```
 
 A click-to-call button (text and link both bound):

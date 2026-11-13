@@ -386,7 +386,7 @@ final class ContactDetailsTest extends TestCase {
 	}
 
 	public function test_validate_warns_stale_fallback_on_its_own_phone(): void {
-		$stale = Abilities\stale_fallbacks( [ self::bound_to_phone( '(555) 010-0199' ) ], [] );
+		$stale = Abilities\stale_fallbacks( [ self::bound_to_phone( '(555) 010-0199' ) ] );
 
 		$this->assertCount( 1, $stale );
 		$this->assertSame( 'phone', $stale[0]['attribute'] );
@@ -400,7 +400,7 @@ final class ContactDetailsTest extends TestCase {
 	}
 
 	public function test_validate_warns_nothing_when_its_own_phone_is_empty_or_a_label(): void {
-		$this->assertSame( [], Abilities\stale_fallbacks( [ self::bound_to_phone( '' ) ], [] ) );
-		$this->assertSame( [], Abilities\stale_fallbacks( [ self::bound_to_phone( 'Call us' ) ], [] ) );
+		$this->assertSame( [], Abilities\stale_fallbacks( [ self::bound_to_phone( '' ) ] ) );
+		$this->assertSame( [], Abilities\stale_fallbacks( [ self::bound_to_phone( 'Call us' ) ] ) );
 	}
 }
