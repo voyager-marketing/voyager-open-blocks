@@ -1,6 +1,6 @@
 <?php
 /**
- * The abilities: inc/abilities/shared.php, then copy-rules.php (the copy check insert and compose share), then one file per ability. Start in shared.php.
+ * The abilities: inc/abilities/shared.php, then copy-rules.php (the copy check insert and compose share) and recipes.php (the page recipes get-catalog lists and compose builds), then one file per ability. Start in shared.php.
  * @package VoyagerOpenBlocks
  */
 
@@ -12,6 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/abilities/shared.php';
 require_once __DIR__ . '/abilities/copy-rules.php';
+require_once __DIR__ . '/abilities/recipes.php';
 require_once __DIR__ . '/abilities/get-catalog.php';
 require_once __DIR__ . '/abilities/find-posts.php';
 require_once __DIR__ . '/abilities/get-post-blocks.php';
