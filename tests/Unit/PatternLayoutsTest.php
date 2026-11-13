@@ -21,11 +21,19 @@ final class PatternLayoutsTest extends TestCase {
 	private const INTENTS = __DIR__ . '/../../patterns/intents';
 
 	/**
-	 * Words and marks of a factual claim: a credential, a year, a rating or an
-	 * award. Default copy holds none of them (contract 3). "star" and "top"
-	 * are whole words, so "started" and "stop" make no claim.
+	 * Words and marks of a factual claim or a promise: a credential, a year, a
+	 * rating, an award, a price or a time. Default copy holds none of them
+	 * (contract 3). "star", "top" and "free" are whole words, so "started",
+	 * "stop" and "freeze" make no claim.
 	 */
-	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|\bstars?\b|years?\b|since|established|guarantee|warrant|best|\btop\b|leading|#|\d/i';
+	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|rated|rating|review|\bstars?\b|years?\b|since|established|guarantee|warrant|best|\btop\b|leading|\bfree\b|same[- ]day|#|\d/i';
+
+	/**
+	 * How a step's heading starts: its number, a full stop and a space
+	 * (DESIGN.md, Step). An ordered list cannot hold the steps, because a
+	 * core/list-item holds only a nested core/list, not an h3 and a paragraph.
+	 */
+	private const STEP_NUMBER = '/^(\d+)\. \S/';
 
 	/**
 	 * What each of the proof strip's items ships as: what goes there, never a
@@ -190,12 +198,21 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'single', $intents['reviews-single']['layout'] ?? null );
 	}
 
+	public function test_process_steps_comes_in_two_layouts_row_first_then_list(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'process-steps', $intents['process-steps']['section'] ?? null );
+		$this->assertSame( 'row', $intents['process-steps']['layout'] ?? null );
+		$this->assertSame( 'process-steps', $intents['process-steps-list']['section'] ?? null );
+		$this->assertSame( 'list', $intents['process-steps-list']['layout'] ?? null );
+	}
+
 	/**
 	 * The blocks labelled "Service <n>" in an intent, the items insert's
 	 * repeat and omit work on, by label.
 	 *
 	 * @param array<string, mixed> $intent A decoded intent file.
-	 * @param string               $word   What the items are called: "Service" or "Review".
+	 * @param string               $word   What the items are called: "Service", "Review" or "Step".
 	 * @return array<string, array<string, mixed>>
 	 */
 	private static function service_items( array $intent, string $word = 'Service' ): array {
@@ -303,6 +320,61 @@ final class PatternLayoutsTest extends TestCase {
 		}
 
 		$this->assertCount( 1, array_unique( $sizes ), 'every icon is the same size, in both layouts' );
+	}
+
+	public function test_every_step_shares_one_structure_and_its_heading_starts_with_its_number(): void {
+		$intents = self::intents();
+		$insides = [];
+
+		// In the row, each step is a column, so repeat adds a column and omit
+		// takes one away. In the list, each step is a group.
+		foreach ( [ 'process-steps' => 'core/column', 'process-steps-list' => 'core/group' ] as $name => $wrapper ) {
+			$this->assertArrayHasKey( $name, $intents, "no intent for voyager-open/{$name}" );
+			$steps = self::service_items( $intents[ $name ], 'Step' );
+			$this->assertSame( [ 'Step 1', 'Step 2', 'Step 3' ], array_keys( $steps ), $name );
+
+			$first = null;
+			foreach ( $steps as $label => $step ) {
+				$at    = "{$name} \"{$label}\"";
+				$shape = self::shape( $step, $label );
+				$first = $first ?? $shape;
+				$this->assertSame( $first, $shape, "{$at} is built differently from \"Step 1\"" );
+				$this->assertSame( $wrapper, $step['block'] ?? null, $at );
+
+				// An h3 and one short line, and nothing else: no icon, no button, no card.
+				$children = is_array( $step['children'] ?? null ) ? array_values( $step['children'] ) : [];
+				$this->assertSame(
+					[ [ 'core/heading', "{$label} heading" ], [ 'core/paragraph', "{$label} text" ] ],
+					array_map( static fn ( mixed $child ): array => [ is_array( $child ) ? ( $child['block'] ?? null ) : null, is_array( $child ) ? ( $child['attrs']['metadata']['name'] ?? null ) : null ], $children ),
+					"{$at} holds its heading, then one short line"
+				);
+				$this->assertSame( 3, $children[0]['level'] ?? null, "{$at}: a step's heading is an h3" );
+				foreach ( self::nodes( $step ) as $row ) {
+					$this->assertArrayNotHasKey( 'border', is_array( $row['node']['attrs']['style'] ?? null ) ? $row['node']['attrs']['style'] : [], "{$at}: a step is not a card, and holds none" );
+				}
+
+				// The number is in the heading's own text, so a screen reader
+				// hears it with the heading and a sighted reader sees it.
+				$heading = is_string( $children[0]['text'] ?? null ) ? $children[0]['text'] : '';
+				$this->assertSame( 1, preg_match( self::STEP_NUMBER, $heading, $match ), "{$at}: the heading \"{$heading}\" starts with the step's number" );
+				$this->assertSame( substr( (string) $label, strlen( 'Step ' ) ), $match[1], "{$at}: the heading's number is the step's own" );
+			}
+
+			$insides[ $name ] = array_map( static fn ( mixed $child ): mixed => is_array( $child ) ? self::shape( $child, 'Step 1' ) : $child, $steps['Step 1']['children'] ?? [] );
+		}
+
+		$this->assertSame( $insides['process-steps'], $insides['process-steps-list'], 'a step holds the same blocks in both layouts, with its number in its heading in both' );
+
+		$row = null;
+		foreach ( self::nodes( $intents['process-steps']['intent']['blocks'][0] ) as $found ) {
+			if ( 'core/columns' === ( $found['node']['block'] ?? null ) ) {
+				$row = $found['node'];
+			}
+		}
+		$this->assertIsArray( $row, 'process-steps puts its steps in a core/columns' );
+		$this->assertSame( 'wide', $row['attrs']['align'] ?? null, 'the row of steps is at wide width' );
+		$this->assertNotSame( false, $row['attrs']['isStackedOnMobile'] ?? null, 'the steps stack on a phone' );
+		$this->assertSame( [ 'Step 1', 'Step 2', 'Step 3' ], array_map( static fn ( mixed $column ): mixed => is_array( $column ) ? ( $column['attrs']['metadata']['name'] ?? null ) : null, is_array( $row['children'] ?? null ) ? $row['children'] : [] ), 'the row holds the three steps and nothing else' );
 	}
 
 	/**
@@ -478,6 +550,24 @@ final class PatternLayoutsTest extends TestCase {
 		}
 	}
 
+	/**
+	 * Copy with a step's own number taken off the front of its heading. In
+	 * "Step 2 heading", a leading "2. " is the step's place in the order, not
+	 * a claim (DESIGN.md, Step). Any other number, a number that is not the
+	 * step's own, and every other label's text stay as they are, so the claim
+	 * check still sees them.
+	 *
+	 * @param string $label A block's metadata.name.
+	 * @param string $text  The text it ships.
+	 */
+	private static function without_step_number( string $label, string $text ): string {
+		if ( 1 === preg_match( '/^Step (\d+) heading$/', $label, $match ) && str_starts_with( $text, $match[1] . '. ' ) ) {
+			return substr( $text, strlen( $match[1] ) + 2 );
+		}
+
+		return $text;
+	}
+
 	public function test_no_default_copy_makes_a_claim_outside_a_claim_slot_or_a_bound_slot(): void {
 		$hits = [];
 
@@ -498,7 +588,7 @@ final class PatternLayoutsTest extends TestCase {
 					// validate's stale_fallback: warning checks it.
 					continue;
 				}
-				if ( 1 === preg_match( self::CLAIMS, $text ) ) {
+				if ( 1 === preg_match( self::CLAIMS, self::without_step_number( (string) $label, $text ) ) ) {
 					$hits[] = "{$at}: \"{$text}\"";
 				}
 			}
@@ -508,13 +598,31 @@ final class PatternLayoutsTest extends TestCase {
 	}
 
 	public function test_the_claim_pattern_catches_a_planted_claim(): void {
-		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county' ] as $planted ) {
+		foreach ( [ 'Licensed and insured', 'Serving the county since 1998', '20 years in business', 'Rated 4.9 by our customers', 'Award-winning service', 'Five-star service', 'Top plumbers in the county', 'Free estimates', 'Same-day repairs', 'Same day visits' ] as $planted ) {
 			$this->assertMatchesRegularExpression( self::CLAIMS, $planted, $planted );
 		}
 	}
 
-	public function test_the_claim_pattern_passes_words_that_only_hold_star_or_top(): void {
-		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover' ] as $plain ) {
+	public function test_a_step_s_own_number_is_not_a_claim_but_what_follows_it_still_is(): void {
+		foreach ( [ [ 'Step 1 heading', '1. Get in touch' ], [ 'Step 12 heading', '12. We do the work' ] ] as [ $label, $text ] ) {
+			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, self::without_step_number( $label, $text ), "{$label}: {$text}" );
+		}
+
+		foreach ( [
+			[ 'Step 1 heading', '1. Same-day visits' ],
+			[ 'Step 1 heading', '1. Free quotes' ],
+			[ 'Step 1 heading', '1. A call back within 24 hours' ],
+			[ 'Step 2 heading', '1. Get in touch' ],
+			[ 'Step 1 heading', '1.Get in touch' ],
+			[ 'Step 1 text', '1. Get in touch' ],
+			[ 'Heading', '1. How it works' ],
+		] as [ $label, $text ] ) {
+			$this->assertMatchesRegularExpression( self::CLAIMS, self::without_step_number( $label, $text ), "{$label}: {$text}" );
+		}
+	}
+
+	public function test_the_claim_pattern_passes_words_that_only_hold_star_top_or_free(): void {
+		foreach ( [ 'Ready to get started?', 'Call, email or stop by during business hours.', 'Restart the boiler', 'Topics we cover', 'Pipes that freeze in winter' ] as $plain ) {
 			$this->assertDoesNotMatchRegularExpression( self::CLAIMS, $plain, $plain );
 		}
 	}
