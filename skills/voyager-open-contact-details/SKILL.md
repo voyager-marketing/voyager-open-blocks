@@ -64,24 +64,17 @@ Every attribute is bindable (`bindings.supportedAttributes["voyager-open/contact
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/contact-details` is in `blocks.types` and `bindings.supportedAttributes["voyager-open/contact-details"]` lists all seven attributes.
-2. **Author.** Block Runner cannot assemble a custom block, so write the self-closing comment above with attributes only, inside native blocks you assemble around it.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`.
-4. **Bind.** Each attribute with the args from `get-catalog`.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/contact-details` in `blocks.types` and `voyager/site-data` in `bindings.sources`. Block Runner cannot assemble a custom block, so write the self-closing comment above with attributes only, inside native blocks you assemble around it. Check it with `npx block-runner validate`, then bind each attribute. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
 - **insert**: `{"post_id": 123, "item": "voyager-open/contact-details"}`. Add `"attributes": {"phone": "Phone number", "email": "Email address"}` for labels that show while a field is empty. With `parent`, the path of a group, it goes inside that block, at `position`.
-- **bind**: once per attribute, such as `{"post_id": 123, "path": "4", "attribute": "phoneLink", "source": "voyager/site-data", "args": {"key": "phone_link"}}`. Copy `args` from `get-catalog`.
+- **bind**: once per attribute, such as `{"post_id": 123, "path": "4", "attribute": "phoneLink", "source": "voyager/site-data", "args": {"key": "phone_link"}}`.
 - **configure**: `{"post_id": 123, "path": "4", "attributes": {"hours": "By appointment"}}` changes a part that is not bound. A bound part is refused with `voyager_open_blocks_bound_slot`, because its value comes from the binding: change it in Settings > Site Data instead. `null` resets a part, bound or not.
-- **get-post-blocks** proves the bindings: each should read `resolution.status: "resolved"`. `fell_back` with `reason: "empty_value"` means that field is empty in Settings > Site Data: tell the user which one, from the table above.
-- **validate** with the `post_id` warns `stale_fallback:` on a bound part whose own value looks like a phone number (`phone`, `phoneLink`) or an email address (`email`, `emailLink`).
-
-Paths come from the insert response or `get-post-blocks`.
+- **get-post-blocks**: a binding that falls back names an empty field. Tell the user which one, from the table above.
+- **validate** warns `stale_fallback:` on a bound part whose own value looks like a phone number (`phone`, `phoneLink`) or an email address (`email`, `emailLink`).
 
 ## In the editor
 

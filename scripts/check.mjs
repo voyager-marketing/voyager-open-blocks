@@ -55,6 +55,9 @@
  *     where it is, the kind of target and its place among the section's
  *     targets of that kind, never by its text, and the same rule refuses a
  *     planted entry keyed on text.
+ * 23. skills: the quick card, the entry skill, is under 500 words, counted
+ *     as `wc -w` counts them (scripts/lib/words.mjs), and the same rule
+ *     refuses tests/invalid/quick-card-500.md, a copy of it at 500 words.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -77,6 +80,7 @@ import {
 	packContextText,
 } from './lib/pack-blocks.mjs';
 import { checkMarkup, describeFinding, RULES } from './lib/presets.mjs';
+import { CARD_LIMIT, cardFits, countWords, ENTRY_SKILL } from './lib/words.mjs';
 
 const root = fileURLToPath( new URL( '..', import.meta.url ) );
 const blockRunner = join(
@@ -821,5 +825,37 @@ report(
 			}`
 );
 printEach( knownProblems.slice( 0, 10 ) );
+
+// An agent reads the entry skill before its first call, so every word of it
+// is paid for on every build. The detail lives in the abilities' own
+// descriptions; the card keeps the path and the rules. Counted as `wc -w`
+// counts, so the number is easy to check by hand. The plant is a copy of the
+// card at exactly 500 words, the first count the rule must refuse. A crash
+// fails the line rather than reading as a count.
+const plantedCard = 'tests/invalid/quick-card-500.md';
+let cardWords = 0;
+let plantWords = 0;
+let cardError = '';
+try {
+	cardWords = countWords( readFileSync( join( root, ENTRY_SKILL ), 'utf8' ) );
+	plantWords = countWords(
+		readFileSync( join( root, plantedCard ), 'utf8' )
+	);
+} catch ( error ) {
+	cardError = `the gate crashed: ${ error?.message || error }`;
+}
+report(
+	`skills: the quick card is ${ cardWords } words`,
+	cardError === '' && cardFits( cardWords ),
+	cardError || `${ ENTRY_SKILL }, under ${ CARD_LIMIT }`
+);
+report(
+	`skills: the same rule refuses ${ plantedCard }, ${ plantWords } words`,
+	cardError === '' && plantWords === CARD_LIMIT && ! cardFits( plantWords ),
+	cardError ||
+		( plantWords === CARD_LIMIT
+			? `the plant is ${ CARD_LIMIT } words`
+			: `the plant must be exactly ${ CARD_LIMIT } words` )
+);
 
 process.exit( failed ? 1 : 0 );

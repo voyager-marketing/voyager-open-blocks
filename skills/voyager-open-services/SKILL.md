@@ -105,46 +105,36 @@ None. The services are the pack's copy until you replace them. A Site Data list 
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/services` and `voyager-open/services-list` are in `patterns.items`, and `voyager-open/icon` is in `blocks.types`.
-2. **Author.** Insert by reference, or an edited intent assembled as Customizing says.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. With the context, Block Runner knows the icon block is registered. Without it, each icon warns `unregistered-block` and `--strict` fails. Do not save markup that fails.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/services` and `voyager-open/services-list` are in the Wesper manifest's `patterns.items`, and `voyager-open/icon` is in `blocks.types`. Insert by reference, or assemble an edited intent as Customizing says, then validate it with Block Runner and `--context site.context.json`: without the context, each icon warns `unregistered-block` and `--strict` fails. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`, and read the icon block's `icon` enum.
-2. **find-posts, then get-post-blocks.** For "my home page", call `find-posts` with `{"front_page": true}` and take `id`, say 123. Read `get-post-blocks` and count the top-level blocks (paths with no `/`) to pick `position`: under the hero and the proof strip is usually `2`.
-3. **Three services:** `insert` with `copy` for each heading and line:
+1. **Find the page** with `find-posts` and `get-post-blocks`, say post 123. Under the hero and the proof strip, `position` is usually `2`.
+2. **Three services:** `insert` with `copy` for each heading and line:
 
    ```json
    {"post_id": 123, "item": "voyager-open/services", "position": 2, "dry_run": true, "copy": {"Heading": "Plumbing services", "Intro": "Homes and small businesses across the county.", "Service 1 heading": "Leak repairs", "Service 1 text": "Dripping taps, burst pipes and running toilets, found and fixed.", "Service 2 heading": "Water heaters", "Service 2 text": "New tank and tankless heaters fitted, and old ones taken away.", "Service 3 heading": "Drain cleaning", "Service 3 text": "Slow and blocked drains cleared, with a camera look where needed."}}
    ```
 
-   Use `"item": "voyager-open/services-list"` for the list. Plain text only, escaped on the way in. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save.
-4. **Four to six services:** `repeat` copies "Service 3", with everything in it, after itself, one copy per new label. The blocks in each copy take its label: `Service 4` holds `Service 4 heading` and `Service 4 text`, which `copy` then fills:
+   Use `"item": "voyager-open/services-list"` for the list.
+3. **Four to six services:** `repeat` copies "Service 3", with everything in it, after itself, one copy per new label. The blocks in each copy take its label: `Service 4` holds `Service 4 heading` and `Service 4 text`, which `copy` then fills:
 
    ```json
    {"post_id": 123, "item": "voyager-open/services", "position": 2, "repeat": {"Service 3": ["Service 4"]}, "copy": {"Heading": "Plumbing services", "Service 1 heading": "Leak repairs", "Service 1 text": "…", "Service 2 heading": "Water heaters", "Service 2 text": "…", "Service 3 heading": "Drain cleaning", "Service 3 text": "…", "Service 4 heading": "Bathroom refits", "Service 4 text": "New fixtures, pipework and fittings for a bathroom you are redoing."}}
    ```
 
-   Every item you add needs its heading and line in `copy`, or it repeats the third item's text. For five or six, use the list layout: `{"repeat": {"Service 3": ["Service 4", "Service 5", "Service 6"]}}`. More than six makes a long section: say so and ask which to keep. A new label must be one no block has yet, and so must the labels it gives the blocks inside it, or `insert` refuses with `voyager_open_blocks_invalid_repeat` and lists the labels it can repeat.
-5. **Two services:** `omit` drops an item with everything in it: `"omit": ["Service 3"]`. Fewer than three is not a services section; ask whether a paragraph would do.
-6. **Icons.** A copied item shows the icon of the one it copies. Set each icon to fit its service with `configure`, using the path of the "Service <n> icon" block from the insert response's `blocks` (or `get-post-blocks`):
+   Every item you add needs its heading and line in `copy`, or it repeats the third item's text. For five or six, use the list layout: `{"repeat": {"Service 3": ["Service 4", "Service 5", "Service 6"]}}`. More than six makes a long section: say so and ask which to keep.
+4. **Two services:** `omit` drops an item with everything in it: `"omit": ["Service 3"]`. Fewer than three is not a services section; ask whether a paragraph would do.
+5. **Icons.** A copied item shows the icon of the one it copies. Set each icon to fit its service with `configure`, using the path of the "Service <n> icon" block from the insert response's `blocks` (or `get-post-blocks`):
 
    ```json
    {"post_id": 123, "path": "2/1/3/0/0", "attributes": {"icon": "bolt"}}
    ```
 
    Only names in the icon block's enum are accepted. Do not set `label`, `linkUrl` or `animation`: the icons are decorative and still.
-7. **validate** with `{"post_id": 123}`. `valid` should be `true`, with no warnings.
-8. **Report** the services you placed, the icon you chose for each, the layout, and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists both patterns' named blocks before you insert them.
+6. **Then** `validate` the page, and report the services you placed, the icon you chose for each, and the layout.
 
 ## Try it
 

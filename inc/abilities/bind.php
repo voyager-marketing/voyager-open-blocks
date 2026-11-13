@@ -29,7 +29,7 @@ function register_bind(): void {
 		CATEGORY . '/bind',
 		[
 			'label'               => __( 'Bind a block attribute to a field', 'voyager-open-blocks' ),
-			'description'         => __( 'Writes a block binding: the attribute must be bindable for that block, and args must match a field listed by get-catalog (or the Wesper manifest) exactly. Args are never built for you. In a template, pass post_type: the post type it shows. dry_run runs every check and returns the markup without saving. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Binds a block attribute to a field, so the block shows the site\'s value. The attribute must be bindable on that block: content on a paragraph or heading, text and url on a button, label and linkUrl on the icon, items on the facts block, and all seven on the contact details block; a refusal lists the ones that are. args must equal a field\'s args from get-catalog. The block\'s own text stays as the fallback, shown while the field is empty. A binding replaces the whole attribute: give a phone number inside a longer line a block of its own first. The site owner makes a post meta field bindable under Settings > Site Data. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -38,7 +38,7 @@ function register_bind(): void {
 					'path'      => $path_schema,
 					'attribute' => [
 						'type'        => 'string',
-						'description' => 'Bindable attribute, such as content, text, url, label or linkUrl.',
+						'description' => 'The attribute to bind.',
 					],
 					'source'    => [
 						'type' => 'string',
@@ -46,11 +46,11 @@ function register_bind(): void {
 					],
 					'args'      => [
 						'type'        => 'object',
-						'description' => 'A field\'s args, copied verbatim, such as {"key":"phone"}.',
+						'description' => 'A field\'s args from get-catalog, verbatim, such as {"key":"phone"}.',
 					],
 					'post_type' => [
 						'type'        => 'string',
-						'description' => 'Post type whose fields args are checked against. Defaults to the post\'s own type. In a template, template part or synced pattern, or inside a Query Loop, pass the post type the block shows, such as "post" for the single template, and copy args from get-catalog for that type.',
+						'description' => 'In a template, template part, synced pattern or Query Loop, the post type the block shows, such as "post" for the single template, with args from get-catalog for that type. Elsewhere, the post\'s own type.',
 					],
 					'dry_run'   => dry_run_schema(),
 				],

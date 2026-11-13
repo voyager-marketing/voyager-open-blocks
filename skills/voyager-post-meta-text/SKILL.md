@@ -69,12 +69,7 @@ Wesper cannot tell you which registered fields are allowlisted for this source. 
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Find the field under the target post type's `fields`, and confirm `voyager/post-meta-text` is in `bindings.sources`.
-2. **Author.** Add the binding in `attrs.metadata.bindings` and assemble. To show the field on every post of a type, put the binding in that type's single template (`single-<post type>`), so one binding serves every post.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Check.** Open a rendered post. If the placeholder still shows, the field is empty or not allowlisted.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager/post-meta-text` is in the Wesper manifest's `bindings.sources`, and find the field under the target post type's `fields` (Finding fields, above). Add the binding to `attrs.metadata.bindings` in the intent, assemble it and validate it with Block Runner. To show the field on every post of a type, put the binding in that type's single template (`single-<post type>`), so one binding serves every post. Then open a rendered post: if the placeholder still shows, the field is empty or not allowlisted. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
@@ -86,20 +81,18 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
 { "post_id": 123, "path": "2", "attribute": "content", "source": "voyager/post-meta-text", "args": { "key": "demo_stats.0.value" } }
 ```
 
-The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type, or for `post_type` when you pass it (see below). Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
-
-A dot path is accepted when the part before the first dot is a listed field.
+Invented keys are refused with `voyager_open_blocks_invalid_args`. A dot path is accepted when the part before the first dot is a listed field.
 
 Where the binding goes:
 
 - **One post.** `bind` a block that is already in the post, by its path from `get-post-blocks`. No ability adds a plain paragraph or heading to bind, so the block must exist.
 - **Every post of a type.** The binding belongs in the type's single template, so one binding serves every post:
-  1. Find the template: `find-posts` with `{"post_type": "wp_template", "slug": "single-<type>"}`, or `"slug": "single"` for blog posts. If `id` is `null`, the template is still only the theme's file: ask the user to save it once in the Site Editor.
-  2. Read its blocks with `get-post-blocks` and pick the block to bind. It must already be there: no ability adds a plain paragraph or heading.
+  1. Find the template: `find-posts` with `{"post_type": "wp_template", "slug": "single-<type>"}`, or `"slug": "single"` for blog posts.
+  2. Pick the block to bind from `get-post-blocks`. It must already be there.
   3. Call `get-catalog` with `{"post_type": "<type>"}` and copy the field's args.
-  4. `bind` with `"post_type": "<type>"`. A template has no fields of its own, so without `post_type` the args are checked against `wp_template` and refused, and the error says to pass it. `post_type` is accepted only in a template, a template part, a synced pattern or a Query Loop: anywhere else a block reads its own post's fields.
+  4. `bind` with `"post_type": "<type>"`. A template has no fields of its own, so without `post_type` the args are checked against `wp_template` and refused, and the error says to pass it.
   5. `validate` with the template's `post_id` and the same `post_type`.
-- **Check it.** `get-post-blocks` on a post reports `resolution` for each binding. `empty_value` means that post's field is empty. `unknown_key` means the field is not bindable for that post's type. On a template it reports a post meta binding as `fell_back`, because no post is being shown: check one post that uses the template instead, by opening it.
+- **Check it.** For a binding in a post, `get-post-blocks` reports its `resolution`: `unknown_key` means the field is not bindable for that post's type. For one in a template, open a post that uses the template.
 
 ## Try it
 

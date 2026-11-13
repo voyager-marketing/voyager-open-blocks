@@ -97,43 +97,35 @@ None. The steps are the pack's copy until you replace them.
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/process-steps` and `voyager-open/process-steps-list` are in `patterns.items`.
-2. **Author.** Insert by reference, or an edited intent assembled as Customizing says.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/process-steps` and `voyager-open/process-steps-list` are in the Wesper manifest's `patterns.items`. Insert by reference, or assemble an edited intent as Customizing says, then validate it with Block Runner. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`, with their copy labels and `copy_rules`.
-2. **find-posts, then get-post-blocks.** For "my Services page", call `find-posts` with `{"search": "Services"}` and take `id` from the row whose `title` is the page's name, say 123. Read `get-post-blocks` and count the top-level blocks (paths with no `/`) to pick `position`: before the CTA band or the closing CTA.
-3. **Three steps:** `insert` with `copy` for each heading and line:
+1. **Find the page** with `find-posts` and `get-post-blocks`, say post 123. Pick `position` before the CTA band or the closing CTA.
+2. **Three steps:** `insert` with `copy` for each heading and line:
 
    ```json
    {"post_id": 123, "item": "voyager-open/process-steps", "position": 2, "dry_run": true, "copy": {"Heading": "How a job goes", "Step 1 heading": "1. Book a visit", "Step 1 text": "Call or write, and we find a time that suits you.", "Step 2 heading": "2. We look at the job", "Step 2 text": "We see the work for ourselves and answer your questions.", "Step 3 heading": "3. We do the work", "Step 3 text": "On the day we agreed, and we tidy up after ourselves."}}
    ```
 
-   Use `"item": "voyager-open/process-steps-list"` for the list. Plain text only, escaped on the way in. `insert` refuses text longer than its rule's `max` (reason `too_long`) and saves nothing; `data.refused` lists every slot to fix. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save.
-4. **Four or five steps:** `repeat` copies "Step 3", with everything in it, after itself, one copy per new label. The blocks in each copy take its label: `Step 4` holds `Step 4 heading` and `Step 4 text`, which `copy` then fills and numbers:
+   Use `"item": "voyager-open/process-steps-list"` for the list.
+3. **Four or five steps:** `repeat` copies "Step 3", with everything in it, after itself, one copy per new label. The blocks in each copy take its label: `Step 4` holds `Step 4 heading` and `Step 4 text`, which `copy` then fills and numbers:
 
    ```json
    {"post_id": 123, "item": "voyager-open/process-steps", "position": 2, "repeat": {"Step 3": ["Step 4"]}, "copy": {"Heading": "How a job goes", "Step 1 heading": "1. Book a visit", "Step 1 text": "…", "Step 2 heading": "2. We look at the job", "Step 2 text": "…", "Step 3 heading": "3. You get a quote", "Step 3 text": "…", "Step 4 heading": "4. We do the work", "Step 4 text": "…"}}
    ```
 
-   Every step you add needs its heading and line in `copy`, or it repeats the third step's text and number. For five, use the list: `{"repeat": {"Step 3": ["Step 4", "Step 5"]}}`. A new label must be one no block has yet, and so must the labels it gives the blocks inside it, or `insert` refuses with `voyager_open_blocks_invalid_repeat` and lists the labels it can repeat.
-5. **Fewer steps, or one in the middle dropped:** `omit` drops a step with everything in it, and `copy` renumbers the ones left. Without the second step:
+   Every step you add needs its heading and line in `copy`, or it repeats the third step's text and number. For five, use the list: `{"repeat": {"Step 3": ["Step 4", "Step 5"]}}`.
+4. **Fewer steps, or one in the middle dropped:** `omit` drops a step with everything in it, and `copy` renumbers the ones left. Without the second step:
 
    ```json
    {"post_id": 123, "item": "voyager-open/process-steps", "position": 2, "omit": ["Step 2"], "copy": {"Step 1 heading": "1. Book a visit", "Step 1 text": "…", "Step 3 heading": "2. We do the work", "Step 3 text": "…"}}
    ```
 
    Two steps is not a process: ask whether a line in the CTA band would do.
-6. **validate** with `{"post_id": 123}`. `valid` should be `true`, with no warnings.
-7. **Report** the steps you placed, in order, the layout, and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+5. **Then** `validate` the page, and report the steps you placed, in order, and the layout.
 
 ## Try it
 

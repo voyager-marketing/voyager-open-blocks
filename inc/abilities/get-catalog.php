@@ -26,7 +26,7 @@ function register_get_catalog(): void {
 		CATEGORY . '/get-catalog',
 		[
 			'label'               => __( 'Get the Voyager Open Blocks catalog', 'voyager-open-blocks' ),
-			'description'         => __( 'Lists the pack\'s blocks (attribute schema, bindable attributes), patterns (named blocks, their bindings, and copy: true on those insert can rewrite; section and layout, null for a section with one layout; and copy_rules, each copy label\'s purpose, min and max characters, and whether it is required or a claim the site owner must supply) and the binding fields available for a post type, each with the exact args to bind it. used_on counts, for each Site Data and bindable post meta field, the published posts, templates and template parts that show it, keyed "<source>:<key>". styles lists the section styles a core/group can take (Panel, Inverted and Accent; Plain is none), each with the class configure\'s style input sets, and which role map the theme\'s colours come from. recipes lists the page recipes, one per page type: each a whole page as data, with its slug, title, description, page_type and sections, top to bottom, each a section and layout (as patterns lists them), the style to put on it, copy_guidance, a line for each copy label on what it says on this page, and, on some, omit, the labels of blocks the page does without, such as the contact page\'s hero button. Pass a recipe\'s slug to compose as recipe for a draft with each pattern\'s own text, or fill each section\'s copy from its copy_guidance, within the pattern\'s copy_rules, keep its omit, and pass the sections to compose as sections.', 'voyager-open-blocks' ),
+			'description'         => __( 'Lists what the pack offers on this site. Call it first. blocks: the pack\'s blocks, with their attribute schema and bindable attributes. patterns: each pattern\'s named blocks and bindings, copy: true on the blocks whose text insert and compose take, its section and layout, and copy_rules, each copy label\'s purpose, min and max characters, and whether it is required or a claim. sources: the binding fields for post_type, each with the exact args bind takes. used_on: for each Site Data and bindable post meta field, keyed "<source>:<key>", how many published posts, templates and template parts show it; changing the value changes every one. styles: the section styles a core/group takes (Panel, Inverted and Accent; Plain is none), each with its class. recipes: one per page type, each with its slug, page_type and sections, top to bottom, each a section, layout, style and copy_guidance, a line per copy label on what it says on this page, and on some omit, the blocks the page does without, such as the contact page\'s hero button. A claim\'s line says where its fact comes from, and that is never you.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -35,7 +35,7 @@ function register_get_catalog(): void {
 					'post_type' => [
 						'type'        => 'string',
 						'default'     => 'page',
-						'description' => 'Post type to list post meta fields for.',
+						'description' => 'The post type whose fields to list. For a template, the type it shows; pass the same to bind.',
 					],
 				],
 				'additionalProperties' => false,

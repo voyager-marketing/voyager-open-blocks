@@ -90,12 +90,7 @@ Those are Block Runner intent nodes. `npx block-runner assemble` turns them into
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Check that `bindings.sources` has `voyager/site-data`. Check that `bindings.supportedAttributes` allows the attribute on your block.
-2. **Author.** Add the binding in the intent's `attrs.metadata.bindings` and assemble.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Check the data.** If a value is empty, the placeholder shows. Tell the user which settings to fill in rather than inventing a phone number or address.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager/site-data` is in the Wesper manifest's `bindings.sources`, and that `bindings.supportedAttributes` allows the attribute on your block. The manifest cannot list the keys: take them from the Keys table, or from `get-catalog`. Add the binding, with args `{ "key": "<key>" }`, to the intent's `attrs.metadata.bindings`, assemble it and validate it with Block Runner. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
@@ -107,25 +102,21 @@ This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no 
 { "post_id": 123, "path": "0/0/1/0/1", "attribute": "url", "source": "voyager/site-data", "args": { "key": "phone_link" } }
 ```
 
-The attribute must be bindable for that block, and `args` must exactly match a field `get-catalog` lists for the post's type. Invented keys are refused with `voyager_open_blocks_invalid_args`. Paths come from `insert` or `get-post-blocks`.
-
-`get-catalog` also lists every key of this source with its args. Use it where the Wesper manifest cannot.
+Invented keys are refused with `voyager_open_blocks_invalid_args`.
 
 **A phone number in the footer.** The footer is a template part, so `bind` needs that part's post ID.
 
-1. Find it with `find-posts`: `{"post_type": "wp_template_part", "search": "footer"}`, and take `id` from the row whose `area` is `footer`. A template part has a post ID only once it has been saved in the Site Editor, so `id` is `null` for one that is still the theme's file. Then tell the user to save the footer once in the Site Editor, or to bind it there.
+1. Find it with `find-posts`: `{"post_type": "wp_template_part", "search": "footer"}`, and take `id` from the row whose `area` is `footer`.
 2. Call `get-post-blocks` with that ID and find the paragraph that shows the number: its `text` holds it.
 3. If the paragraph holds only the number, bind its `content` to `{"key": "phone"}`. If the number sits in a longer line, such as "Call us at 555-0142", binding would replace the whole line. Tell the user to move the number into its own paragraph first.
 4. If the number is also a link, bind that block's `url` (a button) or `linkUrl` (an icon) to `{"key": "phone_link"}`. A link inside a paragraph's text cannot be bound on its own.
-5. Call `get-post-blocks` again and read the binding's `resolution`.
+5. Call `get-post-blocks` again and read each binding's `resolution`:
 
-**get-post-blocks** says whether each binding returns a value now. Every entry in a block's `bindings` carries `resolution`:
+   ```json
+   { "source": "voyager/site-data", "args": { "key": "phone" }, "resolution": { "status": "resolved", "reason": null, "value_preview": "555-0142" } }
+   ```
 
-```json
-{ "source": "voyager/site-data", "args": { "key": "phone" }, "resolution": { "status": "resolved", "reason": null, "value_preview": "555-0142" } }
-```
-
-`status` is `resolved` when the source returned a value, or `fell_back` when it returned nothing and the block keeps its authored text. `reason` is `null` when resolved, else `source_unregistered` (no plugin registers the source), `unknown_key` (the key is not a listed field) or `empty_value` (a real key with nothing set: tell the user which setting to fill in, from the Keys table). `value_preview` is the first 80 characters of the value. Read it after `bind` to prove the binding works instead of assuming it.
+   A binding that `fell_back` gives a `reason`: `source_unregistered` (no plugin registers the source), `unknown_key` (the key is not a listed field) or `empty_value` (tell the user which setting to fill in, from the Keys table).
 
 ## Try it
 

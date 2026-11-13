@@ -41,7 +41,7 @@ function register_find_posts(): void {
 		CATEGORY . '/find-posts',
 		[
 			'label'               => __( 'Find posts and pages', 'voyager-open-blocks' ),
-			'description'         => __( 'Finds the pages, posts, templates and template parts you can edit, by words in the title, by slug, or the home page, and returns each one\'s ID for the other abilities. It lists only what the current user can edit, at most 20 at a time, and returns no content.', 'voyager-open-blocks' ),
+			'description'         => __( 'Finds the post_id of a page, post, template or template part the user can edit, by words in its title, by slug, or as the home page: {"search": "Services"} for "my Services page", {"front_page": true} for "my home page", and {"post_type": "wp_template_part", "search": "header"} for "my header", then the row whose area is header. No match: try one word of the name, or slug. Returns at most 20 rows, and no content. A row whose id is null is a theme file never saved: no ability can change it until the user opens it in the Site Editor and saves it once.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -50,29 +50,29 @@ function register_find_posts(): void {
 					'search'     => [
 						'type'        => 'string',
 						'minLength'   => 1,
-						'description' => 'Words in the title, such as "Services". For templates and template parts, words in the title or slug, such as "header".',
+						'description' => 'Words in the title. For templates and template parts, in the title or slug.',
 					],
 					'slug'       => [
 						'type'        => 'string',
 						'minLength'   => 1,
-						'description' => 'The exact slug, such as "services" or "header".',
+						'description' => 'The exact slug.',
 					],
 					'post_type'  => [
 						'type'        => 'string',
 						'default'     => 'page',
-						'description' => 'What to search: page, post, another post type edited in the block editor, wp_template or wp_template_part.',
+						'description' => 'page, post, another post type edited in the block editor, wp_template or wp_template_part.',
 					],
 					'front_page' => [
 						'type'        => 'boolean',
 						'default'     => false,
-						'description' => 'Return the home page and ignore the other filters. When the home page lists the latest posts (Settings > Reading), it returns the template that shows them.',
+						'description' => 'The home page, ignoring the other filters. When it lists the latest posts, the template that shows them, and note says so.',
 					],
 					'limit'      => [
 						'type'        => 'integer',
 						'minimum'     => 1,
 						'maximum'     => FIND_LIMIT,
 						'default'     => 10,
-						'description' => 'How many to return.',
+						'description' => 'How many to return, at most 20.',
 					],
 				],
 				'additionalProperties' => false,

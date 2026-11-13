@@ -33,7 +33,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell, fax, whatsapp or telefono) whose fallback looks like a phone number, or to an email field (email, mail or correo) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. So does each text slot of a numbered item, such as the proof strip\'s "Credential 4", a review\'s "Review 2 quote" or a service card\'s "Service 3 heading", that still holds the whole of the stand-in text the pack ships in that slot, such as "Your fourth credential". The one slot let off is an item\'s title, its first and a short one, such as a service\'s heading or a review\'s rating, when every other slot of the item holds the site\'s own text: a real item can share its title with the pack\'s. A line, an answer or a quote left at the pack\'s text always gets one. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and saves nothing. For each block, by path: its type is registered, its comment attributes match block.json, its bindings name a bindable attribute and args get-catalog lists, and it survives a parse and serialize round trip. It cannot compare saved HTML with each block\'s save(), so where block-runner validate is not run, say the HTML was not checked. Warnings leave valid true. placeholder: each pack placeholder image, as an image, a media and text image or a cover\'s background, the contact section\'s form stand-in, and each text slot of a numbered item, such as "Credential 4", still holding the stand-in text the pack ships there, such as "Your fourth credential". An item\'s short first slot, such as a service\'s heading, is let off when every other slot holds the site\'s own text. missing_alt: any other image with no alt text; never a cover. stale_fallback: a block bound to a phone or email field whose own text looks like one, which visitors see when the field is empty. Tell the user to fix these in the editor before the page goes live, and to set each new cover or media and text image\'s focal point on its subject.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -42,16 +42,16 @@ function register_validate(): void {
 					'markup'    => [
 						'type'        => 'string',
 						'minLength'   => 1,
-						'description' => 'Block markup to check, such as a section you wrote or were given. Pass markup or post_id, not both.',
+						'description' => 'Block markup to check, such as a section you were given. Not with post_id. Over REST, markup past the URL limit, often 8 KB, fails: check one section at a time, or pass post_id.',
 					],
 					'post_id'   => [
 						'type'        => 'integer',
 						'minimum'     => 1,
-						'description' => 'ID of a saved post or page to check instead of markup.',
+						'description' => 'A saved post or page to check.',
 					],
 					'post_type' => [
 						'type'        => 'string',
-						'description' => 'Post type whose fields binding args are checked against. Defaults to the type of post_id, else page. For a template, pass the post type it shows.',
+						'description' => 'The post type binding args are checked for: by default the post\'s, else page. For a template, the type it shows.',
 					],
 				],
 				'additionalProperties' => false,
