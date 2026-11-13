@@ -1,6 +1,6 @@
 <?php
 /**
- * Copy rules: the check insert runs, and compose will run, on the copy given
+ * Copy rules: the check insert and compose run on the copy given
  * for a pattern. Contract 3 in docs/v2-contracts.md has the shapes.
  *
  * The rules are the copy_rules of the pattern's intent, read with
