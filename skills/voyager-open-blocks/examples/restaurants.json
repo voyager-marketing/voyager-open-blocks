@@ -1,0 +1,135 @@
+{
+	"business": "Ostlee Noodle Bar is a small family restaurant on Mill Street in Ostlee. It serves hand-pulled noodles and slow-cooked broth to people on a lunch break, families, and anyone picking up dinner on the way home. Daniel and June Seo gave the four facts on the proof strip: the noodles are made by hand every morning, the family has run the bar since 2015, there is a vegetarian broth every day, and walk-ins are welcome with no booking. They also gave three reviews from regulars who agreed to be quoted by first name and last initial, each rated 5 out of 5. The phone, (555) 555-0175, and the email, hello@ostlee-noodle-bar.example.com, are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"compose": {
+		"title": "Home",
+		"sections": [
+			{
+				"pattern": "voyager-open/hero",
+				"layout": "split",
+				"style": "plain",
+				"copy": {
+					"Eyebrow": "Noodle bar in Ostlee",
+					"Heading": "Hand-pulled noodles and slow-cooked broth",
+					"Body": "Come in for a bowl, or order ahead and pick it up on your way home.",
+					"Primary button": "Order for pickup"
+				}
+			},
+			{
+				"pattern": "voyager-open/proof-strip",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Credential 1": {
+						"text": "Noodles made by hand every morning",
+						"source": "user"
+					},
+					"Credential 2": {
+						"text": "Family run since 2015",
+						"source": "user"
+					},
+					"Credential 3": {
+						"text": "A vegetarian broth every day",
+						"source": "user"
+					},
+					"Credential 4": {
+						"text": "Walk-ins welcome, no booking",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/services",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "Eat in, take out or feed a crowd",
+					"Intro": "A small room on Mill Street with a long counter, a few tables and a busy kitchen.",
+					"Service 1 heading": "Eat in",
+					"Service 1 text": "Grab a seat at the counter and watch the noodles go from dough to bowl.",
+					"Service 2 heading": "Takeout",
+					"Service 2 text": "Order ahead by phone, and your bowls are packed and ready when you arrive.",
+					"Service 3 heading": "Group orders",
+					"Service 3 text": "Lunch for the office or a party at home, packed so the broth travels well."
+				}
+			},
+			{
+				"pattern": "voyager-open/cta-band",
+				"layout": null,
+				"style": "accent",
+				"copy": {
+					"Eyebrow": "Hungry now?",
+					"Heading": "Order ahead and skip the wait",
+					"Body": "Tell us what you want and when, and it will be ready at the counter.",
+					"Primary button": "Order for pickup"
+				}
+			},
+			{
+				"pattern": "voyager-open/reviews",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "What regulars say",
+					"Review 1 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 1 quote": {
+						"text": "The beef noodle soup is the best thing I have eaten all winter.",
+						"source": "user"
+					},
+					"Review 1 name": {
+						"text": "Mei L.",
+						"source": "user"
+					},
+					"Review 1 detail": {
+						"text": "Beef noodle soup",
+						"source": "user"
+					},
+					"Review 2 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 2 quote": {
+						"text": "I get the vegetarian bowl every Friday. It has never once let me down.",
+						"source": "user"
+					},
+					"Review 2 name": {
+						"text": "Chris A.",
+						"source": "user"
+					},
+					"Review 2 detail": {
+						"text": "Takeout order",
+						"source": "user"
+					},
+					"Review 3 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 3 quote": {
+						"text": "They fed our whole office of twenty, and the noodles were still perfect.",
+						"source": "user"
+					},
+					"Review 3 name": {
+						"text": "Fatima H.",
+						"source": "user"
+					},
+					"Review 3 detail": {
+						"text": "Group order",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/closing-cta",
+				"layout": null,
+				"style": "inverted",
+				"copy": {
+					"Heading": "Come in hungry, or order ahead",
+					"Body": "Call or email us to order ahead, or to ask about feeding a group.",
+					"Primary button": "Order for pickup",
+					"Email button": "Email us"
+				}
+			}
+		]
+	}
+}

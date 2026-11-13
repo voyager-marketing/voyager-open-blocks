@@ -1,0 +1,135 @@
+{
+	"business": "Bramhollow Electric is a family electrical contractor in Bramhollow, a small town of older houses. Two electricians and an office manager work for homeowners: people fixing up an old house, adding an EV charger, or chasing a breaker that keeps tripping. The owner, Rosa Brandt, gave the four facts on the proof strip: she is a licensed master electrician, the company is insured for home electrical work, every job gets a written quote before work starts, and workmanship is guaranteed for one year. She also gave three reviews from customers who agreed to be quoted by first name and last initial, each rated 5 out of 5. The phone, (555) 555-0171, and the email, hello@bramhollow-electric.example.com, are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"compose": {
+		"title": "Home",
+		"sections": [
+			{
+				"pattern": "voyager-open/hero",
+				"layout": "split",
+				"style": "plain",
+				"copy": {
+					"Eyebrow": "Electrician in Bramhollow",
+					"Heading": "Panels, wiring and EV chargers for your home",
+					"Body": "Tell us what keeps tripping or what you want added, and we will book a time to come and look.",
+					"Primary button": "Book a visit"
+				}
+			},
+			{
+				"pattern": "voyager-open/proof-strip",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Credential 1": {
+						"text": "Licensed master electrician",
+						"source": "user"
+					},
+					"Credential 2": {
+						"text": "Insured for home electrical work",
+						"source": "user"
+					},
+					"Credential 3": {
+						"text": "Written quote before work starts",
+						"source": "user"
+					},
+					"Credential 4": {
+						"text": "One-year workmanship guarantee",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/services",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "Electrical work we take on",
+					"Intro": "Homes of every age across Bramhollow, from one new outlet to a full rewire.",
+					"Service 1 heading": "Panel upgrades",
+					"Service 1 text": "Old fuse boxes and worn panels swapped for a new panel with room to grow.",
+					"Service 2 heading": "EV charger installs",
+					"Service 2 text": "A charger in your garage or driveway, wired on a circuit of its own.",
+					"Service 3 heading": "Lights, outlets and repairs",
+					"Service 3 text": "New lights and outlets, dead switches and breakers that keep tripping."
+				}
+			},
+			{
+				"pattern": "voyager-open/cta-band",
+				"layout": null,
+				"style": "accent",
+				"copy": {
+					"Eyebrow": "Next step",
+					"Heading": "Got a breaker that keeps tripping?",
+					"Body": "Tell us what is going on, and we will call back to book a visit.",
+					"Primary button": "Book a visit"
+				}
+			},
+			{
+				"pattern": "voyager-open/reviews",
+				"layout": "grid",
+				"style": "plain",
+				"copy": {
+					"Heading": "What Bramhollow homeowners say",
+					"Review 1 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 1 quote": {
+						"text": "They found the bad breaker in ten minutes and showed me what they replaced.",
+						"source": "user"
+					},
+					"Review 1 name": {
+						"text": "Priya S.",
+						"source": "user"
+					},
+					"Review 1 detail": {
+						"text": "Breaker repair",
+						"source": "user"
+					},
+					"Review 2 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 2 quote": {
+						"text": "Our new panel went in on a Tuesday, and we had power again before dinner.",
+						"source": "user"
+					},
+					"Review 2 name": {
+						"text": "Tom W.",
+						"source": "user"
+					},
+					"Review 2 detail": {
+						"text": "Panel upgrade",
+						"source": "user"
+					},
+					"Review 3 rating": {
+						"text": "Rated 5 out of 5",
+						"source": "user"
+					},
+					"Review 3 quote": {
+						"text": "The charger works and the wiring is tidy. The bill matched the quote.",
+						"source": "user"
+					},
+					"Review 3 name": {
+						"text": "Marisol K.",
+						"source": "user"
+					},
+					"Review 3 detail": {
+						"text": "EV charger install",
+						"source": "user"
+					}
+				}
+			},
+			{
+				"pattern": "voyager-open/closing-cta",
+				"layout": null,
+				"style": "inverted",
+				"copy": {
+					"Heading": "Tell us what your house needs",
+					"Body": "Call or email us with the job, and we will reply with a time to come and look.",
+					"Primary button": "Book a visit",
+					"Email button": "Email us"
+				}
+			}
+		]
+	}
+}

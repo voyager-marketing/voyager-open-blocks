@@ -63,6 +63,8 @@ To build a whole page, start from its recipe. The pack has one per page type, ea
 
 In a recipe file, `pattern` names the section and `layout` picks one of its layouts, so `"pattern": "voyager-open/hero", "layout": "cover"` is the pattern `voyager-open/hero-cover` in this table. A plain section needs no `configure` call.
 
+For copy that fits, see `examples/` beside this file: a home page for each of five kinds of business, each file a `compose` call with the business it was written for (`examples/README.md` says how to read one).
+
 ## The loop
 
 Every task reads the site, places blocks, binds them and checks them. There are two routes through that loop. Check your tools, then follow one route for the whole task.
