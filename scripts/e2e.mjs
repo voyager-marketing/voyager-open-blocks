@@ -42,6 +42,12 @@
  *      readers and one name, "Rated 5 out of 5"; a fourth card through
  *      repeat with a four-star review through omit, and the single quote,
  *      each filled by copy and passing both validators with no warning),
+ *      the process steps section's two layouts (listed with their section,
+ *      layout and copy labels; the row with a fourth step through repeat and
+ *      with one step dropped through omit, the list with five steps through
+ *      repeat, each renumbered through copy, each on a draft of its own and
+ *      passing both validators with no warning; omit of one step's heading
+ *      refused as required),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
  *      hero and the CTA band; insert refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
@@ -117,6 +123,12 @@
  *      no mailto: link render while the rest still does. validate warns
  *      stale_fallback on the block bound to the phone whose own phone holds
  *      a phone number. Then it deletes the page and puts the fields back.
+ *  15. the icon's CSS, split by animation: a published page holding one
+ *      icon with no animation loads under 1,024 bytes of icon CSS (every
+ *      <link> whose id starts with voyager-open-icon, fetched, and every
+ *      <style> whose id does) and no keyframes, and a page holding one pulse
+ *      icon loads the base and the pulse keyframes, no other animation's, and
+ *      the reduced-motion rule that stops it. Then it deletes both pages.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -1457,8 +1469,8 @@ const cardsIn = ( markup ) =>
 	).length;
 
 /**
- * Insert a services or reviews layout on a draft of its own, and validate it
- * both ways.
+ * Insert a services, reviews or process steps layout on a draft of its own,
+ * and validate it both ways.
  *
  * @param {string} label What the step checks.
  * @param {Object} input insert's input, less post_id.
@@ -1815,6 +1827,185 @@ step(
 	clean( oneReview.report ) &&
 		( oneReview.report.data.warnings || [] ).length === 0,
 	warningSummary( oneReview.report )
+);
+
+// The process steps section in its two layouts: "row", a core/columns with
+// one column per step, and "list", one group per step. Each step is a block
+// labelled "Step <n>" holding "Step <n> heading", an h3 that starts with the
+// step's number, and "Step <n> text". repeat copies a whole step, so the row
+// gains a column, and omit drops one. The number is in the heading's text,
+// so copy renumbers the headings after either.
+const stepLabels = ( count ) => [
+	'Heading',
+	'Intro',
+	...Array.from( { length: count }, ( _, i ) => [
+		`Step ${ i + 1 } heading`,
+		`Step ${ i + 1 } text`,
+	] ).flat(),
+];
+for ( const [ item, layout ] of [
+	[ 'voyager-open/process-steps', 'row' ],
+	[ 'voyager-open/process-steps-list', 'list' ],
+] ) {
+	const listed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === item
+	);
+	const labels = ( listed?.blocks || [] )
+		.filter( ( b ) => b.copy )
+		.map( ( b ) => b.label );
+	step(
+		`get-catalog lists ${ item } as the process steps section's ${ layout } layout, with its copy labels and a copy rule for each`,
+		listed?.section === 'process-steps' &&
+			listed?.layout === layout &&
+			JSON.stringify( labels ) === JSON.stringify( stepLabels( 3 ) ) &&
+			JSON.stringify( Object.keys( listed?.copy_rules || {} ).sort() ) ===
+				JSON.stringify( [ ...stepLabels( 3 ) ].sort() ),
+		listed
+			? `${ listed.section } ${ listed.layout }: ${ labels.join( ', ' ) }`
+			: 'not listed'
+	);
+}
+
+const processSteps = [
+	[ 'Book a visit', 'Call or write, and we find a time that suits you.' ],
+	[
+		'We look at the job',
+		'We see the work for ourselves and answer questions.',
+	],
+	[
+		'You get a quote',
+		'A written price for the work, for you to think over.',
+	],
+	[
+		'We do the work',
+		'On the day we agreed, and we tidy up after ourselves.',
+	],
+	[
+		'We check it with you',
+		'We walk you through the finished work before we go.',
+	],
+];
+// Copy for the steps kept, in order, each heading numbered for its place.
+const stepCopy = ( labels ) =>
+	Object.fromEntries( [
+		[ 'Heading', 'How a job goes' ],
+		...labels.flatMap( ( label, i ) => [
+			[ `${ label } heading`, `${ i + 1 }. ${ processSteps[ i ][ 0 ] }` ],
+			[ `${ label } text`, processSteps[ i ][ 1 ] ],
+		] ),
+	] );
+const numberedAs = ( count ) =>
+	processSteps.slice( 0, count ).map( ( [ t ], i ) => `${ i + 1 }. ${ t }` );
+const columnsIn = ( markup ) =>
+	(
+		markup.match( /<!-- wp:column \{"metadata":\{"name":"Step \d+"\}/g ) ||
+		[]
+	).length;
+
+// The row with a fourth step: repeat copies "Step 3", column and all, as
+// "Step 4", and copy fills and numbers all four.
+const fourSteps = await insertServices( 'process steps with a fourth step', {
+	item: 'voyager-open/process-steps',
+	repeat: { 'Step 3': [ 'Step 4' ] },
+	copy: stepCopy( [ 'Step 1', 'Step 2', 'Step 3', 'Step 4' ] ),
+} );
+const fourStepsMarkup = fourSteps.placed.data.markup || '';
+const fourStepsLabels = ( fourSteps.placed.data.blocks || [] ).map(
+	( b ) => b.label
+);
+step(
+	'insert process steps with a fourth step through repeat: four columns, each a step named for its number, the headings numbered 1 to 4 by copy',
+	fourSteps.placed.status === 200 &&
+		fourSteps.placed.data.saved === true &&
+		fourSteps.placed.data.validation?.round_trip === true &&
+		columnsIn( fourStepsMarkup ) === 4 &&
+		JSON.stringify( headingsIn( fourStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 4 ) ) &&
+		fourStepsMarkup.includes( `<p>${ processSteps[ 3 ][ 1 ] }</p>` ) &&
+		! fourStepsMarkup.includes( 'Once you say yes' ) &&
+		[ 'Step 4', 'Step 4 heading', 'Step 4 text' ].every( ( name ) =>
+			fourStepsLabels.includes( name )
+		),
+	fourSteps.placed.data.code ||
+		`${ headingsIn( fourStepsMarkup ).join( ' | ' ) }; ${ columnsIn(
+			fourStepsMarkup
+		) } columns`
+);
+step(
+	'validate passes the page with four process steps, with no warning',
+	clean( fourSteps.report ) &&
+		( fourSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( fourSteps.report )
+);
+
+// The row with the second step dropped: omit removes "Step 2" and its
+// blocks, and copy numbers the two left 1 and 2, though the second keeps
+// its label, "Step 3".
+const twoSteps = await insertServices( 'process steps with a step omitted', {
+	item: 'voyager-open/process-steps',
+	omit: [ 'Step 2' ],
+	copy: stepCopy( [ 'Step 1', 'Step 3' ] ),
+} );
+const twoStepsMarkup = twoSteps.placed.data.markup || '';
+step(
+	'insert process steps with one step dropped through omit: two columns, nothing of the second step, the headings renumbered 1 and 2 by copy',
+	twoSteps.placed.status === 200 &&
+		twoSteps.placed.data.saved === true &&
+		columnsIn( twoStepsMarkup ) === 2 &&
+		JSON.stringify( headingsIn( twoStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 2 ) ) &&
+		! twoStepsMarkup.includes( '"Step 2' ) &&
+		! twoStepsMarkup.includes( 'We visit and quote' ),
+	twoSteps.placed.data.code || headingsIn( twoStepsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with two process steps, with no warning',
+	clean( twoSteps.report ) &&
+		( twoSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( twoSteps.report )
+);
+
+// The list with five steps: two copies of the third, numbered by copy.
+const fiveSteps = await insertServices( 'process steps list with five steps', {
+	item: 'voyager-open/process-steps-list',
+	repeat: { 'Step 3': [ 'Step 4', 'Step 5' ] },
+	copy: stepCopy( [ 'Step 1', 'Step 2', 'Step 3', 'Step 4', 'Step 5' ] ),
+} );
+const fiveStepsMarkup = fiveSteps.placed.data.markup || '';
+step(
+	'insert the process steps list with five steps through repeat, the headings numbered 1 to 5 by copy',
+	fiveSteps.placed.status === 200 &&
+		fiveSteps.placed.data.saved === true &&
+		JSON.stringify( headingsIn( fiveStepsMarkup ) ) ===
+			JSON.stringify( numberedAs( 5 ) ) &&
+		! fiveStepsMarkup.includes( '<!-- wp:columns' ),
+	fiveSteps.placed.data.code || headingsIn( fiveStepsMarkup ).join( ' | ' )
+);
+step(
+	'validate passes the page with five process steps in a list, with no warning',
+	clean( fiveSteps.report ) &&
+		( fiveSteps.report.data.warnings || [] ).length === 0,
+	warningSummary( fiveSteps.report )
+);
+
+// A step's heading is required: omit takes a whole step, never its heading alone.
+const stepHeadingOmitted = await run( `${ ns }/insert`, {
+	post_id: postId,
+	item: 'voyager-open/process-steps',
+	dry_run: true,
+	omit: [ 'Step 2 heading' ],
+} );
+step(
+	'insert refuses omit of "Step 2 heading" alone with reason required, and takes "Step 2" whole',
+	stepHeadingOmitted.status === 400 &&
+		stepHeadingOmitted.data.code === 'voyager_open_blocks_copy_rules' &&
+		JSON.stringify(
+			( stepHeadingOmitted.data.data?.refused || [] ).map(
+				( r ) => `${ r.slot } ${ r.reason }`
+			)
+		) === JSON.stringify( [ 'Step 2 heading required' ] ) &&
+		twoSteps.placed.data.saved === true,
+	stepHeadingOmitted.data.code || `status ${ stepHeadingOmitted.status }`
 );
 
 // Copy rules (contract 3). get-catalog gives each pattern its section, its
@@ -4448,6 +4639,196 @@ await setContact(
 	)
 );
 await api( recorder, { method: 'DELETE' } );
+
+// 15. The icon's CSS, split by animation. The base rules load with every
+// icon; an animation's keyframes, trigger rules and reduced-motion rule load
+// only on a page whose icon uses it. Each page below holds one icon, is
+// published and is fetched as a visitor. The icon's CSS is every <link>
+// whose id starts with voyager-open-icon, fetched, and every <style> whose
+// id does, so a stylesheet WordPress inlines counts the same as a file.
+const ICON_CSS_CEILING = 1024;
+const iconType = ( catalog.data.blocks || [] ).find(
+	( b ) => b.name === 'voyager-open/icon'
+);
+const iconAnimations = ( iconType?.attributes?.animation?.enum || [] ).filter(
+	( name ) => name !== ''
+);
+step(
+	'get-catalog lists the icon with its seven animations',
+	iconAnimations.length === 7,
+	JSON.stringify( iconAnimations )
+);
+
+/**
+ * One attribute of an HTML tag, entities for & decoded, or null.
+ *
+ * @param {string} tag  An opening tag.
+ * @param {string} name The attribute.
+ * @return {string|null} Its value.
+ */
+const tagAttribute = ( tag, name ) => {
+	const match = tag.match(
+		new RegExp( `\\s${ name }=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i' )
+	);
+	return match
+		? ( match[ 1 ] ?? match[ 2 ] ?? match[ 3 ] ).replace(
+				/&#0?38;|&amp;/g,
+				'&'
+			)
+		: null;
+};
+
+/**
+ * The icon's CSS on a page, and what it is made of.
+ *
+ * @param {string} pageHtml The page as a visitor gets it.
+ * @return {Promise<{bytes: number, css: string, parts: string[]}>} Bytes and text of every icon stylesheet and inline style, and one "id: bytes" per part.
+ */
+async function iconCss( pageHtml ) {
+	const parts = [];
+	let css = '';
+	let bytes = 0;
+	const add = ( id, text ) => {
+		const size = Buffer.byteLength( text, 'utf8' );
+		parts.push( `${ id }: ${ size }` );
+		css += text;
+		bytes += size;
+	};
+	for ( const [ tag ] of pageHtml.matchAll( /<link\b[^>]*>/gi ) ) {
+		const id = tagAttribute( tag, 'id' ) || '';
+		const href = tagAttribute( tag, 'href' );
+		if ( id.startsWith( 'voyager-open-icon' ) ) {
+			add(
+				id,
+				href ? ( await request( new URL( href, base ) ) ).text : ''
+			);
+		}
+	}
+	for ( const [ , open, text ] of pageHtml.matchAll(
+		/(<style\b[^>]*>)([\s\S]*?)<\/style>/gi
+	) ) {
+		const id = tagAttribute( open, 'id' ) || '';
+		if ( id.startsWith( 'voyager-open-icon' ) ) {
+			add( id, text );
+		}
+	}
+	return { bytes, css, parts };
+}
+
+/**
+ * The names of the `@keyframes` rules in some CSS.
+ *
+ * @param {string} css CSS.
+ * @return {string[]} Names, sorted.
+ */
+const keyframeNames = ( css ) =>
+	[ ...css.matchAll( /@keyframes\s+([\w-]+)/g ) ]
+		.map( ( m ) => m[ 1 ] )
+		.sort();
+
+/**
+ * Publish a page holding one icon, fetch it as a visitor, and read the
+ * icon's CSS.
+ *
+ * @param {string} label What the page is for.
+ * @param {Object} attrs The icon's attributes.
+ * @return {Promise<Object>} The page's id, its HTML, the icon's wrapper class and its CSS.
+ */
+async function iconPage( label, attrs ) {
+	const created = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E icon CSS ${ label } ${ stamp }`,
+			status: 'publish',
+			content: `<!-- wp:voyager-open/icon ${ JSON.stringify(
+				attrs
+			) } /-->`,
+		},
+	} );
+	const pageHtml = created.data.link
+		? ( await request( created.data.link ) ).text
+		: '';
+	const wrapper = pageHtml.match(
+		/<div\b[^>]*\bclass="([^"]*\bwp-block-voyager-open-icon\b[^"]*)"/
+	);
+	return {
+		id: created.data.id,
+		status: created.status,
+		html: pageHtml,
+		className: wrapper ? wrapper[ 1 ] : null,
+		...( await iconCss( pageHtml ) ),
+	};
+}
+
+const stillIcon = await iconPage( 'still', { icon: 'star', size: 48 } );
+step(
+	`fitness: a page with one icon and no animation loads under ${ ICON_CSS_CEILING } bytes of icon CSS`,
+	stillIcon.status === 201 &&
+		stillIcon.className !== null &&
+		stillIcon.parts.some( ( cssPart ) =>
+			cssPart.startsWith( 'voyager-open-icon-style' )
+		) &&
+		stillIcon.bytes > 0 &&
+		stillIcon.bytes < ICON_CSS_CEILING,
+	`${ stillIcon.bytes } bytes: ${ stillIcon.parts.join( ', ' ) || 'no icon CSS on the page' }`
+);
+step(
+	"the still icon's page loads no animation's keyframes",
+	stillIcon.className !== null && keyframeNames( stillIcon.css ).length === 0,
+	JSON.stringify( keyframeNames( stillIcon.css ) )
+);
+
+const pulseIcon = await iconPage( 'pulse', {
+	icon: 'star',
+	size: 48,
+	animation: 'pulse',
+	animationTrigger: 'always',
+} );
+const pulseClasses = ( pulseIcon.className || '' ).split( /\s+/ );
+step(
+	'the pulse icon renders with its animation and trigger classes',
+	pulseIcon.status === 201 &&
+		pulseClasses.includes( 'has-animation-pulse' ) &&
+		pulseClasses.includes( 'is-trigger-always' ),
+	JSON.stringify( pulseIcon.className )
+);
+step(
+	"a page with one pulse icon loads the base and the pulse CSS, and no other animation's keyframes",
+	pulseIcon.parts.some( ( cssPart ) =>
+		cssPart.startsWith( 'voyager-open-icon-style' )
+	) &&
+		JSON.stringify( keyframeNames( pulseIcon.css ) ) ===
+			JSON.stringify( [ 'voyager-open-icon-pulse' ] ) &&
+		/\.has-animation-pulse\.is-trigger-always\s+\.wp-block-voyager-open-icon__svg\s*\{\s*animation:\s*voyager-open-icon-pulse\b/.test(
+			pulseIcon.css
+		),
+	`${ pulseIcon.bytes } bytes: ${ pulseIcon.parts.join(
+		', '
+	) }; keyframes ${ JSON.stringify( keyframeNames( pulseIcon.css ) ) }`
+);
+const reducedMotion = [
+	...pulseIcon.css.matchAll(
+		/@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g
+	),
+].map( ( m ) => m[ 1 ] );
+step(
+	"the pulse icon's page loads its reduced-motion rule, which stops the icon's animation",
+	reducedMotion.some( ( rules ) =>
+		/\.wp-block-voyager-open-icon(?:\.has-animation-pulse)?\s+\.wp-block-voyager-open-icon__svg\s*\{\s*animation:\s*none\s*!important\s*;?\s*\}/.test(
+			rules
+		)
+	),
+	JSON.stringify( reducedMotion )
+);
+
+for ( const iconPost of [ stillIcon, pulseIcon ] ) {
+	if ( iconPost.id ) {
+		await api( `/wp/v2/pages/${ iconPost.id }`, {
+			method: 'DELETE',
+			query: { force: true },
+		} );
+	}
+}
 
 rmSync( scratch, { recursive: true, force: true } );
 console.log(
