@@ -61,6 +61,15 @@
 			}
 		},
 		{
+			"pattern": "voyager-open/service-area",
+			"layout": null,
+			"style": "plain",
+			"copy_guidance": {
+				"Heading": "Where the business works, in a few words.",
+				"Intro": "One line on the region the places sit in, or how to ask about a town the list leaves out."
+			}
+		},
+		{
 			"pattern": "voyager-open/closing-cta",
 			"layout": null,
 			"style": "inverted",
