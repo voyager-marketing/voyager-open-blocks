@@ -1,6 +1,6 @@
 {
 	"title": "Location page",
-	"description": "The business in one town or area: what it does there, what customers there say, and how to reach it from there.",
+	"description": "The business in one town or area: what it does there, what customers there say, the questions they ask, and how to reach it from there.",
 	"page_type": "location",
 	"sections": [
 		{
@@ -39,6 +39,16 @@
 			"copy_guidance": {
 				"Heading": "A short question that asks a visitor in this area to get in touch.",
 				"Body": "What happens once they get in touch, as the site owner describes it."
+			}
+		},
+		{
+			"pattern": "voyager-open/faq",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "Questions from customers in this area, in a few words.",
+				"Question 1": "Whether the business works in this town or area, as a visitor would ask it.",
+				"Question 1 answer": "Which parts of the area it covers, as Site Data's service area or the site owner gives it."
 			}
 		},
 		{

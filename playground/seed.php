@@ -83,6 +83,8 @@ $voyager_open_seed = static function (): void {
 		// The stats section in both layouts: figures in a row, then beside a heading.
 		// The seed sets no figure, so each shows its own text until Site Data has it.
 		'stats'           => [ 'Stats', '<!-- wp:paragraph --><p>Each figure below is the year founded, the rating or the review count from Site Data, never typed in. Until those fields are filled in under Settings, Site Data, each figure shows its own text, which names the field.</p><!-- /wp:paragraph -->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/stats-band"} /-->' ],
+		// The FAQ in both layouts: questions one under another, then beside the heading.
+		'faq'             => [ 'FAQ', '<!-- wp:pattern {"slug":"voyager-open/faq"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/faq-split"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
