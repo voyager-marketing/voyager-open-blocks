@@ -40,7 +40,7 @@
 	},
 	"example": {
 		"attributes": {
-			"items": "Licensed and insured\nFamily owned\nSame-day service"
+			"items": "Your first fact\nYour second fact\nYour third fact"
 		}
 	},
 	"editorScript": "file:./index.js",
