@@ -10,6 +10,13 @@
  *      and each ability's description and input schema descriptions as the
  *      listing gives them, under 3,000 words, each part printed, with the
  *      same rule refusing the listing plus a planted 3,000-word description,
+ *  1b. the prompt ability: its `item` enum lists every skill under skills/
+ *      with a "Tell your agent" prompt, read here from each SKILL.md on its
+ *      own, and its listing says the MCP Adapter serves it as a prompt.
+ *      item voyager-open-hero returns one user message holding the hero
+ *      skill's blockquote as written, item voyager-open-blocks with a task
+ *      returns the quick card's prompt with [task] filled in, and a task for
+ *      the hero, whose prompt has no [task], and an unknown item are refused,
  *   2. creates a page, finds it with find-posts by title words and by slug, and
  *      inserts the CTA band (bound to voyager/site-data), sets its section style
  *      with configure (Accent, rendered on the front end, then Inverted, then
@@ -397,11 +404,12 @@ const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.sort();
 step(
 	'abilities listed',
-	names.length === 9 &&
+	names.length === 10 &&
 		names.includes( `${ ns }/compose` ) &&
 		names.includes( `${ ns }/validate` ) &&
 		names.includes( `${ ns }/find-posts` ) &&
-		names.includes( `${ ns }/undo` ),
+		names.includes( `${ ns }/undo` ) &&
+		names.includes( `${ ns }/prompt` ),
 	names.join( ', ' )
 );
 
@@ -426,7 +434,7 @@ console.log( `     the quick card (${ ENTRY_SKILL }): ${ reading.card }` );
 step(
 	`reading budget: ${ reading.total } words, under ${ READING_LIMIT }`,
 	reading.fits &&
-		reading.parts.length === 9 &&
+		reading.parts.length === 10 &&
 		reading.parts.every( ( part ) => part.description > 0 ) &&
 		reading.card > 0,
 	`${ reading.parts.length } abilities and the card`
@@ -447,6 +455,120 @@ step(
 	! plantedReading.fits &&
 		plantedReading.total === reading.total + READING_LIMIT,
 	`${ plantedReading.total } words`
+);
+
+// 1b. The prompt ability. Each skill's prompt is read here from its own
+// SKILL.md, with a reader of this script's: the blockquote under the "Tell
+// your agent" heading, its lines joined. The ability must return that text,
+// so a reader in PHP that drifts from the file turns this red.
+function tellYourAgent( markdown ) {
+	const lines = markdown.split( /\r?\n/ );
+	const at = lines.findIndex( ( line ) =>
+		/^#{1,6}\s+Tell your agent\s*#*\s*$/i.test( line )
+	);
+	if ( at < 0 ) {
+		return null;
+	}
+	let i = at + 1;
+	while ( i < lines.length && lines[ i ].trim() === '' ) {
+		i++;
+	}
+	const quote = [];
+	while ( i < lines.length && lines[ i ].startsWith( '>' ) ) {
+		quote.push( lines[ i ].replace( /^>\s?/, '' ).trimEnd() );
+		i++;
+	}
+	return quote.length ? quote.join( '\n' ).trim() : null;
+}
+const skillPrompts = new Map();
+for ( const entry of readdirSync( join( repo, 'skills' ), {
+	withFileTypes: true,
+} ) ) {
+	if ( ! entry.isDirectory() ) {
+		continue;
+	}
+	let markdown = '';
+	try {
+		markdown = readFileSync(
+			join( repo, 'skills', entry.name, 'SKILL.md' ),
+			'utf8'
+		);
+	} catch {}
+	const text = tellYourAgent( markdown );
+	if ( text ) {
+		skillPrompts.set( entry.name, text );
+	}
+}
+const promptAbility = abilityList.find( ( a ) => a.name === `${ ns }/prompt` );
+const promptItems = [
+	...( promptAbility?.input_schema?.properties?.item?.enum || [] ),
+].sort();
+const expectedItems = [ ...skillPrompts.keys() ].sort();
+step(
+	'prompt: item lists every skill with a "Tell your agent" prompt, and the listing serves it as an MCP prompt',
+	expectedItems.length >= 17 &&
+		JSON.stringify( promptItems ) === JSON.stringify( expectedItems ) &&
+		promptAbility?.meta?.mcp?.type === 'prompt' &&
+		promptAbility?.meta?.mcp?.public === true,
+	`${ promptItems.length } items, ${ expectedItems.length } skills with a prompt, meta.mcp ${ JSON.stringify( promptAbility?.meta?.mcp ) }`
+);
+
+const messageText = ( result ) =>
+	Array.isArray( result.data.messages ) &&
+	result.data.messages.length === 1 &&
+	result.data.messages[ 0 ].role === 'user' &&
+	result.data.messages[ 0 ].content?.type === 'text'
+		? result.data.messages[ 0 ].content.text
+		: null;
+
+const heroPrompt = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-hero' },
+	true
+);
+step(
+	'prompt: voyager-open-hero returns one user message holding the blockquote under "Tell your agent" in its SKILL.md',
+	heroPrompt.status === 200 &&
+		!! skillPrompts.get( 'voyager-open-hero' ) &&
+		messageText( heroPrompt ) === skillPrompts.get( 'voyager-open-hero' ),
+	`status ${ heroPrompt.status }: ${ JSON.stringify(
+		messageText( heroPrompt ) ?? heroPrompt.data
+	).slice( 0, 160 ) }`
+);
+
+const task = 'build my home page';
+const cardPrompt = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-blocks', task },
+	true
+);
+const card = skillPrompts.get( 'voyager-open-blocks' ) || '';
+step(
+	"prompt: voyager-open-blocks with a task returns the quick card's prompt with [task] filled in",
+	cardPrompt.status === 200 &&
+		card.includes( '[task]' ) &&
+		messageText( cardPrompt ) === card.replaceAll( '[task]', task ),
+	`status ${ cardPrompt.status }: ${ JSON.stringify(
+		messageText( cardPrompt ) ?? cardPrompt.data
+	).slice( 0, 160 ) }`
+);
+
+const heroTask = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-hero', task },
+	true
+);
+const unknownItem = await run(
+	`${ ns }/prompt`,
+	{ item: 'voyager-open-nothing' },
+	true
+);
+step(
+	'prompt: a task for a prompt with no [task], and an unknown item, are refused',
+	heroTask.status === 400 &&
+		heroTask.data.code === 'voyager_open_blocks_invalid_task' &&
+		unknownItem.status === 400,
+	`${ heroTask.status } ${ heroTask.data.code }; ${ unknownItem.status } ${ unknownItem.data.code }`
 );
 
 const catalog = await run( `${ ns }/get-catalog`, { post_type: 'page' }, true );

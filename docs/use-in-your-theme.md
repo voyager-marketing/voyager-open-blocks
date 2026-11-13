@@ -279,7 +279,7 @@ The plugin hooks these:
 | `admin_init`, `admin_menu` | 10 | Settings > Site Data, when the plugin owns `voyager/site-data` |
 | `admin_init` | 9 | The last purge's section on Settings > Site Data |
 | `enqueue_block_editor_assets` | 10 | The editor half of both sources: field lists, live values, in-place editing of post meta |
-| `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the nine abilities |
+| `wp_abilities_api_categories_init`, `wp_abilities_api_init` | 10 | The ability category and the ten abilities |
 | `wp_after_insert_post`, `after_delete_post` | 10 | Indexes the saved post, and the posts that show a changed synced pattern |
 | `switch_theme`, `upgrader_process_complete` | 10 | Indexes the theme's template and template part files |
 | `voyager_open_blocks_year_check` | 10 | Notes `year` for the purge when the year changed |
@@ -289,7 +289,7 @@ The plugin hooks these:
 
 ### Abilities
 
-Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<name>/run`: `GET` with `input[<field>]` query parameters for the four read-only abilities, `POST` with a `{"input": {...}}` body for the rest. The WordPress MCP Adapter serves the same abilities as MCP tools.
+Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<name>/run`: `GET` with `input[<field>]` query parameters for the five read-only abilities, `POST` with a `{"input": {...}}` body for the rest. The WordPress MCP Adapter serves the same abilities as MCP tools, except `prompt`, whose `meta.mcp.type` is `prompt`: the adapter's default server, from 0.3.0, lists it under `prompts/list` and runs it for `prompts/get`, each input a prompt argument.
 
 | Ability | Method | Permission | Input |
 |---|---|---|---|
@@ -302,6 +302,7 @@ Category `voyager-open-blocks`. REST at `/wp-json/wp-abilities/v1/abilities/<nam
 | `voyager-open-blocks/bind` | POST | `edit_post` on `post_id` | `post_id`, `path`, `attribute`, `source` (`voyager/site-data`, `voyager/post-meta-text` or `core/post-meta`), `args` (all required); `post_type` (the post type whose fields `args` must match; only in a template, template part, synced pattern or Query Loop, default the post's own type), `dry_run` (default `false`) |
 | `voyager-open-blocks/undo` | POST | `edit_post` on `post_id` | `post_id`, `revision_id` (both required; the `revision_id` an `insert`, `compose`, `configure` or `bind` save returned); `force` (default `false`; reverse the saves made after `revision_id` too) |
 | `voyager-open-blocks/validate` | GET | `edit_post` on `post_id` when one is given, otherwise `edit_posts` | `markup` or `post_id` (one of them, not both); `post_type` (for binding args, default the post's type or `page`) |
+| `voyager-open-blocks/prompt` | GET | `edit_posts` | `item` (required; the folder name of a skill in `skills/` with a "Tell your agent" prompt, `voyager-open-blocks` for the general one); `task` (fills `[task]`, which only the general prompt holds; refused for a prompt without it, and empty is none) |
 
 What they return:
 
@@ -314,9 +315,10 @@ What they return:
 - `configure` and `bind`: `post_id`, `path`, `block`, `attributes`, `saved`, `markup` and `validation`.
 - `insert`, `compose`, `configure` and `bind` also return `revision_id`, the revision WordPress made for the save, which `undo` takes. With `dry_run` they run every check, refusals included, save nothing and return `saved: false` and `revision_id: null`. `revision_id` is also `null` when a save made no revision, with `revision_note` saying why: revisions are off for the post, the post is an auto-draft, or nothing changed. `revision_note` also says when the site keeps too few revisions for `undo` to restore the content a save replaced.
 - `undo`: `post_id`, `undone` (the `revision_id` given), `restored` (the revision whose content the post now has), `reversed` (the save undone and, with `force`, every save after it, oldest first, each with `revision_id`, `author_id`, `author` and `date_gmt`), `matches` (the content now equals the restored revision byte for byte), and the undo's own `revision_id` and `revision_note`.
+- `prompt`: `messages`, one `{"role": "user", "content": {"type": "text", "text": "..."}}`, the MCP prompt shape. The text is the one blockquote under the skill's "Tell your agent" heading, read from its `SKILL.md` on every call, its lines less their `>` joined with line breaks. A skill whose file has no such heading, two of them, text before the blockquote, or two blockquotes in that section is left out of `item`.
 - `validate`: `valid`, `post_type`, `round_trip`, `blocks` (each with `path`, `block`, `errors` and `warnings`), `errors`, `warnings`, `post_id` when it checked a saved post, and `save_output`, which says what it can't check: saved HTML against each block's `save()`. `npx block-runner validate` checks that. A warning starts with its block, or with a code followed by the block and its path: `stale_fallback` (a bound block's fallback looks like a phone number or an email address), `placeholder` (one of the pack's placeholder images in a `core/image`, a `core/media-text` or as a `core/cover`'s background, matched by the end of its URL on any host, or the contact section's form stand-in, still in its Form slot column) or `missing_alt` (any other `core/image` or `core/media-text` image with empty or missing alt text; a `core/cover` never gets one, since its background is decoration). Warnings never change `valid`.
 
-A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat`, `markup`, `revision`, `style`, `layout`, `recipe` or `sections`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` and `section_markup` through `npx block-runner validate --strict --json`.
+A path is the list of indices from the top level down, such as `2/0/1`. Errors are `WP_Error` codes `voyager_open_blocks_invalid_<field>`, where the field is `post_id`, `post_type`, `path`, `parent`, `item`, `attributes`, `attribute`, `source`, `args`, `copy`, `omit`, `repeat`, `markup`, `revision`, `style`, `layout`, `recipe`, `sections` or `task`. WordPress cannot check saved HTML from PHP, so pipe every returned `markup` and `section_markup` through `npx block-runner validate --strict --json`.
 
 `undo` restores the revision just before `revision_id` with `wp_restore_post_revision()`, `post_content` only, so the title and excerpt stay as they are. Like every revision restore in WordPress, it also replaces the post meta WordPress keeps in revisions (core's footnotes, and meta registered with `revisions_enabled`) with that revision's copy. Restoring an older revision reverses every save after it, so when the post was saved after `revision_id`, by a person or by another agent, `undo` refuses with `voyager_open_blocks_undo_conflict` (status 409), changes nothing, and lists those saves in the error's `later`. Pass `force: true` to reverse them too. Before it restores, `undo` stores the post as it stands as a revision, so the `revision_id` it returns puts back whatever it replaced.
 
