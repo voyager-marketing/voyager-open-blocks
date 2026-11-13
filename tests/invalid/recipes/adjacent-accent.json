@@ -1,0 +1,49 @@
+{
+	"title": "Planted: two adjacent accent sections",
+	"description": "A home page with its reviews in accent straight after the accent CTA band, so two accent bands meet. npm run check's rhythm gate must refuse it for that alone.",
+	"page_type": "home",
+	"sections": [
+		{
+			"pattern": "voyager-open/hero",
+			"layout": "split",
+			"style": "plain",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/proof-strip",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/services",
+			"layout": "grid",
+			"style": "plain",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/cta-band",
+			"layout": null,
+			"style": "accent",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/reviews",
+			"layout": "grid",
+			"style": "accent",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/stats",
+			"layout": "row",
+			"style": "panel",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/closing-cta",
+			"layout": null,
+			"style": "inverted",
+			"copy_guidance": {}
+		}
+	]
+}
