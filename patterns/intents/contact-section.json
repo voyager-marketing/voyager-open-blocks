@@ -1,6 +1,6 @@
 {
 	"title": "Contact section",
-	"description": "Contact details bound to voyager/site-data (phone, email, address, hours) beside a form slot. The slot holds an email fallback until a form plugin's block replaces it.",
+	"description": "A contact details block bound to voyager/site-data (address, phone, email, hours), whose phone and email dial and open a new message when tapped, beside a form slot. The slot holds an email fallback until a form plugin's block replaces it.",
 	"categories": [
 		"voyager-open",
 		"contact"
@@ -29,43 +29,8 @@
 			"required": false,
 			"claim": false
 		},
-		"Phone": {
-			"purpose": "Bound to the Site Data phone number. Its own text, a sample 555 number, shows only while the number is empty.",
-			"min": 2,
-			"max": 40,
-			"required": false,
-			"claim": false
-		},
-		"Email": {
-			"purpose": "Bound to the Site Data email address. Its own text, an example.com address, shows only while the address is empty.",
-			"min": 2,
-			"max": 60,
-			"required": false,
-			"claim": false
-		},
-		"Street address": {
-			"purpose": "Bound to the Site Data street address. Its own text, a sample street, shows only while the street address is empty.",
-			"min": 2,
-			"max": 80,
-			"required": false,
-			"claim": false
-		},
-		"City, state, postal code": {
-			"purpose": "Bound to the Site Data city, state or region and postal code, shown as one line. Its own text, a sample town, shows only while all three are empty.",
-			"min": 2,
-			"max": 80,
-			"required": false,
-			"claim": false
-		},
-		"Hours": {
-			"purpose": "Bound to the Site Data business hours. Its own text, sample weekday hours, shows only while the hours are empty.",
-			"min": 2,
-			"max": 80,
-			"required": false,
-			"claim": false
-		},
 		"Click to call": {
-			"purpose": "The call button's label. Its link is bound to the Site Data phone number, and its text is its own, so name the action, such as Call us, never the number. Leave it out with the Phone line.",
+			"purpose": "The call button's label. Its link is bound to the Site Data phone number, and its text is its own, so name the action, such as Call us, never the number. Leave it out when the business takes no calls.",
 			"min": 2,
 			"max": 24,
 			"required": false,
@@ -161,125 +126,61 @@
 										}
 									},
 									{
-										"block": "core/group",
+										"block": "voyager-open/contact-details",
 										"attrs": {
+											"phone": "Phone",
+											"email": "Email",
+											"address": "Street address",
+											"addressLocality": "City, state, postal code",
+											"hours": "Hours",
 											"metadata": {
-												"name": "Details"
-											},
-											"style": {
-												"spacing": {
-													"blockGap": "var:preset|spacing|20"
-												}
-											},
-											"layout": {
-												"type": "default"
-											}
-										},
-										"children": [
-											{
-												"block": "core/paragraph",
-												"text": "(555) 010-0100",
-												"attrs": {
-													"metadata": {
-														"name": "Phone",
-														"bindings": {
-															"content": {
-																"source": "voyager/site-data",
-																"args": {
-																	"key": "phone"
-																}
-															}
-														}
-													}
-												}
-											},
-											{
-												"block": "core/paragraph",
-												"text": "hello@example.com",
-												"attrs": {
-													"metadata": {
-														"name": "Email",
-														"bindings": {
-															"content": {
-																"source": "voyager/site-data",
-																"args": {
-																	"key": "email"
-																}
-															}
-														}
-													}
-												}
-											},
-											{
-												"block": "core/group",
-												"attrs": {
-													"metadata": {
-														"name": "Address"
-													},
-													"style": {
-														"spacing": {
-															"blockGap": "0px"
+												"name": "Details",
+												"bindings": {
+													"phone": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "phone"
 														}
 													},
-													"layout": {
-														"type": "default"
-													}
-												},
-												"children": [
-													{
-														"block": "core/paragraph",
-														"text": "100 Main Street",
-														"attrs": {
-															"metadata": {
-																"name": "Street address",
-																"bindings": {
-																	"content": {
-																		"source": "voyager/site-data",
-																		"args": {
-																			"key": "address"
-																		}
-																	}
-																}
-															}
+													"phoneLink": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "phone_link"
 														}
 													},
-													{
-														"block": "core/paragraph",
-														"text": "Springfield, ST 00000",
-														"attrs": {
-															"metadata": {
-																"name": "City, state, postal code",
-																"bindings": {
-																	"content": {
-																		"source": "voyager/site-data",
-																		"args": {
-																			"key": "address_locality"
-																		}
-																	}
-																}
-															}
+													"email": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "email"
 														}
-													}
-												]
-											},
-											{
-												"block": "core/paragraph",
-												"text": "Monday to Friday, 9am to 5pm",
-												"attrs": {
-													"metadata": {
-														"name": "Hours",
-														"bindings": {
-															"content": {
-																"source": "voyager/site-data",
-																"args": {
-																	"key": "hours"
-																}
-															}
+													},
+													"emailLink": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "email_link"
+														}
+													},
+													"address": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "address"
+														}
+													},
+													"addressLocality": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "address_locality"
+														}
+													},
+													"hours": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "hours"
 														}
 													}
 												}
 											}
-										]
+										}
 									},
 									{
 										"block": "core/buttons",

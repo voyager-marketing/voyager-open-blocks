@@ -74,9 +74,11 @@ Save this as `patterns/footer-details.php` in your theme. WordPress registers it
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/site-data","args":{"key":"phone"}}}}} -->
-<p>(555) 010-0100</p>
+<p>Phone</p>
 <!-- /wp:paragraph -->
 ```
+
+The phone paragraph's own text is a label, never a number: visitors see it whenever the phone is empty, and `validate` warns `stale_fallback` on a phone number or an email address there.
 
 From a plugin, call `register_block_pattern( 'my-plugin/footer-details', [ 'title' => 'Footer details', 'categories' => [ 'voyager-open' ], 'content' => $markup ] )` on `init` instead.
 
@@ -378,7 +380,7 @@ Panel, Inverted and Accent are the section styles; a section with none is Plain.
 | `voyager-open/proof-strip` | about | **Credential 1** to **Credential 4** | none |
 | `voyager-open/logo-marquee` | media | **Eyebrow** | none |
 | `voyager-open/closing-cta` | call-to-action | **Heading**, **Body**, **Primary button**, **Email button** | Email button: `url` <- `email_link` |
-| `voyager-open/contact-section` | contact | **Heading**, **Body**, **Phone**, **Email**, **Street address**, **City, state, postal code**, **Hours**, **Click to call**, **Form heading**, **Form body**, **Email button**; the group "Form" is the form slot | Phone `phone`, Email `email`, Street address `address`, City line `address_locality`, Hours `hours` (all `content`); Click to call `url` <- `phone_link`; Email button `url` <- `email_link` |
+| `voyager-open/contact-section` | contact | **Heading**, **Body**, **Click to call**, **Form heading**, **Form body**, **Email button**; the contact details block "Details" shows the address, phone, email and hours, and the group "Form" is the form slot | Details: `address` <- `address`, `addressLocality` <- `address_locality`, `phone` <- `phone`, `phoneLink` <- `phone_link`, `email` <- `email`, `emailLink` <- `email_link`, `hours` <- `hours`; Click to call `url` <- `phone_link`; Email button `url` <- `email_link` |
 
 Every binding above uses `voyager/site-data`. Each pattern's full block tree is its intent in [`patterns/intents/`](../patterns/intents/). `voyager-open/hero` and `voyager-open/hero-cover` are one section, the hero, in two layouts: their intents name it in `section` (`hero`) and each layout in `layout` (`split`, `cover`), and the first layout keeps the section's slug. `voyager-open/services` and `voyager-open/services-list` are the services section in its two layouts, `grid` and `list`, `voyager-open/reviews` and `voyager-open/reviews-single` the reviews section in its two, `grid` and `single`, and `voyager-open/process-steps` and `voyager-open/process-steps-list` the process steps in theirs, `row` and `list`, and `voyager-open/stats` and `voyager-open/stats-band` the stats section in its two, `row` and `band`, and `voyager-open/faq` and `voyager-open/faq-split` the FAQ in its two, `list` and `split`. `voyager-open/service-area` and `voyager-open/service-area-split` are the service area in its two, `list` and `split`.
 

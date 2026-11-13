@@ -261,7 +261,7 @@ final class BoundSlotTest extends TestCase {
 			$blocks[] = self::paragraph( ucfirst( $key ), $text, [ 'content' => [ 'source' => 'voyager/site-data', 'args' => [ 'key' => $key ] ] ] );
 		}
 
-		$this->assertSame( [], Abilities\stale_fallbacks( $blocks, [] ) );
+		$this->assertSame( [], Abilities\stale_fallbacks( $blocks ) );
 
 		// The same check still catches the real thing, on Site Data and on post meta.
 		$blocks[] = self::paragraph( 'Office phone', 'Call (555) 555-0113', [ 'content' => [ 'source' => 'voyager/post-meta-text', 'args' => [ 'key' => 'office_phone' ] ] ] );
@@ -270,7 +270,7 @@ final class BoundSlotTest extends TestCase {
 
 		$this->assertSame(
 			[ 'office_phone' => 'phone', 'email' => 'email', 'phone' => 'phone' ],
-			array_column( Abilities\stale_fallbacks( $blocks, [] ), 'looks_like', 'key' )
+			array_column( Abilities\stale_fallbacks( $blocks ), 'looks_like', 'key' )
 		);
 	}
 
@@ -341,7 +341,7 @@ final class BoundSlotTest extends TestCase {
 
 		$this->assertSame(
 			[ 'mobile' => 'phone', 'fax' => 'phone', 'tel' => 'phone', 'cell' => 'phone' ],
-			array_column( Abilities\stale_fallbacks( $blocks, [] ), 'looks_like', 'key' )
+			array_column( Abilities\stale_fallbacks( $blocks ), 'looks_like', 'key' )
 		);
 	}
 
@@ -353,11 +353,11 @@ final class BoundSlotTest extends TestCase {
 			self::paragraph( 'Phone', 'old@example.org', [ 'content' => self::PHONE ] ),
 		];
 
-		$this->assertSame( [], Abilities\stale_fallbacks( $blocks, [] ) );
+		$this->assertSame( [], Abilities\stale_fallbacks( $blocks ) );
 	}
 
 	public function test_validate_flags_the_phone_number_willow_vet_stored_as_the_call_buttons_fallback(): void {
-		$stale = Abilities\stale_fallbacks( self::cta_band( '(555) 555-0113' ), [] );
+		$stale = Abilities\stale_fallbacks( self::cta_band( '(555) 555-0113' ) );
 
 		$this->assertCount( 1, $stale );
 		$this->assertSame( '0/1', $stale[0]['path'] );
@@ -370,21 +370,7 @@ final class BoundSlotTest extends TestCase {
 	}
 
 	public function test_validate_flags_nothing_when_the_bound_button_holds_a_label(): void {
-		$this->assertSame( [], Abilities\stale_fallbacks( self::cta_band( 'Call us' ), [] ) );
-	}
-
-	public function test_a_fallback_the_packs_patterns_ship_is_a_placeholder_not_stale(): void {
-		$details = [
-			self::paragraph( 'Phone', '(555) 010-0100', [ 'content' => self::PHONE ] ),
-			self::paragraph( 'Email', 'hello@example.com', [ 'content' => [ 'source' => 'voyager/site-data', 'args' => [ 'key' => 'email' ] ] ] ),
-		];
-		$shipped = Abilities\fallback_index( Abilities\bound_fallbacks( $details ) );
-
-		$this->assertSame( [ 'phone', 'email' ], array_column( Abilities\stale_fallbacks( $details, [] ), 'looks_like' ) );
-		$this->assertSame( [], Abilities\stale_fallbacks( $details, $shipped ) );
-
-		$moved = [ self::paragraph( 'Email', 'old@example.org', [ 'content' => [ 'source' => 'voyager/site-data', 'args' => [ 'key' => 'email' ] ] ] ) ];
-		$this->assertSame( [ 'email' ], array_column( Abilities\stale_fallbacks( $moved, $shipped ), 'looks_like' ) );
+		$this->assertSame( [], Abilities\stale_fallbacks( self::cta_band( 'Call us' ) ) );
 	}
 
 	public function test_a_stale_value_in_the_block_comment_is_cleared_with_configure(): void {
@@ -400,7 +386,7 @@ final class BoundSlotTest extends TestCase {
 			'innerContent' => [],
 		];
 
-		$stale = Abilities\stale_fallbacks( [ $icon ], [] );
+		$stale = Abilities\stale_fallbacks( [ $icon ] );
 
 		$this->assertCount( 1, $stale );
 		$this->assertFalse( $stale[0]['in_html'] );
@@ -432,7 +418,7 @@ final class BoundSlotTest extends TestCase {
 			'markup'     => '',
 		];
 
-		$out = Abilities\with_stale_fallbacks( $report, Abilities\stale_fallbacks( self::cta_band( '(555) 555-0113' ), [] ) );
+		$out = Abilities\with_stale_fallbacks( $report, Abilities\stale_fallbacks( self::cta_band( '(555) 555-0113' ) ) );
 
 		$this->assertTrue( $out['valid'] );
 		$this->assertCount( 1, $out['blocks'][1]['warnings'] );

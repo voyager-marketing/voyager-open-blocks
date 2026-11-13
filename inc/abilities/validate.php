@@ -151,7 +151,7 @@ function validate( $input = null ) {
 
 	$blocks = BlockTree\parse( $markup );
 	$report = BlockTree\validate_markup( $markup, '' === $post_type ? 'page' : $post_type );
-	$report = with_stale_fallbacks( $report, stale_fallbacks( $blocks, shipped_fallbacks() ) );
+	$report = with_stale_fallbacks( $report, stale_fallbacks( $blocks ) );
 	$report = with_warnings( $report, image_warnings( $blocks, placeholder_names() ) );
 	$report = with_warnings( $report, stand_in_warnings( $blocks, shipped_stand_ins() ) );
 
@@ -275,25 +275,6 @@ function bound_fallbacks( array $blocks, string $prefix = '' ): array {
 	}
 
 	return $out;
-}
-
-/**
- * The fallbacks the pack's own patterns ship, by `<source>:<key>`.
- *
- * These are placeholders that were never a site's real value, such as the
- * contact section's sample phone number, so they are not stale.
- *
- * @return array<string, list<string>>
- */
-function shipped_fallbacks(): array {
-	/** @var array<string, list<string>>|null $shipped */
-	static $shipped = null;
-
-	if ( null === $shipped ) {
-		$shipped = fallback_index( bound_fallbacks( pack_pattern_blocks() ) );
-	}
-
-	return $shipped;
 }
 
 /**
@@ -511,22 +492,6 @@ function stand_in_warnings( array $blocks, array $index ): array {
 }
 
 /**
- * Fallbacks grouped by `<source>:<key>`.
- *
- * @param list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool}> $fallbacks From bound_fallbacks().
- * @return array<string, list<string>>
- */
-function fallback_index( array $fallbacks ): array {
-	$index = [];
-
-	foreach ( $fallbacks as $fallback ) {
-		$index[ $fallback['source'] . ':' . $fallback['key'] ][] = $fallback['fallback'];
-	}
-
-	return $index;
-}
-
-/**
  * Blocks bound to a phone or email key whose fallback looks like one.
  *
  * A fallback stays in the post when the real value changes, and visitors see
@@ -536,14 +501,14 @@ function fallback_index( array $fallbacks ): array {
  * block bound to any other key, such as copyright, founded or
  * mailing_address, may hold digits that look like a phone number
  * ("© 2015-2026", "License #1234567", "PO Box 1234567") and is never a stale
- * copy of one. A fallback the pack's patterns ship for the same source and
- * key is a placeholder and is left out.
+ * copy of one. The pack's own patterns ship labels there, such as the
+ * contact section's "Phone" and "Email", so no fallback is let off: a
+ * sample number an earlier release shipped warns like any other.
  *
- * @param array<int, Block>           $blocks  Blocks.
- * @param array<string, list<string>> $shipped From shipped_fallbacks().
+ * @param array<int, Block> $blocks Blocks.
  * @return list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, looks_like: string}>
  */
-function stale_fallbacks( array $blocks, array $shipped ): array {
+function stale_fallbacks( array $blocks ): array {
 	$stale = [];
 
 	foreach ( bound_fallbacks( $blocks ) as $fallback ) {
@@ -555,7 +520,7 @@ function stale_fallbacks( array $blocks, array $shipped ): array {
 
 		$kind = looks_like( $fallback['fallback'] );
 
-		if ( null === $kind || ! in_array( $kind, $kinds, true ) || in_array( $fallback['fallback'], $shipped[ $fallback['source'] . ':' . $fallback['key'] ] ?? [], true ) ) {
+		if ( null === $kind || ! in_array( $kind, $kinds, true ) ) {
 			continue;
 		}
 
