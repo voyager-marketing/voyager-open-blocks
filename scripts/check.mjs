@@ -58,6 +58,13 @@
  * 23. skills: the quick card, the entry skill, is under 500 words, counted
  *     as `wc -w` counts them (scripts/lib/words.mjs), and the same rule
  *     refuses tests/invalid/quick-card-500.md, a copy of it at 500 words.
+ * 24. rhythm: in every recipe in recipes/, no two sections next to each
+ *     other share a style other than plain, and each section names a
+ *     pattern and layout an intent carries, resolved as compose resolves
+ *     them (scripts/lib/recipes.mjs).
+ * 25. The same gate rejects each recipe in tests/invalid/recipes/, two
+ *     adjacent accent sections and an unknown layout, for its own rule and
+ *     no other, so each rule is shown to bite.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -80,6 +87,14 @@ import {
 	packContextText,
 } from './lib/pack-blocks.mjs';
 import { checkMarkup, describeFinding, RULES } from './lib/presets.mjs';
+import {
+	INTENTS as RECIPE_INTENTS,
+	PLANTS as RHYTHM_PLANTS,
+	RECIPES,
+	readRecipes,
+	rhythmProblems,
+	sectionLayouts,
+} from './lib/recipes.mjs';
 import { CARD_LIMIT, cardFits, countWords, ENTRY_SKILL } from './lib/words.mjs';
 
 const root = fileURLToPath( new URL( '..', import.meta.url ) );
@@ -857,5 +872,90 @@ report(
 			? `the plant is ${ CARD_LIMIT } words`
 			: `the plant must be exactly ${ CARD_LIMIT } words` )
 );
+
+// rhythm: DESIGN.md's Layout rule on adjacent styles, read from every page
+// recipe. Two sections next to each other never share a style other than
+// plain, and each section names a pattern and layout an intent carries,
+// resolved as compose resolves them (scripts/lib/recipes.mjs). The rest of
+// contract 5 is tests/Unit/RecipesTest.php's. A crash fails the line rather
+// than reading as a pass.
+function rhythm( dir ) {
+	try {
+		const layouts = sectionLayouts( join( root, RECIPE_INTENTS ) );
+		return readRecipes( join( root, dir ) ).map( ( entry ) => ( {
+			slug: entry.slug,
+			sections: Array.isArray( entry.recipe?.sections )
+				? entry.recipe.sections.length
+				: 0,
+			problems: rhythmProblems( entry, layouts ),
+		} ) );
+	} catch ( error ) {
+		return { error: error?.message || String( error ) };
+	}
+}
+
+const shipped = rhythm( RECIPES );
+const shippedProblems = shipped.error
+	? [ `the gate crashed: ${ shipped.error }` ]
+	: shipped.flatMap( ( recipe ) => recipe.problems.map( ( p ) => p.line ) );
+const recipeCount = shipped.error ? 0 : shipped.length;
+report(
+	`rhythm: the ${ recipeCount } recipes in ${ RECIPES }/ keep adjacent styles apart`,
+	recipeCount > 0 && shippedProblems.length === 0,
+	shippedProblems.length
+		? `${ plural( shippedProblems.length, 'problem' ) }, below`
+		: `${ shipped.reduce(
+				( sum, recipe ) => sum + recipe.sections,
+				0
+			) } sections, each naming a pattern`
+);
+printEach( shippedProblems );
+
+// Each planted recipe breaks one rule and no other, and the gate must refuse
+// it for that rule alone, as the presets gate refuses its plants.
+const plantedRecipesDir = 'tests/invalid/recipes';
+const planted = rhythm( plantedRecipesDir );
+const recipePlantProblems = [];
+let refusedRecipes = 0;
+if ( planted.error ) {
+	recipePlantProblems.push( `the gate crashed: ${ planted.error }` );
+} else {
+	for ( const { slug } of planted ) {
+		if ( ! Object.hasOwn( RHYTHM_PLANTS, slug ) ) {
+			recipePlantProblems.push(
+				`${ plantedRecipesDir }/${ slug }.json is named for no rule`
+			);
+		}
+	}
+	for ( const [ slug, rule ] of Object.entries( RHYTHM_PLANTS ) ) {
+		const file = `${ plantedRecipesDir }/${ slug }.json`;
+		const found = planted.find( ( recipe ) => recipe.slug === slug );
+		if ( ! found ) {
+			recipePlantProblems.push( `${ file } is missing` );
+			continue;
+		}
+		const before = recipePlantProblems.length;
+		if ( ! found.problems.some( ( p ) => p.rule === rule ) ) {
+			recipePlantProblems.push( `${ file } passes the ${ rule } rule` );
+		}
+		for ( const p of found.problems.filter( ( q ) => q.rule !== rule ) ) {
+			recipePlantProblems.push(
+				`${ p.line }, a ${ p.rule } problem in the ${ rule } plant`
+			);
+		}
+		if ( recipePlantProblems.length === before ) {
+			refusedRecipes++;
+		}
+	}
+}
+const rhythmPlantCount = Object.keys( RHYTHM_PLANTS ).length;
+report(
+	`rhythm: rejects ${ refusedRecipes } of ${ rhythmPlantCount } planted recipes in ${ plantedRecipesDir }/`,
+	refusedRecipes === rhythmPlantCount && recipePlantProblems.length === 0,
+	recipePlantProblems.length
+		? `${ plural( recipePlantProblems.length, 'problem' ) }, below`
+		: 'each refused for its own rule and no other'
+);
+printEach( recipePlantProblems );
 
 process.exit( failed ? 1 : 0 );

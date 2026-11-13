@@ -1,6 +1,6 @@
 {
 	"title": "Planted: two adjacent accent sections",
-	"description": "The home recipe with its reviews moved from plain to accent, so the CTA band and the reviews are two accent bands that meet. npm run check's rhythm gate must refuse it for that alone.",
+	"description": "A home page with its reviews in accent straight after the accent CTA band, so two accent bands meet. npm run check's rhythm gate must refuse it for that alone.",
 	"page_type": "home",
 	"sections": [
 		{

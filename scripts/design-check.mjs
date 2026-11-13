@@ -19,14 +19,18 @@
  *      patterns/ once per section style (plain, panel, inverted, accent), the
  *      style put on through SectionStyles\apply() (what configure calls), and
  *      a second page that holds the planted faults. A pattern added later is
- *      picked up with no fixture change;
+ *      picked up with no fixture change. Then it builds one page per recipe in
+ *      recipes/ with compose, the sections in order, each in its recipe style
+ *      with the patterns' own copy, and recipe:plant, the skipped-heading
+ *      plant between two shipped sections. A recipe added later is picked up
+ *      with no fixture change too;
  *   2. checks it is measuring the right thing: every pattern file is
  *      registered, get-catalog's role map is the one the fixture names, each
  *      styled section carries the instance class WordPress adds when it renders
  *      a style's style_data, and Inverted is painted in the theme's own text
  *      colour with its own background colour as text;
- *   3. at each width loads the page in headless Chrome as a visitor and, per
- *      section:
+ *   3. at each width loads the page, then each recipe page, in headless
+ *      Chrome as a visitor and, per section:
  *      - contrast: measures every element that holds text against its
  *        background, at rest, and links and buttons hovered too, from computed
  *        styles. The background is found by walking up through transparent
@@ -60,13 +64,14 @@
  *        its pattern at the wide width, or more than one at a stacked width,
  *        or when a word in a heading breaks across lines or spills out of
  *        its box;
- *   4. runs twelve controls, each of which must fail its own check or the run
+ *   4. runs thirteen controls, each of which must fail its own check or the run
  *      fails: the fixture's low-contrast role map, planted through the
  *      voyager_open_blocks_style_roles filter (contrast); white text on a
  *      cover with a white overlay at 50% (contrast, measured against the
  *      overlay over black and over white); a section with an element wider
  *      than 320px (overflow); a CSS animation with no reduced-motion rule
- *      (motion); an h2 followed by an h4 (a11y, on heading-order); and
+ *      (motion); an h2 followed by an h4 (a11y, on heading-order), alone
+ *      and again on recipe:plant, where the shipped sections must pass; and
  *      gradient text, a card inside a card and a 30px tall button
  *      (impeccable, each on its own rule); and a grid whose cards are each
  *      wider than half the row, columns not stacked on a phone, and a heading
@@ -82,9 +87,11 @@
  *      Accent section paints from them, as the fallback roles would;
  *   7. where the fixture lists style variations, switches each colour-bearing
  *      variation the theme ships on the way the Site Editor saves one, and
- *      measures contrast at the fixture's variation widths. A pair under the
- *      floor fails unless the fixture lists it as a known failure, and a
- *      listed failure that no longer fails fails too.
+ *      measures contrast on the pattern page at the fixture's variation
+ *      widths. The recipe pages are left out there: each of their sections is
+ *      a pattern in a style the pattern page holds, with its own copy. A pair
+ *      under the floor fails unless the fixture lists it as a known failure,
+ *      and a listed failure that no longer fails fails too.
  *
  * The run fails when any check fails outside the known failures, when fewer
  * renders or pairs were measured or scanned than the fixture expects, when a
@@ -103,6 +110,7 @@ import { boot, parseFlags, phpLog, reportPhpLog, runPhp } from './dev.mjs';
 import { findChrome, launch } from './lib/chrome.mjs';
 import { annotate, endGroup, group } from './lib/log.mjs';
 import { nodeVersionProblem } from './lib/node-version.mjs';
+import { recipePages } from './lib/recipes.mjs';
 import { repo } from './lib/site.mjs';
 
 const FIXTURE = join( repo, 'tests', 'fixtures', 'contrast.json' );
@@ -178,6 +186,17 @@ const LAYOUT_PLANTS = {
 };
 /** What buildPages() swaps for the plugin's assets URL in the planted markup. */
 const ASSETS_MARK = '{{voyager-open-assets}}/';
+/** The skipped-heading plant a11y must fail on heading-order: an h2, then an h4. */
+const HEADING_PLANT =
+	'<h2>Planted: a section heading</h2>\n<h4>Planted: a heading two levels below it</h4>\n<p>An h2 followed by an h4, with no h3 between them.</p>';
+/**
+ * The planted recipe page, recipe:plant: HEADING_PLANT as section `at`,
+ * between the first two sections of the first recipe as compose builds them.
+ * a11y must fail it there, which shows the recipe pages go through the
+ * checks and are not only rendered. Every run measures it as an a11y
+ * control, and --plant puts it in the main run.
+ */
+const RECIPE_PLANT = { slug: 'plant', at: 2 };
 const require = createRequire( import.meta.url );
 
 /** Loads the planted role map from an option, so a run can switch it on and off. */
@@ -196,6 +215,58 @@ add_filter(
 `;
 
 /**
+ * A full-width section group around some markup, as a planted section is
+ * built. className, when given, is the class the run finds it by.
+ *
+ * @param {string} inner     Block markup inside the group.
+ * @param {string} className Class on the group, or none.
+ * @return {string} Block markup.
+ */
+function sectionGroup( inner, className = '' ) {
+	const attribute = className ? `"className":"${ className }",` : '';
+	return `<!-- wp:group {"tagName":"section",${ attribute }"align":"full","layout":{"type":"constrained"}} -->
+<section class="wp-block-group alignfull${
+		className ? ` ${ className }` : ''
+	}">${ inner }</section>
+<!-- /wp:group -->`;
+}
+
+/**
+ * Raw HTML as a core/html block. Test markup only.
+ *
+ * @param {string} html
+ * @return {string} Block markup.
+ */
+function rawHtml( html ) {
+	return `<!-- wp:html -->\n${ html }\n<!-- /wp:html -->`;
+}
+
+/**
+ * The key of a section on a recipe page, recipe--<slug>--<n>, with n counted
+ * from 1 in page order. It is the section's class after SECTION_CLASS.
+ *
+ * @param {string} slug The recipe's slug, or RECIPE_PLANT.slug.
+ * @param {number} at   The section's place on the page.
+ * @return {string} Section key.
+ */
+function recipeKey( slug, at ) {
+	return `recipe--${ slug }--${ at }`;
+}
+
+/**
+ * Where a section is, for a printed row: its pattern, after its recipe page
+ * and place there when it is on one.
+ *
+ * @param {{pattern: string, page?: string, at?: number}} where A row, or an entry of the sections map.
+ * @return {string} Such as cta-band, or recipe:home 4 cta-band.
+ */
+function placeOf( where ) {
+	return where.page
+		? `${ where.page } ${ where.at } ${ where.pattern }`
+		: where.pattern;
+}
+
+/**
  * The planted faults, as sections. Test markup only: patterns never use
  * core/html or an inline style, and npm run check's presets gate says so.
  *
@@ -209,11 +280,8 @@ add_filter(
  */
 function plantSections( width ) {
 	const wrap = ( name, inner ) =>
-		`<!-- wp:group {"tagName":"section","className":"${ SECTION_CLASS }plant--${ name }","align":"full","layout":{"type":"constrained"}} -->
-<section class="wp-block-group alignfull ${ SECTION_CLASS }plant--${ name }">${ inner }</section>
-<!-- /wp:group -->`;
-	const section = ( name, html ) =>
-		wrap( name, `<!-- wp:html -->\n${ html }\n<!-- /wp:html -->` );
+		sectionGroup( inner, `${ SECTION_CLASS }plant--${ name }` );
+	const section = ( name, html ) => wrap( name, rawHtml( html ) );
 	const cover = ( name, { overlay, dim, text, words } ) => {
 		const image = `${ ASSETS_MARK }placeholders/image-16x9.svg`;
 		const light = overlay === '#ffffff';
@@ -245,10 +313,7 @@ function plantSections( width ) {
 			'motion',
 			'<style>@keyframes voyager-open-check-drift{to{transform:translateY(8px)}}.voyager-open-check-drift{display:inline-block;animation:voyager-open-check-drift 1s linear infinite alternate}</style>\n<p class="voyager-open-check-drift">Planted: a CSS animation with no reduced-motion rule.</p>'
 		),
-		heading: section(
-			'heading',
-			'<h2>Planted: a section heading</h2>\n<h4>Planted: a heading two levels below it</h4>\n<p>An h2 followed by an h4, with no h3 between them.</p>'
-		),
+		heading: section( 'heading', HEADING_PLANT ),
 		gradient: section(
 			'gradient',
 			'<h2 style="background-image:linear-gradient(90deg,#b00020,#1a3fd6);-webkit-background-clip:text;background-clip:text;color:transparent">Planted: a heading in gradient text</h2>'
@@ -299,8 +364,9 @@ function plantSections( width ) {
 const HELP = `npm run design-check [-- options]
 
 Boots a fresh dev site (npm run dev), renders every pattern in patterns/ in
-every section style on each theme in tests/fixtures/contrast.json, loads it
-in headless Chrome at each width, and runs six checks on every render:
+every section style on each theme in tests/fixtures/contrast.json, and each
+recipe in recipes/ as a page, its sections in their recipe styles. Loads each
+page in headless Chrome at each width, and runs six checks on every section:
 contrast (text under 4.5:1 against its background), overflow (the page
 scrolls sideways), motion (anything moves with reduced motion on), layout (a
 row of cards renders the wrong number of columns, or a heading word breaks
@@ -320,9 +386,11 @@ its own check, or if the readable cover control does not pass.
                    overlay at 50%, a section wider than 320px, an animation
                    with no reduced-motion rule, an h2 followed by an h4,
                    gradient text, a card inside a card, a 30px tall button,
-                   and the four layout faults. Exits 1 when each check fails
-                   on its own plants and nothing else fails, and 3 when the
-                   run fails any other way or a check misses its plant.
+                   the four layout faults, and recipe:plant, a recipe page
+                   with the h2 and h4 between two shipped sections. Exits 1
+                   when each check fails on its own plants and nothing else
+                   fails, and 3 when the run fails any other way or a check
+                   misses its plant.
   --themes <list>  Only these themes, such as --themes twentytwentyfive.
                    The render and pair counts are then not checked.
   --no-variations  Skip the style variations.
@@ -1824,17 +1892,17 @@ async function impeccableScan( url, width, height, chrome ) {
  * sections, Impeccable on the whole page with each finding placed in the
  * section it is in, and tap targets measured here.
  *
- * @param {Object}   tab     The visitor page, loaded at width.
- * @param {string}   url     The page.
- * @param {number}   width   Viewport width.
- * @param {string[]} keys    Sections to measure.
- * @param {Object}   want    Checks to run: {a11y, impeccable}.
- * @param {string}   theme   Theme slug.
- * @param {Object}   fixture tests/fixtures/contrast.json.
- * @param {string}   chrome  Browser executable.
+ * @param {Object}   tab      The visitor page, loaded at width.
+ * @param {string}   url      The page.
+ * @param {number}   width    Viewport width.
+ * @param {string[]} keys     Sections to measure.
+ * @param {Object}   want     Checks to run: {a11y, impeccable}.
+ * @param {string}   theme    Theme slug.
+ * @param {Object}   fixture  tests/fixtures/contrast.json.
+ * @param {Promise}  scanning impeccableScan() of the page at width, which the caller starts before it loads the page, so Impeccable's browser scans while this tab measures; null when impeccable is not asked for.
  * @return {Promise<Object>} {a11y, impeccable}: per check, whether it ran, a note when it did not, findings by section key, and advisories.
  */
-async function judge( tab, url, width, keys, want, theme, fixture, chrome ) {
+async function judge( tab, url, width, keys, want, theme, fixture, scanning ) {
 	const out = {};
 	if ( want.a11y ) {
 		// The hover pass leaves the page scrolled to its last link or button,
@@ -1882,7 +1950,7 @@ async function judge( tab, url, width, keys, want, theme, fixture, chrome ) {
 	}
 	if ( want.impeccable ) {
 		const { gate, tap_target: tap } = fixture.impeccable;
-		const scan = await impeccableScan( url, width, fixture.height, chrome );
+		const scan = await scanning;
 		const placed = scan.ok
 			? await tab.evaluate(
 					call(
@@ -2007,7 +2075,7 @@ function contrastTable( rows, floor ) {
 					28
 				),
 				String( r.width ).padStart( 4 ),
-				r.pattern.padEnd( 15 ),
+				placeOf( r ).padEnd( 15 ),
 				r.style.padEnd( 8 ),
 				clip( r.target, 44 ).padEnd( 47 ),
 				r.state.padEnd( 5 ),
@@ -2065,7 +2133,7 @@ function renderTable( rows ) {
 				r.check.padEnd( 8 ),
 				r.theme.padEnd( 18 ),
 				String( r.width ).padStart( 4 ),
-				r.pattern.padEnd( 15 ),
+				placeOf( r ).padEnd( 15 ),
 				r.style.padEnd( 8 ),
 				r.note,
 			].join( '  ' )
@@ -2106,7 +2174,7 @@ function summarizeContrast( title, rows, floor ) {
 				( r ) =>
 					`| ${ fails( r, floor ) ? 'FAIL' : 'ok' } | ${ r.theme }${
 						r.variation ? `/${ r.variation }` : ''
-					} | ${ r.width } | ${ r.pattern } | ${ r.style } | ${ r.target.replace(
+					} | ${ r.width } | ${ placeOf( r ) } | ${ r.style } | ${ r.target.replace(
 						/\|/g,
 						'\\|'
 					) } | ${ r.state } | \`${ r.text }\` | \`${ r.background }\` | ${
@@ -2134,8 +2202,14 @@ function patternFiles() {
 }
 
 /**
- * Switch theme and build the two pages: every pattern in every style, and
- * the planted faults.
+ * Switch theme and build the pages: every pattern in every style, the
+ * planted faults, one page per recipe, and the planted recipe page.
+ *
+ * Each recipe page is what compose builds from the recipe, as an agent asks
+ * for it with `recipe`: its sections in order, each in its recipe style,
+ * with the patterns' own copy, less what the recipe omits. compose saves it
+ * as a draft; the run marks each section with its key and publishes it, so a
+ * visitor loads it as the pattern page is loaded.
  *
  * @param {Object}   site     From boot().
  * @param {Object}   fixture  tests/fixtures/contrast.json.
@@ -2143,9 +2217,18 @@ function patternFiles() {
  * @param {string[]} patterns Pattern names.
  * @param {Object}   plants   Plant name => markup, from plantSections().
  * @param {boolean}  planted  Whether the main page carries the plants too.
- * @return {Promise<Object>} {main, control, stylesheet, version, catalog, registered} or {error}.
+ * @param {Object}   recipes  {pages: [{slug, keys}], plant: {host, keys, markup}|null}: each recipe's section keys, and the planted recipe page.
+ * @return {Promise<Object>} {main, control, recipes, recipePlant, stylesheet, version, catalog, registered} or {error}. recipes is slug => {id, link, patterns}, patterns being each section's pattern as compose resolved it.
  */
-function buildPages( site, fixture, theme, patterns, plants, planted ) {
+function buildPages(
+	site,
+	fixture,
+	theme,
+	patterns,
+	plants,
+	planted,
+	recipes
+) {
 	const args = phpString(
 		JSON.stringify( {
 			theme,
@@ -2156,6 +2239,7 @@ function buildPages( site, fixture, theme, patterns, plants, planted ) {
 			plants: Object.values( plants ),
 			planted,
 			assets: ASSETS_MARK,
+			recipes,
 		} )
 	);
 	return runPhp(
@@ -2237,6 +2321,97 @@ foreach ( [
 	}
 	$pages[ $key ] = [ 'id' => $id, 'link' => get_permalink( $id ) ];
 }
+// Each recipe as compose builds it from the recipe, then each section marked
+// with its key and the page published.
+$layouts  = \\VoyagerOpenBlocks\\Abilities\\section_layouts();
+$recipes  = [];
+$unmarked = [];
+foreach ( $args['recipes']['pages'] as $recipe ) {
+	$slug  = $recipe['slug'];
+	$built = \\VoyagerOpenBlocks\\Abilities\\compose(
+		[
+			'title'  => 'Design check recipe:' . $slug . ': ' . $args['theme'],
+			'recipe' => $slug,
+		]
+	);
+	if ( is_wp_error( $built ) ) {
+		return [ 'error' => 'compose refused recipe ' . $slug . ': ' . $built->get_error_message() ];
+	}
+	if ( empty( $built['saved'] ) ) {
+		return [ 'error' => 'compose saved no page for recipe ' . $slug . ': ' . wp_json_encode( $built['refused'] ) ];
+	}
+	$blocks = array_values(
+		array_filter(
+			parse_blocks( (string) get_post( $built['post_id'] )->post_content ),
+			static fn ( $block ) => null !== $block['blockName']
+		)
+	);
+	if ( count( $blocks ) !== count( $recipe['keys'] ) ) {
+		return [ 'error' => 'compose built ' . count( $blocks ) . ' sections for recipe ' . $slug . ', not ' . count( $recipe['keys'] ) . '.' ];
+	}
+	$names = [];
+	foreach ( \\VoyagerOpenBlocks\\Abilities\\recipe_sections( (array) \\VoyagerOpenBlocks\\Abilities\\find_recipe( $slug ) ) as $section ) {
+		$names[] = preg_replace( '#^voyager-open/#', '', (string) \\VoyagerOpenBlocks\\Abilities\\resolve_layout( $layouts, $section['pattern'], $section['layout'] ) );
+	}
+	$marked = [];
+	foreach ( $blocks as $index => $block ) {
+		$marked[] = serialize_block( $mark( $block, $args['prefix'] . $recipe['keys'][ $index ] ) );
+	}
+	$published = wp_update_post(
+		wp_slash(
+			[
+				'ID'           => $built['post_id'],
+				'post_status'  => 'publish',
+				'post_content' => implode( "\\n\\n", $marked ),
+			]
+		),
+		true
+	);
+	if ( is_wp_error( $published ) ) {
+		return [ 'error' => $published->get_error_message() ];
+	}
+	$unmarked[ $slug ] = $blocks;
+	$recipes[ $slug ]  = [
+		'id'       => $built['post_id'],
+		'link'     => get_permalink( $built['post_id'] ),
+		'patterns' => $names,
+	];
+}
+// recipe:plant: the skipped-heading plant between the host recipe's first
+// two sections.
+$plant = $args['recipes']['plant'];
+$recipe_plant = null;
+if ( $plant ) {
+	$host    = $unmarked[ $plant['host'] ] ?? [];
+	$planted = array_values(
+		array_filter(
+			parse_blocks( $plant['markup'] ),
+			static fn ( $block ) => null !== $block['blockName']
+		)
+	);
+	if ( count( $host ) < 2 || 1 !== count( $planted ) ) {
+		return [ 'error' => 'recipe:plant needs two sections of recipe ' . $plant['host'] . ' and one planted section.' ];
+	}
+	$content = [];
+	foreach ( [ $host[0], $planted[0], $host[1] ] as $index => $block ) {
+		$content[] = serialize_block( $mark( $block, $args['prefix'] . $plant['keys'][ $index ] ) );
+	}
+	$id = wp_insert_post(
+		wp_slash(
+			[
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_title'   => 'Design check recipe:plant: ' . $args['theme'],
+				'post_content' => implode( "\\n\\n", $content ),
+			]
+		),
+		true
+	);
+	if ( is_wp_error( $id ) ) {
+		return [ 'error' => $id->get_error_message() ];
+	}
+	$recipe_plant = [ 'id' => $id, 'link' => get_permalink( $id ) ];
+}
 $registered = [];
 foreach ( $registry->get_all_registered() as $pattern ) {
 	if ( str_starts_with( $pattern['name'], 'voyager-open/' ) ) {
@@ -2245,9 +2420,11 @@ foreach ( $registry->get_all_registered() as $pattern ) {
 }
 sort( $registered );
 return [
-	'main'       => $pages['main'],
-	'control'    => $pages['control'],
-	'stylesheet' => get_stylesheet(),
+	'main'        => $pages['main'],
+	'control'     => $pages['control'],
+	'recipes'     => (object) $recipes,
+	'recipePlant' => $recipe_plant,
+	'stylesheet'  => get_stylesheet(),
 	'version'    => get_bloginfo( 'version' ),
 	'catalog'    => \\VoyagerOpenBlocks\\SectionStyles\\catalog(),
 	'registered' => $registered,
@@ -2685,6 +2862,11 @@ async function renderAt(
 	sections,
 	fixture
 ) {
+	// Impeccable scans the page in a browser of its own, so it starts first
+	// and runs while this tab measures; judge() waits for it.
+	const scanning = want.impeccable
+		? impeccableScan( url, width, fixture.height, tabs.chrome )
+		: null;
 	await visit( tabs.visitor, url, width, fixture.height );
 	const page = await tabs.visitor.evaluate( call( 'page' ) );
 	const scanned = await tabs.visitor.evaluate(
@@ -2706,7 +2888,7 @@ async function renderAt(
 					want,
 					context.theme,
 					fixture,
-					tabs.chrome
+					scanning
 				)
 			: {};
 
@@ -2870,7 +3052,7 @@ async function renderAt(
 function keepJudged( out, judged, where, sections, at ) {
 	const name = ( key ) =>
 		sections[ key ]
-			? `${ sections[ key ].pattern } ${ sections[ key ].style }`
+			? `${ placeOf( sections[ key ] ) } ${ sections[ key ].style }`
 			: 'the theme';
 	if ( judged?.a11y ) {
 		const a = judged.a11y;
@@ -3090,6 +3272,76 @@ async function checkCovers( ctx, theme, link ) {
 }
 
 /**
+ * One recipe page at one width, through every check the run makes, as the
+ * pattern page goes through them. Its rows join the run's, so each check's
+ * verdict covers them, and the page must render each of its sections once,
+ * each in its recipe style, and not scroll sideways.
+ *
+ * @param {Object}                                       ctx    The run, as checkTheme() gets it.
+ * @param {{slug: string, link: string, keys: string[]}} recipe The page and its section keys.
+ * @param {string}                                       theme  Theme slug.
+ * @param {number}                                       width  Viewport width.
+ */
+async function checkRecipePage( ctx, recipe, theme, width ) {
+	const { tabs, fixture, want, sections, keys, out } = ctx;
+	const seen = await renderAt(
+		tabs,
+		recipe.link,
+		width,
+		recipe.keys,
+		want,
+		{ theme, variation: '', width },
+		sections,
+		fixture
+	);
+	const at = `${ theme } at ${ width }px, recipe:${ recipe.slug }`;
+	out.recipeCount += seen.scanned.filter(
+		( s ) => keys.recipe.includes( s.key ) && s.count === 1
+	).length;
+	out.contrast.push( ...seen.contrast );
+	out.renders.push( ...seen.renders );
+	keepJudged( out, seen.judged, { theme, width }, sections, at );
+	const problems = seen.scanned.flatMap( ( s ) => {
+		const { style } = sections[ s.key ];
+		if ( s.count !== 1 ) {
+			return [ `${ s.key } found ${ s.count } times` ];
+		}
+		const found = [];
+		if (
+			style !== 'plain' &&
+			! new RegExp( `\\bis-style-voyager-open-${ style }--\\d+\\b` ).test(
+				s.className || ''
+			)
+		) {
+			found.push( `${ s.key } carries no ${ style } instance class` );
+		}
+		if ( want.contrast && ! s.targets?.length ) {
+			found.push( `${ s.key } has no text to measure` );
+		}
+		return found;
+	} );
+	expect(
+		`${ at }: its ${ recipe.keys.length } sections render, each once and in its recipe style${
+			want.contrast ? ', each with text to measure' : ''
+		}`,
+		seen.scanned.length === recipe.keys.length && problems.length === 0,
+		problems.join( ', ' ) || `${ seen.scanned.length } sections`
+	);
+	if ( want.overflow ) {
+		for ( const [ label, page ] of [
+			[ '', seen.page ],
+			[ ' with reduced motion on', seen.still ],
+		] ) {
+			expect(
+				`${ at } does not scroll sideways${ label }`,
+				page.scrollWidth <= page.clientWidth,
+				`document ${ page.scrollWidth }px wide in a ${ page.clientWidth }px viewport`
+			);
+		}
+	}
+}
+
+/**
  * Everything on one theme: the pages, every width, the controls, the editor
  * and the style variations. Adds to the run's rows as it goes.
  *
@@ -3108,7 +3360,8 @@ async function checkTheme( ctx, entry ) {
 		theme,
 		ctx.patterns,
 		ctx.plants,
-		!! opts.plant
+		!! opts.plant,
+		ctx.recipes
 	);
 	if (
 		! expect(
@@ -3119,6 +3372,46 @@ async function checkTheme( ctx, entry ) {
 	) {
 		return;
 	}
+	// compose resolves each section itself, so the patterns it built must be
+	// the ones the rhythm gate's reading names.
+	const recipeSlugs = Object.keys( keys.recipes );
+	const composed = recipeSlugs.filter( ( slug ) => {
+		const built = pages.recipes?.[ slug ];
+		return (
+			built?.id > 0 &&
+			JSON.stringify( built.patterns ) ===
+				JSON.stringify(
+					keys.recipes[ slug ].map(
+						( key ) => sections[ key ].pattern
+					)
+				)
+		);
+	} );
+	expect(
+		`${ theme }: compose builds each recipe in recipes/ as a page, section by section with the patterns the rhythm gate reads, and the planted recipe page is built`,
+		recipeSlugs.length > 0 &&
+			composed.length === recipeSlugs.length &&
+			pages.recipePlant?.id > 0,
+		recipeSlugs
+			.map(
+				( slug ) =>
+					`recipe:${ slug } ${
+						composed.includes( slug )
+							? keys.recipes[ slug ].length
+							: `built ${ JSON.stringify(
+									pages.recipes?.[ slug ]?.patterns ?? null
+								) }, read ${ JSON.stringify(
+									keys.recipes[ slug ].map(
+										( key ) => sections[ key ].pattern
+									)
+								) }`
+					}`
+			)
+			.join( ', ' ) +
+			( pages.recipePlant?.id > 0
+				? `, recipe:${ RECIPE_PLANT.slug } ${ keys.recipePlant.length }`
+				: `, no recipe:${ RECIPE_PLANT.slug }` )
+	);
 	out.versions[ theme ] = pages.version;
 	expect(
 		`${ theme }: runs on WordPress ${ ctx.wp }`,
@@ -3254,6 +3547,60 @@ async function checkTheme( ctx, entry ) {
 				);
 			}
 		}
+
+		// Each recipe page, through every check the run makes. --plant puts
+		// recipe:plant among them.
+		const recipeRuns = composed.map( ( slug ) => ( {
+			slug,
+			link: pages.recipes[ slug ].link,
+			keys: keys.recipes[ slug ],
+		} ) );
+		if ( opts.plant && pages.recipePlant ) {
+			recipeRuns.push( {
+				slug: RECIPE_PLANT.slug,
+				link: pages.recipePlant.link,
+				keys: keys.recipePlant,
+			} );
+		}
+		for ( const recipe of recipeRuns ) {
+			await checkRecipePage( ctx, recipe, theme, width );
+		}
+	}
+
+	if ( want.a11y && pages.recipePlant ) {
+		// Every run: on recipe:plant the skipped heading between two shipped
+		// sections must fail a11y on heading-order, and the shipped sections
+		// pass, so a11y is seen to read a recipe page.
+		const { width } = fixture.controls.a11y;
+		const plantKey = recipeKey( RECIPE_PLANT.slug, RECIPE_PLANT.at );
+		const seen = await renderAt(
+			tabs,
+			pages.recipePlant.link,
+			width,
+			keys.recipePlant,
+			{ a11y: true },
+			{ theme, variation: '', width },
+			sections,
+			fixture
+		);
+		const rows = seen.renders.filter( ( r ) => r.check === 'a11y' );
+		const row = rows.find( ( r ) => r.key === plantKey );
+		const shipped = rows.filter( ( r ) => r.key !== plantKey );
+		expect(
+			`a11y control on ${ theme }: on recipe:${ RECIPE_PLANT.slug }, the planted h2 followed by an h4 between two shipped sections fails a11y on heading-order, and the shipped sections pass`,
+			row &&
+				row.ran &&
+				! row.ok &&
+				row.rules.includes( 'heading-order' ) &&
+				shipped.length === keys.recipePlant.length - 1 &&
+				shipped.every( ( r ) => r.ok ),
+			rows
+				.map(
+					( r ) =>
+						`${ placeOf( r ) }: ${ r.ok ? 'ok' : 'FAIL' } ${ r.note }`
+				)
+				.join( '; ' ) || 'no a11y measurement of the page'
+		);
 	}
 
 	if ( want.motion ) {
@@ -3592,6 +3939,68 @@ async function run( opts ) {
 		keys.plant.push( `plant--${ name }` );
 	}
 
+	// One page per recipe in recipes/, read as npm run check's rhythm gate
+	// reads it: each section is its pattern in its recipe style, keyed
+	// recipe--<slug>--<n>, so a check that reads a section's pattern (layout's
+	// columns, contrast's known failures) reads the recipe section's.
+	const recipes = recipePages( repo );
+	keys.recipes = {};
+	for ( const recipe of recipes ) {
+		keys.recipes[ recipe.slug ] = recipe.sections.map( ( section, i ) => {
+			const key = recipeKey( recipe.slug, i + 1 );
+			sections[ key ] = {
+				...section,
+				page: `recipe:${ recipe.slug }`,
+				at: i + 1,
+			};
+			return key;
+		} );
+	}
+	keys.recipe = Object.values( keys.recipes ).flat();
+	const recipeProblems = recipes.flatMap( ( recipe ) => recipe.problems );
+	expect(
+		`recipes: the ${ recipes.length } recipes in recipes/ each name a pattern for every section, with no two sections next to each other in one style but plain, so each is a page`,
+		recipes.length > 0 &&
+			recipeProblems.length === 0 &&
+			! Object.hasOwn( keys.recipes, RECIPE_PLANT.slug ),
+		recipeProblems.join( '; ' ) ||
+			( Object.hasOwn( keys.recipes, RECIPE_PLANT.slug )
+				? `recipes/${ RECIPE_PLANT.slug }.json takes the planted recipe page's name`
+				: `${ keys.recipe.length } sections` )
+	);
+	// recipe:plant: the skipped-heading plant between the first two sections
+	// of the first recipe that has two.
+	const host = recipes.find( ( recipe ) => recipe.sections.length >= 2 );
+	keys.recipePlant = [];
+	if ( host ) {
+		const [ first, second ] = host.sections;
+		const planted = { pattern: 'plant heading', style: 'plain' };
+		for ( const [ i, section ] of [ first, planted, second ].entries() ) {
+			const key = recipeKey( RECIPE_PLANT.slug, i + 1 );
+			sections[ key ] = {
+				...section,
+				page: `recipe:${ RECIPE_PLANT.slug }`,
+				at: i + 1,
+			};
+			keys.recipePlant.push( key );
+		}
+	}
+	const recipeArgs = {
+		pages: recipes
+			.filter( ( recipe ) => recipe.sections.length )
+			.map( ( recipe ) => ( {
+				slug: recipe.slug,
+				keys: keys.recipes[ recipe.slug ],
+			} ) ),
+		plant: host
+			? {
+					host: host.slug,
+					keys: keys.recipePlant,
+					markup: sectionGroup( rawHtml( HEADING_PLANT ) ),
+				}
+			: null,
+	};
+
 	// One dev site per WordPress version: each theme names the version it
 	// runs on, and --wp puts them all on one.
 	const sites = new Map();
@@ -3606,6 +4015,7 @@ async function run( opts ) {
 	const out = {
 		versions: {},
 		renderCount: 0,
+		recipeCount: 0,
 		contrast: [],
 		variations: [],
 		renders: [],
@@ -3678,6 +4088,7 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 					want,
 					patterns,
 					plants,
+					recipes: recipeArgs,
 					sections,
 					keys,
 					out,
@@ -3731,6 +4142,9 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 	const counts = `${ patterns.length } patterns x ${ fixture.styles.length } styles x ${ widths.length } widths x ${ themes.length } themes`;
 	const expected =
 		patterns.length * fixture.styles.length * widths.length * themes.length;
+	// Read from recipes/, so a recipe added or changed needs no fixture edit.
+	const recipeCounts = `${ recipes.length } recipes, ${ keys.recipe.length } sections x ${ widths.length } widths x ${ themes.length } themes`;
+	const recipeExpected = keys.recipe.length * widths.length * themes.length;
 
 	if ( want.contrast ) {
 		checkContrast( out, themes, fixture, opts, !! only );
@@ -3759,32 +4173,39 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 		const base = rows.filter( ( r ) => keys.base.includes( r.key ) );
 		// a11y and impeccable count a render only once its scan ran.
 		const scanned = base.filter( ( r ) => r.ran !== false );
-		group( `${ check }: ${ scanned.length } section renders scanned` );
+		const recipeScanned = rows.filter(
+			( r ) => keys.recipe.includes( r.key ) && r.ran !== false
+		);
+		const both = `${ scanned.length } section renders and ${ recipeScanned.length } recipe section renders scanned`;
+		group( `${ check }: ${ both }` );
 		console.log( renderTable( rows ) );
 		endGroup();
 		const failed = rows.filter( ( r ) => ! r.ok );
 		summary( [
-			`### ${ check }: ${ scanned.length } section renders scanned, ${ failed.length } failing`,
+			`### ${ check }: ${ both }, ${ failed.length } failing`,
 			'',
 			...failed
 				.slice( 0, 100 )
 				.map(
 					( r ) =>
-						`- ${ r.theme } at ${ r.width }px, ${ r.pattern } ${ r.style }: ${ r.note }`
+						`- ${ r.theme } at ${ r.width }px, ${ placeOf( r ) } ${ r.style }: ${ r.note }`
 				),
 		] );
 		expect(
 			verdicts[ check ],
 			base.length > 0 && failed.length === 0,
-			failed.length
-				? `\n${ renderTable( failed ) }`
-				: `${ scanned.length } section renders scanned`
+			failed.length ? `\n${ renderTable( failed ) }` : both
 		);
 		if ( ! only ) {
 			expect(
 				`${ check }: ${ expected } section renders scanned (${ counts })`,
 				scanned.length === expected,
 				`${ scanned.length } scanned`
+			);
+			expect(
+				`${ check }: ${ recipeExpected } recipe section renders scanned (${ recipeCounts })`,
+				recipeExpected > 0 && recipeScanned.length === recipeExpected,
+				`${ recipeScanned.length } scanned`
 			);
 		}
 	}
@@ -3800,6 +4221,11 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 				out.renderCount === expected,
 			`${ out.renderCount } of ${ expected }`
 		);
+		expect(
+			`one recipe page per recipe on each theme at each width: ${ recipeExpected } recipe section renders (${ recipeCounts })`,
+			recipeExpected > 0 && out.recipeCount === recipeExpected,
+			`${ out.recipeCount } of ${ recipeExpected }`
+		);
 	}
 
 	const failed = checks.filter( ( c ) => ! c.ok );
@@ -3808,6 +4234,7 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 		.join( ', ' );
 	const tally = [
 		`Design check: ${ out.renderCount } section renders (${ counts })`,
+		`${ out.recipeCount } recipe section renders (${ recipeCounts })`,
 		want.contrast ? `${ out.contrast.length } contrast pairs` : '',
 		want.contrast && ! opts[ 'no-variations' ]
 			? `${ out.variations.length } style variation contrast pairs`
@@ -3818,7 +4245,8 @@ return false !== file_put_contents( $dir . '/voyager-open-contrast-plant.php', $
 					out.renders.filter(
 						( r ) =>
 							r.check === check &&
-							keys.base.includes( r.key ) &&
+							( keys.base.includes( r.key ) ||
+								keys.recipe.includes( r.key ) ) &&
 							r.ran !== false
 					).length
 				} ${ check } renders${
@@ -3884,7 +4312,7 @@ const PLANTED_FAILS = {
 	overflow: [ 'plant--overflow' ],
 	motion: [ 'plant--motion' ],
 	layout: Object.keys( LAYOUT_PLANTS ).map( ( name ) => `plant--${ name }` ),
-	a11y: [ 'plant--heading', 'recipe--plant--2' ],
+	a11y: [ 'plant--heading', recipeKey( RECIPE_PLANT.slug, RECIPE_PLANT.at ) ],
 	impeccable: [ 'plant--gradient', 'plant--cards', 'plant--target' ],
 };
 
@@ -4058,7 +4486,7 @@ function checkContrast( out, themes, fixture, opts, narrowed ) {
 		{
 			name: 'contrast',
 			rows: out.contrast,
-			heading: `Contrast: ${ out.contrast.length } pairs over ${ out.renderCount } section renders, floor ${ floor }:1${
+			heading: `Contrast: ${ out.contrast.length } pairs over ${ out.renderCount } section renders and ${ out.recipeCount } recipe section renders, floor ${ floor }:1${
 				opts.plant ? ' (PLANTED)' : ''
 			}`,
 		},

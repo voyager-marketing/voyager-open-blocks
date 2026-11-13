@@ -1,6 +1,6 @@
 {
 	"title": "Planted: a layout no intent carries",
-	"description": "The contact recipe with its hero's layout changed from split to banner, which no hero intent carries, so the section names no pattern. npm run check's rhythm gate must refuse it for that alone.",
+	"description": "A contact page whose hero takes the layout banner, which no hero intent carries, so the section names no pattern. npm run check's rhythm gate must refuse it for that alone.",
 	"page_type": "contact",
 	"sections": [
 		{
