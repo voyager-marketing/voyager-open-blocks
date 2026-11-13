@@ -324,7 +324,7 @@ A path is the list of indices from the top level down, such as `2/0/1`. Errors a
 
 - `too_long`: the text, trimmed, is longer than `max` characters, counted with `mb_strlen()`. Carries `max`, `length` and `message`. Text under `min` is accepted.
 - `claim`: a slot whose rule says `claim: true` got a plain string. A claim, such as a review or a credential, comes from the site owner, so only `{"text": "...", "source": "user"}` fills it, or a binding to the Site Data field that holds it, which then takes no copy. A plain string is refused even when it equals a Site Data value, because copied text goes stale when the value changes. Carries `message`.
-- `required`: `omit` names a slot whose rule says `required: true`, or a block that holds one. Leaving out a whole item, a block whose label starts the slot's own and a space (`Service 3` for `Service 3 heading`), is not refused. Carries `omitted` and `message`.
+- `required`: `omit` names a slot whose rule says `required: true`, or a block that holds one. Leaving out a whole item, a block whose label starts the slot's own and a space (`Service 3` for `Service 3 heading`), is not refused. An `omit` that would leave the pattern nothing to show but groups, columns, buttons, lists and quotes is refused too, such as `["Credentials"]` on `voyager-open/proof-strip-facts`. Carries `omitted` and `message`.
 - `bound`: copy for a slot whose text a binding owns, which would be saved only as its fallback. Carries `block`, `path`, `attribute`, `source` and `key`.
 
 The code is `voyager_open_blocks_bound_slot` when every refused slot is `bound`, and `voyager_open_blocks_copy_rules` otherwise, with status 400.

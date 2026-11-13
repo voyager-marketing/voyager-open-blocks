@@ -40,7 +40,8 @@ $voyager_open_seed = static function (): void {
 		'voyager_site_social_x'         => 'https://x.com/example',
 		'voyager_site_services'         => "Drain cleaning\nWater heater repair\nLeak detection",
 		'voyager_site_service_area'     => "Springfield\nRiverside\nFairview",
-		'voyager_site_credentials'      => "Your first credential\nYour second credential\nYour third credential",
+		// Not the proof strip facts layout's stand-ins, so its demo shows the binding resolve. Still no claim.
+		'voyager_site_credentials'      => "First credential, from Site Data\nSecond credential, from Site Data\nThird credential, from Site Data",
 	];
 	foreach ( $site_data as $option => $value ) {
 		update_option( $option, $value );

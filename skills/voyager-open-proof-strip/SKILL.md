@@ -64,7 +64,7 @@ An item added with `repeat` takes the same rules as the one it copies, so `Crede
 
 Every item is a claim slot. `claim: true` means its text comes from the site owner, never from you. Pass each fact in contract 3's object form, `{"text": "Licensed in Illinois", "source": "user"}`, which says the owner gave it. The shipped text makes no claim and says what goes there: "Your first credential" to "Your fourth credential". Replace each one you have a fact for and drop the rest, or leave the strip off a live page.
 
-**The `facts` layout:** `copy_rules` is `{}`. It has no copy slot: the facts block is not a text block, and `insert` refuses copy for "Credentials". The credentials change in Settings > Site Data, never through `copy`.
+**The `facts` layout:** `copy_rules` is `{}`. It has no copy slot: the facts block is not a text block, and `insert` refuses copy for "Credentials". The credentials change in Settings > Site Data, never through `copy`. `omit` of "Credentials" or "Row" is refused as `required`, since the strip would show nothing: to leave the credentials off a page, leave the strip off.
 
 ## Credentials from Site Data
 
