@@ -5,7 +5,11 @@
  *   VOYAGER_OPEN_APP_PASSWORD=... npm run e2e -- [--url http://127.0.0.1:9402] [--user admin] [--context site.context.json]
  *
  * Against a running site (npm run playground -- serve), it:
- *   1. lists the pack's abilities and reads the catalog,
+ *   1. lists the pack's abilities and reads the catalog, and counts what an
+ *      agent reads before its first call: the quick card (the entry skill)
+ *      and each ability's description and input schema descriptions as the
+ *      listing gives them, under 3,000 words, each part printed, with the
+ *      same rule refusing the listing plus a planted 3,000-word description,
  *   2. creates a page, finds it with find-posts by title words and by slug, and
  *      inserts the CTA band (bound to voyager/site-data), sets its section style
  *      with configure (Accent, rendered on the front end, then Inverted, then
@@ -172,6 +176,7 @@ import { join } from 'node:path';
 import { parse } from '@wordpress/block-serialization-default-parser';
 
 import { flags, repo } from './lib/site.mjs';
+import { ENTRY_SKILL, READING_LIMIT, readingBudget } from './lib/words.mjs';
 
 const opts = flags( process.argv.slice( 2 ) );
 const base = ( opts.url || 'http://127.0.0.1:9402' ).replace( /\/$/, '' );
@@ -363,6 +368,50 @@ step(
 		names.includes( `${ ns }/find-posts` ) &&
 		names.includes( `${ ns }/undo` ),
 	names.join( ', ' )
+);
+
+// The reading budget: what an agent reads before its first call, the quick
+// card and the tool definitions. Each ability's description and every
+// description in its input schema, as the listing serves them, are what an
+// MCP client sends with each request. Outputs are not counted. A listing
+// with no abilities, or one with no description, counts as a failure, not as
+// a small total, and the same rule must refuse the listing with a planted
+// 3,000-word description added, so a rule that cannot fail turns this red.
+const abilityList = Array.isArray( list.data ) ? list.data : [];
+const reading = readingBudget(
+	abilityList,
+	readFileSync( join( repo, ENTRY_SKILL ), 'utf8' )
+);
+for ( const part of reading.parts ) {
+	console.log(
+		`     ${ part.name }: description ${ part.description }, input ${ part.input }`
+	);
+}
+console.log( `     the quick card (${ ENTRY_SKILL }): ${ reading.card }` );
+step(
+	`reading budget: ${ reading.total } words, under ${ READING_LIMIT }`,
+	reading.fits &&
+		reading.parts.length === 9 &&
+		reading.parts.every( ( part ) => part.description > 0 ) &&
+		reading.card > 0,
+	`${ reading.parts.length } abilities and the card`
+);
+const plantedReading = readingBudget(
+	[
+		...abilityList,
+		{
+			name: 'planted',
+			description: 'word '.repeat( READING_LIMIT ),
+			input_schema: {},
+		},
+	],
+	readFileSync( join( repo, ENTRY_SKILL ), 'utf8' )
+);
+step(
+	'the reading budget refuses the same listing with a planted 3,000-word description',
+	! plantedReading.fits &&
+		plantedReading.total === reading.total + READING_LIMIT,
+	`${ plantedReading.total } words`
 );
 
 const catalog = await run( `${ ns }/get-catalog`, { post_type: 'page' }, true );
