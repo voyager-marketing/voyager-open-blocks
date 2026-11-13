@@ -114,32 +114,25 @@ No ability changes an image. Tell the user to replace the placeholder in the edi
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm both patterns are in `patterns.items`, `voyager-open/facts` is in `blocks.types` and `voyager/site-data` is in `bindings.sources`.
-2. **Author.** Insert by reference, or assemble an edited intent with the site's own image.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
-4. **Bind.** Already bound. If Settings > Site Data has no service area, the block keeps its placeholder items. Say so instead of inventing places.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm both patterns in `patterns.items` and `voyager-open/facts` in `blocks.types`. Insert one by reference, or an edited intent assembled as Customizing says, then check it with `npx block-runner validate`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write. Run them in this order.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`, each with a block labelled "Places" whose `bindings.items` is `voyager/site-data` with `{"key": "service_area"}`, and that the `voyager/site-data` source lists a field with those args. `used_on["voyager/site-data:service_area"]` counts the pages that show the list already.
-2. **find-posts, then get-post-blocks.** For "my home page", call `find-posts` with `{"front_page": true}` and take `id`, say 123. Then `get-post-blocks` with `{"post_id": 123}` to pick the position.
-3. **insert with dry_run:**
+1. **get-catalog.** Confirm both patterns are in `patterns`, each with a block "Places" whose `bindings.items` is `voyager/site-data` with `{"key": "service_area"}`. `used_on["voyager/site-data:service_area"]` counts the pages that show the list already.
+2. **Where.** Find the page with `find-posts`, say 123, and pick `position` from `get-post-blocks`.
+3. **insert** with `copy` for the heading and intro:
 
    ```json
    {"post_id": 123, "item": "voyager-open/service-area", "position": -1, "dry_run": true, "copy": {"Heading": "Where we work", "Intro": "Ask us about a town or an area that is not on this list."}}
    ```
 
-   Use `"item": "voyager-open/service-area-split"` for the layout with an image. Labels: `Heading`, `Intro`, `Primary button`. Keep each within its copy rule. Read `validation`: `registered_and_attributes` and `round_trip` should be `true`. Then call `insert` again without `dry_run` to save.
-4. **Keep the places bound.** Pass no copy and no `configure` for "Places". Change the list in Settings > Site Data, or at `/wp/v2/settings` as above, with places the site owner gave you.
-5. **get-post-blocks** again. The block labelled "Places" should read `resolution.status: "resolved"` for `items`, with the start of the list in `value_preview`. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Business profile > Service area is empty: tell the user to fill it in.
-6. **validate** with `{"post_id": 123}`. `valid` should be `true`: with no warning for the list layout, and with one `placeholder:` warning, for the image, for the split layout.
-7. **Report** the copy you wrote, the places binding's status and its value preview, the button's link (`/contact/`), on the split layout the placeholder image to replace and the focal point to set, and that the saved HTML was not checked with Block Runner on this route.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
+   Use `"item": "voyager-open/service-area-split"` for the layout with an image. Then save without `dry_run`.
+4. **Keep the places bound.** No copy and no `configure` for "Places". Change the list in Settings > Site Data, or at `/wp/v2/settings` as above, with places the site owner gave you.
+5. **get-post-blocks** again: "Places" should read `resolution.status: "resolved"` for `items`. `fell_back` with `reason: "empty_value"` means the service area is empty: tell the user to fill it in.
+6. **validate** the saved page: expect no warning for the list, and one `placeholder:` warning, for the image, for the split.
+7. **Report** the copy you wrote, the places' value preview, the button's link (`/contact/`), and on the split layout the image to replace and the focal point to set.
 
 ## Try it
 
