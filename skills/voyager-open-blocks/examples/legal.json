@@ -1,5 +1,5 @@
 {
-	"business": "Marsh & Okonjo Employment Law is a two-lawyer firm in Fennick Cross that acts only for employees: people who were let go, not paid for their hours, or handed a severance offer they do not understand. Odette Marsh and Kemi Okonjo gave the four facts on the proof strip: Odette was admitted to the state bar in 2009, the firm has taken employment cases only since 2014, the first consultation is free, and fees are agreed in writing before any work starts. They also gave three reviews from clients who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0172, its email, hello@marsh-okonjo.example.com, and the three figures in its stats row (founded in 2014, an average rating of 4.8, and 64 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"business": "Marsh & Okonjo Employment Law is a two-lawyer firm in Fennick Cross that acts only for employees: people who were let go, not paid for their hours, or handed a severance offer they do not understand. Odette Marsh and Kemi Okonjo gave the four facts on the proof strip: Odette was admitted to the state bar in 2009, the firm has taken employment cases only since 2014, the first consultation is free, and fees are agreed in writing before any work starts. They also gave three reviews from clients who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0172, its email, hello@marsh-okonjo.example.com, and the three figures in its stats row (founded in 2014, an average rating of 4.8, and 64 reviews) are set in Settings > Site Data, so the page binds them and no copy types them. Its service area there lists the towns its clients come from, one per line.",
 	"compose": {
 		"title": "Home",
 		"sections": [
@@ -50,6 +50,16 @@
 					"Service 2 text": "Hours you worked and were never paid for, overtime included.",
 					"Service 3 heading": "Severance review",
 					"Service 3 text": "Before you sign, we read the offer and tell you what it means for you."
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Heading": "Where our clients live",
+					"Intro": "We meet clients from the towns below. Ask us if yours is not on the list.",
+					"Primary button": "Ask for a callback"
 				}
 			},
 			{

@@ -1,5 +1,5 @@
 {
-	"business": "Ostlee Noodle Bar is a small family restaurant on Mill Street in Ostlee. It serves hand-pulled noodles and slow-cooked broth to people on a lunch break, families, and anyone picking up dinner on the way home. Daniel and June Seo gave the four facts on the proof strip: the noodles are made by hand every morning, the family has run the bar since 2015, there is a vegetarian broth every day, and walk-ins are welcome with no booking. They also gave three reviews from regulars who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0175, its email, hello@ostlee-noodle-bar.example.com, and the three figures in its stats row (founded in 2015, an average rating of 4.7, and 529 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"business": "Ostlee Noodle Bar is a small family restaurant on Mill Street in Ostlee. It serves hand-pulled noodles and slow-cooked broth to people on a lunch break, families, and anyone picking up dinner on the way home. Daniel and June Seo gave the four facts on the proof strip: the noodles are made by hand every morning, the family has run the bar since 2015, there is a vegetarian broth every day, and walk-ins are welcome with no booking. They also gave three reviews from regulars who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0175, its email, hello@ostlee-noodle-bar.example.com, and the three figures in its stats row (founded in 2015, an average rating of 4.7, and 529 reviews) are set in Settings > Site Data, so the page binds them and no copy types them. Its service area there lists the towns its group orders go to, one per line.",
 	"compose": {
 		"title": "Home",
 		"sections": [
@@ -50,6 +50,16 @@
 					"Service 2 text": "Order ahead by phone, and your bowls are packed and ready when you arrive.",
 					"Service 3 heading": "Group orders",
 					"Service 3 text": "Lunch for the office or a party at home, packed so the broth travels well."
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Heading": "Where we bring group orders",
+					"Intro": "Group orders go to offices and homes in the towns below. Ask about one not listed.",
+					"Primary button": "Ask about a group order"
 				}
 			},
 			{

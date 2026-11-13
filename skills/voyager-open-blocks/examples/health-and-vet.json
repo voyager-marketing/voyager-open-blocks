@@ -1,5 +1,5 @@
 {
-	"business": "Larkholt Animal Clinic is a small veterinary practice in Larkholt for dogs and cats, run by Dr. Ines Halvorsen with two other vets and a team of nurses. Its clients are local families, from first-time puppy owners to people caring for an old cat. Dr. Halvorsen gave the four facts on the proof strip: a licensed vet works every shift, the clinic has its own lab and digital X-ray, sick pets are seen the same day, and the clinic has cared for Larkholt pets since 2011. She also gave three reviews from clients who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0173, its email, hello@larkholt-animal-clinic.example.com, and the three figures in its stats row (founded in 2011, an average rating of 4.9, and 312 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"business": "Larkholt Animal Clinic is a small veterinary practice in Larkholt for dogs and cats, run by Dr. Ines Halvorsen with two other vets and a team of nurses. Its clients are local families, from first-time puppy owners to people caring for an old cat. Dr. Halvorsen gave the four facts on the proof strip: a licensed vet works every shift, the clinic has its own lab and digital X-ray, sick pets are seen the same day, and the clinic has cared for Larkholt pets since 2011. She also gave three reviews from clients who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0173, its email, hello@larkholt-animal-clinic.example.com, and the three figures in its stats row (founded in 2011, an average rating of 4.9, and 312 reviews) are set in Settings > Site Data, so the page binds them and no copy types them. Its service area there lists the towns its clients come from, one per line.",
 	"compose": {
 		"title": "Home",
 		"sections": [
@@ -50,6 +50,16 @@
 					"Service 2 text": "A full cleaning while your pet sleeps, with X-rays to check the roots.",
 					"Service 3 heading": "Surgery",
 					"Service 3 text": "Spays, neuters and lump removals, and a call as soon as your pet wakes up."
+				}
+			},
+			{
+				"pattern": "voyager-open/service-area",
+				"layout": null,
+				"style": "panel",
+				"copy": {
+					"Heading": "Where our families come from",
+					"Intro": "Pets come to us from the towns below. Ask us if yours is not on the list.",
+					"Primary button": "Ask about your town"
 				}
 			},
 			{
