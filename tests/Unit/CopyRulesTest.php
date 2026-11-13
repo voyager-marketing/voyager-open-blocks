@@ -37,11 +37,12 @@ final class CopyRulesTest extends TestCase {
 	}
 
 	/**
-	 * A pattern's blocks as BlockTree\describe() lists them: path, block and
-	 * label, built from the intent tree the pattern's markup is assembled from.
+	 * A pattern's blocks as BlockTree\describe() lists them: path, block, label
+	 * and bindings, built from the intent tree the pattern's markup is
+	 * assembled from.
 	 *
 	 * @param string $slug Intent name.
-	 * @return array<int, array{path: string, block: string, label?: string}>
+	 * @return array<int, array{path: string, block: string, label?: string, bindings?: array<mixed>}>
 	 */
 	private static function rows( string $slug ): array {
 		$intent = json_decode( (string) file_get_contents( self::INTENTS . '/' . $slug . '.json' ), true );
@@ -60,6 +61,10 @@ final class CopyRulesTest extends TestCase {
 				$label = $node['attrs']['metadata']['name'] ?? null;
 				if ( is_string( $label ) ) {
 					$row['label'] = $label;
+				}
+				$bindings = $node['attrs']['metadata']['bindings'] ?? null;
+				if ( is_array( $bindings ) && [] !== $bindings ) {
+					$row['bindings'] = $bindings;
 				}
 				$rows[] = $row;
 				$walk( is_array( $node['children'] ?? null ) ? $node['children'] : [], $path );
@@ -191,6 +196,22 @@ final class CopyRulesTest extends TestCase {
 		$this->assertSame( [ 'Heading: required' ], self::reasons( $refused ) );
 		$this->assertSame( 'Heading', $refused[0]['omitted'] ?? null );
 		$this->assertSame( [], self::check( 'hero', [], [ 'Eyebrow' ] ) );
+		$this->assertStringContainsString( 'give it copy if the shipped text does not fit', $refused[0]['message'] );
+	}
+
+	public function test_omitting_a_required_bound_slot_says_it_takes_no_copy(): void {
+		// The hero's call button shows the Site Data phone, so copy for it is
+		// refused as bound: the refusal must not tell the agent to give it copy.
+		$refused = self::check( 'hero', [], [ 'Click to call' ] );
+
+		$this->assertSame( [ 'Click to call: required' ], self::reasons( $refused ) );
+		$this->assertStringContainsString( 'is bound to voyager/site-data, key "phone", so it takes no copy either', $refused[0]['message'] );
+		$this->assertStringNotContainsString( 'give it copy', $refused[0]['message'] );
+
+		// A bound value in the stats section reads the same.
+		$value = self::check( 'stats', [], [ 'Rating value' ] );
+		$this->assertSame( [ 'Rating value: required' ], self::reasons( $value ) );
+		$this->assertStringContainsString( 'is bound to voyager/site-data, key "rating", so it takes no copy either', $value[0]['message'] );
 	}
 
 	public function test_omitting_a_block_that_holds_required_slots_names_each_of_them(): void {

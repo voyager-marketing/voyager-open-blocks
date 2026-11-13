@@ -204,12 +204,21 @@ function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows
 				continue;
 			}
 
+			$bound = $held === $label ? text_binding( $rows, $held ) : null;
+
+			if ( null !== $bound ) {
+				// Copy for a bound slot is refused too (bound_copy_slots()).
+				$message = sprintf( '"%1$s" is required by its copy rule, so omit cannot leave it out. It is bound to %2$s%3$s, so it takes no copy either: keep it as it is. It shows that value, and its own text only while the value is empty.', $held, $bound['source'], '' === $bound['key'] ? '' : sprintf( ', key "%s"', $bound['key'] ) );
+			} elseif ( $held === $label ) {
+				$message = sprintf( '"%s" is required by its copy rule, so omit cannot leave it out. Keep it, and give it copy if the shipped text does not fit.', $held );
+			} else {
+				$message = sprintf( 'Leaving out "%1$s" drops "%2$s", which its copy rule requires. Keep "%1$s", and omit only the blocks beside "%2$s" that you have no copy for.', $label, $held );
+			}
+
 			$dropped[ $held ] = [
 				'slot'    => $held,
 				'reason'  => 'required',
-				'message' => $held === $label
-					? sprintf( '"%s" is required by its copy rule, so omit cannot leave it out. Keep it, and give it copy if the shipped text does not fit.', $held )
-					: sprintf( 'Leaving out "%1$s" drops "%2$s", which its copy rule requires. Keep "%1$s", and omit only the blocks beside "%2$s" that you have no copy for.', $label, $held ),
+				'message' => $message,
 				'omitted' => $label,
 			];
 		}
@@ -229,6 +238,34 @@ function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows
 	}
 
 	return array_merge( $refused, array_values( $dropped ) );
+}
+
+/**
+ * The binding that owns a slot's text, or null when the slot takes copy.
+ *
+ * The test bound_copy_slots() makes: the block carrying the label is bound on
+ * the attribute copy writes, such as a button's text.
+ *
+ * @param array<int, Row> $rows  The pattern's blocks as BlockTree\describe() lists them.
+ * @param string          $label The slot's label.
+ * @return array{source: string, key: string}|null
+ */
+function text_binding( array $rows, string $label ): ?array {
+	foreach ( $rows as $row ) {
+		$attribute = BlockTree\TEXT_ATTRIBUTES[ $row['block'] ] ?? null;
+
+		if ( ( $row['label'] ?? null ) !== $label || null === $attribute ) {
+			continue;
+		}
+
+		$bound = bound_attributes( $row['bindings'] ?? [] );
+
+		if ( isset( $bound[ $attribute ] ) ) {
+			return $bound[ $attribute ];
+		}
+	}
+
+	return null;
 }
 
 /**
