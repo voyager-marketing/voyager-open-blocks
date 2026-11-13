@@ -309,6 +309,8 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( [ 'Lead', 'Heading', 'Intro' ], self::labels_in( $columns[0] ), 'faq-split: the heading and intro come first, so on a phone the questions stack under them' );
 		$this->assertSame( 'Question 1', self::service_items( [ 'intent' => [ 'blocks' => [ $columns[1] ] ] ], 'Question' )['Question 1']['attrs']['metadata']['name'] ?? null );
 		$this->assertNotSame( false, $rows[0]['attrs']['isStackedOnMobile'] ?? true, 'faq-split: the columns stack on a phone' );
+	}
+
 	public function test_service_area_comes_in_two_layouts_list_first_then_split(): void {
 		$intents = self::intents();
 
