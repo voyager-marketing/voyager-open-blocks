@@ -11,8 +11,10 @@
  *   and a daily WP-Cron check refreshes the pages that show the year once
  *   it changes.
  * - An allowlisted bindable post meta field added, updated or deleted
- *   refreshes that post only, when the post or one of the theme's templates
- *   shows the field.
+ *   refreshes that post, when the post or one of the theme's templates shows
+ *   the field. When the post is published, it also refreshes the published
+ *   pages that list the field in a Query Loop, and a template or part that
+ *   lists it sets purge_all.
  *
  * Changes are collected for the whole request, by site, and purged on
  * shutdown on the site they were made on, so a settings form that saves
@@ -316,15 +318,16 @@ function on_meta( mixed $meta_id, mixed $post_id, mixed $meta_key ): void {
  * IDs of published posts of the content types that show any of some rows,
  * oldest first, at most $limit.
  *
- * The same exact-match read as Usage\posts_using(), narrowed to the pages a
- * cache can hold and bounded, so a field shown on thousands of pages costs
- * one small query.
+ * The same exact-match read as Usage\posts_using(), or Usage\posts_listing()
+ * with Usage\LISTS, narrowed to the pages a cache can hold and bounded, so a
+ * field shown on thousands of pages costs one small query.
  *
  * @param list<string> $rows  Rows, such as `voyager/site-data:phone`.
  * @param int          $limit Most IDs.
+ * @param string       $meta  Usage\META for the pages that show the rows, Usage\LISTS for the ones that list them.
  * @return list<int>
  */
-function published_using( array $rows, int $limit ): array {
+function published_using( array $rows, int $limit, string $meta = Usage\META ): array {
 	$types = Usage\content_types();
 
 	if ( [] === $rows || [] === $types || $limit < 1 ) {
@@ -337,7 +340,7 @@ function published_using( array $rows, int $limit ): array {
 			. ' AND pm.meta_value IN (' . implode( ', ', array_fill( 0, count( $rows ), '%s' ) ) . ')'
 			. ' AND p.post_type IN (' . implode( ', ', array_fill( 0, count( $types ), '%s' ) ) . ')'
 			. ' ORDER BY p.ID ASC LIMIT %d',
-		Usage\META,
+		$meta,
 		...$rows,
 		...$types,
 		...[ $limit ]
@@ -351,10 +354,11 @@ function published_using( array $rows, int $limit ): array {
  * can tell there are more, and the active theme's templates and parts.
  *
  * @param list<string> $rows Rows.
+ * @param string       $meta Usage\META for what shows them, Usage\LISTS for what lists them in a Query Loop.
  * @return array{posts: list<int>, templates: list<string>}
  */
-function lookup( array $rows ): array {
-	$posts = published_using( $rows, MOST_POSTS + 1 );
+function lookup( array $rows, string $meta = Usage\META ): array {
+	$posts = published_using( $rows, MOST_POSTS + 1, $meta );
 
 	if ( [] !== $posts ) {
 		_prime_post_caches( $posts, false, false );
@@ -362,8 +366,19 @@ function lookup( array $rows ): array {
 
 	return [
 		'posts'     => $posts,
-		'templates' => Usage\tidy( array_column( Usage\templates_with( $rows ), 'id' ) ),
+		'templates' => Usage\tidy( array_column( Usage\templates_with( $rows, $meta ), 'id' ) ),
 	];
+}
+
+/**
+ * What lists some rows in a Query Loop: published posts, at most
+ * MOST_POSTS + 1, and the active theme's templates and parts.
+ *
+ * @param list<string> $rows Rows.
+ * @return array{posts: list<int>, templates: list<string>}
+ */
+function listing( array $rows ): array {
+	return lookup( $rows, Usage\LISTS );
 }
 
 /**
@@ -441,19 +456,29 @@ function site_data_plan( array $keys, ?callable $lookup = null ): ?array {
 
 /**
  * The purge for post meta that changed: each post that shows a field of its
- * own that changed, and nothing else. No front page, and never purge_all for
- * a template, because a template shows each post its own value.
+ * own that changed, and the pages that list a field that changed on a
+ * published post. No front page. A template that shows each post its own
+ * value sets no purge_all; one that lists the field in a Query Loop does.
+ *
+ * A Query Loop shows a visitor who is not logged in, the one a page cache
+ * serves, only posts in a public status: build_query_vars_from_query_block()
+ * (wp-includes/blocks.php) names no post_status, and WP_Query::get_posts()
+ * (wp-includes/class-wp-query.php) then reads the public ones. So only a
+ * change on a published post reaches a list.
  *
  * Past MOST_POSTS changed posts, as past MOST_POSTS pages for Site Data, the
  * first MOST_POSTS are looked at and cleaned, and the purge sets purge_all if
  * any page or template shows one of the fields. The rest are not looked at.
+ * The posts that changed come first in post_ids, then the pages that list a
+ * field, and plan() keeps the first MOST_POSTS.
  *
- * @param array<int, list<string>>                $changes Post ID => meta keys that changed.
- * @param (callable(int): list<string>)|null      $shown   The rows a post shows, its own and its templates', [] unless it is published. Defaults to one built from the index.
- * @param (callable(list<string>): bool)|null     $any     Whether any published page or template shows some rows. Defaults to shown_anywhere().
+ * @param array<int, list<string>>                                                         $changes Post ID => meta keys that changed.
+ * @param (callable(int): list<string>)|null                                               $shown   The rows a post shows, its own and its templates', [] unless it is published. Defaults to one built from the index.
+ * @param (callable(list<string>): bool)|null                                              $any     Whether any published page or template shows some rows. Defaults to shown_anywhere().
+ * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $listing What lists some rows in a Query Loop. Defaults to listing().
  * @return array{urls: list<string>, context: array{source: string, keys: list<string>, post_ids: list<int>, templates: list<string>, reason: string, purge_all: bool}}|null
  */
-function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any = null ): ?array {
+function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any = null, ?callable $listing = null ): ?array {
 	$source = PostMetaText\SOURCE;
 	$keys   = [];
 
@@ -469,13 +494,14 @@ function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any
 		$changes = array_slice( $changes, 0, MOST_POSTS, true );
 	}
 
+	_prime_post_caches( array_keys( $changes ), false, true );
+
 	if ( null === $shown ) {
 		$in_templates = [];
 		foreach ( Usage\templates_with( $rows ) as $template ) {
 			array_push( $in_templates, ...$template['uses'] );
 		}
 
-		_prime_post_caches( array_keys( $changes ), false, true );
 		$types = Usage\content_types();
 
 		$shown = static function ( int $post_id ) use ( $in_templates, $types ): array {
@@ -491,6 +517,7 @@ function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any
 
 	$post_ids = [];
 	$found    = [];
+	$listed   = [];
 
 	foreach ( $changes as $post_id => $changed ) {
 		$hit = array_values( array_intersect( array_map( static fn ( string $key ): string => Usage\row( $source, $key ), $changed ), $shown( $post_id ) ) );
@@ -499,17 +526,37 @@ function post_meta_plan( array $changes, ?callable $shown = null, ?callable $any
 			$post_ids[] = $post_id;
 			array_push( $found, ...$changed );
 		}
+
+		if ( 'publish' === get_post_status( $post_id ) ) {
+			array_push( $listed, ...$changed );
+		}
 	}
+
+	$listed = Usage\tidy( $listed );
+	$lists  = [
+		'posts'     => [],
+		'templates' => [],
+	];
+
+	if ( [] !== $listed ) {
+		$lists = ( $listing ?? listing( ... ) )( array_map( static fn ( string $key ): string => Usage\row( $source, $key ), $listed ) );
+	}
+
+	if ( [] !== $lists['posts'] || [] !== $lists['templates'] ) {
+		array_push( $found, ...$listed );
+	}
+
+	$post_ids = array_values( array_unique( [ ...$post_ids, ...$lists['posts'] ] ) );
 
 	if ( ! $over ) {
-		return plan( $source, 'post-meta', Usage\tidy( $found ), $post_ids, [], false );
+		return plan( $source, 'post-meta', Usage\tidy( $found ), $post_ids, $lists['templates'], false );
 	}
 
-	if ( [] === $post_ids && ! ( $any ?? shown_anywhere( ... ) )( $rows ) ) {
+	if ( [] === $post_ids && [] === $lists['templates'] && ! ( $any ?? shown_anywhere( ... ) )( $rows ) ) {
 		return null;
 	}
 
-	return plan( $source, 'post-meta', $keys, $post_ids, [], false, true );
+	return plan( $source, 'post-meta', $keys, $post_ids, $lists['templates'], false, true );
 }
 
 /**
@@ -633,11 +680,12 @@ function purge( ?array $plan ): bool {
  * current site ID (wp-includes/ms-blogs.php); the plugins and hooks loaded
  * stay this request's.
  *
- * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $lookup What shows some rows, for site_data_plan().
- * @param (callable(int): list<string>)|null                                           $shown  The rows a post shows, for post_meta_plan().
+ * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $lookup  What shows some rows, for site_data_plan().
+ * @param (callable(int): list<string>)|null                                           $shown   The rows a post shows, for post_meta_plan().
+ * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $listing What lists some rows in a Query Loop, for post_meta_plan().
  * @return int Purges run.
  */
-function run( ?callable $lookup = null, ?callable $shown = null ): int {
+function run( ?callable $lookup = null, ?callable $shown = null, ?callable $listing = null ): int {
 	$sites = sites();
 
 	if ( [] === $sites ) {
@@ -650,7 +698,7 @@ function run( ?callable $lookup = null, ?callable $shown = null ): int {
 	try {
 		foreach ( $sites as $site ) {
 			$changes = changes( $site, '', 0, true );
-			$ran    += on_site( $site, static fn (): int => purge_changes( $changes, $lookup, $shown ) );
+			$ran    += on_site( $site, static fn (): int => purge_changes( $changes, $lookup, $shown, $listing ) );
 		}
 	} finally {
 		running( false );
@@ -665,16 +713,17 @@ function run( ?callable $lookup = null, ?callable $shown = null ): int {
  * @param array{site_data: list<string>, post_meta: array<int, list<string>>}                $changes From changes().
  * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $lookup  What shows some rows, for site_data_plan().
  * @param (callable(int): list<string>)|null                                           $shown   The rows a post shows, for post_meta_plan().
+ * @param (callable(list<string>): array{posts: list<int>, templates: list<string>})|null $listing What lists some rows in a Query Loop, for post_meta_plan().
  * @return int Purges run.
  */
-function purge_changes( array $changes, ?callable $lookup, ?callable $shown ): int {
+function purge_changes( array $changes, ?callable $lookup, ?callable $shown, ?callable $listing = null ): int {
 	$ran = 0;
 
 	if ( [] !== $changes['site_data'] && purge( site_data_plan( $changes['site_data'], $lookup ) ) ) {
 		++$ran;
 	}
 
-	if ( [] !== $changes['post_meta'] && purge( post_meta_plan( $changes['post_meta'], $shown ) ) ) {
+	if ( [] !== $changes['post_meta'] && purge( post_meta_plan( $changes['post_meta'], $shown, null, $listing ) ) ) {
 		++$ran;
 	}
 
