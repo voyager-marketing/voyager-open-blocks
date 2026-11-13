@@ -34,8 +34,8 @@ A figure is a claim about a real business. The pack ships none. Each value is bo
 
 While a field is empty, its value shows the block's own text, which names the field and holds no number: "Founded", "Score" or "Count". That keeps a page from ever printing a figure nobody gave, and it also reads as unfinished. So a figure whose field is empty does not go on a live page.
 
-1. **Find which are empty.** Over REST, an administrator reads `GET /wp/v2/settings` and checks the three options. With the abilities alone, insert into a draft and read `get-post-blocks`: an empty field's value reads `resolution.status: "fell_back"` with `reason: "empty_value"`.
-2. **Leave it out with `omit`.** Name the whole figure, `"omit": ["Rating"]`, which takes its value and its label with it. Omitting a value alone is refused (reason `required`): a label with no figure says nothing.
+1. **Find which are empty.** Over REST, an administrator reads `GET /wp/v2/settings` and checks the three options. With the abilities alone, `compose` with `"dry_run": true` and a `voyager-open/stats` section returns `empty`, the Site Data keys the page binds whose value is empty, such as `["rating"]`, and saves nothing. On a page that already exists, insert into a draft and read `get-post-blocks`: an empty field's value reads `resolution.status: "fell_back"` with `reason: "empty_value"`.
+2. **Leave it out with `omit`.** Name the whole figure, `"omit": ["Rating"]`, which takes its value and its label with it. Omitting a value alone is refused (reason `required`): a label with no figure says nothing. `compose` takes no `omit`, so when a figure is empty, compose the page without the stats section and add it with `insert`.
 3. **All three empty: do not place the section.** Ask the owner to fill in the figures first.
 
 `get-catalog`'s `used_on` counts the pages that show each figure, under `voyager/site-data:founded`, `voyager/site-data:rating` and `voyager/site-data:review_count`. Check it before you change a value: every page it counts changes too, and a change to a field refreshes them.

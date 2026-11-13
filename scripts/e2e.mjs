@@ -124,7 +124,8 @@
  *      /wp/v2/settings, and a published page holding voyager-open/stats
  *      shows 1998, 4.8 and 127 in its section, in that order. The page counts
  *      in used_on for the rating, changing the rating records a purge with
- *      the page, and with the rating emptied its figure shows its own text.
+ *      the page, and with the rating emptied its figure shows its own text
+ *      and compose with dry_run names rating in empty.
  *      insert refuses copy for a value as a bound slot and omit of a value
  *      alone, and leaves a whole figure out with omit. Then it deletes the
  *      page and puts the three fields back.
@@ -4578,6 +4579,19 @@ step(
 		withoutRating[ 0 ][ 1 ] === 'Score' &&
 		withoutRating[ 0 ][ 2 ] === '127',
 	JSON.stringify( withoutRating )
+);
+const statsTrial = await run( `${ ns }/compose`, {
+	title: `E2E stats trial ${ stamp }`,
+	sections: [ { pattern: 'voyager-open/stats' } ],
+	dry_run: true,
+} );
+step(
+	'with the rating empty, compose with dry_run names rating in empty, and not the year founded or the review count',
+	statsTrial.status === 200 &&
+		statsTrial.data.saved === false &&
+		JSON.stringify( statsTrial.data.empty ) ===
+			JSON.stringify( [ 'rating' ] ),
+	JSON.stringify( statsTrial.data.empty ?? statsTrial.data.code )
 );
 
 const statsRaw = async () =>
