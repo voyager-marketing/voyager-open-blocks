@@ -3884,7 +3884,7 @@ const PLANTED_FAILS = {
 	overflow: [ 'plant--overflow' ],
 	motion: [ 'plant--motion' ],
 	layout: Object.keys( LAYOUT_PLANTS ).map( ( name ) => `plant--${ name }` ),
-	a11y: [ 'plant--heading' ],
+	a11y: [ 'plant--heading', 'recipe--plant--2' ],
 	impeccable: [ 'plant--gradient', 'plant--cards', 'plant--target' ],
 };
 

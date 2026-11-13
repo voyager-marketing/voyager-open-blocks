@@ -1,0 +1,25 @@
+{
+	"title": "Planted: a layout no intent carries",
+	"description": "The contact recipe with its hero's layout changed from split to banner, which no hero intent carries, so the section names no pattern. npm run check's rhythm gate must refuse it for that alone.",
+	"page_type": "contact",
+	"sections": [
+		{
+			"pattern": "voyager-open/hero",
+			"layout": "banner",
+			"style": "plain",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/contact-section",
+			"layout": null,
+			"style": "panel",
+			"copy_guidance": {}
+		},
+		{
+			"pattern": "voyager-open/reviews",
+			"layout": "single",
+			"style": "accent",
+			"copy_guidance": {}
+		}
+	]
+}
