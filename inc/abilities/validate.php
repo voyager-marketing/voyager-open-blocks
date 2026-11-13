@@ -33,7 +33,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell, fax, whatsapp or telefono) whose fallback looks like a phone number, or to an email field (email, mail or correo) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell, fax, whatsapp or telefono) whose fallback looks like a phone number, or to an email field (email, mail or correo) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. So does each text slot of a numbered item, such as the proof strip\'s "Credential 4", a review\'s "Review 2 quote" or a service card\'s "Service 3 heading", that still holds the whole of the stand-in text the pack ships in that slot, such as "Your fourth credential", unless every other slot of its item holds the site\'s own text. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -98,7 +98,7 @@ function register_validate(): void {
 					'warnings'    => [
 						'type'        => 'array',
 						'items'       => [ 'type' => 'string' ],
-						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page, including a cover\'s background) or missing_alt (a core/image or core/media-text image has no alt text; a cover never gets one). A code is followed by the block and its path.',
+						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page, including a cover\'s background and the stand-in text of a numbered item, such as "Your fourth credential") or missing_alt (a core/image or core/media-text image has no alt text; a cover never gets one). A code is followed by the block and its path.',
 					],
 					'markup'      => [
 						'type'        => 'string',
@@ -153,6 +153,7 @@ function validate( $input = null ) {
 	$report = BlockTree\validate_markup( $markup, '' === $post_type ? 'page' : $post_type );
 	$report = with_stale_fallbacks( $report, stale_fallbacks( $blocks, shipped_fallbacks() ) );
 	$report = with_warnings( $report, image_warnings( $blocks, placeholder_names() ) );
+	$report = with_warnings( $report, stand_in_warnings( $blocks, shipped_stand_ins() ) );
 
 	return $out + $report + [ 'save_output' => SAVE_OUTPUT ];
 }
@@ -289,6 +290,22 @@ function shipped_fallbacks(): array {
 	static $shipped = null;
 
 	if ( null === $shipped ) {
+		$shipped = fallback_index( bound_fallbacks( pack_pattern_blocks() ) );
+	}
+
+	return $shipped;
+}
+
+/**
+ * The blocks of every pattern the pack registers, parsed once per request.
+ *
+ * @return array<int, Block>
+ */
+function pack_pattern_blocks(): array {
+	/** @var array<int, Block>|null $blocks */
+	static $blocks = null;
+
+	if ( null === $blocks ) {
 		$blocks = [];
 
 		foreach ( \WP_Block_Patterns_Registry::get_instance()->get_all_registered() as $pattern ) {
@@ -296,11 +313,181 @@ function shipped_fallbacks(): array {
 				array_push( $blocks, ...BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) ) );
 			}
 		}
-
-		$shipped = fallback_index( bound_fallbacks( $blocks ) );
 	}
 
-	return $shipped;
+	return $blocks;
+}
+
+/**
+ * A label that numbers an item of a section, such as "Credential 4", "Review
+ * 2", "Service 3" or "Step 1": its kind, a space and a number.
+ */
+const ITEM_LABEL = '/^(.*\S) ([0-9]+)$/';
+
+/**
+ * The text slots of every numbered item in a block tree.
+ *
+ * An item is a named block whose label numbers it (ITEM_LABEL). Its text
+ * slots are the item itself when it is a text block (BlockTree\TEXT_ATTRIBUTES),
+ * as a proof strip's "Credential 4" is, and the named text blocks inside it
+ * whose labels start with its own and a space, as repeat names them ("Review
+ * 2 quote" inside "Review 2"). A slot whose text a binding supplies is left
+ * out: its text is a fallback, which stale_fallbacks() checks.
+ *
+ * @param array<int, Block> $blocks Blocks.
+ * @param string            $prefix Path of the parent, '' at the top.
+ * @return list<array{item: string, item_path: string, kind: string, suffix: string, path: string, block: string, label: string, text: string}>
+ */
+function item_slots( array $blocks, string $prefix = '' ): array {
+	$out = [];
+
+	foreach ( $blocks as $index => $block ) {
+		$path  = '' === $prefix ? (string) $index : $prefix . '/' . $index;
+		$label = BlockTree\metadata( $block )['name'] ?? null;
+
+		if ( is_string( $label ) && 1 === preg_match( ITEM_LABEL, $label, $match ) ) {
+			foreach ( text_slots( $block, $path, $label ) as $slot ) {
+				$out[] = [
+					'item'      => $label,
+					'item_path' => $path,
+					'kind'      => $match[1],
+					'suffix'    => substr( $slot['label'], strlen( $label ) ),
+				] + $slot;
+			}
+		}
+
+		/** @var array<int, Block> $inner */
+		$inner = $block['innerBlocks'];
+		array_push( $out, ...item_slots( $inner, $path ) );
+	}
+
+	return $out;
+}
+
+/**
+ * The unbound text blocks in a block and inside it whose label is an item's
+ * own, or starts with it and a space.
+ *
+ * @param Block  $block The item's block, or a block inside it.
+ * @param string $path  Its path.
+ * @param string $item  The item's label.
+ * @return list<array{path: string, block: string, label: string, text: string}>
+ */
+function text_slots( array $block, string $path, string $item ): array {
+	$out       = [];
+	$name      = (string) $block['blockName'];
+	$metadata  = BlockTree\metadata( $block );
+	$label     = $metadata['name'] ?? null;
+	$attribute = BlockTree\TEXT_ATTRIBUTES[ $name ] ?? null;
+	$bindings  = is_array( $metadata['bindings'] ?? null ) ? $metadata['bindings'] : [];
+
+	if ( null !== $attribute && is_string( $label ) && ( $label === $item || str_starts_with( $label, $item . ' ' ) ) && ! isset( $bindings[ $attribute ] ) ) {
+		$out[] = [
+			'path'  => $path,
+			'block' => $name,
+			'label' => $label,
+			'text'  => BlockTree\own_text( $block ),
+		];
+	}
+
+	/** @var array<int, Block> $inner */
+	$inner = $block['innerBlocks'];
+	foreach ( $inner as $index => $child ) {
+		array_push( $out, ...text_slots( $child, $path . '/' . $index, $item ) );
+	}
+
+	return $out;
+}
+
+/**
+ * The text the pack ships in each slot of each kind of numbered item.
+ *
+ * @param array<int, Block> $blocks The pack's patterns' blocks, as pack_pattern_blocks() gives them.
+ * @return array<string, array<string, list<string>>> Kind => slot => texts, such as "Review" => " quote" => [ "A real customer's words go here, …" ]. A slot that is the item itself is "".
+ */
+function stand_in_index( array $blocks ): array {
+	$index = [];
+
+	foreach ( item_slots( $blocks ) as $slot ) {
+		if ( '' === $slot['text'] ) {
+			continue;
+		}
+
+		$texts = $index[ $slot['kind'] ][ $slot['suffix'] ] ?? [];
+		if ( ! in_array( $slot['text'], $texts, true ) ) {
+			$texts[] = $slot['text'];
+		}
+		$index[ $slot['kind'] ][ $slot['suffix'] ] = $texts;
+	}
+
+	return $index;
+}
+
+/**
+ * The stand-in index of the patterns this site registers, built once per request.
+ *
+ * @return array<string, array<string, list<string>>>
+ */
+function shipped_stand_ins(): array {
+	/** @var array<string, array<string, list<string>>>|null $index */
+	static $index = null;
+
+	if ( null === $index ) {
+		$index = stand_in_index( pack_pattern_blocks() );
+	}
+
+	return $index;
+}
+
+/**
+ * The stand-in text left on a page, as placeholder warnings, each with the
+ * path of its block.
+ *
+ * A slot of a numbered item (item_slots()) holds a stand-in when its whole
+ * text is one the pack ships in that slot of that kind of item: "Your fourth
+ * credential" in a "Credential 2", or "Customer name" in the "Review 4 name"
+ * a repeat made. Slots are matched by kind and slot, never by text alone, so
+ * the same words in another block are not flagged. An item whose other slots
+ * all hold the site's own text is taken as filled, and its one slot that
+ * still matches is not flagged: a real five-star review keeps "Rated 5 out of
+ * 5", and a business's first service may be called Repairs.
+ *
+ * @param array<int, Block>                          $blocks The page's blocks.
+ * @param array<string, array<string, list<string>>> $index  From shipped_stand_ins().
+ * @return list<array{path: string, warning: string}>
+ */
+function stand_in_warnings( array $blocks, array $index ): array {
+	$items = [];
+
+	foreach ( item_slots( $blocks ) as $slot ) {
+		$items[ $slot['item_path'] ][] = $slot + [ 'stand_in' => in_array( $slot['text'], $index[ $slot['kind'] ][ $slot['suffix'] ] ?? [], true ) ];
+	}
+
+	$out = [];
+
+	foreach ( $items as $slots ) {
+		$left = array_values( array_filter( $slots, static fn ( array $slot ): bool => $slot['stand_in'] ) );
+
+		if ( [] === $left || ( 1 === count( $left ) && count( $slots ) > 1 ) ) {
+			continue;
+		}
+
+		foreach ( $left as $slot ) {
+			$out[] = [
+				'path'    => $slot['path'],
+				'warning' => sprintf(
+					'placeholder: %1$s "%2$s" at %3$s holds "%4$s", the stand-in text the pack ships there. Replace it with the site\'s own words, or remove "%5$s".',
+					$slot['block'],
+					$slot['label'],
+					$slot['path'],
+					$slot['text'],
+					$slot['item']
+				),
+			];
+		}
+	}
+
+	return $out;
 }
 
 /**

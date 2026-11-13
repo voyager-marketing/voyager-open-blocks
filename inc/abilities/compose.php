@@ -4,11 +4,12 @@
  * page recipe, in one call.
  *
  * Contract 6 in docs/v2-contracts.md has the shapes. A recipe (recipes.php)
- * stands in for the list: its sections, each with its style and no copy, go
- * through sections_input() and are built as a list is. Each section names a pack
- * pattern by its section and layout, resolved as contract 5 says, and is
- * inserted as a copy. Its copy is filled and checked the way insert fills and
- * checks a pattern's (copy-rules.php, then bound_copy_slots()), and its style
+ * stands in for the list: its sections, each with its style, its omit and no
+ * copy, go through sections_input() and are built as a list is. Each section
+ * names a pack pattern by its section and layout, resolved as contract 5 says,
+ * and is inserted as a copy. Its repeat, omit and copy are applied and checked
+ * with fill_pattern(), the code insert fills a pattern with (copy-rules.php),
+ * then bound_copy_slots(), and its style
  * is set on its top-level group the way configure's style input sets it
  * (SectionStyles\apply()). Two sections next to each other may not share a
  * style other than plain. When anything is refused, nothing is saved, and
@@ -49,7 +50,7 @@ function register_compose(): void {
 		CATEGORY . '/compose',
 		[
 			'label'               => __( 'Compose a Voyager Open draft page', 'voyager-open-blocks' ),
-			'description'         => __( 'Builds a whole draft page in one call from a list of sections, each a pack pattern with its copy and section style, and saves it as a draft. Pass title to create a new draft page that you own, or post_id of a draft to replace its whole content. Anything but a draft is refused: change a live page with insert and configure. Each section names its pattern by section, such as voyager-open/hero or voyager-open/services, and layout, such as list (get-catalog lists each pattern\'s section and layout; null or left out is the section\'s first layout). It is inserted as a copy. Its copy works as insert\'s copy does, within the pattern\'s copy_rules, and its style (plain, panel, inverted or accent) goes on its top-level group as configure\'s style input sets it; plain sets none. Two sections next to each other may not share a style other than plain. When any slot is refused (too_long, claim, bound, or adjacent_style for two such sections), nothing is saved, saved is false and refused lists every refused slot with its section index. Returns post_id, revision_id (undo takes it to reverse the save), preview_url, validation (what validate returns for the page, placeholder: warnings included), empty (each Site Data key the page binds whose value is empty now, so the page shows the pattern\'s own text there until it is set) and refused. dry_run runs every check, saves nothing and creates no post. Or pass recipe, the slug of a page recipe get-catalog lists under recipes, such as home, in place of sections: compose builds the recipe\'s sections in order, each in its layout and style, with each pattern\'s own text, so the draft holds the patterns\' stand-ins, such as "Your fourth credential", until they are replaced. To build a recipe\'s page with its copy in one call, read the recipe from get-catalog, fill each section\'s copy from its copy_guidance (each a line on what that slot says on this page, within the pattern\'s copy_rules), and pass the list as sections. Pass recipe or sections, not both.', 'voyager-open-blocks' ),
+			'description'         => __( 'Builds a whole draft page in one call from a list of sections, each a pack pattern with its copy and section style, and saves it as a draft. Pass title to create a new draft page that you own, or post_id of a draft to replace its whole content. Anything but a draft is refused: change a live page with insert and configure. Each section names its pattern by section, such as voyager-open/hero or voyager-open/services, and layout, such as list (get-catalog lists each pattern\'s section and layout; null or left out is the section\'s first layout). It is inserted as a copy. Its copy, omit and repeat work as insert\'s do, with the same code, within the pattern\'s copy_rules: omit leaves out named blocks, such as "Credential 4" for a proof strip with three facts, and repeat adds copies of one, each holding the text of the block it copies until copy fills it. Its style (plain, panel, inverted or accent) goes on its top-level group as configure\'s style input sets it; plain sets none. Two sections next to each other may not share a style other than plain. When any slot is refused (too_long, claim, bound, required for omit of a required slot, or adjacent_style for two such sections), nothing is saved, saved is false and refused lists every refused slot with its section index. Returns post_id, revision_id (undo takes it to reverse the save), preview_url, validation (what validate returns for the page, placeholder: warnings included), empty (each Site Data key the page binds whose value is empty now, so the page shows the pattern\'s own text there until it is set) and refused. dry_run runs every check, saves nothing and creates no post. Or pass recipe, the slug of a page recipe get-catalog lists under recipes, such as home, in place of sections: compose builds the recipe\'s sections in order, each in its layout and style, with each pattern\'s own text, less the blocks a recipe section omits, such as the contact page\'s hero button, so the draft holds the patterns\' stand-ins, such as "Your fourth credential", until they are replaced, and validation warns placeholder: on each one left. To build a recipe\'s page with its copy in one call, read the recipe from get-catalog, fill each section\'s copy from its copy_guidance (each a line on what that slot says on this page, within the pattern\'s copy_rules), keep its omit, omit any item you have no copy for, and pass the list as sections. Pass recipe or sections, not both.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -70,7 +71,7 @@ function register_compose(): void {
 						'type'        => 'array',
 						'minItems'    => 1,
 						'maxItems'    => MAX_SECTIONS,
-						'description' => 'The page\'s sections, top to bottom. Pass sections or recipe, not both. For a recipe\'s page with its copy, pass the recipe\'s sections from get-catalog here, each with copy written from its copy_guidance.',
+						'description' => 'The page\'s sections, top to bottom. Pass sections or recipe, not both. For a recipe\'s page with its copy, pass the recipe\'s sections from get-catalog here, each with copy written from its copy_guidance and the omit it carries.',
 						'items'       => [
 							'type'                 => 'object',
 							'properties'           => [
@@ -96,6 +97,8 @@ function register_compose(): void {
 									'additionalProperties' => copy_value_schema(),
 									'description'          => 'Text by label, as insert\'s copy takes it: the metadata.name of a block get-catalog lists with copy: true in the pattern\'s blocks, each plain text or {"text": "...", "source": "user"} for text the site owner gave you, within the pattern\'s copy_rules. A claim slot takes the object form only, and a bound slot, such as "Click to call", takes no copy.',
 								],
+								'omit'    => omit_schema( 'Labels of blocks to leave out of this section, as insert\'s omit takes them, such as ["Credential 4"] for a proof strip with three facts, or ["Service 3"] for two service cards. Not the label of the whole section. A slot whose copy rule is required, or a block that holds one, is refused (required), unless the block is the slot\'s whole item, such as "Service 3" for "Service 3 heading". A recipe\'s section from get-catalog may carry omit: pass it on.' ),
+								'repeat'  => repeat_schema( 'Copies of a named block to add right after it, one per new label, as insert\'s repeat takes them, such as {"Credential 4": ["Credential 5"]} for a fifth fact. Each copy holds the text of the block it copies, and keeps its copy rule, so give it copy: a copy of a claim slot is a claim. Runs before omit and copy, so omit can drop the block copied.' ),
 							],
 							'required'             => [ 'pattern' ],
 							'additionalProperties' => false,
@@ -221,10 +224,12 @@ function resolve_layout( array $layouts, string $section, ?string $layout ): ?st
 }
 
 /**
- * compose's sections input, each with its pattern, layout, style and copy.
+ * compose's sections input, each with its pattern, layout, style, copy, omit and repeat.
+ *
+ * omit and repeat are read with insert's readers, omit_input() and repeat_input().
  *
  * @param mixed $value Input.
- * @return list<array{pattern: string, layout: string|null, style: string, copy: array<string, array{text: string, user: bool}>}>
+ * @return list<array{pattern: string, layout: string|null, style: string, copy: array<string, array{text: string, user: bool}>, omit: list<string>, repeat: array<string, string[]>}>
  */
 function sections_input( mixed $value ): array {
 	$out = [];
@@ -237,6 +242,8 @@ function sections_input( mixed $value ): array {
 			'layout'  => isset( $section['layout'] ) ? Cast\to_string( $section['layout'] ) : null,
 			'style'   => isset( $section['style'] ) ? Cast\to_string( $section['style'] ) : 'plain',
 			'copy'    => copy_values( $section['copy'] ?? null ),
+			'omit'    => omit_input( $section['omit'] ?? null ),
+			'repeat'  => repeat_input( $section['repeat'] ?? null ),
 		];
 	}
 
@@ -510,8 +517,9 @@ function compose( array $input ) {
 		);
 	}
 
-	// Build the page, section by section, as insert builds a pattern copy:
-	// the copy rules first, against the blocks as shipped, then the copy.
+	// Build the page, section by section, as insert builds a pattern copy,
+	// with the same code: fill_pattern() runs repeat, the copy rules, omit,
+	// then copy.
 	$page   = [];
 	$built  = [];
 	$styles = [];
@@ -523,12 +531,10 @@ function compose( array $input ) {
 		$copy    = copy_texts( $section['copy'] );
 		$broken  = [];
 
-		if ( [] !== $section['copy'] ) {
-			$broken = copy_rule_refusals( Patterns\intent_meta( $name )['copy_rules'], $section['copy'], [], BlockTree\describe( $new ) );
-
-			$copied = BlockTree\set_copy( $new, $copy );
-			if ( is_wp_error( $copied ) ) {
-				return section_error( $index, $name, $copied );
+		if ( [] !== $section['copy'] || [] !== $section['omit'] || [] !== $section['repeat'] ) {
+			$broken = fill_pattern( $new, Patterns\intent_meta( $name )['copy_rules'], $section['copy'], $section['omit'], $section['repeat'] );
+			if ( is_wp_error( $broken ) ) {
+				return section_error( $index, $name, $broken );
 			}
 		}
 

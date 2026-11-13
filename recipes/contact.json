@@ -11,7 +11,8 @@
 				"Eyebrow": "The business's name or trade, in a few words.",
 				"Heading": "An invitation to get in touch, and what the visitor can ask about.",
 				"Body": "One line on the ways to reach the business. A reply time is a claim: give one only as the site owner states it."
-			}
+			},
+			"omit": [ "Primary button" ]
 		},
 		{
 			"pattern": "voyager-open/contact-section",
