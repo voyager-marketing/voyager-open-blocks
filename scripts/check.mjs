@@ -958,4 +958,35 @@ report(
 );
 printEach( recipePlantProblems );
 
+// A section with no style is plain, as compose reads it (read_recipe() in
+// inc/abilities/recipes.php), so the gate and design-check's recipe pages
+// build the page compose builds: the home recipe with its Panel proof strip's
+// style taken out passes, and with a style that is no string it is refused.
+let styleless = [];
+let unreadable = [];
+let styleError = '';
+try {
+	const layouts = sectionLayouts( join( root, RECIPE_INTENTS ) );
+	const home = readRecipes( join( root, RECIPES ) ).find(
+		( entry ) => entry.slug === 'home'
+	);
+	const without = structuredClone( home );
+	delete without.recipe.sections[ 1 ].style;
+	const numbered = structuredClone( home );
+	numbered.recipe.sections[ 1 ].style = 5;
+	styleless = rhythmProblems( without, layouts );
+	unreadable = rhythmProblems( numbered, layouts );
+} catch ( error ) {
+	styleError = `the gate crashed: ${ error?.message || error }`;
+}
+report(
+	'rhythm: reads a section with no style as plain, as compose does, and refuses a style that is no string',
+	styleError === '' &&
+		styleless.length === 0 &&
+		unreadable.length === 1 &&
+		unreadable[ 0 ].rule === 'shape',
+	styleError ||
+		[ ...styleless, ...unreadable ].map( ( p ) => p.line ).join( '; ' )
+);
+
 process.exit( failed ? 1 : 0 );
