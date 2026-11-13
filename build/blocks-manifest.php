@@ -1,6 +1,91 @@
 <?php
 // This file is generated. Do not modify it manually.
 return array(
+	'contact-details' => array(
+		'$schema' => 'https://schemas.wp.org/trunk/block.json',
+		'apiVersion' => 3,
+		'name' => 'voyager-open/contact-details',
+		'version' => '0.1.0',
+		'title' => 'Contact details',
+		'category' => 'text',
+		'icon' => 'location',
+		'description' => 'Your address, phone, email and hours. The phone dials and the email opens a new message when tapped. Bind each part to Site Data to show your details.',
+		'keywords' => array(
+			'contact',
+			'address',
+			'phone',
+			'email',
+			'hours'
+		),
+		'textdomain' => 'voyager-open-blocks',
+		'attributes' => array(
+			'phone' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			),
+			'phoneLink' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			),
+			'email' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			),
+			'emailLink' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			),
+			'address' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			),
+			'addressLocality' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			),
+			'hours' => array(
+				'type' => 'string',
+				'default' => '',
+				'role' => 'content'
+			)
+		),
+		'supports' => array(
+			'html' => false,
+			'anchor' => true,
+			'color' => array(
+				'text' => true,
+				'background' => true
+			),
+			'spacing' => array(
+				'margin' => true,
+				'padding' => true
+			),
+			'typography' => array(
+				'fontSize' => true,
+				'lineHeight' => true
+			)
+		),
+		'example' => array(
+			'attributes' => array(
+				'address' => 'Street address',
+				'addressLocality' => 'City, state, postal code',
+				'phone' => 'Phone number',
+				'phoneLink' => 'tel:5550100100',
+				'email' => 'Email address',
+				'emailLink' => 'mailto:hello@example.com',
+				'hours' => 'Business hours'
+			)
+		),
+		'editorScript' => 'file:./index.js',
+		'style' => 'file:./style-index.css',
+		'render' => 'file:./render.php'
+	),
 	'facts' => array(
 		'$schema' => 'https://schemas.wp.org/trunk/block.json',
 		'apiVersion' => 3,
@@ -43,9 +128,9 @@ return array(
 		),
 		'example' => array(
 			'attributes' => array(
-				'items' => 'Licensed and insured
-Family owned
-Same-day service'
+				'items' => 'Your first fact
+Your second fact
+Your third fact'
 			)
 		),
 		'editorScript' => 'file:./index.js',
