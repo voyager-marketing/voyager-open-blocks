@@ -519,7 +519,7 @@ final class CopyExamplesTest extends TestCase {
 					array_pop( $examples['restaurants']['compose']['sections'] );
 					return $examples;
 				},
-				'restaurants: holds 5 sections, and recipes/home.json holds 6',
+				sprintf( 'restaurants: holds %d sections, and recipes/home.json holds %d', count( self::recipe() ) - 1, count( self::recipe() ) ),
 			],
 			'a style other than the recipe\'s'           => [
 				static function ( array $examples ): array {

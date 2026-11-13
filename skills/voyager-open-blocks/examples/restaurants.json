@@ -1,5 +1,5 @@
 {
-	"business": "Ostlee Noodle Bar is a small family restaurant on Mill Street in Ostlee. It serves hand-pulled noodles and slow-cooked broth to people on a lunch break, families, and anyone picking up dinner on the way home. Daniel and June Seo gave the four facts on the proof strip: the noodles are made by hand every morning, the family has run the bar since 2015, there is a vegetarian broth every day, and walk-ins are welcome with no booking. They also gave three reviews from regulars who agreed to be quoted by first name and last initial, each rated 5 out of 5. The phone, (555) 555-0175, and the email, hello@ostlee-noodle-bar.example.com, are set in Settings > Site Data, so the page binds them and no copy types them.",
+	"business": "Ostlee Noodle Bar is a small family restaurant on Mill Street in Ostlee. It serves hand-pulled noodles and slow-cooked broth to people on a lunch break, families, and anyone picking up dinner on the way home. Daniel and June Seo gave the four facts on the proof strip: the noodles are made by hand every morning, the family has run the bar since 2015, there is a vegetarian broth every day, and walk-ins are welcome with no booking. They also gave three reviews from regulars who agreed to be quoted by first name and last initial, each rated 5 out of 5. Its phone, (555) 555-0175, its email, hello@ostlee-noodle-bar.example.com, and the three figures in its stats row (founded in 2015, an average rating of 4.7, and 529 reviews) are set in Settings > Site Data, so the page binds them and no copy types them.",
 	"compose": {
 		"title": "Home",
 		"sections": [
@@ -117,6 +117,16 @@
 						"text": "Group order",
 						"source": "user"
 					}
+				}
+			},
+			{
+				"pattern": "voyager-open/stats",
+				"layout": "row",
+				"style": "panel",
+				"copy": {
+					"Founded label": "Cooking since",
+					"Rating label": "Average rating",
+					"Review count label": "Reviews from diners"
 				}
 			},
 			{
