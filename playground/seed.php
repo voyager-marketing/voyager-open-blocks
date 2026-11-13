@@ -78,6 +78,8 @@ $voyager_open_seed = static function (): void {
 		'services'        => [ 'Services', '<!-- wp:pattern {"slug":"voyager-open/services"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/services-list"} /-->' ],
 		// The reviews section in both layouts: cards in a row, then one large quote.
 		'reviews'         => [ 'Reviews', '<!-- wp:pattern {"slug":"voyager-open/reviews"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/reviews-single"} /-->' ],
+		// The process steps in both layouts: side by side, then one under another.
+		'process-steps'   => [ 'Process steps', '<!-- wp:pattern {"slug":"voyager-open/process-steps"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/process-steps-list"} /-->' ],
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
