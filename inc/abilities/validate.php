@@ -33,7 +33,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell, fax, whatsapp or telefono) whose fallback looks like a phone number, or to an email field (email, mail or correo) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. So does each text slot of a numbered item, such as the proof strip\'s "Credential 4", a review\'s "Review 2 quote" or a service card\'s "Service 3 heading", that still holds the whole of the stand-in text the pack ships in that slot, such as "Your fourth credential", unless every other slot of its item holds the site\'s own text. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and changes nothing. For every block it reports, by path: the block type is registered, its comment attributes match block.json, each binding to voyager/site-data, voyager/post-meta-text or core/post-meta names a bindable attribute and args that get-catalog lists, and the markup is what WordPress writes back after a parse and serialize round trip. A block bound to a phone field (a key with a whole part such as phone, tel, mobile, cell, fax, whatsapp or telefono) whose fallback looks like a phone number, or to an email field (email, mail or correo) whose fallback looks like an email address, gets a warning starting stale_fallback: visitors see that fallback whenever the source returns nothing. Each of the pack\'s placeholder images still on the page (the image of a core/image or core/media-text block, or the background of a core/cover block, whose URL ends in assets/placeholders/ and a file the pack ships, on any host), and the contact section\'s stand-in for a form while it is still in its Form slot column, gets a warning starting placeholder:. So does each text slot of a numbered item, such as the proof strip\'s "Credential 4", a review\'s "Review 2 quote" or a service card\'s "Service 3 heading", that still holds the whole of the stand-in text the pack ships in that slot, such as "Your fourth credential". The one slot let off is an item\'s title, its first and a short one, such as a service\'s heading or a review\'s rating, when every other slot of the item holds the site\'s own text: a real item can share its title with the pack\'s. A line, an answer or a quote left at the pack\'s text always gets one. Every other core/image or core/media-text image with empty or missing alt text gets one starting missing_alt:. A cover\'s background is decoration, so a cover never gets missing_alt:. It does not compare saved HTML with each block\'s save() output; block-runner validate does that.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -325,6 +325,15 @@ function pack_pattern_blocks(): array {
 const ITEM_LABEL = '/^(.*\S) ([0-9]+)$/';
 
 /**
+ * The most characters an item's title can hold and still be let off as one a
+ * real item shares with the pack's (stand_in_warnings()): a heading, a
+ * question or a rating, never a sentence of body text. The pack's heading,
+ * name and rating slots allow 40 at most in their copy rules, and its lines,
+ * answers and quotes ship longer.
+ */
+const TITLE_MAX = 40;
+
+/**
  * The text slots of every numbered item in a block tree.
  *
  * An item is a named block whose label numbers it (ITEM_LABEL). Its text
@@ -447,10 +456,16 @@ function shipped_stand_ins(): array {
  * text is one the pack ships in that slot of that kind of item: "Your fourth
  * credential" in a "Credential 2", or "Customer name" in the "Review 4 name"
  * a repeat made. Slots are matched by kind and slot, never by text alone, so
- * the same words in another block are not flagged. An item whose other slots
- * all hold the site's own text is taken as filled, and its one slot that
- * still matches is not flagged: a real five-star review keeps "Rated 5 out of
- * 5", and a business's first service may be called Repairs.
+ * the same words in another block are not flagged.
+ *
+ * One slot is let off: an item's title, when every other slot of the item
+ * holds the site's own text. The title is the item's first text slot, and a
+ * short one (TITLE_MAX), such as a service's heading, a step's heading, a
+ * question or a review's rating, and a real item can share it word for word
+ * with the pack's: a five-star review keeps "Rated 5 out of 5", and a
+ * business's first service may be called Repairs. Any other slot left at the
+ * pack's text is flagged however much of its item is filled: a service's or a
+ * step's line, an answer, a quote, a customer's name.
  *
  * @param array<int, Block>                          $blocks The page's blocks.
  * @param array<string, array<string, list<string>>> $index  From shipped_stand_ins().
@@ -468,7 +483,12 @@ function stand_in_warnings( array $blocks, array $index ): array {
 	foreach ( $items as $slots ) {
 		$left = array_values( array_filter( $slots, static fn ( array $slot ): bool => $slot['stand_in'] ) );
 
-		if ( [] === $left || ( 1 === count( $left ) && count( $slots ) > 1 ) ) {
+		// item_slots() lists an item's slots in document order, so its title comes first.
+		$title_alone = 1 === count( $left ) && count( $slots ) > 1
+			&& $left[0]['path'] === $slots[0]['path']
+			&& mb_strlen( $left[0]['text'] ) <= TITLE_MAX;
+
+		if ( [] === $left || $title_alone ) {
 			continue;
 		}
 

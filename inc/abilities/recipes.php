@@ -130,13 +130,13 @@ function read_recipe( string $file, array $layouts ) {
 			$lines[ (string) $slot ] = $line;
 		}
 
-		// omit, when the file gives it: a list of block labels, as a compose
-		// section's omit takes them. compose holds it to the copy rules.
-		if ( null !== $omit && ( ! is_array( $omit ) || ! array_is_list( $omit ) || [] !== array_filter( $omit, static fn ( mixed $label ): bool => ! is_string( $label ) || '' === $label ) ) ) {
-			return sprintf( 'sections[%d]: omit is not a list of block labels', $index );
+		// omit, when the file gives it: a non-empty list of block labels, as a
+		// compose section's omit takes them. compose holds it to the copy rules.
+		if ( null !== $omit && ( ! is_array( $omit ) || [] === $omit || ! array_is_list( $omit ) || [] !== array_filter( $omit, static fn ( mixed $label ): bool => ! is_string( $label ) || '' === trim( $label ) ) ) ) {
+			return sprintf( 'sections[%d]: omit is not a non-empty list of block labels', $index );
 		}
 
-		/** @var list<string>|null $omit */
+		/** @var non-empty-list<string>|null $omit */
 		$out[] = [
 			'pattern'       => $pattern,
 			'layout'        => $layout,

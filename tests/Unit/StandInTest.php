@@ -268,6 +268,37 @@ final class StandInTest extends TestCase {
 		$this->assertSame( [ 'Review 1 name' ], array_map( static fn ( string $row ): string => (string) substr( $row, (int) strpos( $row, ' ' ) + 1 ), self::warned( $review ) ) );
 	}
 
+	public function test_a_first_slot_longer_than_a_title_is_warned_when_it_is_the_only_one_left(): void {
+		$quote = 'A real customer\'s words go here, as they wrote them, with their permission.';
+		$this->assertGreaterThan( Abilities\TITLE_MAX, mb_strlen( $quote ) );
+
+		$item = [
+			'blockName'    => 'core/group',
+			'attrs'        => [ 'metadata' => [ 'name' => 'Review 7' ] ],
+			'innerBlocks'  => [
+				IntentBlocks::block(
+					[
+						'block' => 'core/paragraph',
+						'text'  => $quote,
+						'attrs' => [ 'metadata' => [ 'name' => 'Review 7 quote' ] ],
+					]
+				),
+				IntentBlocks::block(
+					[
+						'block' => 'core/paragraph',
+						'text'  => 'Dana R.',
+						'attrs' => [ 'metadata' => [ 'name' => 'Review 7 name' ] ],
+					]
+				),
+			],
+			'innerHTML'    => "\n<div>\n\n</div>\n",
+			'innerContent' => [ "\n<div>", null, "\n\n", null, "</div>\n" ],
+		];
+
+		// The quote comes first here, and is no title: it is a sentence.
+		$this->assertSame( [ '0/0 Review 7 quote' ], self::warned( [ $item ] ) );
+	}
+
 	public function test_only_a_named_slot_of_a_numbered_item_holding_a_whole_stand_in_is_warned(): void {
 		$paragraph = static fn ( string $text, array $metadata = [] ): array => IntentBlocks::block(
 			[
