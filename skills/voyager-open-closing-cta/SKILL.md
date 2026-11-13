@@ -58,26 +58,17 @@ If the site email is not set, the button keeps its authored `/contact/` link.
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/closing-cta` is in `patterns.items`.
-2. **Author.** Insert by reference, or assemble an edited intent.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/closing-cta` in `patterns.items` and `voyager/site-data` in `bindings.sources`. Insert it by reference, or assemble an edited intent, then check it with `npx block-runner validate`. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
 - **insert** at the end of the page: leave `position` out, or pass `-1`. If the page already ends with a closing CTA, do not add a second one. Read `get-post-blocks` first to check.
-- **insert with copy**: `{"post_id": 123, "item": "voyager-open/closing-cta", "copy": {"Heading": "Ready when you are.", "Body": "Book a free estimate this week.", "Primary button": "Book an estimate", "Email button": "Email the office"}}` replaces the text of those named blocks. Labels: `Heading`, `Body`, `Primary button`, `Email button`. The email button keeps its `url` binding, so its text is a label, not the address. Never pass copy for a bound slot, such as a button whose `text` is bound: `insert` refuses it with `voyager_open_blocks_bound_slot` and saves nothing. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving. An unknown label, or a label on a block that is not text, is refused with `voyager_open_blocks_invalid_copy`, which lists the valid labels.
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/closing-cta", "copy": {"Heading": "Ready when you are.", "Body": "Book a free estimate this week.", "Primary button": "Book an estimate", "Email button": "Email the office"}}`. The email button keeps its `url` binding, so its text is a label, not the address. Never pass copy for a bound slot, such as a button whose `text` is bound: `insert` refuses it with `voyager_open_blocks_bound_slot` and saves nothing.
 - **"As shipped"**: `"mode": "reference"` inserts a `core/pattern` that tracks plugin updates instead of a copy. Its text cannot change.
 - **bind**: the email button arrives bound. To make it call instead, bind its `url` to `{"key": "phone_link"}` on `voyager/site-data`, using the path labelled "Email button".
-- **get-post-blocks** again: the "Email button" binding should read `resolution.status: "resolved"`, with a `mailto:` link in `value_preview`. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Email address is empty or not a valid address. Say so.
-- **validate** with `{"post_id": 123}` checks the saved page.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists this pattern's named blocks and their bindings before you insert it.
+- Then check it with **get-post-blocks** and **validate**. The "Email button" binding should resolve to a `mailto:` link. If it falls back, Settings > Site Data > Email address is empty or not a valid address. Say so.
 
 ## Try it
 

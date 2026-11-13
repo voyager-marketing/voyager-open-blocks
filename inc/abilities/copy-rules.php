@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Abilities;
 
+use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
 use WP_Error;
 
@@ -36,7 +37,7 @@ function copy_value_schema(): array {
 			],
 			[
 				'type'                 => 'object',
-				'description'          => 'Text the site owner gave you, such as a review in the customer\'s own words. The only value a claim slot takes.',
+				'description'          => 'Text the site owner gave you, such as a review in the customer\'s own words. A claim slot takes nothing else.',
 				'properties'           => [
 					'text'   => [
 						'type'      => 'string',
@@ -212,6 +213,58 @@ function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows
 	}
 
 	return array_merge( $refused, array_values( $dropped ) );
+}
+
+/**
+ * A pattern's blocks with repeat, omit and copy applied, as insert and compose fill one.
+ *
+ * The one implementation both abilities call, so a compose section and an
+ * insert of the same pattern hold the same blocks and are refused for the
+ * same faults (contract 6). repeat runs first, so copy can fill the new
+ * labels and omit can drop the block it copied. The copy rules then check
+ * the copy and omit against the blocks as repeat left them, before omit
+ * drops any, with each copy repeat made keeping the rule of the block it
+ * copies (repeated_rules()). Then omit, then copy.
+ *
+ * What the copy rules refuse is returned, for the caller to list beside the
+ * bound slots, which can only be named once the blocks are placed. What
+ * repeat, omit or copy cannot apply, such as a label no block has, is the
+ * error BlockTree returns for it.
+ *
+ * @param array<int, Block>                              $blocks The pattern's blocks, by reference. Changed even when a slot is refused; the caller saves nothing then.
+ * @param array<string, array<mixed>>                    $rules  The pattern's copy rules, from its intent.
+ * @param array<string, array{text: string, user: bool}> $values Copy, from copy_values().
+ * @param array<int, string>                             $omit   Labels to leave out, from omit_input().
+ * @param array<string, string[]>                        $repeat From repeat_input().
+ * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}>|WP_Error The copy rules' refusals, [] when none.
+ */
+function fill_pattern( array &$blocks, array $rules, array $values, array $omit, array $repeat ) {
+	if ( [] !== $repeat ) {
+		$repeated = BlockTree\repeat( $blocks, $repeat );
+		if ( is_wp_error( $repeated ) ) {
+			return $repeated;
+		}
+	}
+
+	$broken = [] === $values && [] === $omit
+		? []
+		: copy_rule_refusals( repeated_rules( $rules, $repeat ), $values, $omit, BlockTree\describe( $blocks ) );
+
+	if ( [] !== $omit ) {
+		$omitted = BlockTree\omit( $blocks, $omit );
+		if ( is_wp_error( $omitted ) ) {
+			return $omitted;
+		}
+	}
+
+	if ( [] !== $values ) {
+		$copied = BlockTree\set_copy( $blocks, copy_texts( $values ) );
+		if ( is_wp_error( $copied ) ) {
+			return $copied;
+		}
+	}
+
+	return $broken;
 }
 
 /**

@@ -51,7 +51,7 @@ function register_insert(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places a pack pattern (as a copy, or as a reference that tracks plugin updates) or one of the pack\'s blocks (get-catalog\'s blocks) into a post, at the top level or inside a block given as parent, and returns the inserted block markup with the paths of its blocks. Inside a parent, the parent\'s allowedBlocks and lock and each new block\'s parent and ancestor rules from block.json apply. A pattern inserted as a copy takes copy, the text of the named blocks get-catalog marks copy: true, each within the pattern\'s copy_rules; omit, the labels of blocks to leave out; and repeat, new labels for copies of a named block. Copy or omit that breaks a copy rule, or copy for a bound slot, refuses the whole call: nothing is saved, and data.refused lists every refused slot. dry_run runs every check and saves nothing. A save returns revision_id, which undo takes to reverse it.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places one of the pack\'s patterns or blocks from get-catalog in a post, at the top level or inside the block at parent, and returns its markup and each new block\'s path and label. A pattern goes in as a copy, which takes copy, omit and repeat, or as a reference that follows plugin updates. For a whole draft page, use compose. Refused input saves nothing, and data.refused lists every refused slot. No ability adds a block that is not the pack\'s, changes an image or changes a static button\'s link: tell the user to do that in the editor. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -60,59 +60,38 @@ function register_insert(): void {
 					'item'       => [
 						'type'        => 'string',
 						'enum'        => items(),
-						'description' => 'Block or pattern name from get-catalog.',
+						'description' => 'A pattern or block name from get-catalog.',
 					],
 					'parent'     => [
 						'type'        => 'string',
 						'pattern'     => '^\d+(/\d+)*$',
-						'description' => 'Path of the block to insert into, from get-post-blocks, such as "0" for the row that holds a header\'s buttons. Leave it out to insert at the top level. The block must already hold at least one block, must allow the new one (allowedBlocks) and must not be locked (templateLock).',
+						'description' => 'Path of the block to go inside, from get-post-blocks. Beside a header\'s call button, that is the block holding its core/buttons, such as "0", not core/buttons, which takes only buttons. It must already hold a block, allow the new one and not be locked. Left out, the top level.',
 					],
 					'position'   => [
 						'type'        => 'integer',
 						'minimum'     => -1,
 						'default'     => -1,
-						'description' => 'Index to insert before: among the top-level blocks, or among parent\'s inner blocks when parent is given. -1 appends.',
+						'description' => 'Index to insert before, among the top-level blocks or parent\'s inner blocks: 0 is first, -1 the end.',
 					],
 					'mode'       => [
 						'type'        => 'string',
 						'enum'        => [ 'copy', 'reference' ],
 						'default'     => 'copy',
-						'description' => 'Patterns only. copy inlines the blocks so they can be edited; reference inserts core/pattern, which renders the current pattern.',
+						'description' => 'Patterns only: copy, whose blocks can be edited, or reference, a core/pattern that renders the current pattern.',
 					],
 					'attributes' => [
 						'type'        => 'object',
 						'default'     => [],
-						'description' => 'Blocks only. Attributes, validated against the block\'s block.json.',
+						'description' => 'Blocks only, checked against block.json. Bindings go through bind.',
 					],
 					'copy'       => [
 						'type'                 => 'object',
 						'default'              => [],
 						'additionalProperties' => copy_value_schema(),
-						'description'          => 'Patterns in copy mode only. Text by label: the metadata.name of a block get-catalog lists with copy: true in the pattern\'s blocks, such as {"Heading": "...", "Body": "..."}. Each value is plain text, or {"text": "...", "source": "user"} for text the site owner gave you. It replaces the block\'s text, escaped. get-catalog\'s copy_rules give each label its purpose, min, max, required and claim. Refused, with nothing saved and every refused slot in data.refused: text longer than max once trimmed (too_long; min is guidance only); a plain string for a claim slot (claim), whose text comes from the site owner, as the object form, or from a binding to the Site Data field that holds it; and a label whose text is bound, such as "Click to call" (bound): its text comes from the binding, so change the value in Settings > Site Data instead. The code is voyager_open_blocks_bound_slot when every refused slot is bound, else voyager_open_blocks_copy_rules.',
+						'description'          => 'Text by copy label, matched exactly, case and commas included: a block get-catalog marks copy: true, such as {"Heading": "Need a plumber today?"}. On an FAQ question, a details block, it sets the summary. Plain text, escaped, within the pattern\'s copy_rules, and longer than max is refused (too_long; min is guidance). A claim slot, such as a review or a credential, takes only the object form, with what the site owner gave you (claim). A bound slot, such as "Click to call", takes none: its value is set in Settings > Site Data (bound).',
 					],
-					'omit'       => [
-						'type'        => 'array',
-						'default'     => [],
-						'items'       => [
-							'type'      => 'string',
-							'minLength' => 1,
-						],
-						'description' => 'Patterns in copy mode only. Labels of blocks to leave out, with everything inside them, such as ["Credential 4"] for a proof strip with three facts or ["Hours"] in the contact section. Not the label of the whole pattern. A slot whose copy rule is required, or a block that holds one, is refused (required), unless the block is the slot\'s whole item, such as "Service 3" for "Service 3 heading".',
-					],
-					'repeat'     => [
-						'type'                 => 'object',
-						'default'              => [],
-						'additionalProperties' => [
-							'type'     => 'array',
-							'minItems' => 1,
-							'maxItems' => 10,
-							'items'    => [
-								'type'      => 'string',
-								'minLength' => 1,
-							],
-						],
-						'description'          => 'Patterns in copy mode only. Adds copies of a named block right after it, one per new label, such as {"Credential 4": ["Credential 5", "Credential 6"]} for a proof strip with six facts. A block that holds named blocks repeats when their labels start with its own and a space, such as "Service 3 heading" inside "Service 3": in each copy they start with its new label ("Service 4 heading"). Fill the new labels with copy. Runs before omit and copy. Not for the whole pattern, a block holding any other named block or an HTML anchor, or a label used twice.',
-					],
+					'omit'       => omit_schema( 'Labels of blocks to leave out, with what they hold, such as ["Credential 4"] for three facts. A required slot, or a block holding one, is refused (required) unless the block is its whole item, such as "Service 3".' ),
+					'repeat'     => repeat_schema( 'New labels for copies of a named block, placed right after it, such as {"Credential 4": ["Credential 5", "Credential 6"]} for six facts. Labels inside it that start with its own and a space take the new one: "Service 3 heading" becomes "Service 4 heading". Fill them with copy. Runs before omit and copy.' ),
 					'dry_run'    => dry_run_schema(),
 				],
 				'required'             => [ 'post_id', 'item' ],
@@ -164,7 +143,7 @@ function insert( array $input ) {
 	$attributes = assoc( $input['attributes'] ?? null );
 	$values     = copy_values( $input['copy'] ?? null );
 	$copy       = copy_texts( $values );
-	$omit       = array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), (array) ( $input['omit'] ?? [] ) ) ) );
+	$omit       = omit_input( $input['omit'] ?? null );
 	$repeat     = repeat_input( $input['repeat'] ?? null );
 	$dry_run    = ! empty( $input['dry_run'] );
 	$parent     = null;
@@ -211,33 +190,13 @@ function insert( array $input ) {
 			]
 			: BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) );
 
-		// repeat first, so copy can fill the new labels and omit can drop the original.
-		if ( $repeat ) {
-			$repeated = BlockTree\repeat( $new, $repeat );
-			if ( is_wp_error( $repeated ) ) {
-				return $repeated;
-			}
-		}
-
-		// The copy rules, against the blocks as repeat left them, before omit
-		// drops any. A copy repeat made keeps the rule of the block it copies.
-		// What they refuse is returned with the bound slots below.
-		if ( $values || $omit ) {
-			$rules  = repeated_rules( Patterns\intent_meta( $item )['copy_rules'], $repeat );
-			$broken = copy_rule_refusals( $rules, $values, $omit, BlockTree\describe( $new ) );
-		}
-
-		if ( $omit ) {
-			$omitted = BlockTree\omit( $new, $omit );
-			if ( is_wp_error( $omitted ) ) {
-				return $omitted;
-			}
-		}
-
-		if ( $copy ) {
-			$copied = BlockTree\set_copy( $new, $copy );
-			if ( is_wp_error( $copied ) ) {
-				return $copied;
+		// repeat, the copy rules, omit, then copy: fill_pattern(), which
+		// compose fills each section with too. What the copy rules refuse
+		// is returned with the bound slots below.
+		if ( 'copy' === $mode && ( [] !== $values || [] !== $omit || [] !== $repeat ) ) {
+			$broken = fill_pattern( $new, Patterns\intent_meta( $item )['copy_rules'], $values, $omit, $repeat );
+			if ( is_wp_error( $broken ) ) {
+				return $broken;
 			}
 		}
 	} else {
@@ -335,6 +294,57 @@ function insert( array $input ) {
 		'blocks'     => $rows,
 		'validation' => $report,
 	] + $out + $revision;
+}
+
+/**
+ * Schema for omit, insert's and a compose section's: labels of blocks to leave out.
+ *
+ * @param string $description What it does where it is used.
+ * @return array<string, mixed>
+ */
+function omit_schema( string $description ): array {
+	return [
+		'type'        => 'array',
+		'default'     => [],
+		'items'       => [
+			'type'      => 'string',
+			'minLength' => 1,
+		],
+		'description' => $description,
+	];
+}
+
+/**
+ * Schema for repeat, insert's and a compose section's: label => labels of its copies.
+ *
+ * @param string $description What it does where it is used.
+ * @return array<string, mixed>
+ */
+function repeat_schema( string $description ): array {
+	return [
+		'type'                 => 'object',
+		'default'              => [],
+		'additionalProperties' => [
+			'type'     => 'array',
+			'minItems' => 1,
+			'maxItems' => 10,
+			'items'    => [
+				'type'      => 'string',
+				'minLength' => 1,
+			],
+		],
+		'description'          => $description,
+	];
+}
+
+/**
+ * insert's omit input, or a compose section's, as a list of labels.
+ *
+ * @param mixed $value Input.
+ * @return list<string>
+ */
+function omit_input( mixed $value ): array {
+	return array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), is_array( $value ) ? $value : [] ) ) );
 }
 
 /**

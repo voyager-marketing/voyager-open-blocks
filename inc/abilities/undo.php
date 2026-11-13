@@ -34,7 +34,7 @@ function register_undo(): void {
 		CATEGORY . '/undo',
 		[
 			'label'               => __( 'Undo a Voyager Open save', 'voyager-open-blocks' ),
-			'description'         => __( 'Reverses a save made by insert, compose, configure or bind. Pass the post_id and the revision_id that save returned: undo restores the post\'s content as it was just before that save, with wp_restore_post_revision(). If the post was saved after that save, by a person or another agent, undo is refused, changes nothing and lists those saves; pass force: true to reverse them too. The title and excerpt are not restored. Like every revision restore in WordPress, it also replaces the post meta WordPress keeps in revisions (core\'s footnotes, and meta a plugin registers with revisions_enabled) with that revision\'s copy. Nothing is deleted: the content undo replaces is stored as a revision first, and the revision_id undo returns reverses the undo. Refused when the revision belongs to another post.', 'voyager-open-blocks' ),
+			'description'         => __( 'Reverses a save made by insert, compose, configure or bind: pass post_id and the revision_id that save returned. The content goes back to what it was before that save, but not the title or excerpt, and, as in any WordPress revision restore, so does the post meta WordPress keeps in revisions. When the post was saved after it, by a person or another agent, undo is refused with voyager_open_blocks_undo_conflict, changes nothing and lists those saves in later. Nothing is deleted: the revision_id undo returns reverses the undo.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -43,12 +43,12 @@ function register_undo(): void {
 					'revision_id' => [
 						'type'        => 'integer',
 						'minimum'     => 1,
-						'description' => 'The revision_id that insert, compose, configure or bind returned for the save to reverse.',
+						'description' => 'The revision_id the save returned.',
 					],
 					'force'       => [
 						'type'        => 'boolean',
 						'default'     => false,
-						'description' => 'Reverse the saves made after revision_id as well. Without it, undo is refused when the post was saved after revision_id, and the error lists those saves in later.',
+						'description' => 'Reverse the saves in later too. Only when every one is a save you made: if one is not, someone else edited the page, so stop and tell the user.',
 					],
 				],
 				'required'             => [ 'post_id', 'revision_id' ],

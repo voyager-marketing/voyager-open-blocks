@@ -63,24 +63,16 @@ None. Logos are media, not site data.
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/logo-marquee` is in `patterns.items` and `voyager-open-marquee` is in the `core/group` block's `styles`.
-2. **Author.** Assemble with real media.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. Do not save markup that fails.
+This is route 2, with a shell and Node. On route 1, follow Abilities below instead. Confirm `voyager-open/logo-marquee` is in the Wesper manifest's `patterns.items` and `voyager-open-marquee` is in the `core/group` block's `styles`. Assemble `patterns/intents/logo-marquee.json` with real media, then validate it with Block Runner. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
 This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
 
-- **insert**: `{"post_id": 123, "item": "voyager-open/logo-marquee"}`. Read `get-post-blocks` first to pick `position` among the top-level blocks. The response returns the inserted `markup`, plus each block's `path` and `label` (`metadata.name`).
-- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow heading, the only text in this pattern. Images are not copy, and they have no labels, so `omit` cannot remove one either. Plain text only, escaped on the way in. Add `"dry_run": true` first to check without saving.
+- **insert**: `{"post_id": 123, "item": "voyager-open/logo-marquee"}`.
+- **insert with copy**: `{"post_id": 123, "item": "voyager-open/logo-marquee", "copy": {"Eyebrow": "Trusted by teams across the county"}}` replaces the eyebrow heading, the only text in this pattern. Images are not copy, and they have no labels, so `omit` cannot remove one either.
 - **The logos:** no ability changes an image. `configure` only changes blocks that save no HTML, and `core/image` saves HTML. After the insert, tell the user to replace each placeholder in the editor: select the image, choose Replace, pick the logo from the Media Library, and set its alternative text to the company's name. List which image goes where, and ask the user to delete any placeholder left over. Until then the page shows grey placeholder logos, so say so before you save to a published page.
-- **validate** with `{"post_id": 123}` checks the saved page.
-
-On route 2, also pipe the returned `markup` through `npx block-runner validate --strict --json --context site.context.json`.
-
-`get-catalog` lists this pattern's named blocks before you insert it.
+- Then `validate` the page.
 
 ## Try it
 

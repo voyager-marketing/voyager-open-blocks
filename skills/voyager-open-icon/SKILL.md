@@ -69,32 +69,26 @@ A click-to-call icon:
 
 ## The loop
 
-This is route 2, with a shell and Node. On route 1, follow Abilities below instead.
-
-1. **Read.** `npx wesper collect --wp-path <path> --out site.context.json`. Confirm `voyager-open/icon` is in `blocks.types`, and pick `icon` from its enum.
-2. **Author.** Block Runner cannot assemble a custom block, so write the self-closing comment above with attributes only. Put it inside native blocks that you assemble around it. For a header, edit the header template part's markup and place the icon beside the button. Inside a `core/buttons` block only buttons belong, so put the icon in the row that holds the buttons.
-3. **Validate.** `npx block-runner validate page.html --strict --json --context site.context.json`. With the manifest, Block Runner knows the block is registered and checks everything around it. It does not check the icon's attribute values, so take them from the enum, or run the markup through the `validate` ability, which does.
-4. **Bind.** Only `label` and `linkUrl`, with the args shown in the source's skill.
+This is route 2, with a shell and Node. In the Wesper manifest, confirm `voyager-open/icon` in `blocks.types`, pick `icon` from its enum, and confirm `voyager/site-data` in `bindings.sources`. Block Runner cannot assemble a custom block, so write the self-closing comment above with attributes only, inside native blocks you assemble around it. For a header, edit the header template part's markup and place the icon beside the button. Inside a `core/buttons` block only buttons belong, so put the icon in the row that holds the buttons. Check it with `npx block-runner validate`. It does not check the icon's attribute values, so take them from the enum, or run the markup through the `validate` ability, which does. The steps are in [docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md).
 
 ## Abilities
 
-This is route 1: the `voyager-open-blocks` abilities, over MCP or REST, with no markup to write.
+This is route 1: the abilities, over MCP or REST, with no markup to write.
 
-- **insert**: `{"post_id": 123, "item": "voyager-open/icon", "attributes": {"icon": "phone", "size": 32, "label": "Call us"}}`. The attributes are validated against block.json, so an icon outside the enum is refused. Without `parent`, the icon goes at the top level of the post, at `position`. With `parent`, the path of a group or row, it goes among that block's inner blocks, at `position`.
-- **configure**: `{"post_id": 123, "path": "4", "attributes": {"animation": "pulse", "animationTrigger": "always"}}`. A `null` value resets an attribute. This works because the icon saves no HTML. `configure` refuses blocks that do.
-- **bind**: `{"post_id": 123, "path": "4", "attribute": "linkUrl", "source": "voyager/site-data", "args": {"key": "phone_link"}}`. Only `label` and `linkUrl` are bindable, and args must match a field from `get-catalog` exactly.
-- **get-post-blocks** proves the link: the `linkUrl` binding should read `resolution.status: "resolved"` with a `tel:` link in `value_preview`. `fell_back` with `reason: "empty_value"` means Settings > Site Data > Phone number is empty.
-Paths come from the insert response or `get-post-blocks`.
+- **insert**: `{"post_id": 123, "item": "voyager-open/icon", "attributes": {"icon": "phone", "size": 32, "label": "Call us"}}`. An icon outside the enum is refused. With `parent`, the path of a group or row, it goes among that block's inner blocks, at `position`.
+- **configure**: `{"post_id": 123, "path": "4", "attributes": {"animation": "pulse", "animationTrigger": "always"}}`.
+- **bind**: `{"post_id": 123, "path": "4", "attribute": "linkUrl", "source": "voyager/site-data", "args": {"key": "phone_link"}}`. Only `label` and `linkUrl` are bindable.
+- **get-post-blocks**: the `linkUrl` binding should resolve to a `tel:` link. If it falls back, Settings > Site Data > Phone number is empty.
 
 ### Next to the call button in the header
 
-1. **Find the header.** `find-posts` with `{"post_type": "wp_template_part", "search": "header"}`. Take `id` from the row whose `area` is `header`. If `id` is `null`, the header is still only the theme's file: ask the user to open it in the Site Editor and save it once, then call `find-posts` again.
+1. **Find the header** with `find-posts`: the template part row whose `area` is `header`.
 2. **Find the button.** `get-post-blocks` with `{"post_id": <id>}`. The call button is the `core/button` whose `text` reads like a call ("Call us", a phone number) or whose `url` binding has args `{"key": "phone_link"}`. Say its path is `0/2/1`.
 3. **Pick the parent.** Its parent, `0/2`, is a `core/buttons`, which takes only buttons, so the icon goes beside the buttons block, in the block that holds it: `parent` `"0"`. `position` `2` puts the icon before the buttons, `3` after them.
 4. **Insert.** `{"post_id": <id>, "item": "voyager-open/icon", "parent": "0", "position": 2, "attributes": {"icon": "phone", "size": 24, "label": "Call us"}, "dry_run": true}`, then again without `dry_run`. The response's `blocks[0].path` is the icon's path, here `0/2`. A refusal with `voyager_open_blocks_invalid_parent` says why: the parent does not allow the icon, holds no blocks, or is locked.
-5. **Bind.** `bind` with that path, `"attribute": "linkUrl"`, `"source": "voyager/site-data"` and the `phone_link` args from `get-catalog`.
-6. **Check.** `get-post-blocks` again: the icon's `linkUrl` binding should be `resolved` with a `tel:` link. Then `validate` with `{"post_id": <id>}`.
-7. **Report** the icon's place, the link's status, and that on route 1 the saved HTML was not checked with Block Runner. On route 2, check the response's `section_markup` with it.
+5. **Bind** that path's `linkUrl` to `voyager/site-data` with the `phone_link` args.
+6. **Check** it with `get-post-blocks` and `validate`: the icon's `linkUrl` should resolve to a `tel:` link.
+7. **Report** the icon's place and the link's status. On route 2, check the response's `section_markup` with Block Runner.
 
 ## Try it
 

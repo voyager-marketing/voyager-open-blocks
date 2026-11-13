@@ -29,10 +29,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * A section's layout is null when the file gives null or no layout, its style
  * plain when it gives none, and its copy_guidance empty when it gives none.
+ * Its omit is there only when the file gives one, so get-catalog lists each
+ * section as its file holds it.
  *
  * @param string|null $dir     Recipes directory. Defaults to this plugin's recipes.
  * @param string|null $intents Intents directory, for section_layouts(). Defaults to this plugin's.
- * @return list<array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>}>}>
+ * @return list<array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>, omit?: list<string>}>}>
  */
 function recipes( ?string $dir = null, ?string $intents = null ): array {
 	$dir     = $dir ?? VOYAGER_OPEN_BLOCKS_DIR . '/recipes';
@@ -63,7 +65,7 @@ function recipes( ?string $dir = null, ?string $intents = null ): array {
  *
  * @param string                                                            $file    Path to the file.
  * @param array<string, list<array{layout: string|null, pattern: string}>> $layouts From section_layouts().
- * @return array{title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>}>}|string The recipe, or the reason it is skipped.
+ * @return array{title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>, omit?: list<string>}>}|string The recipe, or the reason it is skipped.
  */
 function read_recipe( string $file, array $layouts ) {
 	if ( 1 !== preg_match( '/^[a-z0-9]+(-[a-z0-9]+)*$/', basename( $file, '.json' ) ) ) {
@@ -102,6 +104,7 @@ function read_recipe( string $file, array $layouts ) {
 		$layout   = $section['layout'] ?? null;
 		$style    = $section['style'] ?? 'plain';
 		$guidance = $section['copy_guidance'] ?? [];
+		$omit     = $section['omit'] ?? null;
 
 		if ( ! is_string( $pattern ) ) {
 			return sprintf( 'sections[%d] has no pattern', $index );
@@ -127,12 +130,19 @@ function read_recipe( string $file, array $layouts ) {
 			$lines[ (string) $slot ] = $line;
 		}
 
+		// omit, when the file gives it: a non-empty list of block labels, as a
+		// compose section's omit takes them. compose holds it to the copy rules.
+		if ( null !== $omit && ( ! is_array( $omit ) || [] === $omit || ! array_is_list( $omit ) || [] !== array_filter( $omit, static fn ( mixed $label ): bool => ! is_string( $label ) || '' === trim( $label ) ) ) ) {
+			return sprintf( 'sections[%d]: omit is not a non-empty list of block labels', $index );
+		}
+
+		/** @var non-empty-list<string>|null $omit */
 		$out[] = [
 			'pattern'       => $pattern,
 			'layout'        => $layout,
 			'style'         => $style,
 			'copy_guidance' => $lines,
-		];
+		] + ( null === $omit ? [] : [ 'omit' => $omit ] );
 	}
 
 	return [
@@ -151,7 +161,7 @@ function read_recipe( string $file, array $layouts ) {
  *
  * @param string|null $dir     Recipes directory. Defaults to this plugin's recipes.
  * @param string|null $intents Intents directory. Defaults to this plugin's.
- * @return list<array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object}>}>
+ * @return list<array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object, omit?: list<string>}>}>
  */
 function recipe_list( ?string $dir = null, ?string $intents = null ): array {
 	return array_map(
@@ -175,7 +185,7 @@ function recipe_list( ?string $dir = null, ?string $intents = null ): array {
  * @param string      $slug    Recipe slug, such as home.
  * @param string|null $dir     Recipes directory. Defaults to this plugin's recipes.
  * @param string|null $intents Intents directory. Defaults to this plugin's.
- * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>}>}|null
+ * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>, omit?: list<string>}>}|null
  */
 function find_recipe( string $slug, ?string $dir = null, ?string $intents = null ): ?array {
 	foreach ( recipes( $dir, $intents ) as $recipe ) {
@@ -199,7 +209,7 @@ function recipe_input_schema(): array {
 	$slugs  = array_column( recipes(), 'slug' );
 	$schema = [
 		'type'        => 'string',
-		'description' => 'The slug of a page recipe get-catalog lists under recipes, such as home, in place of sections. compose builds the recipe\'s sections in order, each in its layout and style, with each pattern\'s own text: stand-ins for the site owner to replace. To write the copy in the same call, pass the recipe\'s sections as sections instead, each with copy written from its copy_guidance. Pass recipe or sections, not both.',
+		'description' => 'A recipe\'s slug from get-catalog, such as home, in place of sections: its sections, less what each omits, with each pattern\'s own stand-in text, for the site owner to replace. To write the copy in the same call, pass its sections as sections instead, each with copy from its copy_guidance and its omit.',
 	];
 
 	if ( [] !== $slugs ) {
@@ -211,13 +221,14 @@ function recipe_input_schema(): array {
 
 /**
  * A recipe's sections as compose's sections input: each section's pattern,
- * layout and style, and no copy.
+ * layout, style and omit, and no copy.
  *
  * They go through sections_input(), the same reading compose gives a list of
- * sections, so a recipe page is built exactly as that list would be.
+ * sections, so a recipe page is built exactly as that list would be, and its
+ * omit is held to the copy rules as a section's omit is.
  *
- * @param array{sections: list<array{pattern: string, layout: string|null, style: string}>} $recipe From recipes().
- * @return list<array{pattern: string, layout: string|null, style: string, copy: array<string, array{text: string, user: bool}>}>
+ * @param array{sections: list<array{pattern: string, layout: string|null, style: string, omit?: list<string>}>} $recipe From recipes().
+ * @return list<array{pattern: string, layout: string|null, style: string, copy: array<string, array{text: string, user: bool}>, omit: list<string>, repeat: array<string, string[]>}>
  */
 function recipe_sections( array $recipe ): array {
 	return sections_input(
@@ -226,6 +237,7 @@ function recipe_sections( array $recipe ): array {
 				'pattern' => $section['pattern'],
 				'layout'  => $section['layout'],
 				'style'   => $section['style'],
+				'omit'    => $section['omit'] ?? [],
 			],
 			$recipe['sections']
 		)
