@@ -102,6 +102,50 @@ function bound_keys( string $source, ?string $dir = null ): array {
 }
 
 /**
+ * What a pattern's intent says beside its blocks: its section and layout
+ * (contract 5 in docs/v2-contracts.md) and its copy rules (contract 3).
+ *
+ * Read from the intent file, as bound_keys() reads the bindings, so it holds
+ * what the pattern ships with. A section with one layout has no `section` or
+ * `layout` key, so both are null. An intent with no copy rules gives none.
+ *
+ * @param string      $pattern Pattern name, such as voyager-open/hero.
+ * @param string|null $dir     Intents directory. Defaults to this plugin's patterns/intents.
+ * @return array{section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>}
+ */
+function intent_meta( string $pattern, ?string $dir = null ): array {
+	$out  = [
+		'section'    => null,
+		'layout'     => null,
+		'copy_rules' => [],
+	];
+	$slug = str_starts_with( $pattern, 'voyager-open/' ) ? substr( $pattern, strlen( 'voyager-open/' ) ) : '';
+
+	// The slug names a file, so it is only ever a plain intent name.
+	if ( 1 !== preg_match( '/^[a-z0-9]+(-[a-z0-9]+)*$/', $slug ) ) {
+		return $out;
+	}
+
+	$file = ( $dir ?? VOYAGER_OPEN_BLOCKS_DIR . '/patterns/intents' ) . '/' . $slug . '.json';
+	$meta = is_readable( $file ) ? json_decode( (string) file_get_contents( $file ), true ) : null;
+
+	if ( ! is_array( $meta ) ) {
+		return $out;
+	}
+
+	$out['section'] = is_string( $meta['section'] ?? null ) ? $meta['section'] : null;
+	$out['layout']  = is_string( $meta['layout'] ?? null ) ? $meta['layout'] : null;
+
+	foreach ( is_array( $meta['copy_rules'] ?? null ) ? $meta['copy_rules'] : [] as $label => $rule ) {
+		if ( is_array( $rule ) ) {
+			$out['copy_rules'][ (string) $label ] = $rule;
+		}
+	}
+
+	return $out;
+}
+
+/**
  * Register the pattern category and every pattern.
  *
  * The category slug stays `voyager-open` so intents and saved content keep
