@@ -18,7 +18,7 @@ Blocks, section patterns and binding sources for business sites, placed by abili
 ## Build a page
 
 1. `voyager-open-blocks/get-catalog`. If it is missing, the plugin is inactive: say so.
-2. `compose` with a `title` and a recipe's `sections`, each with `copy` written from its `copy_guidance`. Try `dry_run` first.
+2. `compose` with a `title` and a recipe's `sections`, each with `copy` written from its `copy_guidance`. A section takes `omit` and `repeat` as `insert` does: omit what you have no facts for. Try `dry_run` first.
 3. `validate` the draft's `post_id`.
 4. Give the user the `preview_url`, and name each key in `empty` and each `placeholder:` left.
 

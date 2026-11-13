@@ -29,10 +29,10 @@
 			"claim": false
 		},
 		"Primary button": {
-			"purpose": "The page's main action, as what happens when it is pressed, such as Get a quote.",
+			"purpose": "The page's main action, as what happens when it is pressed, such as Get a quote. Leave it out on the page it would link to, such as the contact page.",
 			"min": 2,
 			"max": 24,
-			"required": true,
+			"required": false,
 			"claim": false
 		},
 		"Click to call": {

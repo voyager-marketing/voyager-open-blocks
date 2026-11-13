@@ -90,29 +90,8 @@ function register_insert(): void {
 						'additionalProperties' => copy_value_schema(),
 						'description'          => 'Text by copy label, matched exactly, case and commas included: a block get-catalog marks copy: true, such as {"Heading": "Need a plumber today?"}. On an FAQ question, a details block, it sets the summary. Plain text, escaped, within the pattern\'s copy_rules, and longer than max is refused (too_long; min is guidance). A claim slot, such as a review or a credential, takes only the object form, with what the site owner gave you (claim). A bound slot, such as "Click to call", takes none: its value is set in Settings > Site Data (bound).',
 					],
-					'omit'       => [
-						'type'        => 'array',
-						'default'     => [],
-						'items'       => [
-							'type'      => 'string',
-							'minLength' => 1,
-						],
-						'description' => 'Labels of blocks to leave out, with what they hold, such as ["Credential 4"] for three facts. A required slot, or a block holding one, is refused (required) unless the block is its whole item, such as "Service 3".',
-					],
-					'repeat'     => [
-						'type'                 => 'object',
-						'default'              => [],
-						'additionalProperties' => [
-							'type'     => 'array',
-							'minItems' => 1,
-							'maxItems' => 10,
-							'items'    => [
-								'type'      => 'string',
-								'minLength' => 1,
-							],
-						],
-						'description'          => 'New labels for copies of a named block, placed right after it, such as {"Credential 4": ["Credential 5", "Credential 6"]} for six facts. Labels inside it that start with its own and a space take the new one: "Service 3 heading" becomes "Service 4 heading". Fill them with copy. Runs before omit and copy.',
-					],
+					'omit'       => omit_schema( 'Labels of blocks to leave out, with what they hold, such as ["Credential 4"] for three facts. A required slot, or a block holding one, is refused (required) unless the block is its whole item, such as "Service 3".' ),
+					'repeat'     => repeat_schema( 'New labels for copies of a named block, placed right after it, such as {"Credential 4": ["Credential 5", "Credential 6"]} for six facts. Labels inside it that start with its own and a space take the new one: "Service 3 heading" becomes "Service 4 heading". Fill them with copy. Runs before omit and copy.' ),
 					'dry_run'    => dry_run_schema(),
 				],
 				'required'             => [ 'post_id', 'item' ],
@@ -164,7 +143,7 @@ function insert( array $input ) {
 	$attributes = assoc( $input['attributes'] ?? null );
 	$values     = copy_values( $input['copy'] ?? null );
 	$copy       = copy_texts( $values );
-	$omit       = array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), (array) ( $input['omit'] ?? [] ) ) ) );
+	$omit       = omit_input( $input['omit'] ?? null );
 	$repeat     = repeat_input( $input['repeat'] ?? null );
 	$dry_run    = ! empty( $input['dry_run'] );
 	$parent     = null;
@@ -211,33 +190,13 @@ function insert( array $input ) {
 			]
 			: BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) );
 
-		// repeat first, so copy can fill the new labels and omit can drop the original.
-		if ( $repeat ) {
-			$repeated = BlockTree\repeat( $new, $repeat );
-			if ( is_wp_error( $repeated ) ) {
-				return $repeated;
-			}
-		}
-
-		// The copy rules, against the blocks as repeat left them, before omit
-		// drops any. A copy repeat made keeps the rule of the block it copies.
-		// What they refuse is returned with the bound slots below.
-		if ( $values || $omit ) {
-			$rules  = repeated_rules( Patterns\intent_meta( $item )['copy_rules'], $repeat );
-			$broken = copy_rule_refusals( $rules, $values, $omit, BlockTree\describe( $new ) );
-		}
-
-		if ( $omit ) {
-			$omitted = BlockTree\omit( $new, $omit );
-			if ( is_wp_error( $omitted ) ) {
-				return $omitted;
-			}
-		}
-
-		if ( $copy ) {
-			$copied = BlockTree\set_copy( $new, $copy );
-			if ( is_wp_error( $copied ) ) {
-				return $copied;
+		// repeat, the copy rules, omit, then copy: fill_pattern(), which
+		// compose fills each section with too. What the copy rules refuse
+		// is returned with the bound slots below.
+		if ( 'copy' === $mode && ( [] !== $values || [] !== $omit || [] !== $repeat ) ) {
+			$broken = fill_pattern( $new, Patterns\intent_meta( $item )['copy_rules'], $values, $omit, $repeat );
+			if ( is_wp_error( $broken ) ) {
+				return $broken;
 			}
 		}
 	} else {
@@ -335,6 +294,57 @@ function insert( array $input ) {
 		'blocks'     => $rows,
 		'validation' => $report,
 	] + $out + $revision;
+}
+
+/**
+ * Schema for omit, insert's and a compose section's: labels of blocks to leave out.
+ *
+ * @param string $description What it does where it is used.
+ * @return array<string, mixed>
+ */
+function omit_schema( string $description ): array {
+	return [
+		'type'        => 'array',
+		'default'     => [],
+		'items'       => [
+			'type'      => 'string',
+			'minLength' => 1,
+		],
+		'description' => $description,
+	];
+}
+
+/**
+ * Schema for repeat, insert's and a compose section's: label => labels of its copies.
+ *
+ * @param string $description What it does where it is used.
+ * @return array<string, mixed>
+ */
+function repeat_schema( string $description ): array {
+	return [
+		'type'                 => 'object',
+		'default'              => [],
+		'additionalProperties' => [
+			'type'     => 'array',
+			'minItems' => 1,
+			'maxItems' => 10,
+			'items'    => [
+				'type'      => 'string',
+				'minLength' => 1,
+			],
+		],
+		'description'          => $description,
+	];
+}
+
+/**
+ * insert's omit input, or a compose section's, as a list of labels.
+ *
+ * @param mixed $value Input.
+ * @return list<string>
+ */
+function omit_input( mixed $value ): array {
+	return array_values( array_filter( array_map( static fn ( mixed $label ): string => Cast\to_string( $label ), is_array( $value ) ? $value : [] ) ) );
 }
 
 /**

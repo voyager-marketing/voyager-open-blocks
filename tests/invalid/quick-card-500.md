@@ -18,7 +18,7 @@ Blocks, section patterns and binding sources for business sites, placed by abili
 ## Build a page
 
 1. `voyager-open-blocks/get-catalog`. If it is missing, the plugin is inactive: say so.
-2. `compose` with a `title` and a recipe's `sections`, each with `copy` written from its `copy_guidance`. Try `dry_run` first.
+2. `compose` with a `title` and a recipe's `sections`, each with `copy` written from its `copy_guidance`. A section takes `omit` and `repeat` as `insert` does: omit what you have no facts for. Try `dry_run` first.
 3. `validate` the draft's `post_id`.
 4. Give the user the `preview_url`, and name each key in `empty` and each `placeholder:` left.
 
@@ -56,4 +56,4 @@ Each item has a skill, such as `voyager-open-hero`. `examples/` holds a home pag
 
 ## Planted
 
-This copy of the quick card, less its release marker, is planted at exactly 500 words, the first count the budget refuses. npm run check must refuse it, so a rule loosened to 500 words cannot pass it.
+This copy of the card, less its release marker, is exactly 500 words, a count which npm run check must always refuse.

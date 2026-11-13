@@ -7,8 +7,8 @@
  *
  * Each example's sections follow recipes/home.json in order, with its layouts
  * and styles. Its copy fills every slot a copy rule covers, except a bound
- * slot, which takes its text from Site Data. compose has no omit, so a slot
- * left out would show the pattern's own text. copy_rule_refusals(), the check
+ * slot, which takes its text from Site Data, so no slot shows the pattern's
+ * own text and no section needs omit. copy_rule_refusals(), the check
  * compose runs, refuses none of it: a claim slot holds the object form,
  * {"text", "source": "user"}, and no other slot does.
  *

@@ -11,4 +11,4 @@ Read the copy beside the paragraph. A string is copy you write. `{"text": "...",
 
 To try one, pass its `compose` with `"dry_run": true` added. It returns `refused: []` and saves nothing.
 
-`compose` takes no `omit` or `repeat`, so each example fills all four credentials, three service cards and three reviews of five stars, and its stats row shows all three figures. For a business with three credentials, a fourth service, a four-star review or a figure it has not set, leave that section out of `compose` and place it with `insert`, which takes both.
+Each example fills all four credentials, three service cards and three reviews of five stars, and its stats row shows all three figures. A section of `compose` takes `omit` and `repeat` as `insert` does, so for a business with three credentials, a fourth service or a four-star review, give that section `omit` (such as `["Credential 4"]`) or `repeat` (such as `{"Service 3": ["Service 4"]}`, with copy for the new labels).
