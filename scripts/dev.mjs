@@ -94,6 +94,10 @@ const KNOWN = [
  *                                   them into the file.
  * @param {Array}   [options.steps]  More blueprint steps, run after the
  *                                   plugin is active and the demo is seeded.
+ * @param {string}  [options.plugin] The folder to mount as the plugin.
+ *                                   Default this checkout. It needs
+ *                                   playground/ too, which the blueprint
+ *                                   seeds the demo from.
  * @return {Promise<{url: string, playground: Object, stop: () => Promise<void>}>} The running site. Call stop() to shut it down.
  */
 export async function boot( {
@@ -104,6 +108,7 @@ export async function boot( {
 	login = true,
 	consts = {},
 	steps = [],
+	plugin = repo,
 } = {} ) {
 	let cli;
 	try {
@@ -149,7 +154,7 @@ export async function boot( {
 			blueprint,
 			// A host path and a VFS path as an object, so a Windows drive
 			// letter never meets Playground's colon-separated --mount format.
-			mount: [ { hostPath: resolve( repo ), vfsPath: PLUGIN_DIR } ],
+			mount: [ { hostPath: resolve( plugin ), vfsPath: PLUGIN_DIR } ],
 			...( port ? { port: Number( port ) } : {} ),
 			// What the CLI defines by default: notices go to wp-content/debug.log.
 			'define-bool': {

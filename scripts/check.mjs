@@ -4,7 +4,10 @@
  *
  *   npm run check
  *
- * 1. patterns/*.html match their intents (`patterns:build --check`).
+ * 1. patterns/*.html match their intents, and the PHP arrays in
+ *    inc/generated/ match the intents, that markup and assets/icons.json
+ *    (`patterns:build --check`). The same comparison calls each copy in
+ *    tests/invalid/generated/, one value changed in each, stale.
  * 2. tests/fixtures/pack.context.json, the site context that lists the pack's
  *    own blocks, is what every block.json under build/ gives
  *    (scripts/lib/pack-blocks.mjs), and Wesper validates it.
@@ -77,6 +80,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+	existsSync,
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
@@ -84,8 +88,9 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { committedMarkup, generatedFiles, isStale } from './lib/generated.mjs';
 import {
 	PACK_CONTEXT,
 	packBlocks,
@@ -142,6 +147,46 @@ report(
 	'patterns match their intents',
 	build.code === 0,
 	build.code ? build.stderr.trim() : ''
+);
+
+// Gate 1 also compares each PHP array in inc/generated/ with what the
+// intents, patterns/*.html and assets/icons.json give, byte for byte
+// (isStale() in scripts/lib/generated.mjs). Each file in
+// tests/invalid/generated/ is one of them with one value changed, and the
+// same rule must call it stale. Re-running the build on them would take
+// minutes, so the arrays are made here from the committed markup, which the
+// line above has just matched. A missing plant proves nothing and fails the
+// line, and so does a crash.
+const GENERATED_PLANTS = 'tests/invalid/generated';
+let generatedPlants = [ 'the gate crashed before it compared anything' ];
+try {
+	const generated = generatedFiles( root, ( name ) =>
+		committedMarkup( root, name )
+	);
+	generatedPlants = [
+		...generated.problems,
+		...generated.files.map( ( file ) => {
+			const plant = `${ GENERATED_PLANTS }/${ basename( file.path ) }`;
+			if ( ! existsSync( join( root, plant ) ) ) {
+				return `${ plant } is missing`;
+			}
+			return isStale( file.text, join( root, plant ) )
+				? ''
+				: `${ plant } passes as current`;
+		} ),
+	].filter( Boolean );
+	if ( generated.files.length !== 2 ) {
+		generatedPlants.push(
+			`${ generated.files.length } generated files, 2 expected`
+		);
+	}
+} catch ( error ) {
+	generatedPlants = [ `the gate crashed: ${ error?.message || error }` ];
+}
+report(
+	`the generated-array comparison calls each copy in ${ GENERATED_PLANTS }/ stale`,
+	generatedPlants.length === 0,
+	generatedPlants.join( '; ' ) || 'patterns.php and icons.php, each stale'
 );
 
 // Block Runner knows only core's blocks. A site context that lists the pack's
