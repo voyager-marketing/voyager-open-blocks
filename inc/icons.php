@@ -2,8 +2,9 @@
 /**
  * Icon set and animation stylesheets for voyager-open/icon.
  *
- * assets/icons.json is the one source: the editor bundles it, this file reads
- * it for render.php, and block.json carries its keys as the `icon` enum.
+ * assets/icons.json is the one source: the editor bundles it, block.json
+ * carries its keys as the `icon` enum, and `npm run patterns:build` writes its
+ * icons into inc/generated/icons.php, which this file reads for render.php.
  * Heroicons outline set, MIT licensed (assets/LICENSE-heroicons.txt).
  *
  * The block's `style` holds the rules every icon needs. Each animation's
@@ -22,7 +23,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Icon name => SVG path data.
+ * Icon name => SVG path data, from the generated array
+ * (inc/generated/icons.php). OPcache keeps it in memory, so a page with an
+ * icon reads no file.
  *
  * @return array<string, string>
  */
@@ -31,15 +34,9 @@ function all(): array {
 	static $icons = null;
 
 	if ( null === $icons ) {
-		$json  = json_decode( (string) file_get_contents( VOYAGER_OPEN_BLOCKS_DIR . '/assets/icons.json' ), true );
-		$list  = is_array( $json ) ? ( $json['icons'] ?? null ) : null;
-		$icons = [];
-
-		foreach ( is_array( $list ) ? $list : [] as $name => $path ) {
-			if ( is_string( $path ) ) {
-				$icons[ (string) $name ] = $path;
-			}
-		}
+		/** @var array<string, string> $loaded */
+		$loaded = require __DIR__ . '/generated/icons.php';
+		$icons  = $loaded;
 	}
 
 	return $icons;

@@ -7,6 +7,11 @@
  * `npm run patterns:build` assembles from it, validated before it is written.
  * Never edit the .html by hand: edit the intent and rebuild.
  *
+ * The same build writes inc/generated/patterns.php, one PHP array that holds
+ * what each pattern's two files say. A request reads that array, which
+ * OPcache keeps in memory, and no intent or markup file. Only a test that
+ * passes its own intents folder to bound_keys() or intent_meta() reads files.
+ *
  * @package VoyagerOpenBlocks
  */
 
@@ -29,13 +34,28 @@ if ( ! defined( 'ABSPATH' ) ) {
 const ASSETS_TOKEN = '/voyager-open-blocks-assets/';
 
 /**
- * The string entries of an intent field, as a list.
+ * The pack's patterns, as `npm run patterns:build` generates them from the
+ * intents and their markup (inc/generated/patterns.php).
  *
- * @param mixed $value A string or a list of strings from the intent file.
- * @return string[]
+ * Each entry holds the args register() registers, the content with
+ * ASSETS_TOKEN still in it, the section, layout and copy rules intent_meta()
+ * returns, and the keys bound_keys() returns for each binding source. The
+ * file is a plain array, so OPcache keeps it in memory; the static keeps a
+ * request from requiring it twice.
+ *
+ * @return array<string, array{args: array{title: string, description: string, content: string, categories: list<string>, keywords: list<string>, blockTypes: list<string>, viewportWidth: int}, section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>, bindings: array<string, list<string>>}> Pattern name => what its intent and markup say.
  */
-function strings( mixed $value ): array {
-	return array_values( array_filter( (array) $value, 'is_string' ) );
+function generated(): array {
+	/** @var array<string, array{args: array{title: string, description: string, content: string, categories: list<string>, keywords: list<string>, blockTypes: list<string>, viewportWidth: int}, section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>, bindings: array<string, list<string>>}>|null $patterns */
+	static $patterns = null;
+
+	if ( null === $patterns ) {
+		/** @var array<string, array{args: array{title: string, description: string, content: string, categories: list<string>, keywords: list<string>, blockTypes: list<string>, viewportWidth: int}, section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>, bindings: array<string, list<string>>}> $loaded */
+		$loaded   = require __DIR__ . '/generated/patterns.php';
+		$patterns = $loaded;
+	}
+
+	return $patterns;
 }
 
 /**
@@ -68,17 +88,44 @@ function keys_in( mixed $node, string $source ): array {
 }
 
 /**
- * The keys of one source that each pattern binds, read from the intent files.
+ * The keys of one source that each pattern binds, as the intents say.
  *
- * The intents are the source of truth for the shipped patterns, so this works
- * before init and needs no block parser.
+ * The intents are the source of truth for the shipped patterns. The build
+ * reads them into the generated array (generated()), so this works before
+ * init, needs no block parser and reads no file.
  *
  * @param string      $source Binding source name.
- * @param string|null $dir    Intents directory. Defaults to this plugin's patterns/intents.
+ * @param string|null $dir    Intents directory to read instead, for a test. Defaults to the generated array, built from this plugin's patterns/intents.
  * @return array<string, array{title: string, keys: list<string>}> Pattern name => title and keys. Patterns that bind none of the source's keys are left out.
  */
 function bound_keys( string $source, ?string $dir = null ): array {
-	$dir = $dir ?? VOYAGER_OPEN_BLOCKS_DIR . '/patterns/intents';
+	if ( null !== $dir ) {
+		return bound_keys_in( $source, $dir );
+	}
+
+	$out = [];
+
+	foreach ( generated() as $name => $pattern ) {
+		$keys = $pattern['bindings'][ $source ] ?? [];
+		if ( [] !== $keys ) {
+			$out[ $name ] = [
+				'title' => $pattern['args']['title'],
+				'keys'  => $keys,
+			];
+		}
+	}
+
+	return $out;
+}
+
+/**
+ * bound_keys() for a folder of intent files, read from each file.
+ *
+ * @param string $source Binding source name.
+ * @param string $dir    Intents directory.
+ * @return array<string, array{title: string, keys: list<string>}> Pattern name => title and keys.
+ */
+function bound_keys_in( string $source, string $dir ): array {
 	$out = [];
 
 	foreach ( glob( $dir . '/*.json' ) ?: [] as $intent_file ) {
@@ -105,15 +152,37 @@ function bound_keys( string $source, ?string $dir = null ): array {
  * What a pattern's intent says beside its blocks: its section and layout
  * (contract 5 in docs/v2-contracts.md) and its copy rules (contract 3).
  *
- * Read from the intent file, as bound_keys() reads the bindings, so it holds
- * what the pattern ships with. A section with one layout has no `section` or
- * `layout` key, so both are null. An intent with no copy rules gives none.
+ * Read from the generated array, as bound_keys() reads the bindings, so it
+ * holds what the pattern ships with. A section with one layout has no
+ * `section` or `layout` key, so both are null. An intent with no copy rules
+ * gives none, and so does a name the pack does not ship.
  *
  * @param string      $pattern Pattern name, such as voyager-open/hero.
- * @param string|null $dir     Intents directory. Defaults to this plugin's patterns/intents.
+ * @param string|null $dir     Intents directory to read instead, for a test. Defaults to the generated array, built from this plugin's patterns/intents.
  * @return array{section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>}
  */
 function intent_meta( string $pattern, ?string $dir = null ): array {
+	if ( null !== $dir ) {
+		return intent_meta_in( $pattern, $dir );
+	}
+
+	$entry = generated()[ $pattern ] ?? null;
+
+	return [
+		'section'    => $entry['section'] ?? null,
+		'layout'     => $entry['layout'] ?? null,
+		'copy_rules' => $entry['copy_rules'] ?? [],
+	];
+}
+
+/**
+ * intent_meta() for a folder of intent files, read from the pattern's file.
+ *
+ * @param string $pattern Pattern name, such as voyager-open/hero.
+ * @param string $dir     Intents directory.
+ * @return array{section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>}
+ */
+function intent_meta_in( string $pattern, string $dir ): array {
 	$out  = [
 		'section'    => null,
 		'layout'     => null,
@@ -126,7 +195,7 @@ function intent_meta( string $pattern, ?string $dir = null ): array {
 		return $out;
 	}
 
-	$file = ( $dir ?? VOYAGER_OPEN_BLOCKS_DIR . '/patterns/intents' ) . '/' . $slug . '.json';
+	$file = $dir . '/' . $slug . '.json';
 	$meta = is_readable( $file ) ? json_decode( (string) file_get_contents( $file ), true ) : null;
 
 	if ( ! is_array( $meta ) ) {
@@ -151,6 +220,10 @@ function intent_meta( string $pattern, ?string $dir = null ): array {
  * The category slug stays `voyager-open` so intents and saved content keep
  * working. The label says what the sections are for, since that is what a
  * newcomer looks for in the inserter.
+ *
+ * Each pattern's args come from the generated array, in the order glob()
+ * lists the intents, with this plugin's assets/ URL swapped in for
+ * ASSETS_TOKEN.
  */
 function register(): void {
 	register_block_pattern_category(
@@ -163,27 +236,11 @@ function register(): void {
 
 	$assets = plugins_url( 'assets/', VOYAGER_OPEN_BLOCKS_FILE );
 
-	foreach ( glob( VOYAGER_OPEN_BLOCKS_DIR . '/patterns/intents/*.json' ) ?: [] as $intent_file ) {
-		$name   = basename( $intent_file, '.json' );
-		$markup = VOYAGER_OPEN_BLOCKS_DIR . '/patterns/' . $name . '.html';
-		$meta   = json_decode( (string) file_get_contents( $intent_file ), true );
+	foreach ( generated() as $name => $pattern ) {
+		$args            = $pattern['args'];
+		$args['content'] = str_replace( ASSETS_TOKEN, $assets, $args['content'] );
 
-		if ( ! is_array( $meta ) || ! is_readable( $markup ) || empty( $meta['title'] ) ) {
-			continue;
-		}
-
-		register_block_pattern(
-			'voyager-open/' . $name,
-			[
-				'title'         => Cast\to_string( $meta['title'] ),
-				'description'   => Cast\to_string( $meta['description'] ?? '' ),
-				'content'       => str_replace( ASSETS_TOKEN, $assets, (string) file_get_contents( $markup ) ),
-				'categories'    => strings( $meta['categories'] ?? [ 'voyager-open' ] ),
-				'keywords'      => strings( $meta['keywords'] ?? [] ),
-				'blockTypes'    => strings( $meta['blockTypes'] ?? [] ),
-				'viewportWidth' => Cast\to_int( $meta['viewportWidth'] ?? 1280 ),
-			]
-		);
+		register_block_pattern( $name, $args );
 	}
 }
 add_action( 'init', __NAMESPACE__ . '\register' );

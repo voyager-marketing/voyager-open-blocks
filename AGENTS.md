@@ -5,7 +5,7 @@ Using the pack on a site: start at `skills/voyager-open-blocks/SKILL.md`. It giv
 Working on this repo:
 
 - A block is a folder in `src/` with a `block.json`. Run `npm run build` and commit `build/`. Then run `npm run patterns:build`, which rewrites `tests/fixtures/pack.context.json`, the list of the pack's blocks Block Runner is given, and commit that too.
-- A pattern is an intent in `patterns/intents/<name>.json`. Run `npm run patterns:build` and commit the generated `.html`. Never edit the `.html`.
+- A pattern is an intent in `patterns/intents/<name>.json`. Run `npm run patterns:build` and commit what it writes: the `.html`, and `inc/generated/patterns.php`, the PHP array of every pattern that a request reads in place of the intents and markup. Never edit either by hand. The build also writes `inc/generated/icons.php` from `assets/icons.json`, so run it after an icon change too. On a merge conflict in a generated file, take either side and run the build again.
 - An ability is a file in `inc/abilities/`: its registration (`register_<name>()`) and its callbacks. What several abilities use (permission callbacks, input schemas, `check_attributes()`, `validation()`, `locate()`, `finish()`) is in `inc/abilities/shared.php`, and `register()` there sets the order the abilities are registered in. A new ability is a new file, a `require_once` in `inc/abilities.php` and a line in `register()`.
 - Every block and pattern ships a `skills/<name>/SKILL.md`. Update it when its attributes, structure or bindings change.
 - Run `npm run check` before a commit. Run `npm run context` against a local site (README, "Local site") when registration changes.

@@ -23,11 +23,18 @@
  * context, tests/fixtures/pack.context.json, is written here from build/ too,
  * and --check fails while the committed one differs.
  *
+ * Last, it writes the two PHP arrays a request reads in place of the files
+ * (scripts/lib/generated.mjs): inc/generated/patterns.php, from every intent
+ * and its markup, and inc/generated/icons.php, from assets/icons.json. A
+ * pattern that did not assemble keeps its committed markup there, so the
+ * arrays always match patterns/ on disk. --check fails while either differs.
+ *
  *   npm run patterns:build            write every pattern
  *   npm run patterns:build -- --check fail if any written file is stale
  */
 import { execFileSync } from 'node:child_process';
 import {
+	mkdirSync,
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
@@ -36,9 +43,10 @@ import {
 	existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { committedMarkup, generatedFiles, isStale } from './lib/generated.mjs';
 import {
 	PACK_CONTEXT,
 	packBlocks,
@@ -78,6 +86,8 @@ function repeatedLabels( nodes ) {
 
 const scratch = mkdtempSync( join( tmpdir(), 'voyager-open-patterns-' ) );
 let failed = 0;
+// Pattern name => the markup this run assembled for it.
+const fresh = new Map();
 
 // The site context of the pack's blocks, written from build/ so it is never
 // out of date here; --check fails while the committed one is.
@@ -206,6 +216,7 @@ for ( const file of readdirSync( intents )
 		continue;
 	}
 	const markup = `${ restored.markup }\n`;
+	fresh.set( name, markup );
 
 	if ( standIn.placed.length ) {
 		const gate = validateWithPack( name, markup );
@@ -252,4 +263,35 @@ for ( const file of readdirSync( intents )
 }
 
 rmSync( scratch, { recursive: true, force: true } );
+
+const generated = generatedFiles(
+	root,
+	( name ) => fresh.get( name ) ?? committedMarkup( root, name )
+);
+for ( const problem of generated.problems ) {
+	failed++;
+	console.error( `x ${ problem }` );
+}
+if ( generated.problems.length ) {
+	console.error(
+		'x inc/generated/ is left as it is until the problems above are fixed'
+	);
+} else {
+	for ( const file of generated.files ) {
+		const target = join( root, file.path );
+		if ( ! isStale( file.text, target ) ) {
+			console.log( `ok ${ file.path } (${ file.count }, current)` );
+		} else if ( check ) {
+			failed++;
+			console.error(
+				`x ${ file.path } is stale: it is not what the sources give, run npm run patterns:build`
+			);
+		} else {
+			mkdirSync( dirname( target ), { recursive: true } );
+			writeFileSync( target, file.text );
+			console.log( `ok ${ file.path } (${ file.count }, written)` );
+		}
+	}
+}
+
 process.exit( failed ? 1 : 0 );
