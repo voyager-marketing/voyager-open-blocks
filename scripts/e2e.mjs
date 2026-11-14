@@ -216,6 +216,16 @@
  *      places. As insert saves them, the list layout validates with no
  *      warning and the split layout with one placeholder warning, for its
  *      image. Then it deletes the pages and puts the service area back.
+ *  18. validate on a bound list still showing its stand-ins: with the
+ *      credentials and the service area emptied through POST
+ *      /wp/v2/settings, validate on a saved draft holding the service area
+ *      section warns placeholder: on its facts block, naming "Places" and
+ *      service_area, and on a saved draft holding the proof strip's facts
+ *      layout and both service area layouts it warns once per facts block,
+ *      naming each block's label and field. With both fields filled, neither
+ *      draft gets that warning, and the split layout's image placeholder is
+ *      the one placeholder: warning left. Then it deletes the drafts and puts
+ *      both fields back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -6731,6 +6741,153 @@ for ( const id of areaPages.filter( Boolean ) ) {
 }
 if ( typeof originalServiceArea === 'string' ) {
 	await setServiceArea( originalServiceArea );
+}
+await api( recorder, { method: 'DELETE' } );
+
+// 18. validate on a bound list still showing its stand-ins. While its Site
+// Data field is empty, a facts block's binding falls back to the block's own
+// items, so visitors see the pattern's "Your first town" as the business's
+// towns. validate on a saved page resolves each facts block's binding and
+// warns placeholder: when it falls back to the items the pattern ships.
+const listSettingsBefore = ( await api( '/wp/v2/settings' ) ).data;
+const setLists = ( credentials, serviceArea ) =>
+	api( '/wp/v2/settings', {
+		method: 'POST',
+		body: {
+			voyager_site_credentials: credentials,
+			voyager_site_service_area: serviceArea,
+		},
+	} );
+const listPages = [];
+
+/**
+ * A draft holding patterns placed one after another with insert.
+ *
+ * @param {string}   title A word for its title.
+ * @param {string[]} items Pattern names.
+ * @return {Promise<{id: number, saved: boolean}>} The draft's id, and whether every insert saved.
+ */
+async function listDraft( title, items ) {
+	const draft = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: { title: `E2E ${ title } ${ stamp }`, status: 'draft' },
+	} );
+	listPages.push( draft.data.id );
+	let allSaved = draft.status === 201;
+	for ( const item of items ) {
+		const placed = await run( `${ ns }/insert`, {
+			post_id: draft.data.id,
+			item,
+		} );
+		allSaved = allSaved && placed.data.saved === true;
+	}
+	return { id: draft.data.id, saved: allSaved };
+}
+
+/**
+ * validate's warnings on a saved post about a facts block's stand-in items.
+ *
+ * @param {Object} report A validate report.
+ * @return {string[]} Its placeholder: warnings on voyager-open/facts.
+ */
+const listWarnings = ( report ) =>
+	codedWarnings( report, 'placeholder' ).filter( ( w ) =>
+		w.startsWith( 'placeholder: voyager-open/facts ' )
+	);
+
+const listArea = await listDraft( 'service area stand-ins', [
+	'voyager-open/service-area',
+] );
+const listAll = await listDraft( 'bound list stand-ins', [
+	'voyager-open/proof-strip-facts',
+	'voyager-open/service-area',
+	'voyager-open/service-area-split',
+] );
+const listEmptied = await setLists( '', '' );
+
+const listAreaEmpty = await checkMarkup( { post_id: listArea.id } );
+const listAreaFound = listWarnings( listAreaEmpty );
+step(
+	'fitness: with service_area empty, validate on a saved voyager-open/service-area section warns placeholder: on its facts block, naming "Places" and the field to fill',
+	listArea.saved &&
+		listEmptied.status === 200 &&
+		clean( listAreaEmpty ) &&
+		listAreaFound.length === 1 &&
+		listAreaFound[ 0 ].includes( 'voyager-open/facts "Places" at ' ) &&
+		listAreaFound[ 0 ].includes( '(service_area) is empty' ),
+	warningSummary( listAreaEmpty )
+);
+
+const listAllEmpty = await checkMarkup( { post_id: listAll.id } );
+const listAllFound = listWarnings( listAllEmpty );
+for ( const warning of listAllFound ) {
+	console.log( `     ${ warning }` );
+}
+step(
+	"with the credentials and the service area empty, validate on a saved page holding the proof strip's facts layout and both service area layouts warns placeholder: once per facts block, naming its label and field",
+	listAll.saved &&
+		clean( listAllEmpty ) &&
+		listAllFound.length === 3 &&
+		listAllFound.filter(
+			( w ) =>
+				w.includes( '"Credentials" at ' ) &&
+				w.includes( '(credentials) is empty' )
+		).length === 1 &&
+		listAllFound.filter(
+			( w ) =>
+				w.includes( '"Places" at ' ) &&
+				w.includes( '(service_area) is empty' )
+		).length === 2,
+	warningSummary( listAllEmpty )
+);
+
+const listFilled = await setLists(
+	'Licensed in three states\r\nFamily owned',
+	'Springfield\r\nRiverside'
+);
+const listAreaFilled = await checkMarkup( { post_id: listArea.id } );
+const listAllFilled = await checkMarkup( { post_id: listAll.id } );
+const listAllLeft = codedWarnings( listAllFilled, 'placeholder' );
+step(
+	"with both fields filled, validate warns on neither page's facts blocks, and the split layout's image is the one placeholder: left",
+	listFilled.status === 200 &&
+		clean( listAreaFilled ) &&
+		clean( listAllFilled ) &&
+		( listAreaFilled.data.warnings || [] ).length === 0 &&
+		listWarnings( listAllFilled ).length === 0 &&
+		listAllLeft.length === 1 &&
+		listAllLeft[ 0 ].includes( 'placeholders/image-4x3.svg' ),
+	`${ warningSummary( listAreaFilled ) }; ${ warningSummary(
+		listAllFilled
+	) }`
+);
+
+for ( const id of listPages.filter( Boolean ) ) {
+	await api( `/wp/v2/pages/${ id }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+if (
+	typeof listSettingsBefore.voyager_site_credentials === 'string' &&
+	typeof listSettingsBefore.voyager_site_service_area === 'string'
+) {
+	const listBack = await setLists(
+		listSettingsBefore.voyager_site_credentials,
+		listSettingsBefore.voyager_site_service_area
+	);
+	const listNow = ( await api( '/wp/v2/settings' ) ).data;
+	step(
+		'the credentials and the service area are put back as they were',
+		listBack.status === 200 &&
+			listNow.voyager_site_credentials ===
+				listSettingsBefore.voyager_site_credentials &&
+			listNow.voyager_site_service_area ===
+				listSettingsBefore.voyager_site_service_area,
+		`${ listNow.voyager_site_credentials?.split( /\r\n|\r|\n/ ).length } and ${
+			listNow.voyager_site_service_area?.split( /\r\n|\r|\n/ ).length
+		} lines`
+	);
 }
 await api( recorder, { method: 'DELETE' } );
 
