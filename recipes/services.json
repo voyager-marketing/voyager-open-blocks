@@ -27,7 +27,7 @@
 		},
 		{
 			"pattern": "voyager-open/cta-band",
-			"layout": null,
+			"layout": "cover",
 			"style": "accent",
 			"copy_guidance": {
 				"Heading": "A question for a visitor who does not see their job listed, such as Not sure which you need?",

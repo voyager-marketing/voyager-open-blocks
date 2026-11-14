@@ -1,0 +1,162 @@
+{
+	"title": "CTA band over a background",
+	"section": "cta-band",
+	"layout": "cover",
+	"description": "A full-width band over a background image: eyebrow, heading and one line of copy beside a primary button and a click-to-call button bound to voyager/site-data, on a cover over a 16:9 image slot.",
+	"categories": [ "voyager-open", "call-to-action" ],
+	"keywords": [ "cta", "call to action", "band", "cover", "background", "image", "phone", "contact" ],
+	"viewportWidth": 1280,
+	"copy_rules": {
+		"Eyebrow": {
+			"purpose": "A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already.",
+			"min": 2,
+			"max": 40,
+			"required": false,
+			"claim": false
+		},
+		"Heading": {
+			"purpose": "The band's h2: one short question or invitation that asks the reader to act.",
+			"min": 10,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short.",
+			"min": 20,
+			"max": 100,
+			"required": true,
+			"claim": false
+		},
+		"Primary button": {
+			"purpose": "The band's main action, as what happens when it is pressed, such as Get a quote.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		},
+		"Click to call": {
+			"purpose": "Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": { "name": "CTA band" },
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							}
+						}
+					},
+					"layout": { "type": "constrained" }
+				},
+				"children": [
+					{
+						"block": "core/cover",
+						"url": "/voyager-open-blocks-assets/placeholders/image-16x9.svg",
+						"alt": "",
+						"attrs": {
+							"align": "wide",
+							"dimRatio": 90,
+							"overlayColor": "contrast",
+							"isUserOverlayColor": true,
+							"focalPoint": { "x": 0.5, "y": 0.5 },
+							"textColor": "base",
+							"metadata": { "name": "Background" },
+							"style": {
+								"spacing": {
+									"padding": {
+										"top": "var:preset|spacing|60",
+										"bottom": "var:preset|spacing|60",
+										"left": "var:preset|spacing|50",
+										"right": "var:preset|spacing|50"
+									}
+								}
+							},
+							"layout": { "type": "constrained" }
+						},
+						"children": [
+							{
+								"block": "core/group",
+								"attrs": {
+									"align": "wide",
+									"metadata": { "name": "Row" },
+									"style": { "spacing": { "blockGap": "var:preset|spacing|40" } },
+									"layout": { "type": "flex", "flexWrap": "wrap", "justifyContent": "space-between", "verticalAlignment": "center" }
+								},
+								"children": [
+									{
+										"block": "core/group",
+										"attrs": { "metadata": { "name": "Text" }, "layout": { "type": "default" } },
+										"children": [
+											{
+												"block": "core/paragraph",
+												"text": "Next step",
+												"attrs": {
+													"metadata": { "name": "Eyebrow" },
+													"fontSize": "small",
+													"style": { "typography": { "textTransform": "uppercase", "letterSpacing": "0.08em" } }
+												}
+											},
+											{
+												"block": "core/heading",
+												"level": 2,
+												"text": "Ready to get started?",
+												"attrs": { "metadata": { "name": "Heading" }, "textColor": "base" }
+											},
+											{
+												"block": "core/paragraph",
+												"text": "Tell us what you need and we will get back to you with a plan and a price.",
+												"attrs": { "metadata": { "name": "Body" } }
+											}
+										]
+									},
+									{
+										"block": "core/buttons",
+										"children": [
+											{
+												"block": "core/button",
+												"text": "Contact us",
+												"url": "/contact/",
+												"attrs": { "backgroundColor": "base", "textColor": "contrast", "metadata": { "name": "Primary button" } }
+											},
+											{
+												"block": "core/button",
+												"text": "Call us",
+												"url": "/contact/",
+												"attrs": {
+													"className": "is-style-outline",
+													"textColor": "base",
+													"metadata": {
+														"name": "Click to call",
+														"bindings": {
+															"text": { "source": "voyager/site-data", "args": { "key": "phone" } },
+															"url": { "source": "voyager/site-data", "args": { "key": "phone_link" } }
+														}
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

@@ -2,7 +2,7 @@
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
 		"title": "Closing CTA pattern",
-		"description": "voyager-open/closing-cta with an email button bound to site data.",
+		"description": "The closing CTA in its two layouts: voyager-open/closing-cta, centred, and voyager-open/closing-cta-split, beside an image, each with an email button bound to site data.",
 		"author": "voyager-marketing",
 		"categories": [
 			"Blocks"

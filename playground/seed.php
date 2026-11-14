@@ -88,11 +88,13 @@ $voyager_open_seed = static function (): void {
 		'faq'             => [ 'FAQ', '<!-- wp:pattern {"slug":"voyager-open/faq"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/faq-split"} /-->' ],
 		// The service area in both layouts: a list, then beside an image. Both show the Site Data service area.
 		'service-area'    => [ 'Service area', '<!-- wp:pattern {"slug":"voyager-open/service-area"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/service-area-split"} /-->' ],
-		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' ],
+		// The CTA band in both layouts: on the section's background, then over a background image.
+		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/cta-band-cover"} /-->' ],
 		// The proof strip in both layouts: credentials typed in, then the Credentials from Site Data.
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/proof-strip-facts"} /-->' ],
 		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
-		'closing-cta'     => [ 'Closing CTA', '<!-- wp:pattern {"slug":"voyager-open/closing-cta"} /-->' ],
+		// The closing CTA in both layouts: centred, then beside an image.
+		'closing-cta'     => [ 'Closing CTA', '<!-- wp:pattern {"slug":"voyager-open/closing-cta"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/closing-cta-split"} /-->' ],
 		'contact-section' => [ 'Contact section', '<!-- wp:pattern {"slug":"voyager-open/contact-section"} /-->' ],
 		'icon'            => [
 			'Icon',

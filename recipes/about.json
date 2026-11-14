@@ -58,7 +58,7 @@
 		},
 		{
 			"pattern": "voyager-open/closing-cta",
-			"layout": null,
+			"layout": "split",
 			"style": "accent",
 			"copy_guidance": {
 				"Heading": "One short sentence that invites the visitor to get in touch.",
