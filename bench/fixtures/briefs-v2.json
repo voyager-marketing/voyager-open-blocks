@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "note": "Known-answer fixture for bench/score.mjs. Invented business; 555-01xx phone; example.com email.",
+  "briefs": [
+    {
+      "id": "quillmere-plumbing",
+      "split": "derive",
+      "vertical": "home services",
+      "business": "Quillmere Plumbing",
+      "industry": "plumbing",
+      "phone": "(555) 555-0120",
+      "new_phone": "(555) 555-0170",
+      "email": "hello@quillmere-plumbing.example.com",
+      "address": "41 Tannery Lane",
+      "address_city": "Quillmere",
+      "address_state": "VA",
+      "address_zip": "24811",
+      "hours": "Monday to Saturday, 7am to 6pm",
+      "credentials": [
+        "Licensed master plumber on every job",
+        "Upfront flat-rate pricing",
+        "Same-day repairs"
+      ],
+      "founded": "2004",
+      "rating": "4.8",
+      "review_count": "212",
+      "services": [ "Drain cleaning", "Water heater repair", "Leak detection" ],
+      "service_area": [ "Quillmere", "Ashby Fold", "Linden Marrow" ],
+      "primary_cta": { "label": "Book a plumber", "url": "/contact/" }
+    }
+  ]
+}
