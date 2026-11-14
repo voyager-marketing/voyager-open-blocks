@@ -1,12 +1,17 @@
 <?php
 /**
  * Plugin Name: Bench site tools
- * Description: The page and business-details abilities both benchmark arms get through the MCP Adapter. Installed as an mu-plugin by bench/run.mjs; never part of the pack.
+ * Description: The page and business-details abilities every benchmark group gets through the MCP Adapter. Installed as an mu-plugin by bench/run.mjs; never part of the pack.
  *
  * WordPress core and the MCP Adapter register no ability that creates or
- * edits a page, so neither arm could build anything through MCP alone. These
- * six are the same in both arms. They take and return raw block markup and
- * plain option values, and check nothing, so they give neither arm an edge.
+ * edits a page, so no group could build anything through MCP alone. These
+ * six are the same in every group. They take and return raw block markup and
+ * plain option values, and check nothing, so they give no group an edge.
+ *
+ * The business details are the Site Data options: the contact details and,
+ * since version 2 of the benchmark, the business profile too (services,
+ * service area, credentials, year founded, licence, rating, review count and
+ * the main call to action). A list holds one item per line.
  *
  * @package VoyagerOpenBlocks
  */
@@ -36,6 +41,15 @@ function details(): array {
 		'address_state' => 'voyager_site_address_state',
 		'address_zip'   => 'voyager_site_address_zip',
 		'hours'         => 'voyager_site_hours',
+		'services'      => 'voyager_site_services',
+		'service_area'  => 'voyager_site_service_area',
+		'credentials'   => 'voyager_site_credentials',
+		'founded'       => 'voyager_site_founded',
+		'license'       => 'voyager_site_license',
+		'rating'        => 'voyager_site_rating',
+		'review_count'  => 'voyager_site_review_count',
+		'cta_label'     => 'voyager_site_cta_label',
+		'cta_url'       => 'voyager_site_cta_url',
 	];
 }
 
@@ -265,7 +279,7 @@ add_action(
 			'site/get-business-details',
 			[
 				'label'               => 'Get the business details',
-				'description'         => 'Returns the site\'s business details: name, phone, email, address and hours.',
+				'description'         => 'Returns the site\'s business details: name, phone, email, address and hours, and its business profile: services, service area and credentials (one per line), year founded, licence, rating, review count and main call to action.',
 				'category'            => 'site',
 				'input_schema'        => [
 					'type'                 => 'object',

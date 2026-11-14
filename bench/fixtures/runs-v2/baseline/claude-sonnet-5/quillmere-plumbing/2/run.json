@@ -1,0 +1,20 @@
+{
+  "protocol": 2,
+  "group": "baseline",
+  "model": "claude-sonnet-5",
+  "brief": "quillmere-plumbing",
+  "repeat": 2,
+  "failure": null,
+  "cache": {
+    "probe": {
+      "from_cache": true
+    },
+    "build": {
+      "from_cache": true
+    },
+    "edit": {
+      "from_cache": true,
+      "stale": false
+    }
+  }
+}
