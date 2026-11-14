@@ -221,6 +221,15 @@
  *      draft gets that warning, and the split layout's image placeholder is
  *      the one placeholder: warning left. Then it deletes the drafts and puts
  *      both fields back.
+ *  19. audit: its route answers beside validate's, and on a saved draft of
+ *      tests/fixtures/audit/planted.html, with the hours emptied, it returns
+ *      each of its seven codes exactly once, at the block planted for it,
+ *      and the same result twice, with the page's revisions and modified
+ *      time unchanged, while a REST save of the page changes both. A home
+ *      page compose builds from the home recipe, every copy slot get-catalog
+ *      lists given text and every field it binds filled, with its hero image
+ *      swapped for the site's own, gets no finding. Then it deletes the pages
+ *      and puts Site Data back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -427,9 +436,10 @@ const names = ( Array.isArray( list.data ) ? list.data : [] )
 	.sort();
 step(
 	'abilities listed',
-	names.length === 10 &&
+	names.length === 11 &&
 		names.includes( `${ ns }/compose` ) &&
 		names.includes( `${ ns }/validate` ) &&
+		names.includes( `${ ns }/audit` ) &&
 		names.includes( `${ ns }/find-posts` ) &&
 		names.includes( `${ ns }/undo` ) &&
 		names.includes( `${ ns }/prompt` ),
@@ -457,7 +467,7 @@ console.log( `     the quick card (${ ENTRY_SKILL }): ${ reading.card }` );
 step(
 	`reading budget: ${ reading.total } words, under ${ READING_LIMIT }`,
 	reading.fits &&
-		reading.parts.length === 10 &&
+		reading.parts.length === 11 &&
 		reading.parts.every( ( part ) => part.description > 0 ) &&
 		reading.card > 0,
 	`${ reading.parts.length } abilities and the card`
@@ -6752,6 +6762,367 @@ if (
 	);
 }
 await api( recorder, { method: 'DELETE' } );
+
+// 19. audit: one read of a saved page that lists what to fix before it goes
+// live. tests/fixtures/audit/planted.html plants one problem for each of the
+// seven codes, and audit on the saved fixture must find each exactly once,
+// at its block, and save nothing: the page keeps its revisions and its
+// modified time, which a REST save of the same page is then shown to change.
+// A home page compose builds from the home recipe, every copy slot given
+// text and every field it binds filled, holds nothing to fix once its hero
+// shows the site's own image. Then it deletes the pages and puts Site Data
+// back.
+{
+	const auditAbility = `${ ns }/audit`;
+	const auditCodes = [
+		'typed_contact',
+		'default_copy',
+		'placeholder',
+		'missing_alt',
+		'stale_fallback',
+		'contrast',
+		'empty_field',
+	];
+	const auditPages = [];
+	const auditOptions = [
+		'voyager_site_phone',
+		'voyager_site_email',
+		'voyager_site_hours',
+		'voyager_site_services',
+		'voyager_site_service_area',
+		'voyager_site_credentials',
+		'voyager_site_founded',
+		'voyager_site_rating',
+		'voyager_site_review_count',
+		'voyager_site_cta_label',
+		'voyager_site_cta_url',
+	];
+	const auditBefore = ( await api( '/wp/v2/settings' ) ).data;
+	const setAuditData = ( values ) =>
+		api( '/wp/v2/settings', { method: 'POST', body: values } );
+	const auditSummary = ( response ) =>
+		response.data.code
+			? `${ response.status } ${ response.data.code }: ${ response.data.message }`
+			: `${ response.status }, ${
+					( response.data.findings || [] )
+						.map( ( f ) => `${ f.code } at ${ f.path }` )
+						.join( '; ' ) || 'no findings'
+				}`;
+	const pageState = async ( id ) => {
+		const revisions = await api( `/wp/v2/pages/${ id }/revisions`, {
+			query: { per_page: 100 },
+		} );
+		const post = await api( `/wp/v2/pages/${ id }`, {
+			query: { context: 'edit' },
+		} );
+		return {
+			revisions: Array.isArray( revisions.data )
+				? revisions.data.length
+				: null,
+			modified: post.data.modified_gmt ?? null,
+			content: post.data.content?.raw ?? null,
+		};
+	};
+	// modified_gmt counts whole seconds, so a write in the second a page was
+	// saved would not move it. Each probe waits past that second first.
+	const nextSecond = () =>
+		new Promise( ( resolve ) => setTimeout( resolve, 1100 ) );
+
+	const auditRoute = await run( auditAbility, { post_id: postId }, true );
+	const validateRoute = await checkMarkup( { post_id: postId } );
+	step(
+		"fitness: the audit route answers 200 beside validate's, where main has no audit ability and answers 404",
+		auditRoute.status === 200 &&
+			validateRoute.status === 200 &&
+			auditRoute.data.post_id === postId &&
+			Array.isArray( auditRoute.data.findings ),
+		`audit ${ auditRoute.status }, validate ${ validateRoute.status }`
+	);
+
+	// One problem per code. The phone in Site Data is not the one typed in
+	// the first paragraph, so it is found by its shape; the hours are empty,
+	// so the paragraph bound to them shows its own text.
+	const plantedSet = await setAuditData( {
+		voyager_site_phone: '(555) 555-0100',
+		voyager_site_hours: '',
+	} );
+	const planted = readFileSync(
+		join( repo, 'tests', 'fixtures', 'audit', 'planted.html' ),
+		'utf8'
+	);
+	validate( 'tests/fixtures/audit/planted.html', planted );
+	const plantedPage = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: {
+			title: `E2E audit planted ${ stamp }`,
+			status: 'draft',
+			content: planted,
+		},
+	} );
+	auditPages.push( plantedPage.data.id );
+	const plantedId = plantedPage.data.id;
+	// One update, so the page has a revision for the probe to count.
+	await api( `/wp/v2/pages/${ plantedId }`, {
+		method: 'POST',
+		body: { title: `E2E audit planted ${ stamp } (saved)` },
+	} );
+	await nextSecond();
+	const plantedBefore = await pageState( plantedId );
+	const audited = await run( auditAbility, { post_id: plantedId }, true );
+	const auditedAgain = await run(
+		auditAbility,
+		{ post_id: plantedId },
+		true
+	);
+	await nextSecond();
+	const plantedAfter = await pageState( plantedId );
+	const plantedFindings = audited.data.findings || [];
+	const plantedCounts = audited.data.counts || {};
+	for ( const finding of plantedFindings ) {
+		console.log(
+			`     ${ finding.code } ${ finding.block } at ${ finding.path }: ${ finding.message }`
+		);
+	}
+	const expectedAt = {
+		typed_contact: '0',
+		default_copy: '1',
+		placeholder: '2',
+		missing_alt: '3',
+		contrast: '4',
+		empty_field: '5',
+		stale_fallback: '6',
+	};
+	step(
+		'fitness: audit finds every planted problem, each of the seven codes exactly once on the saved tests/fixtures/audit/planted.html, at its block',
+		plantedSet.status === 200 &&
+			plantedPage.status === 201 &&
+			plantedBefore.content?.trim() === planted.trim() &&
+			audited.status === 200 &&
+			plantedFindings.length === 7 &&
+			Object.keys( plantedCounts ).sort().join() ===
+				[ ...auditCodes ].sort().join() &&
+			auditCodes.every(
+				( code ) =>
+					plantedCounts[ code ] === 1 &&
+					plantedFindings.filter(
+						( f ) =>
+							f.code === code && f.path === expectedAt[ code ]
+					).length === 1
+			),
+		auditSummary( audited )
+	);
+	step(
+		'audit names the Site Data key to bind, the field to fill, and the fix, in each message',
+		plantedFindings.some(
+			( f ) =>
+				f.code === 'typed_contact' &&
+				f.block === 'core/paragraph' &&
+				f.message.includes( 'holds a phone number, typed in' ) &&
+				f.message.includes( '"phone"' )
+		) &&
+			plantedFindings.some(
+				( f ) =>
+					f.code === 'default_copy' &&
+					f.message.includes(
+						'"Heading" at 1 still holds "Say what you do and who it is for"'
+					)
+			) &&
+			plantedFindings.some(
+				( f ) =>
+					f.code === 'contrast' &&
+					f.message.includes( '#ffffff on #f5f5f5' ) &&
+					f.message.includes( 'under the 4.5:1' )
+			) &&
+			plantedFindings.some(
+				( f ) =>
+					f.code === 'empty_field' &&
+					f.message.includes( '(hours) is empty' )
+			),
+		`${ plantedFindings.length } findings`
+	);
+	step(
+		'audit saves nothing: the planted page has as many revisions and the same modified time after two calls, and the second call returns what the first did',
+		plantedBefore.revisions !== null &&
+			plantedBefore.revisions > 0 &&
+			plantedBefore.revisions === plantedAfter.revisions &&
+			plantedBefore.modified !== null &&
+			plantedBefore.modified === plantedAfter.modified &&
+			plantedBefore.content === plantedAfter.content &&
+			JSON.stringify( auditedAgain.data ) ===
+				JSON.stringify( audited.data ),
+		`revisions ${ plantedBefore.revisions } then ${ plantedAfter.revisions }, modified ${ plantedBefore.modified } then ${ plantedAfter.modified }`
+	);
+	// The control: the same probe sees a save.
+	await api( `/wp/v2/pages/${ plantedId }`, {
+		method: 'POST',
+		body: {
+			content: `${ planted }\n\n<!-- wp:paragraph -->\n<p>Saved.</p>\n<!-- /wp:paragraph -->`,
+		},
+	} );
+	const plantedSaved = await pageState( plantedId );
+	step(
+		'the probe sees a write: a REST save of the same page adds a revision and moves its modified time',
+		plantedSaved.revisions > plantedAfter.revisions &&
+			plantedSaved.modified !== plantedAfter.modified,
+		`revisions ${ plantedAfter.revisions } then ${ plantedSaved.revisions }, modified ${ plantedAfter.modified } then ${ plantedSaved.modified }`
+	);
+
+	// The home page, filled: every field the recipe's sections bind, and every
+	// copy slot get-catalog lists on them, a claim as the site owner's text.
+	const homeSet = await setAuditData( {
+		voyager_site_phone: '(555) 555-0100',
+		voyager_site_email: 'hello@example.com',
+		voyager_site_hours: 'Monday to Friday, 8am to 6pm',
+		voyager_site_services:
+			'Drain cleaning\nWater heater repair\nLeak detection',
+		voyager_site_service_area: 'Springfield\nRiverside\nFairview',
+		voyager_site_credentials:
+			'Licensed and insured\nFamily owned since 1998',
+		voyager_site_founded: '1998',
+		voyager_site_rating: '4.8',
+		voyager_site_review_count: '127',
+		voyager_site_cta_label: 'Book a visit',
+		voyager_site_cta_url: 'https://example.com/contact/',
+	} );
+	const homeRecipe = JSON.parse(
+		readFileSync( join( repo, 'recipes', 'home.json' ), 'utf8' )
+	);
+	const textAttribute = {
+		'core/heading': 'content',
+		'core/paragraph': 'content',
+		'core/list-item': 'content',
+		'core/button': 'text',
+		'core/details': 'summary',
+	};
+	const patternFor = ( section ) =>
+		( catalog.data.patterns || [] ).find( ( p ) =>
+			section.layout === null || section.layout === undefined
+				? p.name === section.pattern
+				: `voyager-open/${ p.section }` === section.pattern &&
+					p.layout === section.layout
+		);
+	const unfilled = [];
+	const homeSections = homeRecipe.sections.map( ( section ) => {
+		const pattern = patternFor( section );
+		const omit = section.omit || [];
+		const copy = {};
+		if ( ! pattern ) {
+			unfilled.push( section.pattern );
+		}
+		const blocks = pattern?.blocks || [];
+		const labels = [
+			...new Set(
+				blocks
+					.filter( ( b ) => b.copy && b.label )
+					.map( ( b ) => b.label )
+			),
+		];
+		for ( const label of labels ) {
+			const left = omit.some(
+				( o ) => label === o || label.startsWith( `${ o } ` )
+			);
+			const boundSlot = blocks.some(
+				( b ) =>
+					b.label === label &&
+					b.bindings?.[ textAttribute[ b.block ] ]
+			);
+			if ( left || boundSlot ) {
+				continue;
+			}
+			const rule = pattern.copy_rules?.[ label ] || {};
+			const text = `Our own ${ label.toLowerCase() }`.slice(
+				0,
+				rule.max || 80
+			);
+			copy[ label ] = rule.claim ? { text, source: 'user' } : text;
+		}
+		return {
+			pattern: section.pattern,
+			layout: section.layout ?? null,
+			style: section.style || 'plain',
+			copy,
+			...( omit.length ? { omit } : {} ),
+		};
+	} );
+	const home = await run( `${ ns }/compose`, {
+		title: `E2E audit home ${ stamp }`,
+		sections: homeSections,
+	} );
+	auditPages.push( home.data.post_id );
+	const homeId = home.data.post_id;
+	const homeContent = homeId ? ( await pageState( homeId ) ).content : null;
+	// The hero's image slot ships the pack's placeholder; the site's own
+	// image, with alt text, takes its place, as a person would set it in the
+	// editor.
+	const heroImage = /src="[^"]*\/placeholders\/image-4x3\.svg"( alt="")?/g;
+	const placeholders = ( homeContent || '' ).match( heroImage ) || [];
+	const ownImage = await api( `/wp/v2/pages/${ homeId }`, {
+		method: 'POST',
+		body: {
+			content: ( homeContent || '' ).replace(
+				heroImage,
+				'src="https://example.com/wp-content/uploads/our-team.jpg" alt="Our team at work"'
+			),
+		},
+	} );
+	const homeAudit = await run( auditAbility, { post_id: homeId }, true );
+	for ( const finding of homeAudit.data.findings || [] ) {
+		console.log(
+			`     ${ finding.code } ${ finding.block } at ${ finding.path }: ${ finding.message }`
+		);
+	}
+	step(
+		"audit on a home page compose builds from the home recipe, every copy slot given text and Site Data filled, with its hero image the site's own, finds nothing to fix",
+		homeSet.status === 200 &&
+			unfilled.length === 0 &&
+			home.status === 200 &&
+			home.data.saved === true &&
+			( home.data.refused || [] ).length === 0 &&
+			Array.isArray( home.data.empty ) &&
+			home.data.empty.length === 0 &&
+			placeholders.length === 1 &&
+			ownImage.status === 200 &&
+			homeAudit.status === 200 &&
+			Array.isArray( homeAudit.data.findings ) &&
+			homeAudit.data.findings.length === 0 &&
+			auditCodes.every(
+				( code ) => homeAudit.data.counts?.[ code ] === 0
+			),
+		`compose ${ home.status }, refused ${
+			( home.data.refused || [] )
+				.map( ( r ) => `${ r.section } ${ r.slot } ${ r.reason }` )
+				.join( '; ' ) || 'none'
+		}, empty [${ ( home.data.empty || [] ).join(
+			', '
+		) }], ${ placeholders.length } hero placeholder; audit ${ auditSummary(
+			homeAudit
+		) }`
+	);
+
+	for ( const id of auditPages.filter( Boolean ) ) {
+		await api( `/wp/v2/pages/${ id }`, {
+			method: 'DELETE',
+			query: { force: true },
+		} );
+	}
+	const auditBack = {};
+	for ( const option of auditOptions ) {
+		if ( typeof auditBefore[ option ] === 'string' ) {
+			auditBack[ option ] = auditBefore[ option ];
+		}
+	}
+	const auditRestored = await setAuditData( auditBack );
+	const auditNow = ( await api( '/wp/v2/settings' ) ).data;
+	step(
+		'the Site Data audit changed is put back as it was',
+		auditRestored.status === 200 &&
+			Object.keys( auditBack ).length === auditOptions.length &&
+			auditOptions.every(
+				( option ) => auditNow[ option ] === auditBefore[ option ]
+			),
+		`${ Object.keys( auditBack ).length } of ${ auditOptions.length } fields`
+	);
+}
 
 rmSync( scratch, { recursive: true, force: true } );
 console.log(
