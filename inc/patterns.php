@@ -9,8 +9,9 @@
  *
  * The same build writes inc/generated/patterns.php, one PHP array that holds
  * what each pattern's two files say. A request reads that array, which
- * OPcache keeps in memory, and no intent or markup file. Only a test that
- * passes its own intents folder to bound_keys() or intent_meta() reads files.
+ * OPcache keeps in memory, and no intent or markup file. Only a caller that
+ * passes its own intents folder to bound_keys() or intent_meta(), as the
+ * tests do, reads files.
  *
  * @package VoyagerOpenBlocks
  */
@@ -95,7 +96,7 @@ function keys_in( mixed $node, string $source ): array {
  * init, needs no block parser and reads no file.
  *
  * @param string      $source Binding source name.
- * @param string|null $dir    Intents directory to read instead, for a test. Defaults to the generated array, built from this plugin's patterns/intents.
+ * @param string|null $dir    Intents directory to read instead, such as a test's. Defaults to the generated array, built from this plugin's patterns/intents.
  * @return array<string, array{title: string, keys: list<string>}> Pattern name => title and keys. Patterns that bind none of the source's keys are left out.
  */
 function bound_keys( string $source, ?string $dir = null ): array {
@@ -158,7 +159,7 @@ function bound_keys_in( string $source, string $dir ): array {
  * gives none, and so does a name the pack does not ship.
  *
  * @param string      $pattern Pattern name, such as voyager-open/hero.
- * @param string|null $dir     Intents directory to read instead, for a test. Defaults to the generated array, built from this plugin's patterns/intents.
+ * @param string|null $dir     Intents directory to read instead, such as a test's. Defaults to the generated array, built from this plugin's patterns/intents.
  * @return array{section: string|null, layout: string|null, copy_rules: array<string, array<mixed>>}
  */
 function intent_meta( string $pattern, ?string $dir = null ): array {
