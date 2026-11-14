@@ -25,34 +25,7 @@
  * priority, rather than whether the plugin is active: an SEO plugin that is
  * installed and prints no such node (Rank Math before its setup wizard is
  * connected or skipped, Yoast SEO with no company logo) leaves the pack's
- * node in place.
- *
- * - Rank Math 1.0.282: JsonLD::json_ld() (includes/modules/schema/class-jsonld.php)
- *   runs on `rank_math/head`, which Head::head() fires on wp_head at priority
- *   1 (includes/frontend/class-head.php). It collects `rank_math/json_ld`, and
- *   prints what `rank_math/schema/validated_data` returns, keyed by entity.
- *   The site's entity is `publisher`: an Organization, a Person, or with the
- *   Local SEO module the business type chosen there, such as Plumber, with
- *   the @id home_url( '/#organization' ) (Local_Seo::organization() in
- *   includes/modules/local-seo/class-local-seo.php, Publisher::process() in
- *   includes/modules/schema/snippets/class-publisher.php).
- * - Yoast SEO 28.8: Schema_Generator::generate_graph()
- *   (src/generators/schema-generator.php) passes every piece through
- *   `wpseo_schema_graph`, and Schema_Presenter::present()
- *   (src/presenters/schema-presenter.php) prints it from the `wpseo_head`
- *   action, on wp_head at priority 1 (src/integrations/front-end-integration.php).
- *   The site is an Organization with the @id `#organization`
- *   (src/generators/schema/organization.php) when it represents a company with
- *   a name and a logo, or a Person typed [ 'Person', 'Organization' ]
- *   (src/generators/schema/person.php). Yoast Local SEO is not on
- *   WordPress.org. Its developer documentation says it merges the primary
- *   location into that Organization piece, as [ 'Organization', 'Place',
- *   'Dentist' ], so it reaches the same filter.
- * - All in One SEO 5.0.5.1: Helpers::getOutput() (app/Common/Schema/Helpers.php)
- *   passes the graph through `aioseo_schema_output`, and Head::wpHead()
- *   (app/Common/Main/Head.php) prints it on wp_head at priority 1. The site is
- *   KgOrganization, an Organization with the @id `#organization`, by default,
- *   or KgPerson (app/Common/Schema/Graphs/KnowledgeGraph/).
+ * node in place. Where each plugin is read is above the add_filter() calls.
  *
  * The pack prints at wp_head priority PRIORITY, after all three. A Site Data
  * change refreshes the front page in page caches already: the purge adds it
@@ -283,6 +256,38 @@ function observe_aioseo( mixed $graph ): mixed {
 	return observe( 'All in One SEO', $graph );
 }
 
+/*
+ * Each SEO plugin's schema filter, at the last priority, so the pack sees
+ * what every other callback added. Read from each plugin's source at the
+ * version named.
+ *
+ * - Rank Math 1.0.282: JsonLD::json_ld() (includes/modules/schema/class-jsonld.php)
+ *   runs on `rank_math/head`, which Head::head() fires on wp_head at priority
+ *   1 (includes/frontend/class-head.php). It collects `rank_math/json_ld`, and
+ *   prints what `rank_math/schema/validated_data` returns, keyed by entity.
+ *   The site's entity is `publisher`: an Organization, a Person, or with the
+ *   Local SEO module the business type chosen there, such as Plumber, with
+ *   the @id home_url( '/#organization' ) (Local_Seo::organization() in
+ *   includes/modules/local-seo/class-local-seo.php, Publisher::process() in
+ *   includes/modules/schema/snippets/class-publisher.php).
+ * - Yoast SEO 28.8: Schema_Generator::generate_graph()
+ *   (src/generators/schema-generator.php) passes every piece through
+ *   `wpseo_schema_graph`, and Schema_Presenter::present()
+ *   (src/presenters/schema-presenter.php) prints it from the `wpseo_head`
+ *   action, on wp_head at priority 1 (src/integrations/front-end-integration.php).
+ *   The site is an Organization with the @id `#organization`
+ *   (src/generators/schema/organization.php) when it represents a company with
+ *   a name and a logo, or a Person typed [ 'Person', 'Organization' ]
+ *   (src/generators/schema/person.php). Yoast Local SEO is not on
+ *   WordPress.org. Its developer documentation says it merges the primary
+ *   location into that Organization piece, as [ 'Organization', 'Place',
+ *   'Dentist' ], so it reaches the same filter.
+ * - All in One SEO 5.0.5.1: Helpers::getOutput() (app/Common/Schema/Helpers.php)
+ *   passes the graph through `aioseo_schema_output`, and Head::wpHead()
+ *   (app/Common/Main/Head.php) prints it on wp_head at priority 1. The site is
+ *   KgOrganization, an Organization with the @id `#organization`, by default,
+ *   or KgPerson (app/Common/Schema/Graphs/KnowledgeGraph/).
+ */
 add_filter( 'rank_math/schema/validated_data', __NAMESPACE__ . '\observe_rank_math', PHP_INT_MAX );
 add_filter( 'wpseo_schema_graph', __NAMESPACE__ . '\observe_yoast', PHP_INT_MAX );
 add_filter( 'aioseo_schema_output', __NAMESPACE__ . '\observe_aioseo', PHP_INT_MAX );
