@@ -221,8 +221,8 @@ function intent_meta_in( string $pattern, string $dir ): array {
  * working. The label says what the sections are for, since that is what a
  * newcomer looks for in the inserter.
  *
- * Each pattern's args come from the generated array, in the order glob()
- * lists the intents, with this plugin's assets/ URL swapped in for
+ * Each pattern's args come from the generated array, in the order of the
+ * intents' file names, with this plugin's assets/ URL swapped in for
  * ASSETS_TOKEN.
  */
 function register(): void {
