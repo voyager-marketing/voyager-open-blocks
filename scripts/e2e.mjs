@@ -6823,8 +6823,9 @@ await api( recorder, { method: 'DELETE' } );
 			content: post.data.content?.raw ?? null,
 		};
 	};
-	// modified_gmt counts whole seconds, so a write in the second a page was
-	// saved would not move it. Each probe waits past that second first.
+	// modified_gmt counts whole seconds, so a write in the second the page was
+	// last saved would not move it. The probe waits past that second before
+	// audit runs, so a write by audit, or the control save after it, would.
 	const nextSecond = () =>
 		new Promise( ( resolve ) => setTimeout( resolve, 1100 ) );
 
@@ -6874,7 +6875,6 @@ await api( recorder, { method: 'DELETE' } );
 		{ post_id: plantedId },
 		true
 	);
-	await nextSecond();
 	const plantedAfter = await pageState( plantedId );
 	const plantedFindings = audited.data.findings || [];
 	const plantedCounts = audited.data.counts || {};
@@ -6942,7 +6942,10 @@ await api( recorder, { method: 'DELETE' } );
 	);
 	step(
 		'audit saves nothing: the planted page has as many revisions and the same modified time after two calls, and the second call returns what the first did',
-		plantedBefore.revisions !== null &&
+		audited.status === 200 &&
+			auditedAgain.status === 200 &&
+			plantedFindings.length > 0 &&
+			plantedBefore.revisions !== null &&
 			plantedBefore.revisions > 0 &&
 			plantedBefore.revisions === plantedAfter.revisions &&
 			plantedBefore.modified !== null &&
