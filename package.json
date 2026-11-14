@@ -51,6 +51,8 @@
 		"test:fold": "node --test scripts/test-fold-unreleased.mjs",
 		"test:cache-check": "node --test scripts/test-cache-check.mjs",
 		"cache-check": "node scripts/cache-check.mjs",
+		"check:schema": "node scripts/schema-check.mjs",
+		"test:schema": "node --test scripts/test-schema-check.mjs",
 		"e2e": "node scripts/e2e.mjs",
 		"e2e:editor": "node scripts/e2e-editor.mjs",
 		"design-check": "node scripts/design-check.mjs",
