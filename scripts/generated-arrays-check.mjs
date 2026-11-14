@@ -299,14 +299,21 @@ function verdict( first, second, deleted ) {
 	const generated = Object.entries( second.present ?? {} ).filter(
 		( [ path, present ] ) => path.startsWith( 'inc/' ) && present === true
 	);
+	let unseen = `on port ${ second.port }, as boot 1`;
+	if ( seen.length ) {
+		unseen = `it still sees ${ seen.join( ', ' ) }`;
+	} else if ( second.port !== first.port ) {
+		unseen = `on port ${ second.port }, and boot 1 on ${ first.port }, so the plugin's URL differs`;
+	}
 	check(
-		second.port === first.port &&
-			seen.length === 0 &&
-			generated.length === 2,
+		second.port === first.port && seen.length === 0,
 		`boot 2: ${ deleted } deleted from the copy, and WordPress sees none of them`,
-		seen.length
-			? `it still sees ${ seen.join( ', ' ) }`
-			: `the generated arrays are there, port ${ second.port }`
+		unseen
+	);
+	check(
+		generated.length === 2,
+		'boot 2: WordPress sees inc/generated/patterns.php and inc/generated/icons.php',
+		`${ generated.length } of 2`
 	);
 
 	const identical = second.raw.filter( ( pattern, index ) =>
