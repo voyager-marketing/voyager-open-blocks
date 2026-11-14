@@ -13,7 +13,9 @@ use VoyagerOpenBlocks\BindingsEditor;
 use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
+use VoyagerOpenBlocks\Facts;
 use VoyagerOpenBlocks\Patterns;
+use VoyagerOpenBlocks\SiteData;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -33,7 +35,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and saves nothing. For each block, by path: its type is registered, its comment attributes match block.json, its bindings name a bindable attribute and args get-catalog lists, and it survives a parse and serialize round trip. It cannot compare saved HTML with each block\'s save(), so where block-runner validate is not run, say the HTML was not checked. Warnings leave valid true. placeholder: each pack placeholder image, as an image, a media and text image or a cover\'s background, the contact section\'s form stand-in, and each text slot of a numbered item, such as "Credential 4", still holding the stand-in text the pack ships there, such as "Your fourth credential". An item\'s short first slot, such as a service\'s heading, is let off when every other slot holds the site\'s own text. missing_alt: any other image with no alt text; never a cover. stale_fallback: a block bound to a phone or email field whose own text looks like one, which visitors see when the field is empty. Tell the user to fix these in the editor before the page goes live, and to set each new cover or media and text image\'s focal point on its subject.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and saves nothing. For each block, by path: its type is registered, its comment attributes match block.json, its bindings name a bindable attribute and args get-catalog lists, and it survives a parse and serialize round trip. It cannot compare saved HTML with each block\'s save(), so where block-runner validate is not run, say the HTML was not checked. Warnings leave valid true. placeholder: each pack placeholder image, as an image, a media and text image or a cover\'s background, the contact section\'s form stand-in, a saved post\'s empty Site Data list showing its stand-in items, and each text slot of a numbered item, such as "Credential 4", still holding the stand-in text the pack ships there, such as "Your fourth credential". An item\'s short first slot, such as a service\'s heading, is let off when every other slot holds the site\'s own text. missing_alt: any other image with no alt text; never a cover. stale_fallback: a block bound to a phone or email field whose own text looks like one, which visitors see when the field is empty. Tell the user to fix these in the editor before the page goes live, and to set each new cover or media and text image\'s focal point on its subject.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -98,7 +100,7 @@ function register_validate(): void {
 					'warnings'    => [
 						'type'        => 'array',
 						'items'       => [ 'type' => 'string' ],
-						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page, including a cover\'s background and the stand-in text of a numbered item, such as "Your fourth credential") or missing_alt (a core/image or core/media-text image has no alt text; a cover never gets one). A code is followed by the block and its path.',
+						'description' => 'Every block\'s warnings. Each starts with its block, or with a code: stale_fallback (a bound block\'s fallback looks like a stale phone number or email address), placeholder (a placeholder the pack ships is still on the page, including a cover\'s background, a bound list\'s stand-in items and the stand-in text of a numbered item, such as "Your fourth credential") or missing_alt (a core/image or core/media-text image has no alt text; a cover never gets one). A code is followed by the block and its path.',
 					],
 					'markup'      => [
 						'type'        => 'string',
@@ -154,6 +156,13 @@ function validate( $input = null ) {
 	$report = with_stale_fallbacks( $report, stale_fallbacks( $blocks ) );
 	$report = with_warnings( $report, image_warnings( $blocks, placeholder_names() ) );
 	$report = with_warnings( $report, stand_in_warnings( $blocks, shipped_stand_ins() ) );
+
+	// A binding resolves against a saved post, as get-post-blocks resolves it.
+	// For markup, compose names each empty Site Data field in `empty` instead.
+	if ( $has_post ) {
+		$post_id = Cast\to_int( $input['post_id'] );
+		$report  = with_warnings( $report, list_stand_in_warnings( $blocks, shipped_list_stand_ins(), static fn ( array $block ): bool => items_fall_back( $block, $post_id ) ) );
+	}
 
 	return $out + $report + [ 'save_output' => SAVE_OUTPUT ];
 }
@@ -486,6 +495,127 @@ function stand_in_warnings( array $blocks, array $index ): array {
 				),
 			];
 		}
+	}
+
+	return $out;
+}
+
+/**
+ * The block that shows a Site Data list as a list, one item per line.
+ */
+const FACTS_BLOCK = 'voyager-open/facts';
+
+/**
+ * The items each named facts block in a block tree ships, by its label.
+ *
+ * A pattern's facts block, such as the proof strip's "Credentials" or the
+ * service area's "Places", holds stand-in items ("Your first town") as its
+ * own `items`, which show while the list it is bound to is empty. Each list
+ * is read as visitors see it, Facts\items(): each line trimmed, empty lines
+ * dropped.
+ *
+ * @param array<int, Block>                 $blocks The pack's patterns' blocks, as pack_pattern_blocks() gives them.
+ * @param array<string, list<list<string>>> $index  The index so far, [] at the top.
+ * @return array<string, list<list<string>>> Label => the item lists blocks with that label ship, such as "Places" => [ [ "Your first town", "Your second town", "Your third town" ] ].
+ */
+function list_stand_in_index( array $blocks, array $index = [] ): array {
+	foreach ( $blocks as $block ) {
+		$label = BlockTree\metadata( $block )['name'] ?? null;
+		$items = Facts\items( Cast\to_string( $block['attrs']['items'] ?? '' ) );
+
+		if ( FACTS_BLOCK === $block['blockName'] && is_string( $label ) && [] !== $items && ! in_array( $items, $index[ $label ] ?? [], true ) ) {
+			$index[ $label ][] = $items;
+		}
+
+		/** @var array<int, Block> $inner */
+		$inner = $block['innerBlocks'];
+		$index = list_stand_in_index( $inner, $index );
+	}
+
+	return $index;
+}
+
+/**
+ * The list stand-ins of the patterns this site registers, built once per request.
+ *
+ * @return array<string, list<list<string>>>
+ */
+function shipped_list_stand_ins(): array {
+	/** @var array<string, list<list<string>>>|null $index */
+	static $index = null;
+
+	if ( null === $index ) {
+		$index = list_stand_in_index( pack_pattern_blocks() );
+	}
+
+	return $index;
+}
+
+/**
+ * Whether a block's `items` binding falls back because its field is empty,
+ * as get-post-blocks reports it: BlockTree\with_resolution(), which asks the
+ * source's own callback, whichever plugin registered it.
+ *
+ * @param Block $block   Parsed block.
+ * @param int   $post_id Post the block belongs to.
+ */
+function items_fall_back( array $block, int $post_id ): bool {
+	$resolution = BlockTree\with_resolution( $block, $post_id )['items']['resolution'] ?? null;
+
+	return is_array( $resolution ) && 'fell_back' === ( $resolution['status'] ?? null ) && 'empty_value' === ( $resolution['reason'] ?? null );
+}
+
+/**
+ * The facts blocks that show visitors the stand-in items the pack ships, as
+ * placeholder warnings, each with the path of its block.
+ *
+ * A facts block is warned when its `items` are bound to a Site Data field,
+ * the field is empty now, so the binding falls back to the block's own items
+ * ($falls_back), and those items, read as Facts\items() reads them, are a
+ * list a pattern ships under the block's label ($index). While the field
+ * holds a list, visitors see that list instead, and a block whose own items
+ * someone changed shows the site's own text: neither is warned.
+ *
+ * @param array<int, Block>                 $blocks     The page's blocks.
+ * @param array<string, list<list<string>>> $index      From shipped_list_stand_ins().
+ * @param callable(Block): bool             $falls_back Whether a block's `items` binding falls back with its field empty, such as items_fall_back().
+ * @param string                            $prefix     Path of the parent, '' at the top.
+ * @return list<array{path: string, warning: string}>
+ */
+function list_stand_in_warnings( array $blocks, array $index, callable $falls_back, string $prefix = '' ): array {
+	$out = [];
+
+	foreach ( $blocks as $position => $block ) {
+		$path    = '' === $prefix ? (string) $position : $prefix . '/' . $position;
+		$label   = BlockTree\metadata( $block )['name'] ?? null;
+		$binding = bound_attributes( BlockTree\metadata( $block )['bindings'] ?? null )['items'] ?? null;
+
+		if (
+			FACTS_BLOCK === $block['blockName']
+			&& is_string( $label )
+			&& SiteData\SOURCE === ( $binding['source'] ?? null )
+			&& in_array( Facts\items( Cast\to_string( $block['attrs']['items'] ?? '' ) ), $index[ $label ] ?? [], true )
+			&& $falls_back( $block )
+		) {
+			$key   = $binding['key'];
+			$field = SiteData\fields()[ $key ]['label'] ?? $key;
+
+			$out[] = [
+				'path'    => $path,
+				'warning' => sprintf(
+					'placeholder: %1$s "%2$s" at %3$s shows the stand-in items the pack ships there, because Site Data\'s "%4$s" field (%5$s) is empty. Fill it in under Settings > Site Data, or remove "%2$s".',
+					FACTS_BLOCK,
+					$label,
+					$path,
+					$field,
+					$key
+				),
+			];
+		}
+
+		/** @var array<int, Block> $inner */
+		$inner = $block['innerBlocks'];
+		array_push( $out, ...list_stand_in_warnings( $inner, $index, $falls_back, $path ) );
 	}
 
 	return $out;
