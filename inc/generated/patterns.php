@@ -20,6 +20,81 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 return [
+	'voyager-open/closing-cta-split' => [
+		'args' => [
+			'title' => 'Closing CTA beside an image',
+			'description' => 'A closing band at the end of a page: heading, one line of copy, a primary button and an email button bound to voyager/site-data, beside a 4:3 image slot that stacks below the text on a phone.',
+			'content' => '<!-- wp:group {"tagName":"section","metadata":{"name":"Closing CTA"},"align":"full","style":{"spacing":{"padding":{"top":"max(var(\\u002d\\u002dwp\\u002d\\u002dpreset\\u002d\\u002dspacing\\u002d\\u002d60), var(\\u002d\\u002dwp\\u002d\\u002dpreset\\u002d\\u002dspacing\\u002d\\u002d70, 0px))","bottom":"max(var(\\u002d\\u002dwp\\u002d\\u002dpreset\\u002d\\u002dspacing\\u002d\\u002d60), var(\\u002d\\u002dwp\\u002d\\u002dpreset\\u002d\\u002dspacing\\u002d\\u002d70, 0px))","left":"var:preset|spacing|50","right":"var:preset|spacing|50"}}},"layout":{"type":"constrained"}} -->
+<section class="wp-block-group alignfull" style="padding-top:max(var(--wp--preset--spacing--60), var(--wp--preset--spacing--70, 0px));padding-right:var(--wp--preset--spacing--50);padding-bottom:max(var(--wp--preset--spacing--60), var(--wp--preset--spacing--70, 0px));padding-left:var(--wp--preset--spacing--50)"><!-- wp:columns {"verticalAlignment":"center","metadata":{"name":"Columns"},"align":"wide","style":{"spacing":{"blockGap":{"top":"var:preset|spacing|50","left":"var:preset|spacing|60"}}}} -->
+<div class="wp-block-columns alignwide are-vertically-aligned-center"><!-- wp:column {"verticalAlignment":"center","metadata":{"name":"Text"},"style":{"spacing":{"blockGap":"var:preset|spacing|40"}}} -->
+<div class="wp-block-column is-vertically-aligned-center"><!-- wp:heading {"metadata":{"name":"Heading"}} -->
+<h2 class="wp-block-heading">Ready when you are.</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph {"metadata":{"name":"Body"}} -->
+<p>Book a call or send a message, and we will take it from there.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button {"metadata":{"name":"Primary button"}} -->
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/contact/">Get in touch</a></div>
+<!-- /wp:button -->
+
+<!-- wp:button {"metadata":{"name":"Email button","bindings":{"url":{"source":"voyager/site-data","args":{"key":"email_link"}}}},"className":"is-style-outline"} -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="/contact/">Email us</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons --></div>
+<!-- /wp:column -->
+
+<!-- wp:column {"verticalAlignment":"center","metadata":{"name":"Image column"}} -->
+<div class="wp-block-column is-vertically-aligned-center"><!-- wp:image {"aspectRatio":"4/3","scale":"cover","metadata":{"name":"Image"}} -->
+<figure class="wp-block-image"><img src="/voyager-open-blocks-assets/placeholders/image-4x3.svg" alt="" style="aspect-ratio:4/3;object-fit:cover"/></figure>
+<!-- /wp:image --></div>
+<!-- /wp:column --></div>
+<!-- /wp:columns --></section>
+<!-- /wp:group -->
+',
+			'categories' => [ 'voyager-open', 'call-to-action' ],
+			'keywords' => [ 'cta', 'closing', 'final', 'contact', 'email', 'image' ],
+			'blockTypes' => [],
+			'viewportWidth' => 1280,
+		],
+		'section' => 'closing-cta',
+		'layout' => 'split',
+		'copy_rules' => [
+			'Heading' => [
+				'purpose' => 'The page\'s last h2: one short sentence that invites the reader to get in touch.',
+				'min' => 10,
+				'max' => 60,
+				'required' => true,
+				'claim' => false,
+			],
+			'Body' => [
+				'purpose' => 'One line on how to reach the business and what happens next.',
+				'min' => 20,
+				'max' => 120,
+				'required' => true,
+				'claim' => false,
+			],
+			'Primary button' => [
+				'purpose' => 'The page\'s last main action, as what happens when it is pressed, such as Book an estimate.',
+				'min' => 2,
+				'max' => 24,
+				'required' => true,
+				'claim' => false,
+			],
+			'Email button' => [
+				'purpose' => 'The second button\'s label. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as Email us, never the address.',
+				'min' => 2,
+				'max' => 24,
+				'required' => true,
+				'claim' => false,
+			],
+		],
+		'bindings' => [
+			'voyager/site-data' => [ 'email_link' ],
+		],
+	],
 	'voyager-open/closing-cta' => [
 		'args' => [
 			'title' => 'Closing CTA',
@@ -49,8 +124,8 @@ return [
 			'blockTypes' => [],
 			'viewportWidth' => 1280,
 		],
-		'section' => null,
-		'layout' => null,
+		'section' => 'closing-cta',
+		'layout' => 'centered',
 		'copy_rules' => [
 			'Heading' => [
 				'purpose' => 'The page\'s last h2: one short sentence that invites the reader to get in touch.',
@@ -192,6 +267,97 @@ return [
 			],
 		],
 	],
+	'voyager-open/cta-band-cover' => [
+		'args' => [
+			'title' => 'CTA band over a background',
+			'description' => 'A full-width band over a background image: eyebrow, heading and one line of copy beside a primary button and a click-to-call button bound to voyager/site-data, on a cover over a 16:9 image slot.',
+			'content' => '<!-- wp:group {"tagName":"section","metadata":{"name":"CTA band"},"align":"full","style":{"spacing":{"padding":{"top":"var:preset|spacing|60","bottom":"var:preset|spacing|60","left":"var:preset|spacing|50","right":"var:preset|spacing|50"}}},"layout":{"type":"constrained"}} -->
+<section class="wp-block-group alignfull" style="padding-top:var(--wp--preset--spacing--60);padding-right:var(--wp--preset--spacing--50);padding-bottom:var(--wp--preset--spacing--60);padding-left:var(--wp--preset--spacing--50)"><!-- wp:cover {"url":"/voyager-open-blocks-assets/placeholders/image-16x9.svg","dimRatio":90,"overlayColor":"contrast","isUserOverlayColor":true,"focalPoint":{"x":0.5,"y":0.5},"metadata":{"name":"Background"},"align":"wide","style":{"spacing":{"padding":{"top":"var:preset|spacing|60","bottom":"var:preset|spacing|60","left":"var:preset|spacing|50","right":"var:preset|spacing|50"}}},"textColor":"base","layout":{"type":"constrained"}} -->
+<div class="wp-block-cover alignwide has-base-color has-text-color" style="padding-top:var(--wp--preset--spacing--60);padding-right:var(--wp--preset--spacing--50);padding-bottom:var(--wp--preset--spacing--60);padding-left:var(--wp--preset--spacing--50)"><img class="wp-block-cover__image-background" alt="" src="/voyager-open-blocks-assets/placeholders/image-16x9.svg" style="object-position:50% 50%" data-object-fit="cover" data-object-position="50% 50%"/><span aria-hidden="true" class="wp-block-cover__background has-contrast-background-color has-background-dim-90 has-background-dim"></span><div class="wp-block-cover__inner-container"><!-- wp:group {"metadata":{"name":"Row"},"align":"wide","style":{"spacing":{"blockGap":"var:preset|spacing|40"}},"layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between","verticalAlignment":"center"}} -->
+<div class="wp-block-group alignwide"><!-- wp:group {"metadata":{"name":"Text"},"layout":{"type":"default"}} -->
+<div class="wp-block-group"><!-- wp:paragraph {"metadata":{"name":"Eyebrow"},"style":{"typography":{"textTransform":"uppercase","letterSpacing":"0.08em"}},"fontSize":"small"} -->
+<p class="has-small-font-size" style="letter-spacing:0.08em;text-transform:uppercase">Next step</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"metadata":{"name":"Heading"},"textColor":"base"} -->
+<h2 class="wp-block-heading has-base-color has-text-color">Ready to get started?</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph {"metadata":{"name":"Body"}} -->
+<p>Tell us what you need and we will get back to you with a plan and a price.</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"base","textColor":"contrast","metadata":{"name":"Primary button"}} -->
+<div class="wp-block-button"><a class="wp-block-button__link has-contrast-color has-base-background-color has-text-color has-background wp-element-button" href="/contact/">Contact us</a></div>
+<!-- /wp:button -->
+
+<!-- wp:button {"textColor":"base","metadata":{"name":"Click to call","bindings":{"text":{"source":"voyager/site-data","args":{"key":"phone"}},"url":{"source":"voyager/site-data","args":{"key":"phone_link"}}}},"className":"is-style-outline"} -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link has-base-color has-text-color wp-element-button" href="/contact/">Call us</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons --></div>
+<!-- /wp:group --></div></div>
+<!-- /wp:cover --></section>
+<!-- /wp:group -->
+',
+			'categories' => [ 'voyager-open', 'call-to-action' ],
+			'keywords' => [
+				'cta',
+				'call to action',
+				'band',
+				'cover',
+				'background',
+				'image',
+				'phone',
+				'contact',
+			],
+			'blockTypes' => [],
+			'viewportWidth' => 1280,
+		],
+		'section' => 'cta-band',
+		'layout' => 'cover',
+		'copy_rules' => [
+			'Eyebrow' => [
+				'purpose' => 'A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already.',
+				'min' => 2,
+				'max' => 40,
+				'required' => false,
+				'claim' => false,
+			],
+			'Heading' => [
+				'purpose' => 'The band\'s h2: one short question or invitation that asks the reader to act.',
+				'min' => 10,
+				'max' => 60,
+				'required' => true,
+				'claim' => false,
+			],
+			'Body' => [
+				'purpose' => 'One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short.',
+				'min' => 20,
+				'max' => 100,
+				'required' => true,
+				'claim' => false,
+			],
+			'Primary button' => [
+				'purpose' => 'The band\'s main action, as what happens when it is pressed, such as Get a quote.',
+				'min' => 2,
+				'max' => 24,
+				'required' => true,
+				'claim' => false,
+			],
+			'Click to call' => [
+				'purpose' => 'Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.',
+				'min' => 2,
+				'max' => 24,
+				'required' => true,
+				'claim' => false,
+			],
+		],
+		'bindings' => [
+			'voyager/site-data' => [ 'phone', 'phone_link' ],
+		],
+	],
 	'voyager-open/cta-band' => [
 		'args' => [
 			'title' => 'CTA band',
@@ -229,8 +395,8 @@ return [
 			'blockTypes' => [],
 			'viewportWidth' => 1280,
 		],
-		'section' => null,
-		'layout' => null,
+		'section' => 'cta-band',
+		'layout' => 'row',
 		'copy_rules' => [
 			'Eyebrow' => [
 				'purpose' => 'A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already.',
