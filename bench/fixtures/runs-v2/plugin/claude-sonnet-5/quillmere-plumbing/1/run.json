@@ -1,0 +1,13 @@
+{
+  "protocol": 2,
+  "group": "plugin",
+  "model": "claude-sonnet-5",
+  "brief": "quillmere-plumbing",
+  "repeat": 1,
+  "failure": "harness: probe: the second anonymous load did not come from the cache (200 aaaaaaaaaaaaaaaa, then 200 bbbbbbbbbbbbbbbb)",
+  "cache": {
+    "probe": {
+      "from_cache": false
+    }
+  }
+}
