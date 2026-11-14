@@ -162,16 +162,11 @@ function node( array $values, string $url ): array {
  * The SEO plugins seen printing a node for the site on this request.
  *
  * @param string $plugin Record this plugin, by name. '' only reads.
- * @param bool   $reset  Forget every plugin recorded, for the tests.
  * @return list<string>
  */
-function printed_by( string $plugin = '', bool $reset = false ): array {
+function printed_by( string $plugin = '' ): array {
 	/** @var list<string> $seen */
 	static $seen = [];
-
-	if ( $reset ) {
-		$seen = [];
-	}
 
 	if ( '' !== $plugin && ! in_array( $plugin, $seen, true ) ) {
 		$seen[] = $plugin;
@@ -325,7 +320,7 @@ function json(): string {
 		return '';
 	}
 
-	// JSON_HEX_TAG writes < and > as < and >, so no value can close the script tag.
+	// JSON_HEX_TAG writes every < and > as a Unicode escape, so no value can close the script tag.
 	return Cast\to_string( wp_json_encode( $node, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG ) );
 }
 
