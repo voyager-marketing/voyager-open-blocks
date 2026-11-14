@@ -253,6 +253,20 @@ add_filter(
 
 Each active adapter is called once per purge: `purge_all()` when the purge is `purge_all` or `supports_urls()` is false, `purge_urls()` otherwise. An adapter that throws is recorded as failed, and the others still run. The pack ships seven adapters, each active when its plugin is loaded: `wp-super-cache` (WP Super Cache), `spinupwp` (SpinupWP), `nginx-helper` (Nginx Helper, with Enable Purge on), `litespeed-cache` (LiteSpeed Cache) and `w3-total-cache` (W3 Total Cache), each also only while its page cache is on, `wp-rocket` (WP Rocket), and `cloudflare` (the Cloudflare plugin, which purges everything, since it cannot purge a page by URL). To drop one, remove it from the list in a filter of your own at a later priority.
 
+`voyager_open_blocks_structured_data`: the LocalBusiness node the front page prints as JSON-LD, built from Site Data: `name` (the Site Title), `url`, `telephone`, `email`, `address` (a `PostalAddress`), `sameAs` (the social links), `areaServed` (the service area, one place per line) and `foundingDate`. An empty field is left out, and nothing is printed unless the name is set with a phone, an email or a street address. The hours, rating, credentials and licence are never stated: they are free text, and schema.org wants typed values. The second argument is the Site Data values. Return the node changed, such as with `@type` set to a subtype like `Plumber`, or `[]` to print nothing. The filter is not called when Rank Math, Yoast SEO (Yoast Local SEO too) or All in One SEO prints a LocalBusiness or Organization node for the site on the same request: the pack stands aside then.
+
+```php
+add_filter(
+	'voyager_open_blocks_structured_data',
+	static function ( array $node, array $values ): array {
+		$node['@type'] = 'Plumber';
+		return $node;
+	},
+	10,
+	2
+);
+```
+
 ### Actions
 
 `voyager_open_blocks_purge`: fired at most once per request for each reason on each site, on `shutdown`, after a Site Data field or an allowlisted bindable post meta field changes and a published page or a template shows it. The Site Title and Tagline count as the Site Data fields `company` and `tagline`, and a new year as `year`, from a daily WP-Cron check. On a multisite network, a change made under `switch_to_blog()` is purged on its own site, inside `switch_to_blog()`. Listen to it to purge a cache that has no adapter.
