@@ -148,10 +148,11 @@ final class RecipeCatalogTest extends TestCase {
 				'home',
 				$home(
 					static function ( array &$recipe ): void {
-						$recipe['sections'][3]['layout'] = 'wide';
+						$recipe['sections'][3]['pattern'] = 'voyager-open/contact-section';
+						$recipe['sections'][3]['layout']  = 'wide';
 					}
 				),
-				'sections[3] names voyager-open/cta-band with layout "wide"',
+				'sections[3] names voyager-open/contact-section with layout "wide"',
 			],
 			'a layout named by its own pattern'    => [
 				'home',

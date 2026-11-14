@@ -71,7 +71,8 @@
  *      and answer of the two left as shipped; omit of an answer without its
  *      question refused as required),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
- *      hero and the CTA band; insert refusing a 61-character hero heading as
+ *      hero, the CTA band and the contact section, a section with one
+ *      layout; insert refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
  *      the hero's heading as required, and a too-long heading, copy for the
  *      bound call button and omit of the body in one call, with and without
@@ -111,7 +112,11 @@
  *      sections with copy, omit and repeat are what insert places with the
  *      same input; omit of a required slot, a claim given as a plain string
  *      for a repeated item, and omit or repeat that cannot apply are refused
- *      as insert refuses them; and the contact recipe saves a page whose
+ *      as insert refuses them; the CTA band and the closing CTA, each listed
+ *      in two layouts, and each second layout, cover and split, built from
+ *      one section with layout set and copy, as insert places it, with its
+ *      image slot as its one placeholder: warning, the same copy refused
+ *      nothing in the first layout; and the contact recipe saves a page whose
  *      hero has no main button and no button links to the contact page but
  *      through a bound link's fallback,
  *  6d. the copy examples in skills/voyager-open-blocks/examples/, a home page
@@ -2452,6 +2457,13 @@ const bandListed = listedPattern( 'voyager-open/cta-band' );
 const bandIntent = JSON.parse(
 	readFileSync( join( repo, 'patterns', 'intents', 'cta-band.json' ), 'utf8' )
 );
+const oneLayoutListed = listedPattern( 'voyager-open/contact-section' );
+const oneLayoutIntent = JSON.parse(
+	readFileSync(
+		join( repo, 'patterns', 'intents', 'contact-section.json' ),
+		'utf8'
+	)
+);
 step(
 	'get-catalog lists voyager-open/hero with section "hero", layout "split" and copy_rules.Heading.max 60',
 	heroListed?.section === 'hero' &&
@@ -2466,9 +2478,9 @@ step(
 		: 'not listed'
 );
 step(
-	'get-catalog lists voyager-open/cta-band with section and layout null, and copy_rules as its intent holds them, as an object',
-	bandListed?.section === null &&
-		bandListed?.layout === null &&
+	'get-catalog lists voyager-open/cta-band with section "cta-band", layout "row", and copy_rules as its intent holds them, as an object',
+	bandListed?.section === 'cta-band' &&
+		bandListed?.layout === 'row' &&
 		!! bandListed?.copy_rules &&
 		typeof bandListed.copy_rules === 'object' &&
 		! Array.isArray( bandListed.copy_rules ) &&
@@ -2479,6 +2491,20 @@ step(
 				section: bandListed.section,
 				layout: bandListed.layout,
 				copy_rules: bandListed.copy_rules,
+			} )
+		: 'not listed'
+);
+step(
+	'get-catalog lists voyager-open/contact-section, a section with one layout, with section and layout null, and copy_rules as its intent holds them',
+	!! oneLayoutListed &&
+		oneLayoutListed.section === null &&
+		oneLayoutListed.layout === null &&
+		JSON.stringify( oneLayoutListed.copy_rules ) ===
+			JSON.stringify( oneLayoutIntent.copy_rules || {} ),
+	oneLayoutListed
+		? JSON.stringify( {
+				section: oneLayoutListed.section,
+				layout: oneLayoutListed.layout,
 			} )
 		: 'not listed'
 );
@@ -3624,11 +3650,14 @@ step(
 				title: `E2E: compose one layout ${ stamp }`,
 				sections: [
 					...sections.slice( 0, 3 ),
-					{ pattern: 'voyager-open/closing-cta', layout: 'split' },
+					{
+						pattern: 'voyager-open/contact-section',
+						layout: 'split',
+					},
 				],
 			},
 			'voyager_open_blocks_invalid_layout',
-			'voyager-open/closing-cta',
+			'voyager-open/contact-section',
 		],
 	];
 	for ( const [ label, input, code, words ] of refusedInputs ) {
@@ -4183,6 +4212,115 @@ step(
 			`insert: ${ byInsert.status } ${ byInsert.data.code || '' } [${ insertRows(
 				byInsert
 			).join( '; ' ) }]; compose: ${ composeSummary( byCompose ) }`
+		);
+	}
+
+	// The CTA band's cover layout and the closing CTA's split layout. get-catalog
+	// lists each section in two layouts, the first keeping the section's slug.
+	// compose builds a draft from one section entry with layout set and the
+	// copy written for the section, and the page holds that layout's pattern
+	// as insert places it with the same copy. validate passes it, with the
+	// layout's image slot as its one placeholder: warning. The same copy
+	// fits the first layout too, since both take the section's copy rules.
+	const bandCopy = {
+		Eyebrow: 'Burst pipe?',
+		Heading: 'Need a plumber today?',
+		Body: 'Call us now, and we will tell you when a plumber can be there.',
+		'Primary button': 'Book a repair',
+	};
+	for ( const [ section, layouts, layout, item, copy, slot ] of [
+		[
+			'voyager-open/cta-band',
+			[
+				'voyager-open/cta-band row',
+				'voyager-open/cta-band-cover cover',
+			],
+			'cover',
+			'voyager-open/cta-band-cover',
+			bandCopy,
+			'core/cover "Background"',
+		],
+		[
+			'voyager-open/closing-cta',
+			[
+				'voyager-open/closing-cta centered',
+				'voyager-open/closing-cta-split split',
+			],
+			'split',
+			'voyager-open/closing-cta-split',
+			ctaCopy,
+			'core/image "Image"',
+		],
+	] ) {
+		const slug = section.replace( 'voyager-open/', '' );
+		const listedLayouts = ( catalog.data.patterns || [] )
+			.filter( ( p ) => p.section === slug )
+			.map( ( p ) => `${ p.name } ${ p.layout }` )
+			.sort();
+		step(
+			`get-catalog lists ${ section } in two layouts, ${ layouts
+				.map( ( l ) => l.split( ' ' )[ 1 ] )
+				.join( ' and ' ) }`,
+			JSON.stringify( listedLayouts ) ===
+				JSON.stringify( [ ...layouts ].sort() ),
+			listedLayouts.join( ', ' ) || 'none listed'
+		);
+
+		const built = await run( composeAbility, {
+			title: `E2E: compose ${ item } ${ stamp }`,
+			sections: [ { pattern: section, layout, copy } ],
+		} );
+		const builtId = Number.isInteger( built.data.post_id )
+			? built.data.post_id
+			: 0;
+		if ( builtId ) {
+			created.push( builtId );
+		}
+		const builtRaw = builtId ? ( await contentOf( builtId ) ) || '' : '';
+		const placed = builtId
+			? ( (
+					await run( `${ ns }/insert`, {
+						post_id: builtId,
+						item,
+						copy,
+						dry_run: true,
+					} )
+				).data.markup ?? null )
+			: null;
+		const builtReport = builtId
+			? await checkMarkup( { post_id: builtId } )
+			: { status: 0, data: {} };
+		const builtPlaceholders = codedWarnings( builtReport, 'placeholder' );
+		step(
+			`compose builds a draft from one section, ${ section } with layout "${ layout }" and copy, that holds ${ item } as insert places it with the same copy, and validate passes it with one placeholder: warning, on its ${ slot }`,
+			built.status === 200 &&
+				built.data.saved === true &&
+				JSON.stringify( built.data.refused ) === '[]' &&
+				!! placed &&
+				builtRaw === placed &&
+				Object.values( copy ).every( ( text ) =>
+					builtRaw.includes( text )
+				) &&
+				clean( builtReport ) &&
+				builtPlaceholders.length === 1 &&
+				builtPlaceholders[ 0 ].startsWith( `placeholder: ${ slot } ` ),
+			`${ composeSummary( built ) }; same as insert: ${
+				!! placed && builtRaw === placed
+			}; validate: ${ warningSummary( builtReport ) }`
+		);
+		validate( `compose ${ item }`, builtRaw );
+
+		const firstLayout = await run( composeAbility, {
+			title: `E2E: compose ${ section } first layout ${ stamp }`,
+			sections: [ { pattern: section, copy } ],
+			dry_run: true,
+		} );
+		step(
+			`the same copy fits ${ section }'s first layout: compose with no layout and dry_run refuses nothing`,
+			firstLayout.status === 200 &&
+				firstLayout.data.saved === false &&
+				JSON.stringify( firstLayout.data.refused ) === '[]',
+			composeSummary( firstLayout )
 		);
 	}
 

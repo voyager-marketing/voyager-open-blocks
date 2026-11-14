@@ -214,9 +214,155 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'hero', $intents['hero-cover']['section'] ?? null );
 		$this->assertSame( 'cover', $intents['hero-cover']['layout'] ?? null );
 
-		foreach ( [ 'cta-band', 'logo-marquee', 'closing-cta', 'contact-section' ] as $one ) {
+		foreach ( [ 'logo-marquee', 'contact-section' ] as $one ) {
 			$this->assertArrayNotHasKey( 'section', $intents[ $one ], "{$one} has one layout" );
 		}
+	}
+
+	public function test_the_cta_band_comes_in_two_layouts_row_first_then_cover(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'cta-band', $intents['cta-band']['section'] ?? null );
+		$this->assertSame( 'row', $intents['cta-band']['layout'] ?? null );
+		$this->assertSame( 'cta-band', $intents['cta-band-cover']['section'] ?? null );
+		$this->assertSame( 'cover', $intents['cta-band-cover']['layout'] ?? null );
+	}
+
+	public function test_the_closing_cta_comes_in_two_layouts_centered_first_then_split(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'closing-cta', $intents['closing-cta']['section'] ?? null );
+		$this->assertSame( 'centered', $intents['closing-cta']['layout'] ?? null );
+		$this->assertSame( 'closing-cta', $intents['closing-cta-split']['section'] ?? null );
+		$this->assertSame( 'split', $intents['closing-cta-split']['layout'] ?? null );
+	}
+
+	/**
+	 * Each copy slot of an intent, by label: its block, heading level, text,
+	 * link, class and bindings. What a second layout of a section keeps from
+	 * its first, so copy, links and bindings written for one fit the other.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @return array<string, array<string, mixed>>
+	 */
+	private static function copy_slots( array $intent ): array {
+		$rules = is_array( $intent['copy_rules'] ?? null ) ? $intent['copy_rules'] : [];
+		$out   = [];
+		foreach ( is_array( $intent['intent']['blocks'] ?? null ) ? $intent['intent']['blocks'] : [] as $top ) {
+			foreach ( self::nodes( is_array( $top ) ? $top : [] ) as $row ) {
+				$node  = $row['node'];
+				$label = $node['attrs']['metadata']['name'] ?? null;
+				if ( is_string( $label ) && array_key_exists( $label, $rules ) ) {
+					$out[ $label ] = [
+						'block'     => $node['block'] ?? null,
+						'level'     => $node['level'] ?? null,
+						'text'      => $node['text'] ?? null,
+						'url'       => $node['url'] ?? null,
+						'className' => $node['attrs']['className'] ?? null,
+						'bindings'  => $node['attrs']['metadata']['bindings'] ?? null,
+					];
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	public function test_each_second_cta_layout_takes_its_section_s_copy_rules_default_copy_links_and_bindings(): void {
+		$intents = self::intents();
+
+		foreach ( [ 'cta-band' => 'cta-band-cover', 'closing-cta' => 'closing-cta-split' ] as $first => $second ) {
+			$this->assertArrayHasKey( $second, $intents, "{$second} has no intent" );
+			$this->assertSame( $intents[ $first ]['copy_rules'], $intents[ $second ]['copy_rules'] ?? null, "{$second}: its section's copy rules, unchanged, so compose copy written for one layout fits the other" );
+			$this->assertSame( self::copy_slots( $intents[ $first ] ), self::copy_slots( $intents[ $second ] ), "{$second}: its section's slots in the same order, with the same default copy, links and bindings" );
+			$this->assertSame( $intents[ $first ]['categories'], $intents[ $second ]['categories'] ?? null, "{$second}: its section's inserter categories" );
+		}
+	}
+
+	/**
+	 * Every block of a kind in an intent, each with its parent.
+	 *
+	 * @param array<string, mixed> $intent A decoded intent file.
+	 * @param string               $block  A block name, such as core/cover.
+	 * @return list<array{node: array<mixed>, parent: array<mixed>|null}>
+	 */
+	private static function blocks_named( array $intent, string $block ): array {
+		return array_values( array_filter( self::with_parents( $intent ), static fn ( array $row ): bool => $block === ( $row['node']['block'] ?? null ) ) );
+	}
+
+	public function test_the_cta_band_cover_holds_the_band_s_row_on_a_cover_painted_as_the_hero_s(): void {
+		$intents = self::intents();
+		$band    = $intents['cta-band-cover'] ?? [];
+
+		$covers = self::blocks_named( $band, 'core/cover' );
+		$this->assertCount( 1, $covers, 'cta-band-cover holds one cover' );
+		$cover = $covers[0]['node'];
+		$this->assertSame( 'Background', $cover['attrs']['metadata']['name'] ?? null, 'the cover is the image slot, "Background", as on the hero' );
+		$this->assertSame( '/voyager-open-blocks-assets/placeholders/image-16x9.svg', $cover['url'] ?? null, 'the slot ships the pack\'s 16:9 placeholder' );
+		$this->assertSame( '', $cover['alt'] ?? null, 'a cover\'s background is decoration, so it ships with empty alt text' );
+		$this->assertSame( 'CTA band', $covers[0]['parent']['attrs']['metadata']['name'] ?? null, 'the cover sits in the section, so a section style colours only the band around it' );
+
+		// The hero's cover is the pair the contrast check holds at 4.5:1 over
+		// black and over white (DESIGN.md, Image slot): the band paints the same.
+		$hero = self::blocks_named( $intents['hero-cover'], 'core/cover' )[0]['node'] ?? [];
+		foreach ( [ 'align', 'dimRatio', 'overlayColor', 'isUserOverlayColor', 'focalPoint', 'textColor' ] as $attr ) {
+			$this->assertArrayHasKey( $attr, $cover['attrs'], "cta-band-cover: the cover sets {$attr}" );
+			$this->assertSame( $hero['attrs'][ $attr ] ?? null, $cover['attrs'][ $attr ], "cta-band-cover: the cover's {$attr} is the hero cover's" );
+		}
+		$this->assertArrayNotHasKey( 'gradient', $cover['attrs'], 'a gradient overlay fails the contrast check' );
+
+		// Its text and buttons keep their own colours on the overlay, as the
+		// hero cover's do, so no theme or section style repaints them.
+		$heading = self::labelled( $cover, 'Heading' );
+		$this->assertSame( 2, $heading['level'] ?? null, 'cta-band-cover: the heading is the band\'s h2' );
+		$this->assertSame( 'base', $heading['attrs']['textColor'] ?? null );
+		$primary = self::labelled( $cover, 'Primary button' );
+		$this->assertSame( [ 'base', 'contrast' ], [ $primary['attrs']['backgroundColor'] ?? null, $primary['attrs']['textColor'] ?? null ], 'the fill button is base with contrast text, as on the hero cover' );
+		$this->assertSame( 'base', self::labelled( $cover, 'Click to call' )['attrs']['textColor'] ?? null, 'the outline button takes base, as on the hero cover' );
+
+		// The band's own row, inside the cover: the text beside the buttons,
+		// wrapping when they do not fit.
+		$row = self::labelled( $cover, 'Row' );
+		$this->assertIsArray( $row, 'cta-band-cover: the cover holds the band\'s Row' );
+		$this->assertSame( self::labelled( $intents['cta-band']['intent']['blocks'][0], 'Row' )['attrs'] ?? null, $row['attrs'] ?? null, 'cta-band-cover: the Row is the band\'s own' );
+		$this->assertSame( [ 'Row', 'Text', 'Eyebrow', 'Heading', 'Body', 'Primary button', 'Click to call' ], self::labels_in( $row ) );
+
+		// tests/fixtures/contrast.json's layout.columns lists the patterns that hold a row.
+		$this->assertSame( [], self::rows_of_items( $band ), 'cta-band-cover holds no row of items' );
+		$this->assertSame( [], self::blocks_named( $band, 'core/image' ), 'the cover is its one image slot' );
+	}
+
+	public function test_the_closing_cta_split_is_one_row_of_two_the_text_then_a_4x3_image_slot(): void {
+		$split = self::intents()['closing-cta-split'] ?? [];
+
+		$this->assertSame( 'Closing CTA', $split['intent']['blocks'][0]['attrs']['metadata']['name'] ?? null );
+		$rows = self::rows_of_items( $split );
+		$this->assertCount( 1, $rows, 'closing-cta-split holds one row' );
+		$this->assertSame( 'core/columns', $rows[0]['block'] ?? null );
+		$this->assertSame( 'wide', $rows[0]['attrs']['align'] ?? null, 'closing-cta-split: the row is at wide width' );
+		$this->assertNotSame( false, $rows[0]['attrs']['isStackedOnMobile'] ?? true, 'closing-cta-split: the columns stack on a phone, the image under the text' );
+
+		// The text comes first, so the image sits on the side away from where
+		// the text starts: right on a left-to-right page, left on a
+		// right-to-left one, where columns run the other way.
+		$columns = is_array( $rows[0]['children'] ?? null ) ? $rows[0]['children'] : [];
+		$this->assertCount( 2, $columns, 'closing-cta-split: the text column, then the image' );
+		$this->assertSame( [ 'Text', 'Heading', 'Body', 'Primary button', 'Email button' ], self::labels_in( $columns[0] ) );
+		$this->assertSame( [ 'Image column', 'Image' ], self::labels_in( $columns[1] ) );
+		foreach ( self::nodes( $columns[0] ) as $row ) {
+			$this->assertNotSame( 'center', $row['node']['attrs']['style']['typography']['textAlign'] ?? null, 'closing-cta-split: beside an image the text starts at the column\'s edge' );
+			$this->assertNotSame( 'center', $row['node']['attrs']['layout']['justifyContent'] ?? null, 'closing-cta-split: beside an image the buttons start at the column\'s edge' );
+		}
+
+		$images = self::blocks_named( $split, 'core/image' );
+		$this->assertCount( 1, $images, 'closing-cta-split holds one image slot' );
+		$image = $images[0]['node'];
+		$this->assertSame( 'Image', $image['attrs']['metadata']['name'] ?? null );
+		$this->assertSame( '4/3', $image['attrs']['aspectRatio'] ?? null );
+		$this->assertSame( 'cover', $image['attrs']['scale'] ?? null );
+		$this->assertSame( '/voyager-open-blocks-assets/placeholders/image-4x3.svg', $image['url'] ?? null, 'the slot ships the pack\'s 4:3 placeholder' );
+		$this->assertSame( '', $image['alt'] ?? null, 'the placeholder ships with empty alt text, which validate warns on until the site\'s own image and its alt text replace it' );
+		$this->assertSame( [], self::blocks_named( $split, 'core/cover' ) );
 	}
 
 	public function test_services_comes_in_two_layouts_grid_first_then_list(): void {
