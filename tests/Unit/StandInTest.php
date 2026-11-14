@@ -209,7 +209,9 @@ final class StandInTest extends TestCase {
 		// while Settings > Site Data holds no credentials: a bound fallback,
 		// which compose names in empty, not a numbered item's text. Markup
 		// cannot say whether the field is filled, so a warning here would
-		// fire on a strip that shows the owner's own list.
+		// fire on a strip that shows the owner's own list. On a saved post,
+		// list_stand_in_warnings() resolves the binding first
+		// (BoundListStandInTest).
 		$facts = IntentBlocks::blocks( 'proof-strip-facts' );
 		$this->assertSame( [], Abilities\item_slots( $facts ), 'the facts layout holds no numbered item' );
 		$this->assertSame( [], Abilities\stand_in_warnings( $facts, self::index() ), 'proof-strip-facts as shipped' );
