@@ -53,7 +53,7 @@ Every skill teaches an agent the same three steps:
 
 = Abilities over REST and MCP =
 
-Ten WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
+Eleven WordPress abilities in the `voyager-open-blocks` category let an agent use the pack on a live site without writing markup:
 
 * `get-catalog`: the pack's blocks, its patterns and every bindable field with its exact arguments.
 * `find-posts`: find a page, post, template or template part by words in its title, its slug, or as the home page, and get its ID. It lists only what the user can edit, and no content.
@@ -64,6 +64,7 @@ Ten WordPress abilities in the `voyager-open-blocks` category let an agent use t
 * `bind`: write a block binding. The arguments must match a listed field exactly. In a template, it checks them against the post type the template shows.
 * `undo`: reverse a save made by insert, compose, configure or bind. It is refused when the post was saved since, by a person or another agent, unless told to reverse those saves too.
 * `validate`: check block markup, or a saved post, without saving anything.
+* `audit`: list what to fix on a saved page before it goes live: a phone number, email or address typed in where Site Data belongs, text the pack ships left in place, placeholders, images with no alt text, stale fallbacks, a block whose own text and background colours are hard to read, and Site Data fields the page shows that are empty. It saves nothing.
 * `prompt`: the prompt a person gives their agent for one of the pack's skills, the text under its "Tell your agent" heading, as one user message. Version 0.3.0 and later of the WordPress MCP Adapter serve it as an MCP prompt, not a tool.
 
 They are served over REST at `wp-abilities/v1`, and to MCP clients through the WordPress MCP Adapter, so an agent with only MCP access to your site can use the pack. Reading the catalog and finding posts need a user who can edit posts, and find-posts lists only the posts that user can edit. Every other ability needs a user who can edit the post it names.
