@@ -10,6 +10,19 @@
  *      and each ability's description and input schema descriptions as the
  *      listing gives them, under 3,000 words, each part printed, with the
  *      same rule refusing the listing plus a planted 3,000-word description,
+ *  1a. get-catalog in one tool result: with no options it answers in brief,
+ *      under 20,000 characters of JSON, each pattern its name, description,
+ *      section and layout and each recipe its slug, title and sections as
+ *      compose takes them, the whole catalog's rows less the rest; recipe
+ *      "home" gives that recipe in full, each section with its copy_guidance
+ *      and its pattern's copy_rules, under 20,000 too, while the same rule
+ *      refuses the whole catalog (include with all six keys, which the rest
+ *      of this script reads); patterns and include give only what they
+ *      name; Site Data fields say whether they are filled, as compose's
+ *      empty does; and the home recipe's sections copied straight from the
+ *      brief answer, and from its detail with copy written in, each compose
+ *      with nothing refused, while a section with a key compose does not
+ *      take is still refused,
  *  1b. the prompt ability: its `item` enum lists every skill under skills/
  *      with a "Tell your agent" prompt, read here from each SKILL.md on its
  *      own, and its listing says the MCP Adapter serves it as a prompt.
@@ -240,6 +253,7 @@ import { join } from 'node:path';
 
 import { parse } from '@wordpress/block-serialization-default-parser';
 
+import { CATALOG_LIMIT, catalogFits } from './lib/catalog-budget.mjs';
 import { flags, repo } from './lib/site.mjs';
 import { ENTRY_SKILL, READING_LIMIT, readingBudget } from './lib/words.mjs';
 
@@ -357,7 +371,7 @@ async function api( path, { method = 'GET', body, query, as = auth } = {} ) {
 	try {
 		data = JSON.parse( response.text );
 	} catch {}
-	return { status: response.status, data };
+	return { status: response.status, data, text: response.text };
 }
 
 /**
@@ -372,6 +386,13 @@ function run( name, input, readonly = false, as = auth ) {
 	if ( readonly ) {
 		const query = {};
 		for ( const [ key, value ] of Object.entries( input ) ) {
+			if ( Array.isArray( value ) ) {
+				// input[include][0]=used_on, which PHP reads as a list.
+				value.forEach( ( item, index ) => {
+					query[ `input[${ key }][${ index }]` ] = item;
+				} );
+				continue;
+			}
 			query[ `input[${ key }]` ] = value;
 		}
 		return api( `/wp-abilities/v1/abilities/${ name }/run`, { query, as } );
@@ -594,7 +615,293 @@ step(
 	`${ heroTask.status } ${ heroTask.data.code }; ${ unknownItem.status } ${ unknownItem.data.code }`
 );
 
-const catalog = await run( `${ ns }/get-catalog`, { post_type: 'page' }, true );
+// 1a. get-catalog fits in one tool result. With no options it answers in
+// brief, and recipe, patterns and include give only what they name, in full.
+// include with all six keys is the whole catalog, which the rest of this
+// script reads. Sizes are the response body as WordPress sends it, the JSON
+// an MCP adapter passes on, and the same rule refuses the whole catalog, so a
+// rule that cannot fail turns this red.
+const CATALOG_KEYS = [
+	'styles',
+	'blocks',
+	'patterns',
+	'sources',
+	'used_on',
+	'recipes',
+];
+const catalog = await run(
+	`${ ns }/get-catalog`,
+	{ post_type: 'page', include: CATALOG_KEYS },
+	true
+);
+const brief = await run( `${ ns }/get-catalog`, { post_type: 'page' }, true );
+const homeDetail = await run( `${ ns }/get-catalog`, { recipe: 'home' }, true );
+const coverDetail = await run(
+	`${ ns }/get-catalog`,
+	{ patterns: [ 'voyager-open/hero-cover' ] },
+	true
+);
+// What later steps read to count the pages that show a field.
+const USED_ON = { post_type: 'page', include: [ 'used_on' ] };
+const usedOnOnly = await run( `${ ns }/get-catalog`, USED_ON, true );
+const keysOf = ( response ) =>
+	JSON.stringify( Object.keys( response.data || {} ) );
+const sameJson = ( a, b ) => JSON.stringify( a ) === JSON.stringify( b );
+const pick = ( row, keys ) =>
+	Object.fromEntries(
+		keys
+			.filter( ( key ) => key in row )
+			.map( ( key ) => [ key, row[ key ] ] )
+	);
+const wholePatterns = Array.isArray( catalog.data.patterns )
+	? catalog.data.patterns
+	: [];
+const wholeRecipes = Array.isArray( catalog.data.recipes )
+	? catalog.data.recipes
+	: [];
+// The pattern a recipe section names, read from the whole catalog's rows:
+// layout null is the pattern that keeps the section's name.
+const sectionPattern = ( section ) =>
+	wholePatterns.find( ( row ) =>
+		section.layout === null || section.layout === undefined
+			? row.name === section.pattern
+			: `voyager-open/${ row.section }` === section.pattern &&
+				row.layout === section.layout
+	);
+const said = ( response ) =>
+	response.data?.message ? `: ${ response.data.message }` : '';
+
+step(
+	`fitness: get-catalog with no options is ${ brief.text?.length } characters of JSON, under ${ CATALOG_LIMIT }`,
+	brief.status === 200 && catalogFits( brief.text?.length ),
+	`status ${ brief.status }, keys ${ keysOf( brief ) }`
+);
+step(
+	`fitness: get-catalog with recipe "home", its sections' copy guidance and copy rules, is ${ homeDetail.text?.length } characters of JSON, under ${ CATALOG_LIMIT }`,
+	homeDetail.status === 200 &&
+		keysOf( homeDetail ) === '["recipe"]' &&
+		catalogFits( homeDetail.text?.length ),
+	`status ${ homeDetail.status }, keys ${ keysOf( homeDetail ) }${ said(
+		homeDetail
+	) }`
+);
+step(
+	`the same rule refuses the whole catalog, include with all six keys, at ${ catalog.text?.length } characters`,
+	catalog.status === 200 &&
+		keysOf( catalog ) === JSON.stringify( CATALOG_KEYS ) &&
+		! catalogFits( catalog.text?.length ),
+	`status ${ catalog.status }, keys ${ keysOf( catalog ) }${ said( catalog ) }`
+);
+step(
+	"include with all six keys keeps every key the catalog had: each pattern with its title, categories, copy_rules and named blocks, each recipe with its description, page_type and each section's copy_guidance",
+	wholePatterns.length > 0 &&
+		wholePatterns.every(
+			( row ) =>
+				sameJson( Object.keys( row ), [
+					'name',
+					'title',
+					'description',
+					'categories',
+					'section',
+					'layout',
+					'copy_rules',
+					'blocks',
+				] ) && Array.isArray( row.blocks )
+		) &&
+		wholeRecipes.length > 0 &&
+		wholeRecipes.every(
+			( recipe ) =>
+				sameJson( Object.keys( recipe ), [
+					'slug',
+					'title',
+					'description',
+					'page_type',
+					'sections',
+				] ) &&
+				recipe.sections.every(
+					( section ) =>
+						!! section.copy_guidance &&
+						typeof section.copy_guidance === 'object'
+				)
+		) &&
+		Array.isArray( catalog.data.blocks ) &&
+		catalog.data.blocks.length > 0 &&
+		!! catalog.data.used_on &&
+		typeof catalog.data.used_on === 'object',
+	`${ wholePatterns.length } patterns, ${ wholeRecipes.length } recipes, ${
+		( catalog.data.blocks || [] ).length
+	} blocks`
+);
+step(
+	'get-catalog with no options: styles and sources as in full, each pattern its name, description, section and layout, each recipe its slug, title and sections less copy_guidance, and nothing else',
+	brief.status === 200 &&
+		keysOf( brief ) === '["styles","patterns","sources","recipes"]' &&
+		sameJson( brief.data.styles, catalog.data.styles ) &&
+		sameJson( brief.data.sources, catalog.data.sources ) &&
+		sameJson(
+			brief.data.patterns,
+			wholePatterns.map( ( row ) =>
+				pick( row, [ 'name', 'description', 'section', 'layout' ] )
+			)
+		) &&
+		sameJson(
+			brief.data.recipes,
+			wholeRecipes.map( ( recipe ) => ( {
+				slug: recipe.slug,
+				title: recipe.title,
+				sections: recipe.sections.map( ( section ) =>
+					pick( section, [ 'pattern', 'layout', 'style', 'omit' ] )
+				),
+			} ) )
+		),
+	`keys ${ keysOf( brief ) }, ${
+		( brief.data.patterns || [] ).length
+	} patterns, ${ ( brief.data.recipes || [] ).length } recipes`
+);
+const homeWhole = wholeRecipes.find( ( recipe ) => recipe.slug === 'home' );
+const homeSections = homeDetail.data.recipe?.sections || [];
+step(
+	'get-catalog with recipe "home": the recipe as the whole catalog lists it, each section with copy_rules, its pattern\'s rules',
+	!! homeWhole &&
+		homeSections.length === homeWhole.sections.length &&
+		sameJson(
+			{
+				...homeDetail.data.recipe,
+				sections: homeSections.map( ( section ) => {
+					const rest = { ...section };
+					delete rest.copy_rules;
+					return rest;
+				} ),
+			},
+			homeWhole
+		) &&
+		homeSections.every(
+			( section ) =>
+				!! sectionPattern( section ) &&
+				sameJson(
+					section.copy_rules,
+					sectionPattern( section ).copy_rules
+				)
+		),
+	homeSections
+		.map(
+			( section ) =>
+				`${ sectionPattern( section )?.name }: ${
+					Object.keys( section.copy_rules || {} ).length
+				} rules`
+		)
+		.join( ', ' ) || JSON.stringify( homeDetail.data ).slice( 0, 160 )
+);
+step(
+	'get-catalog with patterns, and with include, gives only what they name, as the whole catalog lists it',
+	coverDetail.status === 200 &&
+		keysOf( coverDetail ) === '["patterns"]' &&
+		wholePatterns.some(
+			( row ) => row.name === 'voyager-open/hero-cover'
+		) &&
+		sameJson(
+			coverDetail.data.patterns,
+			wholePatterns.filter(
+				( row ) => row.name === 'voyager-open/hero-cover'
+			)
+		) &&
+		usedOnOnly.status === 200 &&
+		keysOf( usedOnOnly ) === '["used_on"]' &&
+		sameJson( usedOnOnly.data.used_on, catalog.data.used_on ),
+	`patterns: ${ coverDetail.status } ${ keysOf( coverDetail ) }${ said(
+		coverDetail
+	) }; include used_on: ${ usedOnOnly.status } ${ keysOf( usedOnOnly ) }`
+);
+
+// A section copied straight from get-catalog composes: the home recipe's
+// sections as the brief answer lists them, and as its detail lists them, with
+// copy_guidance and copy_rules, and copy written in. The same detail with a
+// key compose does not take is refused, so compose still checks its input.
+const homeBrief = ( brief.data.recipes || [] ).find(
+	( recipe ) => recipe.slug === 'home'
+);
+const fromBrief = await run( `${ ns }/compose`, {
+	title: `E2E: home from the brief catalog ${ Date.now() }`,
+	sections: homeBrief?.sections || [],
+	dry_run: true,
+} );
+const detailWithCopy = homeSections.map( ( section, index ) =>
+	0 === index
+		? {
+				...section,
+				copy: { Heading: 'Roof repair and replacement in Springfield' },
+			}
+		: section
+);
+const fromDetail = await run( `${ ns }/compose`, {
+	title: `E2E: home from the recipe detail ${ Date.now() }`,
+	sections: detailWithCopy,
+	dry_run: true,
+} );
+const misspelt = await run( `${ ns }/compose`, {
+	title: `E2E: home with a misspelt key ${ Date.now() }`,
+	sections: detailWithCopy.map( ( section, index ) =>
+		0 === index ? { ...section, copy_guidence: {} } : section
+	),
+	dry_run: true,
+} );
+const composedClean = ( response ) =>
+	response.status === 200 &&
+	response.data.saved === false &&
+	response.data.post_id === null &&
+	sameJson( response.data.refused, [] ) &&
+	response.data.validation?.valid === true;
+step(
+	"compose takes the home recipe's sections as get-catalog lists them, in brief and in full with copy written in: nothing refused, valid, nothing saved",
+	!! homeBrief &&
+		homeSections.length > 0 &&
+		composedClean( fromBrief ) &&
+		composedClean( fromDetail ),
+	`brief: ${ fromBrief.status }${ said( fromBrief ) }; detail: ${
+		fromDetail.status
+	}${ said( fromDetail ) }`
+);
+step(
+	'compose still refuses a section with a key it does not take (copy_guidence)',
+	misspelt.status === 400 &&
+		misspelt.data.code === 'ability_invalid_input' &&
+		/copy_guidence/.test( misspelt.data.message || '' ),
+	`${ misspelt.status } ${ misspelt.data.code }${ said( misspelt ) }`
+);
+
+// Site Data fields say whether they hold a value now, as compose reads them:
+// each key the home page binds that compose lists in empty reads filled
+// false, and the phone reads true unless it is listed there.
+const briefSiteData = ( brief.data.sources || [] ).find(
+	( source ) => source.name === 'voyager/site-data'
+);
+const filledOf = Object.fromEntries(
+	( briefSiteData?.fields || [] ).map( ( field ) => [
+		field.args?.key,
+		field.filled,
+	] )
+);
+const homeEmpty = Array.isArray( fromBrief.data.empty )
+	? fromBrief.data.empty
+	: null;
+step(
+	"get-catalog's Site Data fields each say filled, true or false, and each key compose lists in empty reads false",
+	( briefSiteData?.fields || [] ).length > 0 &&
+		briefSiteData.fields.every(
+			( field ) => typeof field.filled === 'boolean'
+		) &&
+		filledOf.year === true &&
+		!! homeEmpty &&
+		homeEmpty.every( ( key ) => filledOf[ key ] === false ) &&
+		filledOf.phone === ! homeEmpty.includes( 'phone' ),
+	`empty on the home page: ${ JSON.stringify(
+		homeEmpty
+	) }; not filled: ${ Object.entries( filledOf )
+		.filter( ( [ , filled ] ) => filled === false )
+		.map( ( [ key ] ) => key )
+		.join( ', ' ) }`
+);
+
 const siteData = ( catalog.data.sources || [] ).find(
 	( s ) => s.name === 'voyager/site-data'
 );
@@ -4676,8 +4983,9 @@ step(
 // already show the phone.
 const phoneUse = 'voyager/site-data:phone';
 const usedOn = async () =>
-	( await run( `${ ns }/get-catalog`, { post_type: 'page' }, true ) ).data
-		.used_on?.[ phoneUse ] ?? null;
+	( await run( `${ ns }/get-catalog`, USED_ON, true ) ).data.used_on?.[
+		phoneUse
+	] ?? null;
 const boundPhone =
 	'<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"voyager/site-data","args":{"key":"phone"}}}}} -->\n<p>(555) 555-0100</p>\n<!-- /wp:paragraph -->';
 const plainText =
@@ -5164,9 +5472,8 @@ step(
 );
 validate( 'facts after bind', factsBound.data.markup || '' );
 
-const factsUsedBefore = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ factsUse ];
+const factsUsedBefore = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ factsUse ];
 const threeServices = await setServices(
 	'Drain cleaning\r\nHeating & cooling\r\nLeak detection'
 );
@@ -5194,9 +5501,8 @@ step(
 	) }`
 );
 
-const factsUsedAfter = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ factsUse ];
+const factsUsedAfter = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ factsUse ];
 step(
 	'get-catalog used_on for services counts the published facts page',
 	Number.isInteger( factsUsedBefore?.posts ) &&
@@ -5609,9 +5915,8 @@ const linksTo = ( markup, scheme ) =>
 		),
 	].map( ( m ) => ( { href: m[ 1 ], text: m[ 2 ].trim() } ) );
 const contactUse = 'voyager/site-data:phone';
-const contactUsedBefore = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ contactUse ];
+const contactUsedBefore = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ contactUse ];
 const contactPublished = await api( `/wp/v2/pages/${ contactId }`, {
 	method: 'POST',
 	body: { status: 'publish' },
@@ -5653,9 +5958,8 @@ step(
 	JSON.stringify( shownContact?.html || '' )
 );
 
-const contactUsedAfter = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ contactUse ];
+const contactUsedAfter = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ contactUse ];
 step(
 	'get-catalog used_on for the phone counts the published contact details page',
 	Number.isInteger( contactUsedBefore?.posts ) &&
@@ -5738,9 +6042,8 @@ const sectionRows = [
 	'hours',
 ].map( ( key ) => `voyager/site-data:${ key }` );
 const sectionUsed = async () => {
-	const catalogUsed = (
-		await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-	).data.used_on;
+	const catalogUsed = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+		.data.used_on;
 	return Object.fromEntries(
 		sectionRows.map( ( row ) => [ row, catalogUsed?.[ row ]?.posts ] )
 	);
@@ -6238,9 +6541,8 @@ const statsPlaced = await run( `${ ns }/insert`, {
 } );
 validate( 'stats as insert saves it', statsPlaced.data.markup || '' );
 const statsUse = 'voyager/site-data:rating';
-const statsUsedBefore = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ statsUse ];
+const statsUsedBefore = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ statsUse ];
 const statsPublished = await api( `/wp/v2/pages/${ statsId }`, {
 	method: 'POST',
 	body: { status: 'publish' },
@@ -6272,9 +6574,8 @@ validate(
 		.data.content?.raw || ''
 );
 
-const statsUsedAfter = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ statsUse ];
+const statsUsedAfter = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ statsUse ];
 step(
 	'get-catalog used_on for the rating counts the published stats page',
 	Number.isInteger( statsUsedBefore?.posts ) &&
@@ -6490,9 +6791,8 @@ step(
 );
 validate( 'service-area as insert saved it', areaInsert.data.markup || '' );
 
-const areaUsedBefore = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ areaUse ];
+const areaUsedBefore = ( await run( `${ ns }/get-catalog`, USED_ON, true ) )
+	.data.used_on?.[ areaUse ];
 const threePlaces = await setServiceArea(
 	'Springfield\r\nChatham\r\nLewis & Clark County'
 );
@@ -6520,9 +6820,8 @@ step(
 	) }`
 );
 
-const areaUsedAfter = (
-	await run( `${ ns }/get-catalog`, { post_type: 'page' }, true )
-).data.used_on?.[ areaUse ];
+const areaUsedAfter = ( await run( `${ ns }/get-catalog`, USED_ON, true ) ).data
+	.used_on?.[ areaUse ];
 step(
 	'get-catalog used_on for service_area counts the published service area page',
 	Number.isInteger( areaUsedBefore?.posts ) &&
