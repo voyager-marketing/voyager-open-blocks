@@ -1,27 +1,49 @@
 #!/usr/bin/env node
 /**
- * Runs the with/without benchmark: per brief and arm, a fresh
- * WordPress site, a build prompt and an edit prompt through headless Claude
- * Code, with MCP pointed at that site.
+ * Runs benchmark v2: per brief, group, model and repeat, a fresh WordPress
+ * site behind WP Super Cache, a build prompt and an edit prompt through
+ * headless Claude Code, with MCP pointed at that site.
  *
  *   node bench/run.mjs prepare [--work DIR]
- *   node bench/run.mjs run [--arms baseline,loop] [--briefs id,id | --split derive] [--limit N]
- *                          [--model ID] [--use-login] [--force] [--keep] [--work DIR]
+ *   node bench/run.mjs run [--groups baseline,plugin,pack] [--models id,id] [--repeats N]
+ *                          [--briefs id,id | --split derive] [--limit N]
+ *                          [--use-login] [--force] [--keep] [--work DIR]
  *
- * `prepare` builds one template site per arm under <work>/templates: WordPress
- * on SQLite (the README's "Local site" setup), Twenty Twenty-Five, the
- * WordPress MCP Adapter and bench/harness/site-tools.php as an mu-plugin. The
- * `loop` template also gets this pack, copied from the package.json `files`
- * list, which is what the release zip ships.
+ * `prepare` builds one template site per group under <work>/templates:
+ * WordPress on SQLite (the README's "Local site" setup), Twenty Twenty-Five,
+ * the WordPress MCP Adapter, bench/harness/site-tools.php and
+ * bench/harness/page-cache.php as mu-plugins, and WP Super Cache at the
+ * version npm run cache-check pins, turned on with cache-check's own setup
+ * (bench/harness/setup-wp-super-cache.php). The `plugin` and `pack` templates
+ * also get this pack, copied from the package.json `files` list, which is
+ * what the release zip ships. The `plugin` template also gets
+ * bench/harness/plugin-group.php, which unregisters every ability the pack
+ * registers. Each template records the abilities the MCP Adapter lists, and
+ * prepare stops when a group's list is wrong.
  *
- * `run` copies the arm's template for each brief, so every run starts from the
- * same fresh site and nothing carries over. It writes the brief's business
- * details (blogname and the voyager_site_* options, in both arms), serves the
- * copy with Playground, and runs the two prompts from bench/README.md in one
- * Claude Code session. The `loop` arm also gets the pack's skills (as a plugin
- * directory), a Wesper manifest of its own site and Block Runner. Results land
- * in bench/runs/<arm>/<brief-id>/: page.html, after-edit.html, site-data.json,
- * run.json and both transcripts.
+ * `run` copies the group's template for each run, so every run starts from
+ * the same fresh site and nothing carries over. It writes the brief's
+ * business details and business profile into Site Data's options (blogname
+ * and the voyager_site_* options, in every group), serves the copy with
+ * Playground, checks that the page cache serves the front page, and runs the
+ * two prompts from bench/README.md ("Build v2" and "Edit v2") in one Claude
+ * Code session. The `pack` group also gets the pack's skills (as a plugin
+ * directory), a Wesper manifest of its own site and Block Runner; `baseline`
+ * and `plugin` get the MCP tools only.
+ *
+ * After the build and after the edit the runner loads the page twice as an
+ * anonymous visitor. The second load must come from the cache (the same
+ * render marker as the first), or the run is a harness failure. After the
+ * build it also captures the rendered page at 1440 px wide, full height,
+ * through scripts/lib/chrome.mjs.
+ *
+ * Results land in bench/runs-v2/<group>/<model>/<brief-id>/<repeat>/:
+ * page.html and after-edit.html (post_content), page.rendered.html and
+ * after-edit.rendered.html (the second anonymous load, which is what a
+ * visitor gets through the cache), page.png, site-data.json, run.json,
+ * wesper-manifest.json (the site's own blocks, which the scorer validates
+ * against, in every group) and both transcripts. v1's runs/ and RESULTS.md
+ * are left as they were.
  *
  * Runs go one at a time: one Playground site is up at any moment, and it is
  * shut down before the next boots. Four sites booting at once killed
@@ -29,10 +51,11 @@
  * folder is complete (run.json finished, with no harness failure) is skipped,
  * so a crash costs one run; --force runs it again.
  *
- * Needs `wp`, `php` and `claude` on PATH, and a Node that Block Runner
- * accepts (22.23.4 or 24.22.1 and later; 25 fails): the agent's PATH starts
- * with this Node. --use-login drops ANTHROPIC_API_KEY from the agent's
- * environment so Claude Code uses its claude.ai login.
+ * Needs `wp`, `php` and `claude` on PATH, Chrome or Chromium (CHROME_PATH, or
+ * a usual place), and a Node that Block Runner accepts (22.23.4 or 24.22.1
+ * and later; 25 fails): the agent's PATH starts with this Node. --use-login
+ * drops ANTHROPIC_API_KEY from the agent's environment so Claude Code uses
+ * its claude.ai login.
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -53,6 +76,9 @@ import { freemem } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { PLUGINS, renderMarker } from '../scripts/lib/cache-check.mjs';
+import { findChrome, launch } from '../scripts/lib/chrome.mjs';
+import { createClient } from '../scripts/lib/http.mjs';
 import { flags, phpEnv, repo, wp } from '../scripts/lib/site.mjs';
 
 const here = dirname( fileURLToPath( import.meta.url ) );
@@ -60,10 +86,19 @@ const opts = flags( process.argv.slice( 2 ) );
 const work = resolve(
 	opts.work || join( repo, '..', 'voyager-open-blocks-bench' )
 );
-const ARMS = [ 'baseline', 'loop' ];
-const MODEL = opts.model || 'claude-sonnet-5';
+const PROTOCOL = 2;
+const GROUPS = [ 'baseline', 'plugin', 'pack' ];
+// Claude Code's current model per family, as `--model` takes them.
+const MODELS = [ 'claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5' ];
+// The groups that have the pack installed.
+const WITH_PACK = [ 'plugin', 'pack' ];
+const ABILITY_PREFIX = 'voyager-open-blocks/';
 const MCP_ADAPTER = 'v0.7.1';
 const THEME = 'twentytwentyfive';
+const CACHE = PLUGINS[ 'wp-super-cache' ];
+const CAPTURE_WIDTH = 1440;
+// Chrome cannot capture past this many pixels in one shot.
+const CAPTURE_MAX_HEIGHT = 16000;
 const STEP_TIMEOUT_MS = 30 * 60 * 1000;
 const STEP_BUDGET_USD = '10';
 const PORT = 9471;
@@ -107,8 +142,67 @@ function unzip( file, into, env ) {
 	);
 }
 
+/**
+ * The JSON object a harness PHP file printed last. WP-CLI and the plugins it
+ * loads can print notices before it.
+ * @param text
+ * @param what
+ */
+function lastJson( text, what ) {
+	const line = text
+		.split( /\r?\n/ )
+		.map( ( l ) => l.trim() )
+		.filter( ( l ) => l.startsWith( '{' ) )
+		.pop();
+	try {
+		return JSON.parse( line );
+	} catch {
+		throw new Error(
+			`${ what } printed no JSON: ${ text.trim().slice( -500 ) }`
+		);
+	}
+}
+
+/**
+ * The abilities the MCP Adapter lists on a site, and what is wrong with that
+ * list for the group, or null.
+ * @param site
+ * @param env
+ * @param group
+ */
+function offeredAbilities( site, env, group ) {
+	const found = lastJson(
+		wp(
+			site,
+			[ 'eval-file', join( here, 'harness', 'offered-abilities.php' ) ],
+			env
+		),
+		'offered-abilities.php'
+	);
+	if ( found.error ) {
+		return { abilities: [], problem: found.error };
+	}
+	const pack = found.abilities.filter( ( a ) =>
+		a.startsWith( ABILITY_PREFIX )
+	);
+	let problem = null;
+	if ( group === 'pack' && ! pack.length ) {
+		problem = `the pack group lists none of the pack's abilities (${ found.abilities.join(
+			', '
+		) })`;
+	} else if ( group !== 'pack' && pack.length ) {
+		problem = `the ${ group } group lists the pack's abilities ${ pack.join(
+			', '
+		) }`;
+	} else if ( ! found.abilities.some( ( a ) => a === 'site/create-page' ) ) {
+		problem = 'the harness site tools are not listed';
+	}
+	return { abilities: found.abilities, problem };
+}
+
 async function prepare() {
 	const cache = join( work, 'cache' );
+	const { slug, version } = CACHE.install;
 	const zips = {
 		wordpress: await download(
 			'https://wordpress.org/latest.zip',
@@ -122,10 +216,14 @@ async function prepare() {
 			`https://github.com/WordPress/mcp-adapter/releases/download/${ MCP_ADAPTER }/mcp-adapter.zip`,
 			join( cache, `mcp-adapter-${ MCP_ADAPTER }.zip` )
 		),
+		cache: await download(
+			`https://downloads.wordpress.org/plugin/${ slug }.${ version }.zip`,
+			join( cache, `${ slug }.${ version }.zip` )
+		),
 	};
 
-	for ( const arm of ARMS ) {
-		const site = join( work, 'templates', arm );
+	for ( const group of GROUPS ) {
+		const site = join( work, 'templates', group );
 		rmSync( site, { recursive: true, force: true } );
 		rmSync( `${ site }-php`, { recursive: true, force: true } );
 		const env = phpEnv( site );
@@ -137,17 +235,23 @@ async function prepare() {
 		const plugins = join( site, 'wp-content', 'plugins' );
 		unzip( zips.sqlite, plugins, env );
 		unzip( zips.mcp, plugins, env );
+		unzip( zips.cache, plugins, env );
 		copyFileSync(
 			join( plugins, 'sqlite-database-integration', 'db.copy' ),
 			join( site, 'wp-content', 'db.php' )
 		);
-		mkdirSync( join( site, 'wp-content', 'mu-plugins' ), {
-			recursive: true,
-		} );
-		copyFileSync(
-			join( here, 'harness', 'site-tools.php' ),
-			join( site, 'wp-content', 'mu-plugins', 'bench-site-tools.php' )
-		);
+		const mu = join( site, 'wp-content', 'mu-plugins' );
+		mkdirSync( mu, { recursive: true } );
+		const harness = {
+			'site-tools.php': 'bench-site-tools.php',
+			'page-cache.php': 'bench-page-cache.php',
+			...( group === 'plugin'
+				? { 'plugin-group.php': 'bench-plugin-group.php' }
+				: {} ),
+		};
+		for ( const [ from, to ] of Object.entries( harness ) ) {
+			copyFileSync( join( here, 'harness', from ), join( mu, to ) );
+		}
 
 		const cli = ( args ) => wp( site, args, env ).trim();
 		cli( [
@@ -190,7 +294,7 @@ async function prepare() {
 			cli( [ 'config', 'set', constant, 'true', '--raw' ] );
 		}
 
-		if ( arm === 'loop' ) {
+		if ( WITH_PACK.includes( group ) ) {
 			const pack = join( plugins, 'voyager-open-blocks' );
 			const { files } = JSON.parse(
 				readFileSync( join( repo, 'package.json' ), 'utf8' )
@@ -199,6 +303,43 @@ async function prepare() {
 				cpSync( join( repo, f ), join( pack, f ), { recursive: true } );
 			}
 			cli( [ 'plugin', 'activate', 'voyager-open-blocks' ] );
+		}
+
+		// The page cache, last, so the activations above did not run with it.
+		cli( [ 'plugin', 'activate', slug ] );
+		const setup = lastJson(
+			cli( [
+				'eval-file',
+				join( here, 'harness', 'setup-wp-super-cache.php' ),
+				join(
+					repo,
+					'tests',
+					'fixtures',
+					'cache-check',
+					'wp-super-cache',
+					'setup.php'
+				),
+			] ),
+			'setup-wp-super-cache.php'
+		);
+		const installed = setup.facts?.[ `${ slug } version` ] ?? null;
+		const problems = [ ...( setup.problems || [] ) ];
+		if ( installed !== version ) {
+			problems.push(
+				`${ CACHE.label } ${ installed } is installed, and the bench is written against ${ version }.`
+			);
+		}
+		if ( problems.length ) {
+			throw new Error(
+				`template ${ group }: ${ CACHE.label } setup failed: ${ problems.join(
+					' '
+				) }`
+			);
+		}
+
+		const offered = offeredAbilities( site, env, group );
+		if ( offered.problem ) {
+			throw new Error( `template ${ group }: ${ offered.problem }` );
 		}
 
 		const password = cli( [
@@ -220,7 +361,8 @@ async function prepare() {
 			.filter( Boolean )
 			.map( Number );
 		const meta = {
-			arm,
+			protocol: PROTOCOL,
+			group,
 			password,
 			pages,
 			wordpress: cli( [ 'core', 'version' ] ),
@@ -239,16 +381,22 @@ async function prepare() {
 					'--format=json',
 				] )
 			),
+			page_cache: `${ CACHE.label } ${ installed }`,
+			abilities: offered.abilities,
 			pack_commit: git( [ 'rev-parse', 'HEAD' ] ),
 		};
 		writeFileSync(
-			join( work, 'templates', `${ arm }.json` ),
+			join( work, 'templates', `${ group }.json` ),
 			JSON.stringify( meta, null, 2 ) + '\n'
 		);
 		console.log(
-			`template ${ arm }: WordPress ${ meta.wordpress }, ${ meta.plugins
+			`template ${ group }: WordPress ${ meta.wordpress }, ${ meta.plugins
 				.map( ( p ) => `${ p.name } ${ p.version }` )
-				.join( ', ' ) }`
+				.join( ', ' ) }; ${
+				offered.abilities.filter( ( a ) =>
+					a.startsWith( ABILITY_PREFIX )
+				).length
+			} pack abilities listed`
 		);
 	}
 }
@@ -267,7 +415,7 @@ function prompts() {
 		}
 		return m[ 1 ];
 	};
-	return { build: quote( 'Build' ), edit: quote( 'Edit' ) };
+	return { build: quote( 'Build v2' ), edit: quote( 'Edit v2' ) };
 }
 
 function fill( template, brief ) {
@@ -368,12 +516,113 @@ async function warm( url, auth ) {
 	return tries;
 }
 
+/**
+ * Load a page as an anonymous visitor: a fresh client, so no cookies.
+ * @param url
+ */
+async function visit( url ) {
+	try {
+		const res = await createClient( url, { timeout: 120000 } ).get( url );
+		return {
+			status: res.status,
+			text: res.text,
+			marker: renderMarker( res.text ),
+			served: res.headers[ 'x-wp-super-cache' ] || '',
+		};
+	} catch ( e ) {
+		return {
+			status: 0,
+			text: '',
+			marker: null,
+			served: '',
+			error: e.message,
+		};
+	}
+}
+
+/**
+ * Two anonymous loads of a URL, and whether the second came from the cache:
+ * both answered 200 with a render marker, and the marker is the same.
+ * @param url
+ */
+async function twoLoads( url ) {
+	const loads = [ await visit( url ), await visit( url ) ];
+	const fromCache =
+		loads.every( ( l ) => l.status === 200 && l.marker ) &&
+		loads[ 0 ].marker === loads[ 1 ].marker;
+	return {
+		url,
+		loads,
+		record: {
+			url,
+			from_cache: fromCache,
+			loads: loads.map( ( l ) => ( {
+				status: l.status,
+				marker: l.marker,
+				served: l.served,
+				...( l.error ? { error: l.error } : {} ),
+			} ) ),
+		},
+	};
+}
+
+function cacheProblem( what, record ) {
+	return `${ what }: the second anonymous load did not come from the cache (${ record.loads
+		.map(
+			( l ) =>
+				`${ l.status } ${ l.marker ?? 'no marker' }${
+					l.error ? ` ${ l.error }` : ''
+				}`
+		)
+		.join( ', then ' ) })`;
+}
+
+/**
+ * The rendered page at CAPTURE_WIDTH, full height, as a PNG.
+ * @param url
+ * @param file
+ */
+async function capture( url, file ) {
+	const browser = await launch( findChrome() );
+	try {
+		const page = await browser.newPage( {
+			width: CAPTURE_WIDTH,
+			height: 900,
+		} );
+		await page.goto( url );
+		await page.waitFor(
+			'document.fonts ? document.fonts.ready.then( () => true ) : true',
+			{ timeout: 30000 }
+		);
+		const full = await page.evaluate(
+			'Math.ceil( Math.max( document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0 ) )'
+		);
+		const height = Math.min( full, CAPTURE_MAX_HEIGHT );
+		const png = await page.screenshot( {
+			x: 0,
+			y: 0,
+			width: CAPTURE_WIDTH,
+			height,
+		} );
+		writeFileSync( file, png );
+		await page.close().catch( () => {} );
+		return {
+			width: CAPTURE_WIDTH,
+			height,
+			page_height: full,
+			truncated: full > height,
+		};
+	} finally {
+		await browser.close();
+	}
+}
+
 // Playground can die at boot with a V8 fatal error, so a failed boot is
 // retried once.
 async function serve( site, port, log ) {
 	try {
 		return await boot( site, port, log );
-	} catch ( e ) {
+	} catch {
 		return await boot( site, port, `${ log }.retry` );
 	}
 }
@@ -451,6 +700,23 @@ async function stop( child ) {
 }
 
 /**
+ * The ability names an MCP discover call returned, from one tool result.
+ * @param content
+ */
+function discovered( content ) {
+	const text = Array.isArray( content )
+		? content.map( ( c ) => c?.text ?? '' ).join( '' )
+		: String( content ?? '' );
+	try {
+		return ( JSON.parse( text ).abilities || [] )
+			.map( ( a ) => a?.name )
+			.filter( Boolean );
+	} catch {
+		return [];
+	}
+}
+
+/**
  * One headless Claude Code turn. Resolves with the parsed stream and the exit.
  * @param root0
  * @param root0.cwd
@@ -514,6 +780,7 @@ function agent( { cwd, args, transcript, useLogin } ) {
 					.filter( Boolean )
 			);
 			const tools = {};
+			const discoverIds = new Set();
 			for ( const e of events.filter(
 				( x ) => x.type === 'assistant'
 			) ) {
@@ -525,6 +792,25 @@ function agent( { cwd, args, transcript, useLogin } ) {
 								? `ability:${ part.input?.ability_name ?? '?' }`
 								: part.name;
 						tools[ key ] = ( tools[ key ] || 0 ) + 1;
+						if (
+							part.name ===
+							'mcp__wordpress__mcp-adapter-discover-abilities'
+						) {
+							discoverIds.add( part.id );
+						}
+					}
+				}
+			}
+			const listed = new Set();
+			for ( const e of events.filter( ( x ) => x.type === 'user' ) ) {
+				for ( const part of e.message?.content || [] ) {
+					if (
+						part.type === 'tool_result' &&
+						discoverIds.has( part.tool_use_id )
+					) {
+						discovered( part.content ).forEach( ( n ) =>
+							listed.add( n )
+						);
 					}
 				}
 			}
@@ -548,14 +834,23 @@ function agent( { cwd, args, transcript, useLogin } ) {
 				cost_usd: result?.total_cost_usd ?? null,
 				result: result?.result ?? null,
 				tool_calls: tools,
+				mcp_tools: ( init?.tools || [] ).filter( ( t ) =>
+					t.startsWith( 'mcp__' )
+				),
+				abilities_listed: [ ...listed ].sort(),
 				stderr: stderr.trim().slice( -2000 ),
 			} );
 		} );
 	} );
 }
 
+/**
+ * Site Data's options for a brief: the business details (blogname and the
+ * contact options) and the business profile. A list is one item per line.
+ * @param brief
+ */
 function businessOptions( brief ) {
-	return {
+	const options = {
 		blogname: brief.business,
 		voyager_site_phone: brief.phone,
 		voyager_site_email: brief.email,
@@ -564,39 +859,86 @@ function businessOptions( brief ) {
 		voyager_site_address_state: brief.address_state,
 		voyager_site_address_zip: brief.address_zip,
 		voyager_site_hours: brief.hours,
+		voyager_site_services: brief.services,
+		voyager_site_service_area: brief.service_area,
+		voyager_site_credentials: brief.credentials,
+		voyager_site_founded: brief.founded,
+		voyager_site_license: brief.license,
+		voyager_site_rating: brief.rating,
+		voyager_site_review_count: brief.review_count,
+		voyager_site_cta_label: brief.primary_cta?.label,
+		voyager_site_cta_url: brief.primary_cta?.url,
 	};
+	return Object.fromEntries(
+		Object.entries( options )
+			.filter( ( [ , v ] ) => v !== undefined && v !== null )
+			.map( ( [ k, v ] ) => [
+				k,
+				Array.isArray( v ) ? v.join( '\n' ) : String( v ),
+			] )
+	);
 }
 
-async function runOne( arm, brief, port, text, useLogin ) {
-	const out = join( here, 'runs', arm, brief.id );
+/**
+ * Set an option through WP-CLI, the value on STDIN, so a list's line breaks
+ * and any quote reach it as they are.
+ * @param site
+ * @param env
+ * @param option
+ * @param value
+ */
+function setOption( site, env, option, value ) {
+	execFileSync( 'wp', [ `--path=${ site }`, 'option', 'update', option ], {
+		encoding: 'utf8',
+		env,
+		input: value,
+		stdio: [ 'pipe', 'pipe', 'inherit' ],
+	} );
+}
+
+function runDir( group, model, brief, repeat ) {
+	return join( here, 'runs-v2', group, model, brief.id, String( repeat ) );
+}
+
+async function runOne( group, model, brief, repeat, port, text, useLogin ) {
+	const out = runDir( group, model, brief, repeat );
 	rmSync( out, { recursive: true, force: true } );
 	mkdirSync( out, { recursive: true } );
 	const template = JSON.parse(
-		readFileSync( join( work, 'templates', `${ arm }.json` ), 'utf8' )
+		readFileSync( join( work, 'templates', `${ group }.json` ), 'utf8' )
 	);
-	const site = join( work, 'sites', `${ arm }-${ brief.id }` );
-	const desk = join( work, 'agents', `${ arm }-${ brief.id }` );
+	const name = `${ group }-${ model }-${ brief.id }-${ repeat }`;
+	const site = join( work, 'sites', name );
+	const desk = join( work, 'agents', name );
 	for ( const d of [ site, `${ site }-php`, desk ] ) {
 		rmSync( d, { recursive: true, force: true } );
 	}
 	const record = {
-		arm,
+		protocol: PROTOCOL,
+		group,
+		model,
 		brief: brief.id,
 		split: brief.split,
-		model: MODEL,
+		vertical: brief.vertical,
+		credentials: brief.credentials.length,
+		repeat,
 		port,
 		started: new Date().toISOString(),
 		wordpress: template.wordpress,
 		theme: template.theme,
 		plugins: template.plugins,
-		pack_commit: arm === 'loop' ? template.pack_commit : null,
+		page_cache: template.page_cache,
+		pack_commit: WITH_PACK.includes( group ) ? template.pack_commit : null,
 		block_runner: versionOf( 'block-runner' ),
-		wesper: arm === 'loop' ? versionOf( 'wesper' ) : null,
+		wesper: versionOf( 'wesper' ),
 		playground_cli: versionOf( '@wp-playground/cli' ),
 		prompts: {
 			build: fill( text.build, brief ),
 			edit: fill( text.edit, brief ),
 		},
+		abilities_offered: null,
+		cache: {},
+		capture: null,
 		steps: {},
 		page_id: null,
 		failure: null,
@@ -612,16 +954,25 @@ async function runOne( arm, brief, port, text, useLogin ) {
 
 	let server = null;
 	try {
-		cpSync( join( work, 'templates', arm ), site, { recursive: true } );
+		if ( template.protocol !== PROTOCOL ) {
+			throw new Error(
+				`the ${ group } template is not a v2 template. Run: node bench/run.mjs prepare`
+			);
+		}
+		cpSync( join( work, 'templates', group ), site, { recursive: true } );
 		const env = phpEnv( site );
 		const cli = ( args ) => wp( site, args, env ).trim();
 		const url = `http://127.0.0.1:${ port }`;
 		cli( [ 'option', 'update', 'siteurl', url ] );
 		cli( [ 'option', 'update', 'home', url ] );
-		for ( const [ option, value ] of Object.entries(
-			businessOptions( brief )
-		) ) {
-			cli( [ 'option', 'update', option, value ] );
+		const options = businessOptions( brief );
+		for ( const [ option, value ] of Object.entries( options ) ) {
+			setOption( site, env, option, value );
+		}
+		const offered = offeredAbilities( site, env, group );
+		record.abilities_offered = offered.abilities;
+		if ( offered.problem ) {
+			throw new Error( offered.problem );
 		}
 
 		mkdirSync( desk, { recursive: true } );
@@ -630,7 +981,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 		// directory, where its file tools cannot read them into a transcript.
 		const debug = join( work, 'debug' );
 		mkdirSync( debug, { recursive: true } );
-		const mcpConfig = join( debug, `${ arm }-${ brief.id }.mcp.json` );
+		const mcpConfig = join( debug, `${ name }.mcp.json` );
 		const auth = Buffer.from( `admin:${ template.password }` ).toString(
 			'base64'
 		);
@@ -649,7 +1000,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 
 		const common = [
 			'--model',
-			MODEL,
+			model,
 			'--restricted',
 			'--strict-mcp-config',
 			'--mcp-config',
@@ -662,8 +1013,23 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			'--max-budget-usd',
 			STEP_BUDGET_USD,
 		];
+		// The site's own block registry, in every group: the scorer validates
+		// the pages against it, so a block the site registers never warns as
+		// unregistered, and one it does not still does.
+		execFileSync(
+			process.execPath,
+			[
+				join( repo, 'node_modules', 'wesper', 'dist', 'cli.js' ),
+				'collect',
+				'--wp-path',
+				site,
+				'--out',
+				join( out, 'wesper-manifest.json' ),
+			],
+			{ env, stdio: 'ignore' }
+		);
 		let toolArgs;
-		if ( arm === 'loop' ) {
+		if ( group === 'pack' ) {
 			// The pack's skills as a plugin, the site's own Wesper manifest,
 			// the intents the skills point at, and Block Runner and Wesper
 			// through npx.
@@ -692,21 +1058,9 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				join( desk, 'node_modules' ),
 				'junction'
 			);
-			execFileSync(
-				process.execPath,
-				[
-					join( repo, 'node_modules', 'wesper', 'dist', 'cli.js' ),
-					'collect',
-					'--wp-path',
-					site,
-					'--out',
-					join( desk, 'site.context.json' ),
-				],
-				{ env, stdio: 'ignore' }
-			);
 			copyFileSync(
-				join( desk, 'site.context.json' ),
-				join( out, 'wesper-manifest.json' )
+				join( out, 'wesper-manifest.json' ),
+				join( desk, 'site.context.json' )
 			);
 			toolArgs = [
 				'--plugin-dir',
@@ -725,6 +1079,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				'Bash(npx wesper *)',
 			];
 		} else {
+			// baseline and plugin: the site's MCP tools and nothing else.
 			toolArgs = [ '--tools', '', '--allowedTools', 'mcp__wordpress' ];
 		}
 
@@ -735,6 +1090,12 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			port,
 			join( work, `server-${ port }.log` )
 		);
+		// Before any agent spend: the cache must serve the front page.
+		const probe = await twoLoads( `${ url }/` );
+		record.cache.probe = probe.record;
+		if ( ! probe.record.from_cache ) {
+			throw new Error( cacheProblem( 'probe', probe.record ) );
+		}
 		const mcpUrl = `${ url }/wp-json/mcp/mcp-adapter-default-server`;
 		record.mcp_warmup = { build: await warm( mcpUrl, auth ) };
 
@@ -748,7 +1109,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				'--session-id',
 				session,
 				'--debug-file',
-				join( debug, `${ arm }-${ brief.id }-build.log` ),
+				join( debug, `${ name }-build.log` ),
 				...common,
 				...toolArgs,
 			],
@@ -762,16 +1123,18 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			);
 		}
 
-		const pages = JSON.parse(
-			cli( [
-				'post',
-				'list',
-				'--post_type=page',
-				'--post_status=any',
-				'--fields=ID,post_title,post_status,post_modified_gmt',
-				'--format=json',
-			] )
-		).filter( ( p ) => ! template.pages.includes( Number( p.ID ) ) );
+		const listPages = () =>
+			JSON.parse(
+				cli( [
+					'post',
+					'list',
+					'--post_type=page',
+					'--post_status=any',
+					'--fields=ID,post_title,post_status,post_modified_gmt,url',
+					'--format=json',
+				] )
+			).filter( ( p ) => ! template.pages.includes( Number( p.ID ) ) );
+		const pages = listPages();
 		record.new_pages = pages;
 		const published = pages.filter( ( p ) => p.post_status === 'publish' );
 		const pick = ( published.length ? published : pages ).sort(
@@ -802,6 +1165,37 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				env
 			).replace( /\r?\n$/, '' );
 		writeFileSync( join( out, 'page.html' ), content() );
+
+		// What a visitor gets, through the cache. A page the agent left
+		// unpublished has nothing to load: the rendered measures score it as
+		// missing, which is the agent's result, not the harness's.
+		const rendered = async ( status, link, what, file ) => {
+			if ( status !== 'publish' ) {
+				record.cache[ what ] = {
+					skipped: `the page is ${ status }, so no visitor can load it`,
+				};
+				return null;
+			}
+			const pair = await twoLoads( link );
+			record.cache[ what ] = pair.record;
+			if ( ! pair.record.from_cache ) {
+				throw new Error( cacheProblem( what, pair.record ) );
+			}
+			writeFileSync( join( out, file ), pair.loads[ 1 ].text );
+			return pair;
+		};
+		const built = await rendered(
+			pick.post_status,
+			pick.url,
+			'build',
+			'page.rendered.html'
+		);
+		if ( built ) {
+			record.capture = await capture(
+				pick.url,
+				join( out, 'page.png' )
+			);
+		}
 		record.mcp_warmup.edit = await warm( mcpUrl, auth );
 		save();
 
@@ -813,7 +1207,7 @@ async function runOne( arm, brief, port, text, useLogin ) {
 				'--resume',
 				session,
 				'--debug-file',
-				join( debug, `${ arm }-${ brief.id }-edit.log` ),
+				join( debug, `${ name }-edit.log` ),
 				...common,
 				...toolArgs,
 			],
@@ -824,8 +1218,23 @@ async function runOne( arm, brief, port, text, useLogin ) {
 			throw new Error( 'edit: the WordPress MCP server did not connect' );
 		}
 		writeFileSync( join( out, 'after-edit.html' ), content() );
+		const now = listPages().find(
+			( p ) => Number( p.ID ) === record.page_id
+		);
+		record.page_status_after = now?.post_status ?? null;
+		const edited = await rendered(
+			now?.post_status ?? 'missing',
+			now?.url,
+			'edit',
+			'after-edit.rendered.html'
+		);
+		if ( edited && built ) {
+			// The cache kept the copy it stored after the build.
+			record.cache.edit.stale =
+				edited.loads[ 0 ].marker === built.loads[ 1 ].marker;
+		}
 		const after = {};
-		for ( const [ option ] of Object.entries( businessOptions( brief ) ) ) {
+		for ( const option of Object.keys( businessOptions( brief ) ) ) {
 			after[
 				option === 'blogname'
 					? 'company'
@@ -866,14 +1275,36 @@ async function runOne( arm, brief, port, text, useLogin ) {
 	}
 }
 
+function list( value, all ) {
+	return ( value && value !== true ? String( value ) : all.join( ',' ) )
+		.split( ',' )
+		.map( ( v ) => v.trim() )
+		.filter( Boolean );
+}
+
 async function run() {
 	const { briefs } = JSON.parse(
-		readFileSync( join( here, 'briefs.json' ), 'utf8' )
+		readFileSync( join( here, 'briefs-v2.json' ), 'utf8' )
 	);
-	const arms = ( opts.arms || ARMS.join( ',' ) ).split( ',' );
+	const groups = list( opts.groups, GROUPS );
+	const unknown = groups.filter( ( g ) => ! GROUPS.includes( g ) );
+	if ( unknown.length ) {
+		throw new Error(
+			`Unknown group ${ unknown.join( ', ' ) }. Groups: ${ GROUPS.join(
+				', '
+			) }`
+		);
+	}
+	const models = list( opts.models, MODELS );
+	const repeats = opts.repeats ? Number( opts.repeats ) : 1;
+	if ( ! Number.isInteger( repeats ) || repeats < 1 ) {
+		throw new Error(
+			`--repeats takes a whole number, not ${ opts.repeats }`
+		);
+	}
 	let chosen = briefs;
 	if ( opts.briefs ) {
-		const ids = opts.briefs.split( ',' );
+		const ids = String( opts.briefs ).split( ',' );
 		chosen = briefs.filter( ( b ) => ids.includes( b.id ) );
 	}
 	if ( opts.split ) {
@@ -882,33 +1313,58 @@ async function run() {
 	if ( opts.limit ) {
 		chosen = chosen.slice( 0, Number( opts.limit ) );
 	}
-	for ( const arm of arms ) {
-		if ( ! existsSync( join( work, 'templates', `${ arm }.json` ) ) ) {
+	if ( ! chosen.length ) {
+		throw new Error( 'No brief matches --briefs, --split and --limit' );
+	}
+	for ( const group of groups ) {
+		if ( ! existsSync( join( work, 'templates', `${ group }.json` ) ) ) {
 			throw new Error(
-				`No ${ arm } template. Run: node bench/run.mjs prepare`
+				`No ${ group } template. Run: node bench/run.mjs prepare`
 			);
 		}
 	}
+	if ( ! findChrome() ) {
+		throw new Error(
+			'No Chrome or Chromium for the page capture. Set CHROME_PATH.'
+		);
+	}
 	const text = prompts();
-	for ( const brief of chosen ) {
-		for ( const arm of arms ) {
-			if ( ! opts.force && complete( arm, brief ) ) {
-				console.log( `${ arm }/${ brief.id }: complete, skipped` );
-				continue;
+	for ( let repeat = 1; repeat <= repeats; repeat++ ) {
+		for ( const brief of chosen ) {
+			for ( const model of models ) {
+				for ( const group of groups ) {
+					const label = `${ group }/${ model }/${ brief.id }/${ repeat }`;
+					if (
+						! opts.force &&
+						complete( group, model, brief, repeat )
+					) {
+						console.log( `${ label }: complete, skipped` );
+						continue;
+					}
+					const r = await runOne(
+						group,
+						model,
+						brief,
+						repeat,
+						PORT,
+						text,
+						Boolean( opts[ 'use-login' ] )
+					);
+					const cost = [
+						r.steps.build?.cost_usd,
+						r.steps.edit?.cost_usd,
+					]
+						.filter( ( c ) => c !== undefined && c !== null )
+						.reduce( ( a, b ) => a + b, 0 );
+					console.log(
+						`${ label }: ${ r.failure || 'ok' } (page ${
+							r.page_id ?? '-'
+						}, $${ cost.toFixed( 2 ) }, turns ${
+							r.steps.build?.turns ?? '-'
+						}/${ r.steps.edit?.turns ?? '-' })`
+					);
+				}
 			}
-			const r = await runOne(
-				arm,
-				brief,
-				PORT,
-				text,
-				Boolean( opts[ 'use-login' ] )
-			);
-			const cost = [ r.steps.build?.cost_usd, r.steps.edit?.cost_usd ]
-				.filter( ( c ) => c != null )
-				.reduce( ( a, b ) => a + b, 0 );
-			console.log(
-				`${ arm }/${ brief.id }: ${ r.failure || 'ok' } (page ${ r.page_id ?? '-' }, $${ cost.toFixed( 2 ) })`
-			);
 		}
 	}
 }
@@ -929,18 +1385,21 @@ function connected( step ) {
  * A run is complete when its run.json finished with no harness failure and
  * every step it ran had the site's MCP server. A failure the agent caused is
  * a result, so it is kept.
- * @param arm
+ * @param group
+ * @param model
  * @param brief
+ * @param repeat
  */
-function complete( arm, brief ) {
+function complete( group, model, brief, repeat ) {
 	try {
 		const r = JSON.parse(
 			readFileSync(
-				join( here, 'runs', arm, brief.id, 'run.json' ),
+				join( runDir( group, model, brief, repeat ), 'run.json' ),
 				'utf8'
 			)
 		);
 		return (
+			r.protocol === PROTOCOL &&
 			Boolean( r.finished ) &&
 			! /^harness:/.test( r.failure ?? '' ) &&
 			Object.values( r.steps ).every( connected )
