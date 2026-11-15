@@ -22,4 +22,5 @@ require_once __DIR__ . '/abilities/configure.php';
 require_once __DIR__ . '/abilities/bind.php';
 require_once __DIR__ . '/abilities/undo.php';
 require_once __DIR__ . '/abilities/validate.php';
+require_once __DIR__ . '/abilities/audit.php';
 require_once __DIR__ . '/abilities/prompt.php';
