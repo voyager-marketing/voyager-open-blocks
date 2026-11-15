@@ -769,15 +769,15 @@ step(
 	} patterns, ${ ( brief.data.recipes || [] ).length } recipes`
 );
 const homeWhole = wholeRecipes.find( ( recipe ) => recipe.slug === 'home' );
-const homeSections = homeDetail.data.recipe?.sections || [];
+const homeDetailSections = homeDetail.data.recipe?.sections || [];
 step(
 	'get-catalog with recipe "home": the recipe as the whole catalog lists it, each section with copy_rules, its pattern\'s rules',
 	!! homeWhole &&
-		homeSections.length === homeWhole.sections.length &&
+		homeDetailSections.length === homeWhole.sections.length &&
 		sameJson(
 			{
 				...homeDetail.data.recipe,
-				sections: homeSections.map( ( section ) => {
+				sections: homeDetailSections.map( ( section ) => {
 					const rest = { ...section };
 					delete rest.copy_rules;
 					return rest;
@@ -785,7 +785,7 @@ step(
 			},
 			homeWhole
 		) &&
-		homeSections.every(
+		homeDetailSections.every(
 			( section ) =>
 				!! sectionPattern( section ) &&
 				sameJson(
@@ -793,7 +793,7 @@ step(
 					sectionPattern( section ).copy_rules
 				)
 		),
-	homeSections
+	homeDetailSections
 		.map(
 			( section ) =>
 				`${ sectionPattern( section )?.name }: ${
@@ -835,7 +835,7 @@ const fromBrief = await run( `${ ns }/compose`, {
 	sections: homeBrief?.sections || [],
 	dry_run: true,
 } );
-const detailWithCopy = homeSections.map( ( section, index ) =>
+const detailWithCopy = homeDetailSections.map( ( section, index ) =>
 	0 === index
 		? {
 				...section,
@@ -864,7 +864,7 @@ const composedClean = ( response ) =>
 step(
 	"compose takes the home recipe's sections as get-catalog lists them, in brief and in full with copy written in: nothing refused, valid, nothing saved",
 	!! homeBrief &&
-		homeSections.length > 0 &&
+		homeDetailSections.length > 0 &&
 		composedClean( fromBrief ) &&
 		composedClean( fromDetail ),
 	`brief: ${ fromBrief.status }${ said( fromBrief ) }; detail: ${
