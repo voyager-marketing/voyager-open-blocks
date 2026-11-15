@@ -60,7 +60,7 @@ Every attribute is bindable (`bindings.supportedAttributes["voyager-open/contact
 - **Bind the link with its text.** `phone` without `phoneLink` shows the number as text that does not dial.
 - **Keep labels, never numbers, in the block's own values.** When a field is empty, the source returns nothing and WordPress shows the block's own value, so visitors see it. Write labels that read as labels, such as "Phone number" and "Email address", or leave them empty. A phone number or an email address there is a stale copy waiting to show: `validate` warns `stale_fallback:` on it, and `configure` with `null` for that attribute removes it.
 - Leave out a part the business does not show: leave both its binding and its own value empty, and the line does not print.
-- Pages that show the block are in `get-catalog`'s `used_on` under each key it binds, such as `voyager/site-data:phone`, and a change to the field refreshes them, as for any Site Data field.
+- Pages that show the block are in `get-catalog`'s `used_on` (with `include: ["used_on"]`) under each key it binds, such as `voyager/site-data:phone`, and a change to the field refreshes them, as for any Site Data field.
 
 ## The loop
 

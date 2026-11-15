@@ -17,8 +17,8 @@ Blocks, section patterns and binding sources for business sites, placed by abili
 
 ## Build a page
 
-1. `voyager-open-blocks/get-catalog`. If it is missing, the plugin is inactive: say so.
-2. `compose` with a `title` and a recipe's `sections`, each with `copy` written from its `copy_guidance`. A section takes `omit` and `repeat` as `insert` does: omit what you have no facts for. Try `dry_run` first.
+1. `voyager-open-blocks/get-catalog`, then with `recipe`, such as `home`, for its sections' copy rules. If missing, the plugin is inactive: say so.
+2. `compose` with a `title` and those `sections`, each with `copy` from its `copy_guidance`. Each takes `omit` and `repeat` as `insert` does: omit what you lack facts for.
 3. `validate` the draft's `post_id`.
 4. Give the user the `preview_url`, and name each key in `empty` and each `placeholder:` left.
 
@@ -26,7 +26,7 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 ## Recipes
 
-`compose` takes `voyager-open/hero-cover` as `pattern` `voyager-open/hero`, `layout` `cover`; `voyager-open/proof-strip-facts`, `layout` `facts`.
+`compose` takes `voyager-open/hero-cover` as `pattern` `voyager-open/hero`, `layout` `cover`.
 
 | Page | Recipe | Sections, with style |
 |---|---|---|

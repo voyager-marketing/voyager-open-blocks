@@ -70,15 +70,16 @@ function blocks(): array {
  * (Patterns\intent_meta()). `copy_rules` is an object, so a pattern with
  * none gives `{}` in JSON, never `[]`.
  *
+ * @param list<string>|null $names Only these patterns, in the registry's order. Null for every one.
  * @return array<int, array<string, mixed>>
  */
-function patterns(): array {
+function patterns( ?array $names = null ): array {
 	$out = [];
 
 	foreach ( \WP_Block_Patterns_Registry::get_instance()->get_all_registered() as $pattern ) {
 		$name = Cast\to_string( $pattern['name'] ?? '' );
 
-		if ( ! str_starts_with( $name, PREFIX ) ) {
+		if ( ! str_starts_with( $name, PREFIX ) || ( null !== $names && ! in_array( $name, $names, true ) ) ) {
 			continue;
 		}
 

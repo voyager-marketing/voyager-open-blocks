@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Abilities;
 
+use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\SectionStyles;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -177,6 +178,41 @@ function recipe_list( ?string $dir = null, ?string $intents = null ): array {
 		},
 		recipes( $dir, $intents )
 	);
+}
+
+/**
+ * One recipe as get-catalog's recipe input gives it: as recipe_list() lists
+ * it, each section with copy_rules too, the copy rules of the pattern its
+ * section and layout name (contract 3), so one answer holds what the page's
+ * copy needs. compose takes a section in this shape as it is.
+ *
+ * @param string      $slug    Recipe slug, such as home.
+ * @param string|null $dir     Recipes directory. Defaults to this plugin's recipes.
+ * @param string|null $intents Intents directory. Defaults to this plugin's, and the copy rules to the generated array built from them.
+ * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object, omit?: list<string>, copy_rules: object}>}|null Null when no recipe has the slug.
+ */
+function recipe_detail( string $slug, ?string $dir = null, ?string $intents = null ): ?array {
+	$recipe = find_recipe( $slug, $dir, $intents );
+
+	if ( null === $recipe ) {
+		return null;
+	}
+
+	$layouts  = section_layouts( $intents );
+	$sections = [];
+
+	foreach ( $recipe['sections'] as $section ) {
+		// read_recipe() skips a file whose section and layout name no pattern.
+		$name = resolve_layout( $layouts, $section['pattern'], $section['layout'] ) ?? $section['pattern'];
+
+		$section['copy_guidance'] = (object) $section['copy_guidance'];
+		$section['copy_rules']    = (object) Patterns\intent_meta( $name, $intents )['copy_rules'];
+		$sections[]               = $section;
+	}
+
+	$recipe['sections'] = $sections;
+
+	return $recipe;
 }
 
 /**
