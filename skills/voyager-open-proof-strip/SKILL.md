@@ -73,7 +73,7 @@ The `facts` layout shows Site Data's `credentials`: one license, certification o
 - **Filling it.** Settings > Site Data > Business profile > Credentials, one per line. An administrator's REST client can set it too: `POST /wp/v2/settings` with `{"voyager_site_credentials": "Licensed in Ohio\nMember of the trade guild\nWritten quotes"}`, a line break between items. Read it back after. Only the owner's own facts go there, as in the `list` layout.
 - **The stand-ins.** While the field is empty, the binding returns nothing and the facts block shows its own items: "Your first credential", "Your second credential" and "Your third credential". They say what goes there and make no claim. `compose` names `credentials` in `empty` then, and `get-post-blocks` shows the binding's `resolution` as `fell_back`. `validate` gives them no `placeholder:` warning, since markup cannot tell whether the field is filled. So read `empty` and tell the owner to fill the field, or use the `list` layout with the facts they give you.
 - **What shows.** Each line, trimmed, with empty lines dropped. An ampersand prints once whichever plugin owns `voyager/site-data` (see the `voyager-open-facts` skill).
-- Pages that show the list are in `get-catalog`'s `used_on` under `voyager/site-data:credentials`, and a change to the field refreshes them.
+- Pages that show the list are in `get-catalog`'s `used_on` (with `include: ["used_on"]`) under `voyager/site-data:credentials`, and a change to the field refreshes them.
 
 ## Customizing
 

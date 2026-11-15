@@ -38,7 +38,7 @@ While a field is empty, its value shows the block's own text, which names the fi
 2. **Leave it out with `omit`.** Name the whole figure, `"omit": ["Rating"]`, which takes its value and its label with it. Omitting a value alone is refused (reason `required`): a label with no figure says nothing. A `compose` section takes the same `omit`.
 3. **All three empty: do not place the section.** Ask the owner to fill in the figures first.
 
-`get-catalog`'s `used_on` counts the pages that show each figure, under `voyager/site-data:founded`, `voyager/site-data:rating` and `voyager/site-data:review_count`. Check it before you change a value: every page it counts changes too, and a change to a field refreshes them.
+`get-catalog`'s `used_on` (with `include: ["used_on"]`) counts the pages that show each figure, under `voyager/site-data:founded`, `voyager/site-data:rating` and `voyager/site-data:review_count`. Check it before you change a value: every page it counts changes too, and a change to a field refreshes them.
 
 ## Tell your agent
 

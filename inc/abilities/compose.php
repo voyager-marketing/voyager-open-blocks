@@ -50,7 +50,7 @@ function register_compose(): void {
 		CATEGORY . '/compose',
 		[
 			'label'               => __( 'Compose a Voyager Open draft page', 'voyager-open-blocks' ),
-			'description'         => __( 'Builds a whole draft page in one call: title for a new page, or post_id of a draft to replace, and sections, top to bottom. For most pages, pass a recipe\'s sections from get-catalog, each with copy written from its copy_guidance and the omit it carries, and omit any item you have no copy for. Each section is placed and checked as insert places a pattern copy, its copy, omit and repeat included, with its section style on its top-level group. Only drafts: change a live page with insert and configure. When anything is refused, nothing is saved, and refused lists every slot with its section index (adjacent_style for two sections in one style). Returns post_id, revision_id for undo, preview_url, validation (what validate returns for the page, placeholder: on each stand-in left) and empty, each Site Data key the page binds that is empty now, so the page shows the pattern\'s own text there.', 'voyager-open-blocks' ),
+			'description'         => __( 'Builds a whole draft page in one call: title for a new page, or post_id of a draft to replace, and sections, top to bottom. For most pages, pass the sections get-catalog gives with recipe, as it lists them, each with copy written from its copy_guidance, and omit any item you have no copy for. Each section is placed and checked as insert places a pattern copy, its copy, omit and repeat included, with its section style on its top-level group. Only drafts: change a live page with insert and configure. When anything is refused, nothing is saved, and refused lists every slot with its section index (adjacent_style for two sections in one style). Returns post_id, revision_id for undo, preview_url, validation (what validate returns for the page, placeholder: on each stand-in left) and empty, each Site Data key the page binds that is empty now, so the page shows the pattern\'s own text there.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -71,34 +71,39 @@ function register_compose(): void {
 						'type'        => 'array',
 						'minItems'    => 1,
 						'maxItems'    => MAX_SECTIONS,
-						'description' => 'The page\'s sections, top to bottom. Not with recipe.',
+						'description' => 'The page\'s sections, top to bottom. Not with recipe. copy_guidance and copy_rules, as get-catalog lists them, are ignored.',
 						'items'       => [
 							'type'                 => 'object',
 							'properties'           => [
-								'pattern' => [
+								'pattern'       => [
 									'type'        => 'string',
 									'enum'        => array_keys( section_layouts() ),
 									'description' => 'voyager-open/ and the section get-catalog lists on its patterns, such as voyager-open/services for both its grid and its list, or the pattern\'s own name when its section is null, such as voyager-open/closing-cta.',
 								],
-								'layout'  => [
+								'layout'        => [
 									'type'        => [ 'string', 'null' ],
 									'minLength'   => 1,
 									'description' => 'The layout get-catalog lists on the pattern, such as list for voyager-open/services-list. null, the default, is the section\'s first layout, and the only one a section with one layout takes.',
 								],
-								'style'   => [
+								'style'         => [
 									'type'        => 'string',
 									'enum'        => array_merge( [ 'plain' ], array_keys( SectionStyles\STYLES ) ),
 									'default'     => 'plain',
 									'description' => 'plain, the default, sets none. Two sections next to each other never share a style but plain.',
 								],
-								'copy'    => [
+								'copy'          => [
 									'type'                 => 'object',
 									'default'              => [],
 									'additionalProperties' => copy_value_schema(),
 									'description'          => 'Text by copy label, as insert\'s copy takes it, within the pattern\'s copy_rules. A claim slot takes only the object form, and a bound slot, such as "Click to call", none.',
 								],
-								'omit'    => omit_schema( 'As insert\'s omit, for this section, such as ["Service 3"] for two service cards. A recipe\'s section may carry omit: pass it on.' ),
-								'repeat'  => repeat_schema( 'As insert\'s repeat, such as {"Credential 4": ["Credential 5"]} for a fifth fact. A copy holds the text and copy rule of the block it copies, so give it copy: a copy of a claim slot is a claim.' ),
+								'omit'          => omit_schema( 'As insert\'s omit, for this section, such as ["Service 3"] for two service cards. A recipe\'s section may carry omit: pass it on.' ),
+								'repeat'        => repeat_schema( 'As insert\'s repeat, such as {"Credential 4": ["Credential 5"]} for a fifth fact. A copy holds the text and copy rule of the block it copies, so give it copy: a copy of a claim slot is a claim.' ),
+								// What get-catalog lists on a recipe's section, taken
+								// and ignored, so a section copied from it goes in as
+								// it is. Every other key is still refused.
+								'copy_guidance' => [ 'type' => 'object' ],
+								'copy_rules'    => [ 'type' => 'object' ],
 							],
 							'required'             => [ 'pattern' ],
 							'additionalProperties' => false,

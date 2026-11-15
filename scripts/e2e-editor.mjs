@@ -1276,7 +1276,12 @@ async function checkFrontEnd() {
 async function phoneUsedOn() {
 	const response = await rest.api(
 		'/wp-abilities/v1/abilities/voyager-open-blocks/get-catalog/run',
-		{ query: { 'input[post_type]': 'page' } }
+		{
+			query: {
+				'input[post_type]': 'page',
+				'input[include][0]': 'used_on',
+			},
+		}
 	);
 	return response.data?.used_on?.[ 'voyager/site-data:phone' ] ?? null;
 }
