@@ -68,6 +68,11 @@
  * 25. The same gate rejects each recipe in tests/invalid/recipes/, two
  *     adjacent accent sections and an unknown layout, for its own rule and
  *     no other, so each rule is shown to bite.
+ * 26. npm run check:schema's verdict (scripts/lib/schema-check.mjs, and run()
+ *     in scripts/schema-check.mjs) passes its known-answer test, all of its
+ *     19 cases at least: JSON-LD read out of a page, nodes checked against a
+ *     small vocabulary, each plant caught alone, and crashes planted before
+ *     and after the checks, which must exit 2.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -785,6 +790,19 @@ report(
 	"npm run check:usage-index's verdict passes its known-answer test, planted crashes included",
 	usageIndexTest.ok,
 	usageIndexTest.detail
+);
+
+// npm run check:schema needs Playground and the schema.org vocabulary. How
+// it reads JSON-LD, checks a node and turns the checks into an exit code
+// needs neither, and a crash must never come out as a pass.
+const schemaTest = knownAnswer(
+	join( root, 'scripts', 'test-schema-check.mjs' ),
+	19
+);
+report(
+	"npm run check:schema's verdict passes its known-answer test, planted crashes included",
+	schemaTest.ok,
+	schemaTest.detail
 );
 
 // npm run design-check lists the contrast pairs it lets through under the

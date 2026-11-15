@@ -32,6 +32,7 @@ require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/facts.php';
 require_once __DIR__ . '/inc/contact-details.php';
 require_once __DIR__ . '/inc/site-data.php';
+require_once __DIR__ . '/inc/structured-data.php';
 require_once __DIR__ . '/inc/post-meta-text.php';
 require_once __DIR__ . '/inc/bindings-editor.php';
 require_once __DIR__ . '/inc/patterns.php';
