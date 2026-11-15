@@ -19,8 +19,8 @@ Blocks, section patterns and binding sources for business sites, placed by abili
 
 1. `voyager-open-blocks/get-catalog`. If it is missing, the plugin is inactive: say so.
 2. `compose` with a `title` and a recipe's `sections`, each with `copy` written from its `copy_guidance`. A section takes `omit` and `repeat` as `insert` does: omit what you have no facts for. Try `dry_run` first.
-3. `validate` the draft's `post_id`.
-4. Give the user the `preview_url`, and name each key in `empty` and each `placeholder:` left.
+3. `validate`, then `audit`, the draft's `post_id`.
+4. Give the user the `preview_url` and each `audit` finding.
 
 On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `bind`. `undo` reverses a save.
 
