@@ -86,13 +86,18 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( 'voyager-open/reviews-single', self::resolve( 'voyager-open/reviews', 'single' ) );
 		$this->assertSame( 'voyager-open/proof-strip', self::resolve( 'voyager-open/proof-strip', 'list' ) );
 		$this->assertSame( 'voyager-open/proof-strip-facts', self::resolve( 'voyager-open/proof-strip', 'facts' ) );
+		$this->assertSame( 'voyager-open/cta-band', self::resolve( 'voyager-open/cta-band', 'row' ) );
+		$this->assertSame( 'voyager-open/cta-band-cover', self::resolve( 'voyager-open/cta-band', 'cover' ) );
+		$this->assertSame( 'voyager-open/closing-cta', self::resolve( 'voyager-open/closing-cta', 'centered' ) );
+		$this->assertSame( 'voyager-open/closing-cta-split', self::resolve( 'voyager-open/closing-cta', 'split' ) );
 	}
 
 	public function test_a_layout_no_intent_of_the_section_carries_names_no_pattern(): void {
 		$this->assertNull( self::resolve( 'voyager-open/hero', 'list' ) );
 		$this->assertNull( self::resolve( 'voyager-open/services', 'cover' ) );
+		$this->assertNull( self::resolve( 'voyager-open/closing-cta', 'cover' ) );
 		// A section with one layout takes null only.
-		$this->assertNull( self::resolve( 'voyager-open/closing-cta', 'split' ) );
+		$this->assertNull( self::resolve( 'voyager-open/contact-section', 'split' ) );
 		// A layout's own pattern is not a section: pass its section and the layout.
 		$this->assertNull( self::resolve( 'voyager-open/hero-cover', null ) );
 		$this->assertNull( self::resolve( 'voyager-open/no-such-section', null ) );
@@ -111,8 +116,12 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( [ 'split', 'cover' ], array_column( $layouts['voyager-open/hero'] ?? [], 'layout' ) );
 		$this->assertSame( [ 'grid', 'list' ], array_column( $layouts['voyager-open/services'] ?? [], 'layout' ) );
 		$this->assertSame( [ 'list', 'facts' ], array_column( $layouts['voyager-open/proof-strip'] ?? [], 'layout' ) );
-		$this->assertSame( [ null ], array_column( $layouts['voyager-open/closing-cta'] ?? [], 'layout' ) );
+		$this->assertSame( [ 'row', 'cover' ], array_column( $layouts['voyager-open/cta-band'] ?? [], 'layout' ) );
+		$this->assertSame( [ 'centered', 'split' ], array_column( $layouts['voyager-open/closing-cta'] ?? [], 'layout' ) );
+		$this->assertSame( [ null ], array_column( $layouts['voyager-open/contact-section'] ?? [], 'layout' ) );
 		$this->assertArrayNotHasKey( 'voyager-open/hero-cover', $layouts );
+		$this->assertArrayNotHasKey( 'voyager-open/cta-band-cover', $layouts );
+		$this->assertArrayNotHasKey( 'voyager-open/closing-cta-split', $layouts );
 		$this->assertCount( count( $files ), array_merge( ...array_values( $layouts ) ) );
 	}
 

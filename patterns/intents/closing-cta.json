@@ -1,5 +1,7 @@
 {
 	"title": "Closing CTA",
+	"section": "closing-cta",
+	"layout": "centered",
 	"description": "A centered closing band at the end of a page: heading, one line of copy, a primary button and an email button bound to voyager/site-data.",
 	"categories": [ "voyager-open", "call-to-action" ],
 	"keywords": [ "cta", "closing", "final", "contact", "email" ],

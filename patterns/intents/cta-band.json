@@ -1,5 +1,7 @@
 {
 	"title": "CTA band",
+	"section": "cta-band",
+	"layout": "row",
 	"description": "A full-width band: eyebrow, heading and one line of copy beside a primary button and a click-to-call button bound to voyager/site-data.",
 	"categories": [ "voyager-open", "call-to-action" ],
 	"keywords": [ "cta", "call to action", "band", "phone", "contact" ],

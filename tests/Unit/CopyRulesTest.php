@@ -109,14 +109,14 @@ final class CopyRulesTest extends TestCase {
 	}
 
 	public function test_a_section_with_one_layout_has_a_null_section_and_layout_and_its_own_copy_rules(): void {
-		$band   = Patterns\intent_meta( 'voyager-open/cta-band', self::INTENTS );
-		$intent = json_decode( (string) file_get_contents( self::INTENTS . '/cta-band.json' ), true );
+		$contact = Patterns\intent_meta( 'voyager-open/contact-section', self::INTENTS );
+		$intent  = json_decode( (string) file_get_contents( self::INTENTS . '/contact-section.json' ), true );
 		$this->assertIsArray( $intent );
 
-		$this->assertNull( $band['section'] );
-		$this->assertNull( $band['layout'] );
-		// Whatever the intent holds: none yet, until Design writes the five original sections' rules.
-		$this->assertSame( $intent['copy_rules'] ?? [], $band['copy_rules'] );
+		$this->assertNull( $contact['section'] );
+		$this->assertNull( $contact['layout'] );
+		$this->assertNotSame( [], $contact['copy_rules'], 'the contact section carries copy rules, so the read is seen to return them' );
+		$this->assertSame( $intent['copy_rules'] ?? [], $contact['copy_rules'] );
 	}
 
 	public function test_a_name_that_is_not_a_plain_intent_reads_nothing(): void {

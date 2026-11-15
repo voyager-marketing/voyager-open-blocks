@@ -2,7 +2,7 @@
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
 		"title": "CTA band pattern",
-		"description": "voyager-open/cta-band with a click-to-call button bound to site data.",
+		"description": "The CTA band in its two layouts: voyager-open/cta-band, text beside the buttons, and voyager-open/cta-band-cover, the same band over a background, each with a click-to-call button bound to site data.",
 		"author": "voyager-marketing",
 		"categories": [
 			"Blocks"
