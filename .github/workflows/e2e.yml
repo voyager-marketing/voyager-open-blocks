@@ -1,7 +1,7 @@
 name: E2E
 
 # The pack in a real WordPress (Playground) and a real block editor (headless
-# Chrome). Six jobs:
+# Chrome). Seven jobs:
 #
 # - rest: boots the dev site (npm run dev) in the background, collects its
 #   site context with Wesper over REST, and runs npm run e2e against it: the
@@ -39,6 +39,11 @@ name: E2E
 #   with --plant, and passes only when the run exits 1 and prints the line
 #   that says every check failed on its own plant and nothing else. A crash
 #   exits 2, with no such line. Not a required check.
+# - generated-arrays: npm run check:generated-arrays boots a copy of the
+#   plugin twice, the second time with patterns/intents, the pattern markup
+#   and assets/icons.json deleted from the copy, and checks that every pattern
+#   registers with the same content and an icon still renders, read from
+#   inc/generated/. Not a required check.
 #
 # Job logs are not always at hand, so every failed assertion is also an error
 # annotation named after it, with what it saw.
@@ -112,7 +117,7 @@ jobs:
           "
 
       - name: npm run e2e (abilities over REST, block-runner on what they return)
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           export VOYAGER_OPEN_APP_PASSWORD="$(node -p "require(process.env.RUNNER_TEMP + '/site.json').password")"
           set +e
@@ -289,3 +294,20 @@ jobs:
             exit 1
           fi
           echo "ok   npm run check:schema -- --plant exited 1, each check failing on its own plant and nothing else"
+
+  generated-arrays:
+    name: npm run check:generated-arrays (patterns and icons with their sources deleted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Every pattern and icon from inc/generated/, with the source files deleted from a copy
+        run: npm run check:generated-arrays
