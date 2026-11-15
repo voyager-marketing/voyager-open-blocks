@@ -51,7 +51,7 @@ The **Ticks** block style (`is-style-voyager-open-ticks`) shows the items as a w
 - **Keep placeholder items in `items`.** When the field is empty, the source returns nothing and WordPress keeps the block's own items, so visitors see those. Write placeholders that read as placeholders, such as "Your first service". Never type a credential the owner has not given you (see `voyager-site-data`, "Never state a business profile fact the site does not hold").
 - A text key, such as `phone`, binds too, and shows as a one-item list. Bind text keys to core blocks instead.
 - An ampersand prints once whichever plugin owns `voyager/site-data`. This pack returns values as typed. The voyager-blocks plugin returns them escaped. The block decodes each item once and escapes it once, so "Heating & cooling" reads the same on both.
-- Pages that show a list are in `get-catalog`'s `used_on` under `voyager/site-data:services` (and the other two keys), and a change to the list refreshes them, as for any Site Data field.
+- Pages that show a list are in `get-catalog`'s `used_on` (with `include: ["used_on"]`) under `voyager/site-data:services` (and the other two keys), and a change to the list refreshes them, as for any Site Data field.
 
 ## The loop
 

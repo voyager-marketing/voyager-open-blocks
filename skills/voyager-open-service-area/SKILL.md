@@ -74,7 +74,7 @@ The places are Site Data's service area, one town or area per line, in Settings 
 - **Over REST, as an administrator:** `POST /wp/v2/settings` with `{"voyager_site_service_area": "Springfield\nChatham\nRochester"}`, one string with a line break between places. Read it back with `GET /wp/v2/settings`. On route 1 with no REST client, ask the user to fill it in on the settings screen.
 - **Only places the site owner gave you.** Where a business works is a fact about it. Never guess the towns from an address, and never add "and the whole county".
 - **While the list is empty,** the block shows its own items, "Your first town", "Your second town" and "Your third town", and visitors see them too. Fill the list before the page goes live, and say so when it is empty.
-- Every page that shows the section counts in `get-catalog`'s `used_on` under `voyager/site-data:service_area`, and a change to the list refreshes them.
+- Every page that shows the section counts in `get-catalog`'s `used_on` (with `include: ["used_on"]`) under `voyager/site-data:service_area`, and a change to the list refreshes them.
 
 ## Copy rules
 
@@ -120,7 +120,7 @@ This is route 2, with a shell and Node. In the Wesper manifest, confirm both pat
 
 This is route 1: the abilities, over MCP or REST, with no markup to write.
 
-1. **get-catalog.** Confirm both patterns are in `patterns`, each with a block "Places" whose `bindings.items` is `voyager/site-data` with `{"key": "service_area"}`. `used_on["voyager/site-data:service_area"]` counts the pages that show the list already.
+1. **get-catalog** with `patterns` `["voyager-open/service-area", "voyager-open/service-area-split"]` and `include` `["used_on"]`. Confirm both patterns are listed, each with a block "Places" whose `bindings.items` is `voyager/site-data` with `{"key": "service_area"}`. `used_on["voyager/site-data:service_area"]` counts the pages that show the list already.
 2. **Where.** Find the page with `find-posts`, say 123, and pick `position` from `get-post-blocks`.
 3. **insert** with `copy` for the heading and intro:
 

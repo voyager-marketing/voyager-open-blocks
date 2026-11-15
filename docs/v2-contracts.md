@@ -106,7 +106,7 @@ What text each named block in a pattern takes, so an agent's copy fits the desig
   ```
 
   `min` and `max` count characters of plain text.
-- `get-catalog` returns `copy_rules` for each pattern, as its intent holds them, and an empty object when the intent has none. The `copy: true` it already puts on each named block in a pattern's `blocks` list stays exactly as it is.
+- `get-catalog` returns `copy_rules` for each pattern it gives in full, and for each section of the recipe it gives with `recipe` (contract 8), as the intent holds them, and an empty object when the intent has none. The `copy: true` it already puts on each named block in a pattern's `blocks` list stays exactly as it is.
 - A copy value, in `insert`'s `copy` and in a `compose` section's `copy`, is either a string or an object:
 
   ```
@@ -205,7 +205,7 @@ A new ability that builds a draft page from a recipe or a list of sections.
   }
   ```
 
-  Exactly one of `post_id` and `title`, and exactly one of `recipe` and `sections`. A copy value is a string or `{ "text", "source": "user" }`, as in contract 3.
+  Exactly one of `post_id` and `title`, and exactly one of `recipe` and `sections`. A copy value is a string or `{ "text", "source": "user" }`, as in contract 3. A section may also carry `copy_guidance` and `copy_rules`, as `get-catalog` lists them (contract 8); `compose` ignores both, so a section copied from `get-catalog` goes in as it is. Any other key is refused.
 - A section's `omit` and `repeat` are `insert`'s, with the same meaning, the same refusals and the same code, which both call. `omit` leaves out named blocks, such as `"Credential 4"` for a proof strip with three facts. `repeat` adds copies of a named block right after it, one per new label, such as `{ "Credential 4": [ "Credential 5" ] }`. For each section, `repeat` runs first, then contract 3's copy rules check the section's `copy` and `omit` against the blocks as `repeat` left them, then `omit`, then `copy`. So:
   - `omit` of a slot whose rule says `required: true`, or of a block that holds one, is refused as `required`. Leaving out a whole item, a block whose label starts the slot's own and a space (`Service 3` holding `Service 3 heading`), takes its slots with it and is not refused.
   - A copy `repeat` makes keeps the copy rule of the block it copies: copy for `Credential 5` is a claim, as for `Credential 4`.
@@ -245,3 +245,39 @@ New Site Data fields for what a local business page says about itself.
 
 - Saving, on Settings > Site Data and at `/wp/v2/settings` alike: the lists go through `sanitize_textarea_field()`, which keeps their lines, `cta_url` is trimmed and goes through `esc_url_raw()`, the others through `sanitize_text_field()`. `founded`, `rating` and `review_count` are then saved in their resolved form. A value that does not resolve is refused as core's `sanitize_option()` refuses one: the option keeps its previous value and the Settings screen shows an error. Each is registered with `show_in_rest`, like the other options.
 - Site Data keys are shared with the voyager-blocks plugin through the fixture `tests/fixtures/site-data-keys.json`, which both repositories carry byte for byte and pin to the same sha256 (`npm run check` compares it). Adding these keys is therefore a change to both repositories, in pull requests that land together. The fixture pins 27 keys.
+
+## 8. get-catalog
+
+**Owner:** Abilities.
+
+What the pack offers on a site, in one tool result, with detail on request.
+
+- Input, where `?` marks an optional field:
+
+  ```
+  {
+  	"post_type"?: string,
+  	"recipe"?: "<recipe slug>",
+  	"patterns"?: [ "<pattern name>" ],
+  	"include"?: [ "styles" | "blocks" | "patterns" | "sources" | "used_on" | "recipes" ]
+  }
+  ```
+
+- With none of `recipe`, `patterns` and `include`, the answer is brief:
+
+  ```
+  {
+  	"styles": { "block", "roles", "styles": [ { "style", "name", "label", "class", "strength" } ] },
+  	"patterns": [ { "name", "description", "section", "layout" } ],
+  	"sources": [ { "name", "label", "fields": [ { "label", "args", "filled"? } ] | null, "note" } ],
+  	"recipes": [ { "slug", "title", "sections": [ { "pattern", "layout", "style", "omit"? } ] } ]
+  }
+  ```
+
+  Each row is the whole catalog's row less its other keys. A recipe's sections are what `compose` takes as `sections`, so a page with the patterns' own text needs nothing more. `filled` is on each Site Data field while this plugin owns the source: whether the field has a value now, read as the binding reads it, so a key `compose` lists in `empty` reads `false`.
+- With any of them, the answer holds only what they name:
+  - `recipe`: `{ "recipe": {...} }`, the recipe as `include: ["recipes"]` lists it, each section with `copy_rules` too, the copy rules (contract 3) of the pattern its section and layout name. Its sections are what `compose` takes as `sections`, with `copy` added.
+  - `patterns`: `{ "patterns": [...] }`, the whole row of each named pattern the site registers, in the registry's order.
+  - `include`: each named list whole and in full, in the order above. `include: ["patterns"]` lists every pattern, whatever `patterns` names. All six is the whole catalog, which was the only answer before this contract.
+- Budget: the brief answer, and `recipe` with any recipe the pack ships, each stay under 20,000 characters of JSON on the shipped pack, counted as WordPress sends the body over REST (`npm run e2e`).
+- Why this shape. The whole catalog grows with every pattern and copy rule, and passed 70,000 characters, which an agent's client may save to a file rather than show as one tool result; the agent then spends turns reading the file back. An agent building a page needs the recipes and the patterns' names and layouts first, then the copy guidance and copy rules for the sections it fills, and nothing else. So the brief answer is enough to pick a recipe or a pattern, `recipe` gives a whole page's copy guidance and rules in one more call, `patterns` serves a section outside a recipe, and `include` keeps every key the catalog had. A caller that read the whole answer adds `include` with all six keys.

@@ -1,0 +1,2 @@
+type: feat
+`get-catalog` answers in brief by default, small enough for one agent tool result, and gives detail on request: `recipe` for one recipe with each section's copy rules, `patterns` for whole patterns, and `include` for whole lists. A caller that read the full answer passes `include: ["styles", "blocks", "patterns", "sources", "used_on", "recipes"]` to get it back. `compose` takes a recipe section as `get-catalog` lists it, `copy_guidance` and all.
