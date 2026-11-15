@@ -36,6 +36,7 @@ You need no code and no AI agent. Insert the sections from the "Business section
 * **Facts block**: a list with one item per line. Connected to your services, service area or credentials on Settings > Site Data, it shows that list and follows it.
 * **Contact details block**: your address, phone, email and hours. Connected to Settings > Site Data, the phone dials and the email opens a new message when a visitor taps them.
 * **Settings > Site Data**: one screen for the details every section reads.
+* **Business details for search engines**: your front page tells search engines your business name, phone, email, address, social profiles, service area and founding year, as schema.org LocalBusiness data. When Rank Math, Yoast SEO or All in One SEO already does that, the pack leaves it to them.
 
 The sections use core blocks and your theme's presets, with no colours of their own, so they take your theme's look.
 

@@ -1,7 +1,7 @@
 name: E2E
 
 # The pack in a real WordPress (Playground) and a real block editor (headless
-# Chrome). Five jobs:
+# Chrome). Six jobs:
 #
 # - rest: boots the dev site (npm run dev) in the background, collects its
 #   site context with Wesper over REST, and runs npm run e2e against it: the
@@ -30,6 +30,15 @@ name: E2E
 #   backfill on activation each put every row back, list rows included.
 #   Three more rows plant a fault in one path each, and pass only when the
 #   check fails that path.
+# - schema: npm run check:schema boots its own dev site with Rank Math, Yoast
+#   SEO and All in One SEO installed from WordPress.org, and checks the
+#   pack's LocalBusiness node on the front page against the schema.org
+#   vocabulary at a pinned release, that another page holds none, and that
+#   with each SEO plugin set up to print the site's business the front page
+#   holds that plugin's node and none from the pack. A second step runs it
+#   with --plant, and passes only when the run exits 1 and prints the line
+#   that says every check failed on its own plant and nothing else. A crash
+#   exits 2, with no such line. Not a required check.
 #
 # Job logs are not always at hand, so every failed assertion is also an error
 # annotation named after it, with what it saw.
@@ -248,3 +257,35 @@ jobs:
         env:
           PLANT: ${{ matrix.plant }}
         run: npm run check:usage-index -- ${PLANT:+--plant "$PLANT"}
+
+  schema:
+    name: npm run check:schema (LocalBusiness node, and its plant)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: One LocalBusiness node on the front page, valid schema.org, none beside an SEO plugin's
+        run: npm run check:schema
+
+      # A crash exits 2 and a check that passed with its plant in exits 3, so
+      # the exit code and the line are both needed.
+      - name: Every planted fault, which must fail each check on its own plant and nothing else
+        if: ${{ !cancelled() }}
+        run: |
+          set +e
+          npm run check:schema -- --plant 2>&1 | tee "$RUNNER_TEMP/schema-plant.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 1 ] || ! grep -q '^ok   Planted run: every check failed on its plant, and nothing else failed\.$' "$RUNNER_TEMP/schema-plant.log"; then
+            echo "::error title=npm run check:schema -- --plant::Expected exit 1 and every check failing on its own plant and nothing else. It exited $status; the reason is in the log above."
+            exit 1
+          fi
+          echo "ok   npm run check:schema -- --plant exited 1, each check failing on its own plant and nothing else"
