@@ -109,9 +109,110 @@ final class ComposeTest extends TestCase {
 		$this->assertNull( self::resolve( 'voyager-open/closing-cta', 'cover' ) );
 		$this->assertNull( self::resolve( 'voyager-open/contact-section', 'cover' ) );
 		$this->assertNull( self::resolve( 'voyager-open/logo-marquee', 'list' ) );
-		// A layout's own pattern is not a section: pass its section and the layout.
+		// A layout's own pattern is not a section: compose reads it as its
+		// section and layout first (layout_named()), then resolves those.
 		$this->assertNull( self::resolve( 'voyager-open/hero-cover', null ) );
 		$this->assertNull( self::resolve( 'voyager-open/no-such-section', null ) );
+	}
+
+	public function test_a_layout_s_own_name_is_read_as_its_section_and_layout(): void {
+		$layouts = Abilities\section_layouts( self::INTENTS );
+
+		$this->assertSame(
+			[
+				'section' => 'voyager-open/proof-strip',
+				'layout'  => 'facts',
+			],
+			Abilities\layout_named( $layouts, 'voyager-open/proof-strip-facts' )
+		);
+		$this->assertSame(
+			[
+				'section' => 'voyager-open/cta-band',
+				'layout'  => 'cover',
+			],
+			Abilities\layout_named( $layouts, 'voyager-open/cta-band-cover' )
+		);
+
+		// A section's own name is the section, as before: with layout facts,
+		// voyager-open/proof-strip is still the facts layout.
+		$this->assertNull( Abilities\layout_named( $layouts, 'voyager-open/proof-strip' ) );
+		$this->assertSame( 'voyager-open/proof-strip-facts', self::resolve( 'voyager-open/proof-strip', 'facts' ) );
+		$this->assertNull( Abilities\layout_named( $layouts, 'voyager-open/no-such-pattern' ) );
+	}
+
+	public function test_every_layout_s_own_name_resolves_to_the_pattern_its_section_and_layout_name(): void {
+		$layouts = Abilities\section_layouts( self::INTENTS );
+		$seen    = 0;
+
+		foreach ( $layouts as $section => $entries ) {
+			foreach ( $entries as $entry ) {
+				$named = Abilities\layout_named( $layouts, $entry['pattern'] );
+
+				if ( $entry['pattern'] === $section ) {
+					$this->assertNull( $named, "{$section} is a section's own name" );
+					continue;
+				}
+
+				$this->assertNotNull( $named, $entry['pattern'] );
+				$this->assertSame( $section, $named['section'] );
+				$this->assertSame( $entry['layout'], $named['layout'] );
+				// What compose builds from: the same pattern as section plus layout.
+				$this->assertSame( $entry['pattern'], self::resolve( $named['section'], $named['layout'] ) );
+				$this->assertSame( self::resolve( $section, $entry['layout'] ), self::resolve( $named['section'], $named['layout'] ) );
+				++$seen;
+			}
+		}
+
+		$this->assertSame( 12, $seen, 'every section the pack ships has a second layout' );
+	}
+
+	public function test_a_layout_that_disagrees_with_a_layout_s_own_name_is_refused_naming_both(): void {
+		$layouts = Abilities\section_layouts( self::INTENTS );
+		$named   = Abilities\layout_named( $layouts, 'voyager-open/proof-strip-facts' );
+		$this->assertNotNull( $named );
+
+		$this->assertSame(
+			'section 1: voyager-open/proof-strip-facts is the facts layout of voyager-open/proof-strip, and layout "list" disagrees with it. Leave layout out, or pass voyager-open/proof-strip with the layout you want.',
+			Abilities\layout_disagrees( 1, 'voyager-open/proof-strip-facts', 'list', $named )
+		);
+	}
+
+	public function test_compose_s_pattern_takes_every_section_and_every_layout_s_own_name(): void {
+		$names   = Abilities\compose_patterns( self::INTENTS );
+		$layouts = Abilities\section_layouts( self::INTENTS );
+		$files   = glob( self::INTENTS . '/*.json' );
+		$this->assertIsArray( $files );
+
+		$expected = array_map( static fn ( string $file ): string => 'voyager-open/' . basename( $file, '.json' ), $files );
+		sort( $expected );
+
+		$this->assertSame( $expected, $names, 'each pattern once, sorted' );
+		$this->assertContains( 'voyager-open/proof-strip-facts', $names );
+		$this->assertSame( [], array_values( array_diff( array_keys( $layouts ), $names ) ), 'every section too' );
+
+		// A section in one layout, named by its own slug, beside one in two.
+		$this->assertSame( [ 'voyager-open/pair', 'voyager-open/pair-wide', 'voyager-open/solo' ], Abilities\compose_patterns( self::ONE_LAYOUT ) );
+	}
+
+	public function test_title_beside_post_id_is_taken_only_when_it_is_the_draft_s_own(): void {
+		$this->assertSame( '', Abilities\title_refusal( 7, 'Home', 'Home' ) );
+		$this->assertSame( '', Abilities\title_refusal( 7, ' Home ', 'Home' ), 'surrounding space' );
+		$this->assertSame( '', Abilities\title_refusal( 7, 'Smith & Sons', 'Smith &amp; Sons' ), 'as WordPress may store it' );
+
+		$refusal = Abilities\title_refusal( 7, 'About us', 'Home' );
+		$this->assertSame(
+			'Nothing was saved: draft 7 is titled "Home", and compose does not rename a draft (undo restores content, not titles). Drop title to replace the draft\'s content and keep its title, or drop post_id to build a new draft titled "About us".',
+			$refusal
+		);
+		$this->assertNotSame( '', Abilities\title_refusal( 7, 'home', 'Home' ), 'case counts' );
+	}
+
+	public function test_compose_with_neither_post_id_nor_title_asks_for_one(): void {
+		$refused = Abilities\compose( [ 'sections' => [ [ 'pattern' => 'voyager-open/hero' ] ] ] );
+
+		$this->assertInstanceOf( \WP_Error::class, $refused );
+		$this->assertSame( 'voyager_open_blocks_invalid_post_id', $refused->get_error_code() );
+		$this->assertStringContainsString( 'Pass title', $refused->get_error_message() );
 	}
 
 	public function test_every_section_lists_its_first_layout_first_and_each_intent_once(): void {

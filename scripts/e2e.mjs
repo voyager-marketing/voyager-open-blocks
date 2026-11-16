@@ -111,8 +111,9 @@
  *      it is blank; a 61-character heading with a claim given as a plain
  *      string, and two adjacent Accent sections with copy for a bound slot,
  *      are each refused with every fault and save nothing; a published page,
- *      a recipe with sections, an unknown recipe, both post_id and title, and
- *      an unknown layout are refused; a dry run creates no post; and undo
+ *      a recipe with sections, an unknown recipe, post_id with a title not
+ *      the draft's, and an unknown layout are refused; a dry run creates no
+ *      post; and undo
  *      reverses a compose save byte for byte, on an existing draft and on a
  *      new one. Then the page recipes: get-catalog lists every file in
  *      recipes/ as it holds it, compose with the home recipe's slug saves a
@@ -130,8 +131,14 @@
  *      marquee and the contact section, each listed in two layouts, and each
  *      second layout, cover, split, grid and stacked, built from one section
  *      with layout set and copy, as insert places it, with its image slots or
- *      its form slot as its placeholder: warnings, the same copy refused
- *      nothing in the first layout; and the contact recipe saves a page whose
+ *      its form slot as its placeholder: warnings, and the same page from
+ *      the layout's own name as pattern, the same copy refused nothing in
+ *      the first layout; voyager-open/proof-strip-facts as pattern, with
+ *      layout null, saves the page voyager-open/proof-strip with layout
+ *      "facts" saves, and with layout "list" is refused naming both; post_id
+ *      with the draft's own title saves over the draft and keeps its title,
+ *      and with another title is refused, saying to drop one, the draft
+ *      unchanged; and the contact recipe saves a page whose
  *      hero has no main button and no button links to the contact page but
  *      through a bound link's fallback,
  *  6d. the copy examples in skills/voyager-open-blocks/examples/, a home page
@@ -248,8 +255,11 @@
  *      time unchanged, while a REST save of the page changes both. A home
  *      page compose builds from the home recipe, every copy slot get-catalog
  *      lists given text and every field it binds filled, with its hero image
- *      swapped for the site's own, gets no finding. Then it deletes the pages
- *      and puts Site Data back.
+ *      swapped for the site's own, gets no finding. "Call us" given as copy
+ *      for the contact section's call button saves what the section with no
+ *      copy saves, and audit finds default_copy on both, its message saying
+ *      copy given for that label can stay. Then it deletes the pages and puts
+ *      Site Data back.
  *
  * The application password comes from the environment, never argv. Create one with
  * `wp user application-password create admin e2e --porcelain`.
@@ -3978,14 +3988,14 @@ step(
 			'input[recipe] is not one of',
 		],
 		[
-			'both post_id and title',
+			"post_id with a title that is not the draft's",
 			{
 				post_id: targetId,
 				title: `E2E: compose both ${ stamp }`,
 				sections,
 			},
 			'voyager_open_blocks_invalid_post_id',
-			'not both',
+			'compose does not rename a draft',
 		],
 		[
 			'a layout the hero does not come in',
@@ -4707,6 +4717,30 @@ step(
 		);
 		validate( `compose ${ item }`, builtRaw );
 
+		// The layout by its own name, as get-catalog lists it: the same page.
+		const byName = await run( composeAbility, {
+			title: `E2E: compose ${ item } by name ${ stamp }`,
+			sections: [ { pattern: item, copy } ],
+		} );
+		const byNameId = Number.isInteger( byName.data.post_id )
+			? byName.data.post_id
+			: 0;
+		if ( byNameId ) {
+			created.push( byNameId );
+		}
+		const byNameRaw = byNameId ? await contentOf( byNameId ) : null;
+		step(
+			`compose takes ${ item } by its own name as a section's pattern and saves the same page as ${ section } with layout "${ layout }"`,
+			byName.status === 200 &&
+				byName.data.saved === true &&
+				JSON.stringify( byName.data.refused ) === '[]' &&
+				!! builtRaw &&
+				byNameRaw === builtRaw,
+			`${ composeSummary( byName ) }; same page: ${
+				!! builtRaw && byNameRaw === builtRaw
+			}`
+		);
+
 		const firstLayout = await run( composeAbility, {
 			title: `E2E: compose ${ section } first layout ${ stamp }`,
 			sections: [ { pattern: section, copy } ],
@@ -4720,6 +4754,156 @@ step(
 			composeSummary( firstLayout )
 		);
 	}
+
+	// A layout by its own name. get-catalog lists voyager-open/proof-strip-facts
+	// as a pattern, with section proof-strip and layout facts, and an agent
+	// passes that name as a section's pattern, with layout null. compose reads
+	// it as its section and layout, so the page is the one the section and
+	// layout build. A layout that is not the name's own is refused, naming
+	// both, and nothing is created.
+	const factsListed = ( catalog.data.patterns || [] ).find(
+		( p ) => p.name === 'voyager-open/proof-strip-facts'
+	);
+	const factsBySection = await run( composeAbility, {
+		title: `E2E: compose proof strip facts by section ${ stamp }`,
+		sections: [
+			{
+				pattern: 'voyager-open/proof-strip',
+				layout: 'facts',
+				style: 'panel',
+			},
+		],
+	} );
+	const factsByName = await run( composeAbility, {
+		title: `E2E: compose proof strip facts by name ${ stamp }`,
+		sections: [
+			{
+				pattern: 'voyager-open/proof-strip-facts',
+				layout: null,
+				style: 'panel',
+			},
+		],
+	} );
+	for ( const response of [ factsBySection, factsByName ] ) {
+		if ( Number.isInteger( response.data.post_id ) ) {
+			created.push( response.data.post_id );
+		}
+	}
+	const factsSectionRaw = Number.isInteger( factsBySection.data.post_id )
+		? await contentOf( factsBySection.data.post_id )
+		: null;
+	const factsNameRaw = Number.isInteger( factsByName.data.post_id )
+		? await contentOf( factsByName.data.post_id )
+		: null;
+	step(
+		'fitness: compose takes voyager-open/proof-strip-facts, as get-catalog lists it, as a section\'s pattern with layout null and saves the facts layout, the page voyager-open/proof-strip with layout "facts" saves',
+		factsListed?.section === 'proof-strip' &&
+			factsListed?.layout === 'facts' &&
+			factsByName.status === 200 &&
+			factsByName.data.saved === true &&
+			JSON.stringify( factsByName.data.refused ) === '[]' &&
+			factsBySection.data.saved === true &&
+			!! factsSectionRaw &&
+			factsNameRaw === factsSectionRaw &&
+			factsNameRaw.includes( '<!-- wp:voyager-open/facts' ) &&
+			factsNameRaw.includes( 'is-style-voyager-open-panel' ),
+		`by name: ${ composeSummary( factsByName ) }; by section: ${ composeSummary(
+			factsBySection
+		) }; same page: ${ !! factsSectionRaw && factsNameRaw === factsSectionRaw }`
+	);
+	const disagreeTitle = `E2E: compose proof strip facts as list ${ stamp }`;
+	const disagree = await run( composeAbility, {
+		title: disagreeTitle,
+		sections: [
+			{ pattern: 'voyager-open/proof-strip-facts', layout: 'list' },
+		],
+	} );
+	step(
+		'compose refuses voyager-open/proof-strip-facts with layout "list" with voyager_open_blocks_invalid_layout, naming both, and creates no post',
+		disagree.status === 400 &&
+			disagree.data.code === 'voyager_open_blocks_invalid_layout' &&
+			( disagree.data.message || '' ).includes(
+				'voyager-open/proof-strip-facts is the facts layout of voyager-open/proof-strip, and layout "list" disagrees with it'
+			) &&
+			( await titled( disagreeTitle ) ).length === 0,
+		composeSummary( disagree )
+	);
+
+	// post_id with title. compose never renames a draft, since undo restores
+	// content and not titles, so a title beside post_id is taken only when it
+	// is the draft's own: an agent re-sending its call with post_id added
+	// keeps the draft and its title, and the page holds what the same
+	// sections build under title. Another title is refused, saying to drop
+	// title or post_id, and the draft is unchanged.
+	const keepTitle = `E2E: compose keeps its title ${ stamp }`;
+	const kept = await api( '/wp/v2/pages', {
+		method: 'POST',
+		body: { title: keepTitle, status: 'draft', content: startingContent },
+	} );
+	const keptId = kept.data.id;
+	if ( keptId ) {
+		created.push( keptId );
+	}
+	const sameTitle = keptId
+		? await run( composeAbility, {
+				post_id: keptId,
+				title: keepTitle,
+				sections,
+			} )
+		: { status: 0, data: {} };
+	const keptPage = keptId
+		? await api( `/wp/v2/pages/${ keptId }`, {
+				query: { context: 'edit' },
+			} )
+		: { data: {} };
+	step(
+		"compose with post_id and the draft's own title saves the sections over the draft, keeps its title, and creates no other post",
+		sameTitle.status === 200 &&
+			sameTitle.data.saved === true &&
+			sameTitle.data.post_id === keptId &&
+			Number.isInteger( sameTitle.data.revision_id ) &&
+			JSON.stringify( sameTitle.data.refused ) === '[]' &&
+			keptPage.data.title?.raw === keepTitle &&
+			keptPage.data.status === 'draft' &&
+			!! composedRaw &&
+			keptPage.data.content?.raw === composedRaw &&
+			JSON.stringify( await titled( keepTitle ) ) ===
+				JSON.stringify( [ keptId ] ),
+		`${ composeSummary( sameTitle ) }; title "${
+			keptPage.data.title?.raw
+		}"; same page as with title: ${
+			keptPage.data.content?.raw === composedRaw
+		}`
+	);
+	const keptBefore = keptId ? await contentOf( keptId ) : null;
+	const renameTitle = `E2E: compose renamed ${ stamp }`;
+	const renamed = keptId
+		? await run( composeAbility, {
+				post_id: keptId,
+				title: renameTitle,
+				sections,
+			} )
+		: { status: 0, data: {} };
+	const keptAfter = keptId
+		? await api( `/wp/v2/pages/${ keptId }`, {
+				query: { context: 'edit' },
+			} )
+		: { data: {} };
+	step(
+		'compose with post_id and another title refuses with voyager_open_blocks_invalid_post_id, saying to drop title or post_id, and the draft keeps its title and content',
+		renamed.status === 400 &&
+			renamed.data.code === 'voyager_open_blocks_invalid_post_id' &&
+			( renamed.data.message || '' ).includes(
+				`draft ${ keptId } is titled "${ keepTitle }"`
+			) &&
+			( renamed.data.message || '' ).includes( 'Drop title' ) &&
+			( renamed.data.message || '' ).includes( 'drop post_id' ) &&
+			keptAfter.data.title?.raw === keepTitle &&
+			!! keptBefore &&
+			keptAfter.data.content?.raw === keptBefore &&
+			( await titled( renameTitle ) ).length === 0,
+		composeSummary( renamed )
+	);
 
 	// The contact recipe leaves out the hero's main button, which links to
 	// the contact page, so a page composed from it never links to itself.
@@ -7431,8 +7615,9 @@ await api( recorder, { method: 'DELETE' } );
 				( f ) =>
 					f.code === 'default_copy' &&
 					f.message.includes(
-						'"Heading" at 1 still holds "Say what you do and who it is for"'
-					)
+						'"Heading" at 1 holds "Say what you do and who it is for"'
+					) &&
+					f.message.includes( 'If not, it was left in place' )
 			) &&
 			plantedFindings.some(
 				( f ) =>
@@ -7475,6 +7660,61 @@ await api( recorder, { method: 'DELETE' } );
 		plantedSaved.revisions > plantedAfter.revisions &&
 			plantedSaved.modified !== plantedAfter.modified,
 		`revisions ${ plantedAfter.revisions } then ${ plantedSaved.revisions }, modified ${ plantedAfter.modified } then ${ plantedSaved.modified }`
+	);
+
+	// Copy that is the pack's own words. The contact section's copy rule for
+	// its call button suggests "Call us", the text the pack ships there.
+	// Given as copy, it saves the same bytes as the section with no copy, so
+	// audit, which reads the saved page, cannot tell the two apart: it finds
+	// default_copy on both, and its message says copy given for that label
+	// can stay.
+	const callUsGiven = await run( `${ ns }/compose`, {
+		title: `E2E audit call us given ${ stamp }`,
+		sections: [
+			{
+				pattern: 'voyager-open/contact-section',
+				copy: { 'Click to call': 'Call us' },
+			},
+		],
+	} );
+	const callUsLeft = await run( `${ ns }/compose`, {
+		title: `E2E audit call us left ${ stamp }`,
+		sections: [ { pattern: 'voyager-open/contact-section' } ],
+	} );
+	auditPages.push( callUsGiven.data.post_id, callUsLeft.data.post_id );
+	const callUsFinding = async ( id ) =>
+		Number.isInteger( id )
+			? (
+					( await run( auditAbility, { post_id: id }, true ) ).data
+						.findings || []
+				).filter(
+					( f ) =>
+						f.code === 'default_copy' &&
+						f.message.includes( '"Click to call"' )
+				)
+			: [];
+	const givenFindings = await callUsFinding( callUsGiven.data.post_id );
+	const leftFindings = await callUsFinding( callUsLeft.data.post_id );
+	const givenContent = Number.isInteger( callUsGiven.data.post_id )
+		? ( await pageState( callUsGiven.data.post_id ) ).content
+		: null;
+	const leftContent = Number.isInteger( callUsLeft.data.post_id )
+		? ( await pageState( callUsLeft.data.post_id ) ).content
+		: null;
+	step(
+		'"Call us" given as copy for the contact section\'s call button saves what the section with no copy saves, and audit finds default_copy on it, saying copy given for "Click to call" can stay',
+		callUsGiven.data.saved === true &&
+			callUsLeft.data.saved === true &&
+			!! givenContent &&
+			givenContent === leftContent &&
+			givenFindings.length === 1 &&
+			leftFindings.length === 1 &&
+			givenFindings[ 0 ].message.includes(
+				'holds "Call us", the text the pack ships there. If you gave that text as copy for "Click to call", it is your choice and can stay.'
+			),
+		`same bytes: ${ !! givenContent && givenContent === leftContent }; ${
+			givenFindings[ 0 ]?.message || 'no default_copy on "Click to call"'
+		}`
 	);
 
 	// The home page, filled: every field the recipe's sections bind, and every

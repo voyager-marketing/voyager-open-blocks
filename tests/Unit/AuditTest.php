@@ -257,9 +257,34 @@ final class AuditTest extends TestCase {
 		$texts = array_column( $found, 'message' );
 
 		$this->assertSame( array_fill( 0, 4, 'default_copy' ), self::codes( $found ), implode( "\n", $texts ) );
-		$this->assertStringStartsWith( 'core/paragraph "Eyebrow" at 0/0/0/0/0 still holds "Your service and area", the text the pack ships there.', $texts[0] );
-		$this->assertStringStartsWith( 'core/heading "Heading" at 0/0/0/0/1 still holds "Say what you do and who it is for"', $texts[1] );
-		$this->assertStringContainsString( 'Replace it in the editor', $texts[1] );
+		$this->assertStringStartsWith( 'core/paragraph "Eyebrow" at 0/0/0/0/0 holds "Your service and area", the text the pack ships there.', $texts[0] );
+		$this->assertStringStartsWith( 'core/heading "Heading" at 0/0/0/0/1 holds "Say what you do and who it is for"', $texts[1] );
+		$this->assertStringContainsString( 'If not, it was left in place: replace it in the editor', $texts[1] );
+	}
+
+	public function test_copy_given_that_matches_the_pack_s_text_is_still_default_copy_and_the_message_says_it_can_stay(): void {
+		// audit reads the saved post only, and copy is written as plain text
+		// (BlockTree\set_copy()), so "Call us" given as copy for the contact
+		// section's call button, as its copy rule suggests, saves the block the
+		// pack ships, and reads as the text the pack ships there. npm run e2e
+		// shows the two saves are the same bytes.
+		$rules = \VoyagerOpenBlocks\Patterns\intent_meta( 'voyager-open/contact-section', self::INTENTS )['copy_rules'];
+		$this->assertStringContainsString( 'such as Call us', (string) ( $rules['Click to call']['purpose'] ?? '' ) );
+
+		$index = Abilities\default_copy_index( self::pack() );
+		$this->assertContains( 'Call us', $index['Click to call'] ?? [] );
+
+		$call  = static fn ( string $text ): array => [ self::block( 'core/button', '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button">' . htmlspecialchars( $text, ENT_QUOTES ) . '</a></div>', self::meta( 'Click to call', [ 'url' => 'phone_link' ] ) ) ];
+		$found = Abilities\default_copy_findings( $call( 'Call us' ), $index );
+
+		$this->assertSame( [ 'default_copy' ], self::codes( $found ) );
+		$this->assertSame(
+			'core/button "Click to call" at 0 holds "Call us", the text the pack ships there. If you gave that text as copy for "Click to call", it is your choice and can stay. If not, it was left in place: replace it in the editor with the site\'s own words, or remove the block.',
+			$found[0]['message']
+		);
+
+		// The site's own words are not a finding.
+		$this->assertSame( [], Abilities\default_copy_findings( $call( 'Call the office' ), $index ) );
 	}
 
 	public function test_default_copy_matches_the_label_and_the_whole_text(): void {
