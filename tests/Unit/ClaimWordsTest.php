@@ -314,47 +314,45 @@ final class ClaimWordsTest extends TestCase {
 		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'cta-band', [ 'Body' => 'Free inspections by our crews.' ], $roofs ) ) );
 	}
 
-	public function test_a_trade_noun_stands_in_only_where_the_claim_word_is_said_of_it(): void {
-		$contractors = [
-			'credentials' => 'Licensed contractors',
-			'year'        => '2026',
-		];
+	/**
+	 * The cases in tests/fixtures/trade-noun-reach.json, which
+	 * bench/test-score.mjs runs through the benchmark scorer too: credentials,
+	 * text, and whether its claim word is given.
+	 *
+	 * @return array<string, array{list<string>, string, bool}>
+	 */
+	public static function trade_noun_reach(): array {
+		$fixture = json_decode( (string) file_get_contents( __DIR__ . '/../fixtures/trade-noun-reach.json' ), true );
+		$out     = [];
 
-		// Within two words of the claim word, either side, the trade noun is
-		// what the claim word is said of.
-		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed roofers serve Kestovar.' ], $contractors ) ) );
-		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Our roofers are licensed.' ], $contractors ) ) );
-		$insured = [
-			'credentials' => 'Licensed and insured contractors',
-			'year'        => '2026',
-		];
-		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed and insured crews on every job.' ], $insured ) ) );
-		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed roofers serve Kestovar.' ], $insured ) ) );
-
-		// A trade noun anywhere else in the sentence is not, so the sentence
-		// says no more about the work than it does without one. Nor is one
-		// past a clause mark: a comma, semicolon, colon, dash or bracket ends
-		// the reach. That fails safe: "Licensed, experienced roofers" costs a
-		// retry and lets no claim through.
-		foreach ( [
-			'Licensed to operate, and our roofers are proud of their work.',
-			'Licensed to operate, and proud of our work.',
-			'Our roofers clean up daily and are fully licensed.',
-			'Licensed, our roofers say, to operate.',
-			'We are licensed; roofers are proud of their work.',
-			"We're licensed; our roofers love this job.",
-			'We are licensed: roofers love this job.',
-			"We're licensed\u{2014}our roofers love this job.",
-			"We're licensed \u{2013} our roofers love this job.",
-			'We are licensed - roofers love this job.',
-			'Roofers (all licensed) on every job.',
-			'Licensed, experienced roofers serve Kestovar.',
-		] as $text ) {
-			$refused = self::check( 'hero', [ 'Body' => $text ], $contractors );
-
-			$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ), $text );
-			$this->assertSame( [ 'licensed' ], $refused[0]['words'] ?? null, $text );
+		foreach ( is_array( $fixture ) && is_array( $fixture['cases'] ?? null ) ? $fixture['cases'] : [] as $case ) {
+			$out[ (string) $case['text'] . ' / ' . implode( '; ', $case['credentials'] ) ] = [ array_map( 'strval', $case['credentials'] ), (string) $case['text'], true === $case['given'] ];
 		}
+
+		return $out;
+	}
+
+	/**
+	 * A trade noun stands in for the credential's own only within two words of
+	 * the claim word, with nothing between them but letters, digits, spaces,
+	 * apostrophes and a hyphen inside a word: no comma, semicolon, colon,
+	 * dash, bracket, ellipsis or other mark. "Licensed, experienced roofers"
+	 * fails safe: a retry, never a claim let through.
+	 *
+	 * @param list<string> $credentials Site Data credentials.
+	 */
+	#[DataProvider( 'trade_noun_reach' )]
+	public function test_a_trade_noun_stands_in_only_where_the_claim_word_is_said_of_it( array $credentials, string $text, bool $given ): void {
+		$this->assertGreaterThan( 20, count( self::trade_noun_reach() ), 'the fixture is read' );
+
+		$sources = Abilities\claim_sources(
+			[
+				'credentials' => implode( "\n", $credentials ),
+				'year'        => '2026',
+			]
+		);
+
+		$this->assertSame( $given, [] === Abilities\unsourced_claims( $text, $sources ), $text );
 	}
 
 	public function test_a_figure_with_a_number_needs_its_site_data_value(): void {

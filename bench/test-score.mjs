@@ -311,50 +311,19 @@ test( 'top, best and leading make a claim, but not in an idiom', async () => {
 	);
 } );
 
-test( 'a trade noun stands in for a credential trade noun only within two words of the claim word', async () => {
+// The pack and the scorer read a trade noun the same way: each case in
+// tests/fixtures/trade-noun-reach.json, which tests/Unit/ClaimWordsTest.php
+// runs through the pack, is traced here exactly when the pack gives it.
+test( 'a trade noun stands in for a credential trade noun only where the pack says so', async () => {
 	const { claims } = await measures();
-	const contractors = { ...kestovar(), credentials: [ 'Licensed contractors' ], services: [] };
-	const lines = [
-		'Licensed roofers serve Kestovar.',
-		'Our roofers are licensed.',
-		'Licensed to operate, and our roofers are proud of their work.',
-		'Licensed to operate, and proud of our work.',
-		'Our roofers clean up daily and are fully licensed.',
-		'Licensed, our roofers say, to operate.',
-		'We are licensed; roofers are proud of their work.',
-		"We're licensed; our roofers love this job.",
-		'We are licensed: roofers love this job.',
-		"We're licensed—our roofers love this job.",
-		"We're licensed – our roofers love this job.",
-		'We are licensed - roofers love this job.',
-		'Roofers (all licensed) on every job.',
-		'Licensed, experienced roofers serve Kestovar.',
-	];
-	assert.deepEqual(
-		claims( page( ...lines ), contractors, { year: 2026 } ).map( ( c ) => [ c.text, c.untraced ] ),
-		[
-			[ 'Licensed roofers serve Kestovar.', [] ],
-			[ 'Our roofers are licensed.', [] ],
-			[ 'Licensed to operate, and our roofers are proud of their work.', [ 'licensed' ] ],
-			[ 'Licensed to operate, and proud of our work.', [ 'licensed' ] ],
-			[ 'Our roofers clean up daily and are fully licensed.', [ 'licensed' ] ],
-			[ 'Licensed, our roofers say, to operate.', [ 'licensed' ] ],
-			[ 'We are licensed; roofers are proud of their work.', [ 'licensed' ] ],
-			[ "We're licensed; our roofers love this job.", [ 'licensed' ] ],
-			[ 'We are licensed: roofers love this job.', [ 'licensed' ] ],
-			[ "We're licensed—our roofers love this job.", [ 'licensed' ] ],
-			[ "We're licensed – our roofers love this job.", [ 'licensed' ] ],
-			[ 'We are licensed - roofers love this job.', [ 'licensed' ] ],
-			[ 'Roofers (all licensed) on every job.', [ 'licensed' ] ],
-			[ 'Licensed, experienced roofers serve Kestovar.', [ 'licensed' ] ],
-		],
-		'roofers stands for contractors beside licensed, in the same clause, as the pack reads it, and nowhere else'
-	);
-	assert.deepEqual(
-		claims( page( 'Licensed and insured crews on every job.', 'Licensed roofers serve Kestovar.' ), { ...contractors, credentials: [ 'Licensed and insured contractors' ] }, { year: 2026 } ).map( ( c ) => c.untraced ),
-		[ [], [] ],
-		'two words between, and and insured; and the credential other claim word may go, as in the pack'
-	);
+	const { cases } = JSON.parse( readFileSync( join( here, '..', 'tests', 'fixtures', 'trade-noun-reach.json' ), 'utf8' ) );
+	assert.ok( cases.length > 20, 'the fixture is read' );
+	const read = cases.map( ( { credentials, text } ) => {
+		const found = claims( page( text ), { ...kestovar(), credentials, services: [] }, { year: 2026 } );
+		assert.equal( found.length, 1, `"${ text }" holds one claim sentence` );
+		return [ text, found[ 0 ].traced ];
+	} );
+	assert.deepEqual( read, cases.map( ( { text, given } ) => [ text, given ] ) );
 } );
 
 test( 'years since the year founded count as a Site Data figure', async () => {
@@ -420,7 +389,7 @@ test( 'the phrases that make no claim follow inc/abilities/claims.php NOT_CLAIMS
 	assert.ok( NOT_CLAIMS.every( ( re ) => re.flags === 'gi' ), 'read as PHP reads them, case-insensitively, every match' );
 } );
 
-test( 'the trade nouns and their reach follow inc/abilities/claims.php', async () => {
+test( 'the trade nouns, their reach and what ends it follow inc/abilities/claims.php', async () => {
 	const { TRADE_NOUNS, TRADE_NOUN_REACH } = await measures();
 	const list = /^const TRADE_NOUNS = \[ (.+) \];$/m.exec( claimsPhp() )?.[ 1 ];
 	assert.ok( list, 'inc/abilities/claims.php holds TRADE_NOUNS on one line; if it moved, read it from its new home here' );
@@ -428,4 +397,8 @@ test( 'the trade nouns and their reach follow inc/abilities/claims.php', async (
 	const reach = /^const TRADE_NOUN_REACH = (\d+);$/m.exec( claimsPhp() )?.[ 1 ];
 	assert.ok( reach, 'inc/abilities/claims.php holds TRADE_NOUN_REACH' );
 	assert.equal( TRADE_NOUN_REACH, Number( reach ), 'the words that may stand between a claim word and its trade noun' );
+	const { REACH_BREAK } = await measures();
+	const rule = /^const CLAIM_REACH_BREAK = '(.+)';$/m.exec( claimsPhp() )?.[ 1 ];
+	assert.ok( rule, 'inc/abilities/claims.php holds CLAIM_REACH_BREAK on one line' );
+	assert.equal( REACH_BREAK, rule.replaceAll( "\'", "'" ), 'what ends the reach, character for character' );
 } );
