@@ -2,10 +2,11 @@
 /**
  * get-catalog in brief and in detail (contract 8 in docs/v2-contracts.md):
  * the brief rows are the whole catalog's rows less the rest, a recipe in
- * detail carries each section's copy rules, each slot whose text is bound
- * marked copy: false, and the Site Data fields its sections bind, and fits
- * in one tool result, and a section as get-catalog lists it takes compose's
- * section schema.
+ * detail names each section's pattern and layout and carries its copy rules,
+ * each slot whose text is bound marked copy: false, and the Site Data fields
+ * its sections bind, and fits in one tool result, a section as get-catalog
+ * lists it takes compose's section schema, and a block's name in patterns is
+ * refused saying where the block sits.
  *
  * The recipes and copy rules come from recipes/ and patterns/intents/, so
  * these check what ships. scripts/e2e.mjs runs get-catalog over REST and
@@ -18,6 +19,7 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
@@ -174,7 +176,8 @@ final class GetCatalogTest extends TestCase {
 			$keys = [];
 
 			foreach ( $detail['sections'] as $at => $section ) {
-				$name = Abilities\resolve_layout( $layouts, $section['pattern'], $section['layout'] );
+				// The pattern the file's section and layout name, as compose resolves them.
+				$name = Abilities\resolve_layout( $layouts, $whole['sections'][ $at ]['pattern'], $whole['sections'][ $at ]['layout'] );
 				$this->assertNotNull( $name );
 
 				$this->assertSame(
@@ -184,9 +187,13 @@ final class GetCatalogTest extends TestCase {
 				);
 				$this->assertSame( json_encode( (object) $whole['sections'][ $at ]['copy_guidance'] ), json_encode( $section['copy_guidance'] ) );
 
+				// The section as the file holds it, but named by its pattern's own name and layout.
 				$rest = (array) $section;
 				unset( $rest['copy_rules'], $rest['copy_guidance'] );
-				$expected = $whole['sections'][ $at ];
+				$expected = [
+					'pattern' => $name,
+					'layout'  => Patterns\intent_meta( $name, self::INTENTS )['layout'],
+				] + $whole['sections'][ $at ];
 				unset( $expected['copy_guidance'] );
 				$this->assertSame( $expected, $rest );
 
@@ -201,6 +208,74 @@ final class GetCatalogTest extends TestCase {
 		$this->assertNull( self::detail( 'no-such-recipe' ) );
 	}
 
+	/**
+	 * The pattern compose builds for a section's pattern and layout, as compose
+	 * reads them: a layout's own name as its section and layout
+	 * (layout_named()), otherwise a section with one of its layouts. Null when
+	 * compose refuses the pair.
+	 *
+	 * @param array<string, list<array{layout: string|null, pattern: string}>> $layouts From section_layouts().
+	 * @param string                                                            $pattern A section's pattern.
+	 * @param string|null                                                       $layout  Its layout.
+	 */
+	private static function composed( array $layouts, string $pattern, ?string $layout ): ?string {
+		$named = Abilities\layout_named( $layouts, $pattern );
+
+		if ( null === $named ) {
+			return Abilities\resolve_layout( $layouts, $pattern, $layout );
+		}
+
+		return null === $layout || $named['layout'] === $layout ? Abilities\resolve_layout( $layouts, $named['section'], $named['layout'] ) : null;
+	}
+
+	public function test_a_recipe_in_detail_names_each_section_s_pattern_and_layout_and_compose_builds_what_the_file_names(): void {
+		$layouts = Abilities\section_layouts( self::INTENTS );
+		$nulls   = 0;
+
+		foreach ( Abilities\recipes( null, self::INTENTS ) as $whole ) {
+			$detail = self::detail( $whole['slug'] );
+			$this->assertNotNull( $detail );
+			$this->assertIsArray( $detail['sections'] );
+
+			foreach ( $detail['sections'] as $at => $section ) {
+				$file = $whole['sections'][ $at ];
+				$name = Abilities\resolve_layout( $layouts, $file['pattern'], $file['layout'] );
+				$this->assertNotNull( $name );
+
+				$this->assertSame( $name, $section['pattern'], "{$whole['slug']} section {$at}: the pattern is not named by its own name" );
+				$this->assertArrayHasKey( $name, Patterns\generated(), 'a name get-catalog\'s patterns input takes' );
+				$this->assertSame( Patterns\generated()[ $name ]['layout'], $section['layout'], "{$whole['slug']} section {$at}: the layout is not {$name}'s own" );
+				$this->assertSame( $name, self::composed( $layouts, $section['pattern'], $section['layout'] ), "{$whole['slug']} section {$at}: compose builds another pattern from the detail than from the file" );
+
+				if ( null === $file['layout'] ) {
+					++$nulls;
+					$this->assertIsString( $section['layout'], "{$whole['slug']} section {$at}: a first layout reads null in the file, and the detail names it" );
+				}
+			}
+		}
+
+		$this->assertGreaterThan( 0, $nulls, 'some recipe sections give layout null, so the check is seen to name one' );
+
+		$home = self::detail( 'home' );
+		$this->assertNotNull( $home );
+		$this->assertSame(
+			[ 'hero split', 'proof-strip list', 'services grid', 'cta-band row', 'reviews grid', 'stats row', 'service-area list', 'closing-cta centered' ],
+			array_map( static fn ( array $section ): string => substr( (string) $section['pattern'], strlen( 'voyager-open/' ) ) . ' ' . $section['layout'], $home['sections'] ),
+			'the home recipe names every section\'s pattern and layout, no layout null'
+		);
+
+		$location = self::detail( 'location' );
+		$this->assertNotNull( $location );
+		$this->assertSame( [ 'voyager-open/hero-cover', 'cover' ], [ $location['sections'][0]['pattern'], $location['sections'][0]['layout'] ], 'a layout that is not the first is named by its own pattern name' );
+
+		// The names come from the generated patterns array, which the kept
+		// recipe's version follows (pack_stamp()), as they do from the intents.
+		$this->assertSame(
+			array_column( $home['sections'], 'layout', 'pattern' ),
+			array_column( Abilities\recipe_detail( 'home', null, null, static fn ( string $name ): array => self::rows( $name ) )['sections'] ?? [], 'layout', 'pattern' )
+		);
+	}
+
 	public function test_a_slot_whose_text_is_bound_is_marked_copy_false_and_is_the_slot_compose_refuses_copy_for(): void {
 		$layouts = Abilities\section_layouts( self::INTENTS );
 		$marked  = [];
@@ -211,7 +286,7 @@ final class GetCatalogTest extends TestCase {
 			$this->assertIsArray( $detail['sections'] );
 
 			foreach ( $detail['sections'] as $at => $section ) {
-				$name = Abilities\resolve_layout( $layouts, $section['pattern'], $section['layout'] );
+				$name = self::composed( $layouts, $section['pattern'], $section['layout'] );
 				$this->assertNotNull( $name );
 
 				/** @var array<string, array<string, mixed>> $rules */
@@ -381,10 +456,26 @@ final class GetCatalogTest extends TestCase {
 			}
 
 			// compose reads both forms as it reads the recipe's own sections:
-			// copy_guidance and copy_rules change nothing it builds.
+			// copy_guidance and copy_rules change nothing it builds. The
+			// detail names each pattern by its own name and layout, which
+			// compose builds as the file's section and layout.
 			$expected = Abilities\recipe_sections( $recipe );
 			$this->assertSame( $expected, Abilities\sections_input( $brief['sections'] ) );
-			$this->assertSame( $expected, Abilities\sections_input( $detail['sections'] ) );
+
+			$layouts = Abilities\section_layouts( self::INTENTS );
+			$read    = Abilities\sections_input( $detail['sections'] );
+			$this->assertCount( count( $expected ), $read );
+			foreach ( $read as $at => $section ) {
+				$this->assertSame(
+					self::composed( $layouts, $expected[ $at ]['pattern'], $expected[ $at ]['layout'] ),
+					self::composed( $layouts, $section['pattern'], $section['layout'] ),
+					"{$recipe['slug']} section {$at}: compose builds another pattern from the detail"
+				);
+				$this->assertSame(
+					array_diff_key( $expected[ $at ], [ 'pattern' => 1, 'layout' => 1 ] ),
+					array_diff_key( $section, [ 'pattern' => 1, 'layout' => 1 ] )
+				);
+			}
 		}
 	}
 
@@ -433,7 +524,9 @@ final class GetCatalogTest extends TestCase {
 		$this->assertSame( [ 'post_type', 'recipe', 'patterns', 'include' ], array_keys( (array) $schema['properties'] ) );
 		$this->assertFalse( $schema['additionalProperties'] );
 		$this->assertSame( array_column( Abilities\recipes(), 'slug' ), $schema['properties']['recipe']['enum'] ?? null );
-		$this->assertSame( array_keys( Patterns\generated() ), $schema['properties']['patterns']['items']['enum'] ?? null );
+		// No enum: get-catalog checks the names itself (pattern_refusal()), so
+		// a block's name gets an answer WordPress's enum check cannot give.
+		$this->assertSame( [ 'type' => 'string' ], $schema['properties']['patterns']['items'] ?? null );
 		$this->assertSame( [ 'styles', 'blocks', 'patterns', 'sources', 'used_on', 'recipes' ], $schema['properties']['include']['items']['enum'] ?? null );
 		$this->assertSame( Abilities\CATALOG_KEYS, $schema['properties']['include']['items']['enum'] );
 	}
@@ -444,6 +537,77 @@ final class GetCatalogTest extends TestCase {
 		$this->assertGreaterThan( 10, count( $from_files ) );
 		$this->assertSame( $from_files, Abilities\section_layouts(), 'the sections, their layouts and their order, as the intent files give them' );
 		$this->assertSame( Abilities\recipes( null, self::INTENTS ), Abilities\recipes(), 'so every recipe reads the same' );
+	}
+
+	public function test_a_block_s_name_in_patterns_is_refused_saying_it_is_a_block_and_where_it_sits(): void {
+		$patterns = Patterns\generated();
+		$this->assertNull( Abilities\pattern_refusal( [ 'voyager-open/hero', 'voyager-open/proof-strip-facts' ], $patterns ), 'pattern names pass' );
+		$this->assertNull( Abilities\pattern_refusal( [], $patterns ) );
+
+		$refused = Abilities\pattern_refusal( [ 'voyager-open/proof-strip-facts', 'voyager-open/contact-details' ], $patterns );
+		$this->assertInstanceOf( \WP_Error::class, $refused );
+		$this->assertSame( 'voyager_open_blocks_invalid_pattern', $refused->get_error_code() );
+		$this->assertSame( [ 'status' => 400 ], $refused->get_error_data() );
+
+		$message = $refused->get_error_message();
+		$this->assertStringStartsWith( 'voyager-open/contact-details is a block, not a pattern: it sits in voyager-open/contact-section and voyager-open/contact-section-stacked.', $message );
+		foreach ( array_keys( $patterns ) as $name ) {
+			$this->assertStringContainsString( $name, $message, 'the refusal lists every pattern name' );
+		}
+
+		$facts = Abilities\pattern_refusal( [ 'voyager-open/facts' ], $patterns );
+		$this->assertInstanceOf( \WP_Error::class, $facts );
+		$this->assertStringStartsWith( 'voyager-open/facts is a block, not a pattern: it sits in voyager-open/proof-strip-facts, voyager-open/service-area and voyager-open/service-area-split.', $facts->get_error_message() );
+
+		$group = Abilities\pattern_refusal( [ 'core/group' ], $patterns );
+		$this->assertInstanceOf( \WP_Error::class, $group );
+		$this->assertStringStartsWith( 'core/group is a block, not a pattern: it sits in voyager-open/', $group->get_error_message(), 'a core block is found by the name its comment carries, without core/' );
+	}
+
+	/**
+	 * Names that only look like a block: a prefix of a block's name, a
+	 * section with its layout, another case, a longer name, and text that is
+	 * no block name.
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public static function not_a_block(): array {
+		return [
+			'a prefix of contact-details'   => [ 'voyager-open/contact' ],
+			'a section and its layout'      => [ 'voyager-open/hero-split' ],
+			'another case'                  => [ 'Voyager-Open/Contact-Details' ],
+			'a longer name'                 => [ 'voyager-open/contact-details-card' ],
+			'a name with a space after it'  => [ 'voyager-open/contact-details {' ],
+			'no namespace'                  => [ 'contact-details' ],
+			'nothing the pack ships'        => [ 'voyager-open/nothing' ],
+		];
+	}
+
+	#[DataProvider( 'not_a_block' )]
+	public function test_a_name_that_is_neither_a_pattern_nor_a_block_in_one_is_refused_as_no_pattern( string $name ): void {
+		$refused = Abilities\pattern_refusal( [ $name ], Patterns\generated() );
+
+		$this->assertInstanceOf( \WP_Error::class, $refused );
+		$this->assertStringStartsWith( "{$name} is not a pattern the pack ships.", $refused->get_error_message() );
+		$this->assertStringNotContainsString( 'is a block', $refused->get_error_message() );
+	}
+
+	public function test_every_name_that_is_not_a_pattern_is_named_in_one_refusal_in_the_order_given(): void {
+		$refused = Abilities\pattern_refusal( [ 'voyager-open/nothing', 'voyager-open/hero', 'voyager-open/icon' ], Patterns\generated() );
+
+		$this->assertInstanceOf( \WP_Error::class, $refused );
+		$message = $refused->get_error_message();
+		$this->assertStringStartsWith( 'voyager-open/nothing is not a pattern the pack ships. voyager-open/icon is a block, not a pattern: it sits in ', $message );
+		$this->assertStringNotContainsString( 'voyager-open/hero is', $message, 'a pattern name given beside them is not refused' );
+	}
+
+	public function test_get_catalog_refuses_a_block_s_name_before_it_builds_anything(): void {
+		foreach ( [ [ 'voyager-open/contact-details' ], 'voyager-open/hero, voyager-open/contact-details' ] as $patterns ) {
+			$refused = Abilities\get_catalog( [ 'patterns' => $patterns ] );
+
+			$this->assertInstanceOf( \WP_Error::class, $refused, 'a list, or a comma-separated string as a query string carries it' );
+			$this->assertSame( 'voyager_open_blocks_invalid_pattern', $refused->get_error_code() );
+		}
 	}
 
 	public function test_a_list_input_is_read_from_an_array_or_a_comma_separated_string(): void {

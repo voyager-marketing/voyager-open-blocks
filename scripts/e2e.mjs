@@ -15,19 +15,23 @@
  *      section and layout and each recipe its slug, title and sections as
  *      compose takes them, the whole catalog's rows less the rest; recipe
  *      "home" gives that recipe in full, each section with its copy_guidance
- *      and its pattern's copy_rules, under 20,000 too, while the same rule
- *      refuses the whole catalog (include with all six keys, which the rest
- *      of this script reads); patterns and include give only what they
- *      name; Site Data fields say whether they are filled, as compose's
- *      empty does; and the home recipe's sections copied straight from the
- *      brief answer, and from its detail with copy written in, each compose
- *      with nothing refused, while a section with a key compose does not
- *      take is still refused; the home recipe's detail marks each slot whose
- *      text is bound copy: false, the hero's call button among them and not
- *      the contact section's, copy for every slot it does not mark composes
- *      with nothing refused and copy for each marked one is refused as
- *      bound, and it lists the Site Data fields its sections bind, each as
- *      sources lists it, filled included,
+ *      and its pattern's copy_rules, and its pattern and layout named, no
+ *      layout null, each as the brief answer lists the pattern, under 20,000
+ *      too, while the same rule refuses the whole catalog (include with all
+ *      six keys, which the rest of this script reads); patterns and include
+ *      give only what they name, and a block's name in patterns,
+ *      voyager-open/contact-details, is refused as a block, naming the
+ *      contact section and every pattern name; Site Data fields say whether
+ *      they are filled, as compose's empty does; and the home recipe's
+ *      sections copied straight from the brief answer, and from its detail
+ *      with copy written in, each compose with nothing refused, while a
+ *      section with a key compose does not take is still refused; the home
+ *      recipe's detail marks each slot whose text is bound copy: false, the
+ *      hero's call button among them and not the contact section's, one
+ *      compose call built from the detail alone, with copy for every slot it
+ *      does not mark, saves the draft with nothing refused, and copy for each
+ *      marked one is refused as bound, and it lists the Site Data fields its
+ *      sections bind, each as sources lists it, filled included,
  *  1b. the prompt ability: its `item` enum lists every skill under skills/
  *      with a "Tell your agent" prompt, read here from each SKILL.md on its
  *      own, and its listing says the MCP Adapter serves it as a prompt.
@@ -693,14 +697,24 @@ const wholePatterns = Array.isArray( catalog.data.patterns )
 const wholeRecipes = Array.isArray( catalog.data.recipes )
 	? catalog.data.recipes
 	: [];
-// The pattern a recipe section names, read from the whole catalog's rows:
-// layout null is the pattern that keeps the section's name.
+// The pattern a recipe section names, read from the whole catalog's rows: a
+// pattern by its own name, with its own layout or none, or a section with
+// one of its layouts. Layout null is the pattern that keeps the section's
+// name.
 const sectionPattern = ( section ) =>
-	wholePatterns.find( ( row ) =>
-		section.layout === null || section.layout === undefined
-			? row.name === section.pattern
-			: `voyager-open/${ row.section }` === section.pattern &&
-				row.layout === section.layout
+	wholePatterns.find(
+		( row ) =>
+			row.name === section.pattern &&
+			( section.layout === null ||
+				section.layout === undefined ||
+				row.layout === section.layout )
+	) ||
+	wholePatterns.find(
+		( row ) =>
+			section.layout !== null &&
+			section.layout !== undefined &&
+			`voyager-open/${ row.section }` === section.pattern &&
+			row.layout === section.layout
 	);
 const said = ( response ) =>
 	response.data?.message ? `: ${ response.data.message }` : '';
@@ -794,8 +808,14 @@ step(
 );
 const homeWhole = wholeRecipes.find( ( recipe ) => recipe.slug === 'home' );
 const homeDetailSections = homeDetail.data.recipe?.sections || [];
+// What the recipe file's section names, as a pattern's own name and layout.
+const namedSection = ( section ) => ( {
+	...section,
+	pattern: sectionPattern( section )?.name,
+	layout: sectionPattern( section )?.layout ?? null,
+} );
 step(
-	'get-catalog with recipe "home": the recipe as the whole catalog lists it, each section with copy_rules, its pattern\'s rules',
+	'get-catalog with recipe "home": the recipe as the whole catalog lists it, each section with copy_rules, its pattern\'s rules, and its pattern and layout named',
 	!! homeWhole &&
 		homeDetailSections.length === homeWhole.sections.length &&
 		sameJson(
@@ -808,7 +828,10 @@ step(
 				} ),
 				site_data: undefined,
 			},
-			homeWhole
+			{
+				...homeWhole,
+				sections: homeWhole.sections.map( namedSection ),
+			}
 		) &&
 		homeDetailSections.every(
 			( section ) =>
@@ -826,6 +849,68 @@ step(
 				} rules`
 		)
 		.join( ', ' ) || JSON.stringify( homeDetail.data ).slice( 0, 160 )
+);
+
+// The recipe detail names each section's pattern and layout, so building the
+// page needs no pattern call: each section's pattern is a name the brief
+// answer lists, with that pattern's own layout, and no layout is null, since
+// every home section has layouts. A first layout reads null in the file.
+const briefRow = ( section ) =>
+	( brief.data.patterns || [] ).find(
+		( row ) => row.name === section.pattern
+	);
+step(
+	'fitness: get-catalog with recipe "home" names each section\'s pattern and layout, no layout null, each pattern a name the brief answer lists with that layout',
+	homeDetailSections.length > 0 &&
+		homeDetailSections.every(
+			( section ) =>
+				typeof section.layout === 'string' &&
+				briefRow( section )?.layout === section.layout
+		) &&
+		( homeWhole?.sections || [] ).some(
+			( section ) => section.layout === null
+		),
+	homeDetailSections
+		.map(
+			( section ) =>
+				`${ section.pattern } ${ JSON.stringify( section.layout ) }${
+					briefRow( section ) ? '' : ' (not listed)'
+				}`
+		)
+		.join( ', ' ) || JSON.stringify( homeDetail.data ).slice( 0, 160 )
+);
+
+// A block's name in patterns is refused by get-catalog itself, saying it is a
+// block, which patterns hold it, and every pattern name the brief answer
+// lists, so the agent's next call can be right.
+const blockAsPattern = await run(
+	`${ ns }/get-catalog`,
+	{
+		patterns: [
+			'voyager-open/proof-strip-facts',
+			'voyager-open/contact-details',
+		],
+	},
+	true
+);
+const briefNames = ( brief.data.patterns || [] ).map( ( row ) => row.name );
+step(
+	'get-catalog asked for voyager-open/contact-details in patterns says it is a block, that it sits in the contact section, and lists every pattern name',
+	blockAsPattern.status === 400 &&
+		blockAsPattern.data.code === 'voyager_open_blocks_invalid_pattern' &&
+		/voyager-open\/contact-details is a block/.test(
+			blockAsPattern.data.message || ''
+		) &&
+		/sits in voyager-open\/contact-section\b/.test(
+			blockAsPattern.data.message || ''
+		) &&
+		briefNames.length > 10 &&
+		briefNames.every( ( name ) =>
+			( blockAsPattern.data.message || '' ).includes( name )
+		),
+	`${ blockAsPattern.status } ${ blockAsPattern.data.code }${ said(
+		blockAsPattern
+	) }`
 );
 step(
 	'get-catalog with patterns, and with include, gives only what they name, as the whole catalog lists it',
@@ -982,17 +1067,73 @@ const composeRefused = ( response ) =>
 	( response.data.refused || [] ).map(
 		( row ) => `${ row.section } ${ row.slot } ${ row.reason }`
 	);
+// The page as an agent builds it: one compose call, no dry run, its input
+// read from the recipe detail alone, with no other get-catalog call.
 const everySlot = await run( `${ ns }/compose`, {
 	title: `E2E: home with copy for every slot ${ Date.now() }`,
 	sections: homeWithCopy,
-	dry_run: true,
 } );
+const everySlotId = Number.isInteger( everySlot.data.post_id )
+	? everySlot.data.post_id
+	: 0;
+const everySlotPage = everySlotId
+	? await api( `/wp/v2/pages/${ everySlotId }`, {
+			query: { context: 'edit' },
+		} )
+	: { data: {} };
+const everySlotTop = parse( everySlotPage.data.content?.raw || '' ).filter(
+	( block ) => block.blockName
+);
 step(
-	`fitness: compose of the home recipe, with copy for each of the ${ copiedSlots } slots its detail does not mark copy: false, refuses nothing`,
-	copiedSlots > 20 && composedClean( everySlot ),
-	`${ everySlot.status }, refused ${
+	`fitness: one compose call from the home recipe's detail alone, with copy for each of the ${ copiedSlots } slots it does not mark copy: false, saves the draft: nothing refused, valid, one top-level block per section`,
+	copiedSlots > 20 &&
+		everySlot.status === 200 &&
+		everySlot.data.saved === true &&
+		!! everySlotId &&
+		everySlotPage.data.status === 'draft' &&
+		sameJson( everySlot.data.refused, [] ) &&
+		everySlot.data.validation?.valid === true &&
+		everySlotTop.length === homeDetailSections.length,
+	`${ everySlot.status }, post ${ everySlotId || 'none' }, ${
+		everySlotTop.length
+	} top-level blocks, refused ${
 		composeRefused( everySlot ).join( '; ' ) || 'none'
 	}${ said( everySlot ) }`
+);
+if ( everySlotId ) {
+	await api( `/wp/v2/pages/${ everySlotId }`, {
+		method: 'DELETE',
+		query: { force: true },
+	} );
+}
+
+// The quick card's one-line compose example is input compose takes: run
+// with dry_run, it is refused nothing and valid. A card with no example
+// fails, so the check cannot pass on nothing.
+const cardExample = ( () => {
+	const line = readFileSync( join( repo, ENTRY_SKILL ), 'utf8' ).match(
+		/Example: `(\{.*\})`/
+	);
+	try {
+		return line ? JSON.parse( line[ 1 ] ) : null;
+	} catch {
+		return null;
+	}
+} )();
+const fromCard = cardExample
+	? await run( `${ ns }/compose`, { ...cardExample, dry_run: true } )
+	: { status: 0, data: {} };
+step(
+	"the quick card's compose example, run with dry_run, is refused nothing and valid",
+	!! cardExample &&
+		Array.isArray( cardExample.sections ) &&
+		cardExample.sections.length > 0 &&
+		composedClean( fromCard ),
+	cardExample
+		? `${ fromCard.status }, refused ${
+				composeRefused( fromCard ).join( '; ' ) || 'none'
+			}${ said( fromCard ) }`
+		: `no "Example:" compose input in ${ ENTRY_SKILL }`
 );
 const markedCopy = await run( `${ ns }/compose`, {
 	title: `E2E: home with copy for its bound slots ${ Date.now() }`,

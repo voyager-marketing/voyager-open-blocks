@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Abilities place the pack's blocks and patterns, and check every write. Their descriptions hold the detail.
+Abilities place the pack's blocks and patterns, and check every write.
 
 ## Tell your agent
 
@@ -17,9 +17,9 @@ Abilities place the pack's blocks and patterns, and check every write. Their des
 
 ## Build a page
 
-1. `voyager-open-blocks/get-catalog`, then with `recipe`, such as `home`, for its sections' copy rules and Site Data `filled`. If missing, the plugin is inactive: say so.
-2. `compose` with a `title` and those `sections`, each with `copy` from its `copy_guidance`, none where a rule says `copy: false`. `omit` what you lack facts for; `repeat` adds items.
-3. `validate`, then `audit`, the draft's `post_id`.
+1. `voyager-open-blocks/get-catalog` with `recipe`, such as `home`, for each section's pattern, layout, copy rules and Site Data `filled`. If missing, the plugin is inactive: say so.
+2. One `compose` call with a `title` and those `sections`, each with `copy` from its `copy_guidance`, none where a rule says `copy: false`. `omit` what you lack facts for; `repeat` adds items. Example: `{"title":"Home","sections":[{"pattern":"voyager-open/hero","layout":"split","style":"plain","copy":{"Heading":"Springfield roofers"},"omit":["Eyebrow"]}]}`
+3. `audit` the draft's `post_id`.
 4. Report the `preview_url` and each `audit` finding.
 
 On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `bind`. `undo` reverses a save.
@@ -43,7 +43,7 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 2. **Claims need a source**: reviews, credentials and figures come from the owner, as `{"text": "...", "source": "user"}`.
 3. **Core blocks and theme presets only**: no `core/html`, inline colours or hand-written markup.
 4. **Placeholders get replaced**, or say which are left.
-5. **Check before saving**: `dry_run`, then `validate`.
+5. **One `compose` call**: it checks before saving and lists every refusal.
 
 ## Two routes
 

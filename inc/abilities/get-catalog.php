@@ -10,7 +10,9 @@
  * and the answer then holds only what they name. include with all six keys
  * is the whole catalog. Wherever it gives copy rules, a slot whose text a
  * binding owns is marked copy: false (listed_copy_rules()), and recipe also
- * lists the Site Data fields its page binds, with filled.
+ * names each section's pattern and layout and lists the Site Data fields its
+ * page binds, with filled. A name in patterns that is not a pattern, such as
+ * a block's, is refused, saying what it is (pattern_refusal()).
  *
  * The parts that change only with the code, the theme or a setting are kept
  * between calls (catalog_answer()), and built again after any of
@@ -87,7 +89,7 @@ function register_get_catalog(): void {
 	$slugs  = array_column( recipes(), 'slug' );
 	$recipe = [
 		'type'        => 'string',
-		'description' => 'A recipe\'s slug, such as home: that recipe in full, each section with copy_guidance, a line per copy label on what it says on this page, and copy_rules, its pattern\'s rule per copy label: purpose, min and max characters, and whether it is required or a claim. A claim\'s line says where its fact comes from, and that is never you. A rule with copy: false is bound to Site Data: it takes no copy. site_data: each Site Data field the page shows, with filled. compose takes its sections as they are.',
+		'description' => 'A recipe\'s slug, such as home: that recipe in full, each section with its pattern and layout named, copy_guidance, a line per copy label on what it says on this page, and copy_rules, its pattern\'s rule per copy label: purpose, min and max characters, and whether it is required or a claim. A claim\'s line says where its fact comes from, and that is never you. A rule with copy: false is bound to Site Data: it takes no copy. site_data: each Site Data field the page shows, with filled. compose takes its sections as they are.',
 	];
 
 	// JSON Schema refuses an empty enum, so with no recipe to read it is left out.
@@ -111,13 +113,15 @@ function register_get_catalog(): void {
 						'description' => 'The post type whose fields to list. For a template, the type it shows; pass the same to bind.',
 					],
 					'recipe'    => $recipe,
+					// No enum: WordPress checks the schema before get-catalog
+					// runs, and an enum refuses a block's name with only "is
+					// not one of". pattern_refusal() says what it is instead.
 					'patterns'  => [
 						'type'        => 'array',
 						'items'       => [
 							'type' => 'string',
-							'enum' => array_keys( Patterns\generated() ),
 						],
-						'description' => 'Pattern names, such as voyager-open/hero-cover: each in full, with its title, categories, copy_rules and named blocks, their bindings, and copy: true on each whose text insert and compose take, copy: false on each whose text is bound.',
+						'description' => 'Pattern names, as the brief answer lists them, such as voyager-open/hero-cover: each in full, with its title, categories, copy_rules and named blocks, their bindings, and copy: true on each whose text insert and compose take, copy: false on each whose text is bound.',
 					],
 					'include'   => [
 						'type'        => 'array',
@@ -152,11 +156,104 @@ function register_get_catalog(): void {
 /**
  * Execute get-catalog.
  *
+ * A name in patterns that is not a pattern is refused first
+ * (pattern_refusal()), before any part is read or built.
+ *
  * @param array<string, mixed>|null $input Input.
  * @return array<string, mixed>|WP_Error
  */
 function get_catalog( $input = null ) {
-	return catalog_answer( is_array( $input ) ? $input : [], catalog_builders() );
+	$input = is_array( $input ) ? $input : [];
+
+	return pattern_refusal( catalog_list( $input['patterns'] ?? null ), Patterns\generated() )
+		?? catalog_answer( $input, catalog_builders() );
+}
+
+/**
+ * Why get-catalog refuses its patterns input, or null when it names only
+ * patterns the pack ships.
+ *
+ * WordPress checks an input against the schema before the ability runs
+ * (WP_Ability::validate_input()), and an enum there refuses a block's name
+ * with only "is not one of" and the list, so an agent that asked for a block
+ * learns nothing about where it is. The names are checked here instead, as
+ * the enum checked them, against the patterns the pack ships. Each one that
+ * is not a pattern is said to be a block, with the patterns that hold it
+ * (block_holders()), or no pattern at all, in the order given, and then every
+ * pattern name is listed.
+ *
+ * @param list<string>                                       $names    From catalog_list().
+ * @param array<string, array{args: array{content: string}}> $patterns Pattern name => its entry, as Patterns\generated() gives them.
+ */
+function pattern_refusal( array $names, array $patterns ): ?WP_Error {
+	$lines = [];
+
+	foreach ( $names as $name ) {
+		if ( isset( $patterns[ $name ] ) ) {
+			continue;
+		}
+
+		$holders = block_holders( $name, $patterns );
+		$lines[] = [] === $holders
+			? sprintf( '%s is not a pattern the pack ships.', $name )
+			: sprintf( '%1$s is a block, not a pattern: it sits in %2$s. Ask for one of those, or place the block with insert.', $name, and_list( $holders ) );
+	}
+
+	if ( [] === $lines ) {
+		return null;
+	}
+
+	$all = array_map( 'strval', array_keys( $patterns ) );
+	sort( $all );
+
+	return new WP_Error(
+		'voyager_open_blocks_invalid_pattern',
+		implode( ' ', $lines ) . ' patterns takes these names: ' . implode( ', ', $all ) . '.',
+		[ 'status' => 400 ]
+	);
+}
+
+/**
+ * The patterns whose markup holds a block, sorted.
+ *
+ * A block is found by its comment delimiter, "<!-- wp:<name> ", with core/
+ * dropped, as get_comment_delimited_block_content() in wp-includes/blocks.php
+ * writes it and every pattern's markup holds it. A name not shaped as a block
+ * name, namespace/name in lowercase letters, digits and hyphens as
+ * WP_Block_Type_Registry::register() takes it, holds no block.
+ *
+ * @param string                                             $name     A name given in patterns.
+ * @param array<string, array{args: array{content: string}}> $patterns From Patterns\generated().
+ * @return list<string>
+ */
+function block_holders( string $name, array $patterns ): array {
+	if ( 1 !== preg_match( '#^[a-z0-9-]+/[a-z0-9-]+$#', $name ) ) {
+		return [];
+	}
+
+	$delimiter = '<!-- wp:' . ( str_starts_with( $name, 'core/' ) ? substr( $name, strlen( 'core/' ) ) : $name ) . ' ';
+	$holders   = [];
+
+	foreach ( $patterns as $pattern => $entry ) {
+		if ( str_contains( $entry['args']['content'], $delimiter ) ) {
+			$holders[] = (string) $pattern;
+		}
+	}
+
+	sort( $holders );
+
+	return $holders;
+}
+
+/**
+ * Names as a sentence lists them: "a", "a and b", "a, b and c".
+ *
+ * @param non-empty-list<string> $names Names.
+ */
+function and_list( array $names ): string {
+	$last = array_pop( $names );
+
+	return [] === $names ? $last : implode( ', ', $names ) . ' and ' . $last;
 }
 
 /**

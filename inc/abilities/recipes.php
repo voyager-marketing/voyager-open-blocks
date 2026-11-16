@@ -185,13 +185,21 @@ function recipe_list( ?string $dir = null, ?string $intents = null ): array {
 
 /**
  * One recipe as get-catalog's recipe input gives it: as recipe_list() lists
- * it, each section with copy_rules too, the copy rules of the pattern its
- * section and layout name as get-catalog lists them, each bound slot marked
- * (listed_copy_rules(), contract 3), and site_data, each Site Data key its
- * sections' patterns bind, once, in page order. get-catalog gives each key
- * as its field, with filled read on every call (recipe_site_data()), so one
- * answer holds what the page needs. compose takes a section in this shape as
- * it is.
+ * it, but each section names the pattern its section and layout resolve to
+ * by that pattern's own name, with its own layout, as get-catalog lists the
+ * pattern, so a first layout reads its name and not null, and no pattern call
+ * is needed to build the page. Each section has copy_rules too, that
+ * pattern's copy rules as get-catalog lists them, each bound slot marked
+ * (listed_copy_rules(), contract 3), and the recipe has site_data, each Site
+ * Data key its sections' patterns bind, once, in page order. get-catalog
+ * gives each key as its field, with filled read on every call
+ * (recipe_site_data()), so one answer holds what the page needs. compose
+ * takes a section in this shape as it is, and reads a pattern's own name and
+ * layout as its section and layout (layout_named()).
+ *
+ * The names and layouts are read from the generated patterns array and the
+ * recipe file, both in pack_stamp(), so a kept recipe is built again when
+ * either changes.
  *
  * The marks and the keys are read from each pattern's blocks, as compose
  * places them (pattern_rows()), so a mark is a slot compose refuses copy for.
@@ -217,10 +225,16 @@ function recipe_detail( string $slug, ?string $dir = null, ?string $intents = nu
 	foreach ( $recipe['sections'] as $section ) {
 		// read_recipe() skips a file whose section and layout name no pattern.
 		$name   = resolve_layout( $layouts, $section['pattern'], $section['layout'] ) ?? $section['pattern'];
+		$meta   = Patterns\intent_meta( $name, $intents );
 		$blocks = $rows( $name );
 
+		// Named as get-catalog lists the pattern: its own name and layout, so
+		// a first layout reads its name, not null. compose reads the pair as
+		// the file's section and layout (layout_named()).
+		$section['pattern']       = $name;
+		$section['layout']        = $meta['layout'];
 		$section['copy_guidance'] = (object) $section['copy_guidance'];
-		$section['copy_rules']    = (object) listed_copy_rules( Patterns\intent_meta( $name, $intents )['copy_rules'], $blocks );
+		$section['copy_rules']    = (object) listed_copy_rules( $meta['copy_rules'], $blocks );
 		$sections[]               = $section;
 
 		array_push( $keys, ...Patterns\keys_in( $blocks, SiteData\SOURCE ) );
