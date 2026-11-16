@@ -88,7 +88,18 @@ The abilities list and insert only the pack's `voyager-open/*` patterns, so your
 
 ## API reference
 
-The plugin is pre-1.0. The supported surface is the helper function, the two binding sources and their args, the options, the filters, the abilities, the icon, facts and contact details blocks, the block styles and the pattern slugs. Functions under the `VoyagerOpenBlocks\` namespace work and are listed where a theme might call them, but they can change in a minor release.
+### What 1.x promises
+
+From 1.0, the plugin's public API is:
+
+- the helper function, the constants, the two binding sources, their args and the Site Data keys, and the options in [Options and REST](#options-and-rest);
+- the filters and actions, and the abilities with their inputs and what they return;
+- the blocks and their attributes, the block styles and section styles, the pattern category, the pattern slugs and the recipe slugs;
+- the [read-only helpers](#functions).
+
+A 1.x release does not remove or rename any of these. It can add to them, such as a Site Data key, an optional input or a key in what an ability returns. A change that would remove or rename one is deprecated in a 1.x release first, with `_deprecated_function()` for a function or a line in the changelog for anything else, and lands in 2.0.
+
+Everything else in `inc/` stays internal and can change in any release: hook callbacks, the settings screen, the post meta and options the usage index and the purge keep for themselves, and the block tree code behind the abilities. Read the usage index through the helpers.
 
 ### Binding sources
 
@@ -152,7 +163,7 @@ WordPress decides which attributes take a binding. The ones the pack's patterns 
 
 Makes a post meta field bindable through `voyager/post-meta-text`. Defined in `voyager-open-blocks.php`, it calls `VoyagerOpenBlocks\PostMetaText\register_field()`. Returns `true` when the meta was registered. Rules are in [recipe 2](#recipe-2-make-a-post-meta-field-bindable).
 
-Read-only helpers a theme can call (pre-1.0, see above):
+Read-only helpers a theme or plugin can call. Each only reads: none saves an option or post meta, and none purges a page.
 
 | Function | Returns |
 |---|---|
@@ -165,8 +176,9 @@ Read-only helpers a theme can call (pre-1.0, see above):
 | `VoyagerOpenBlocks\PostMetaText\resolve( int $post_id, string $key ): ?string` | What the source returns for a post and key, dot paths included. Does not apply the password check. |
 | `VoyagerOpenBlocks\PostMetaText\owned( bool $set = false ): bool` | Whether this plugin registered `voyager/post-meta-text` on this request. Same rules. |
 | `VoyagerOpenBlocks\Icons\svg( string $name, int $size, string $label = '' ): string` | The icon's SVG, decorative without a label. `''` for an unknown name. |
-
-Everything else in `inc/` is internal: hook callbacks, the settings screen, and the block tree code behind the abilities.
+| `VoyagerOpenBlocks\Usage\posts_using( string $source, string $key ): array` | The IDs of the posts that show a field, as integers sorted by ID, read from the usage index in one query. Any post type but revisions, and any status but trash and auto-draft, so drafts, synced patterns, and templates and parts saved in the Site Editor too. `$source` is `voyager/site-data` or `voyager/post-meta-text`, and a post meta key with a dot path counts as its field. The key is matched exactly: `phone` does not list a post that binds only `phone_link`. |
+| `VoyagerOpenBlocks\Usage\templates_using( string $source, string $key ): array` | The active theme's templates and template parts that show a field, as IDs such as `twentytwentyfive//footer`, sorted, each once: theme files from the usage index, and published ones saved in the Site Editor, which replace their file. The key is matched as in `posts_using()`. |
+| `VoyagerOpenBlocks\Purge\site_data_plan( array $keys ): ?array` | What a change to these Site Data keys would refresh, worked out as the [purge](#actions) works it out, without running it. `null` when no published post of a public type, and no template or part of the active theme, shows the keys or a key made from them (`phone_link` for `phone`). Otherwise `urls`, the permalinks of the first 50 of those posts by ID and then the front page, before the `voyager_open_blocks_purge_urls` filter, and `context`: `source`, `keys`, `post_ids`, `templates`, `reason` (`site-data`) and `purge_all`, true when a template or part shows them or more than 50 posts do. It runs no purge: no `voyager_open_blocks_purge` action and no cache adapter. Call it after `init`, once post types are registered. |
 
 ### Constants
 

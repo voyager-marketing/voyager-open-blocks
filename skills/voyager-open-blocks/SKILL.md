@@ -1,6 +1,6 @@
 ---
 name: voyager-open-blocks
-description: Entry point for the Voyager Open Blocks pack on a WordPress site. Use to build a page with the pack, or to place, configure or bind any of its voyager-open/* blocks and patterns or its voyager/site-data and voyager/post-meta-text binding sources. Routes to the per-item skills.
+description: Entry point for the Voyager Open Blocks WordPress pack. Use to build a page, or to place, configure or bind its voyager-open/* blocks and patterns or its voyager/site-data and voyager/post-meta-text sources.
 license: GPL-2.0-or-later
 metadata:
   pack-version: "0.9.0" # x-release-please-version
@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Blocks, section patterns and binding sources for business sites, placed by abilities that check every write. Each ability's description holds its detail.
+Abilities place the pack's blocks and patterns, and check every write. Their descriptions hold the detail.
 
 ## Tell your agent
 
@@ -18,9 +18,9 @@ Blocks, section patterns and binding sources for business sites, placed by abili
 ## Build a page
 
 1. `voyager-open-blocks/get-catalog`, then with `recipe`, such as `home`, for its sections' copy rules. If missing, the plugin is inactive: say so.
-2. `compose` with a `title` and those `sections`, each with `copy` from its `copy_guidance`. Each takes `omit` and `repeat` as `insert` does: omit what you lack facts for.
+2. `compose` with a `title` and those `sections`, each with `copy` from its `copy_guidance`. `omit` what you lack facts for; `repeat` adds items.
 3. `validate`, then `audit`, the draft's `post_id`.
-4. Give the user the `preview_url` and each `audit` finding.
+4. Report the `preview_url` and each `audit` finding.
 
 On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `bind`. `undo` reverses a save.
 
@@ -39,17 +39,17 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 ## Five rules
 
-1. **Bind contact details, never type them.** Phone, email, address and hours come from Site Data.
-2. **Claims need a source.** Reviews, credentials and figures come from the site owner, as `{"text": "...", "source": "user"}`.
-3. **Core blocks and theme presets only.** No `core/html`, inline colours or hand-written markup.
-4. **Placeholders get replaced.** Say which stand-ins are left.
-5. **Check before saving.** `dry_run`, then `validate`.
+1. **Bind contact details, never type them**: phone, email, address and hours come from Site Data.
+2. **Claims need a source**: reviews, credentials and figures come from the owner, as `{"text": "...", "source": "user"}`.
+3. **Core blocks and theme presets only**: no `core/html`, inline colours or hand-written markup.
+4. **Placeholders get replaced**, or say which are left.
+5. **Check before saving**: `dry_run`, then `validate`.
 
 ## Two routes
 
-- **Abilities only**, over MCP or REST: the above.
+- **Abilities only**, over MCP or REST.
 - **A shell with Node**: also `npx block-runner validate --strict` on every markup ([docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md)).
 
 ## More
 
-Each item has a skill, such as `voyager-open-hero`; `prompt` returns its "Tell your agent" prompt, an MCP prompt on MCP Adapter 0.3.0+. `examples/` holds a home page for five kinds of business, each a `compose` call. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.
+Each item has a skill, such as `voyager-open-hero`. `examples/` holds five businesses' home pages as `compose` calls. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.

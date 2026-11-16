@@ -4,7 +4,7 @@ Version 2 of the pack is built in lanes that work at the same time: Runtime, Abi
 
 Each contract names its owner. The owner implements it and is the only lane that changes it. A change to a shape lands here first, in a pull request of its own that names the lanes it affects, and the code follows.
 
-None of this is in a release yet. Until a contract ships, [use-in-your-theme.md](use-in-your-theme.md) stays the public API, and nothing here is promised to themes or other plugins.
+Contracts 1 to 7 shipped in 0.7.0 to 0.9.0, and contract 8 ships in the first release after 0.9.0. The public API is [use-in-your-theme.md](use-in-your-theme.md), which says what 1.x promises. This page stays the record of how version 2 was built: it promises nothing of its own to themes or other plugins.
 
 ## 1. Usage index
 

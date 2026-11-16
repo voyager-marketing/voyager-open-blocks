@@ -20,11 +20,11 @@ Include what you can of:
 
 ## Supported versions
 
-The pack is pre-1.0. Only the latest release gets security fixes. Please check you can reproduce on it before you report.
+From 1.0, the latest 1.x release gets security fixes. Until 1.0.0 is out, only the latest release does. Please check you can reproduce on it before you report.
 
 ## What counts
 
-The pack adds blocks, patterns, two binding sources and seven abilities that agents call over REST or MCP. These are in scope:
+The pack adds blocks, patterns, two binding sources and the abilities that agents call over REST or MCP. These are in scope:
 
 - an ability (`voyager-open-blocks/*`) that reads or changes a post without the `edit_post` capability for it, or lists the catalog without `edit_posts`
 - `bind` writing a binding whose args were not listed by `get-catalog`, or `configure` changing a block that saves HTML
