@@ -328,6 +328,23 @@ final class ImageWarningsTest extends TestCase {
 		);
 	}
 
+	public function test_the_logo_grid_as_shipped_and_as_insert_saves_it_gets_one_placeholder_warning_per_logo_and_no_missing_alt(): void {
+		$assets = plugins_url( 'assets/', VOYAGER_OPEN_BLOCKS_FILE );
+
+		foreach ( [ null, static fn ( string $url ): string => str_replace( Patterns\ASSETS_TOKEN, $assets, $url ) ] as $url_for ) {
+			$found = self::warnings( self::pattern( 'logo-marquee-grid', $url_for ) );
+
+			$this->assertCount( 6, $found );
+			$this->assertCount( 6, self::coded( $found, 'placeholder' ) );
+			$this->assertSame( [], self::coded( $found, 'missing_alt' ) );
+			$this->assertSame( [ '0/1/0', '0/1/1', '0/1/2', '0/1/3', '0/1/4', '0/1/5' ], array_column( $found, 'path' ) );
+			$this->assertSame(
+				'placeholder: core/image at 0/1/5 shows the pack\'s placeholder image placeholders/logo-6.svg. Replace it in the editor with the site\'s own image, with alt text, or remove the block.',
+				$found[5]['warning']
+			);
+		}
+	}
+
 	public function test_the_intent_holds_the_logos_the_shipped_markup_does(): void {
 		$html = file_get_contents( dirname( __DIR__, 2 ) . '/patterns/logo-marquee.html' );
 		$this->assertIsString( $html );
@@ -408,6 +425,17 @@ final class ImageWarningsTest extends TestCase {
 		);
 	}
 
+	public function test_the_stacked_contact_section_as_shipped_gets_one_placeholder_warning_for_its_form_slot_group(): void {
+		$found = self::warnings( self::pattern( 'contact-section-stacked' ) );
+
+		$this->assertCount( 1, $found );
+		$this->assertSame( '0/1/0', $found[0]['path'] );
+		$this->assertSame(
+			'placeholder: core/group "Form" at 0/1/0 is the stand-in for a form that the contact section ships, still in its "Form slot" group. Replace it with a form plugin\'s block in the editor, so visitors get a form.',
+			$found[0]['warning']
+		);
+	}
+
 	public function test_the_form_slot_is_filled_once_its_stand_in_is_replaced_or_moved(): void {
 		$slot     = static fn ( array $inner ): array => self::block( 'core/column', '', [ 'metadata' => [ 'name' => BindingsEditor\FORM_SLOT['slot'] ] ], $inner );
 		$stand_in = self::block( 'core/group', '', [ 'metadata' => [ 'name' => BindingsEditor\FORM_SLOT['fallback'] ] ] );
@@ -418,8 +446,15 @@ final class ImageWarningsTest extends TestCase {
 		$this->assertSame( [], self::warnings( [ $columns( [ $slot( [ self::block( 'core/group', '', [ 'metadata' => [ 'name' => 'Contact form' ] ], [ self::block( 'example/contact-form' ) ] ) ] ) ] ) ] ) );
 		$this->assertSame( [], self::warnings( [ $columns( [ $slot( [ self::block( 'example/contact-form', '', [ 'metadata' => [ 'name' => BindingsEditor\FORM_SLOT['fallback'] ] ] ) ] ) ] ) ] ) );
 		$this->assertSame( [], self::warnings( [ $columns( [ self::block( 'core/column', '', [ 'metadata' => [ 'name' => 'Contact details' ] ], [ $stand_in ] ) ] ) ] ) );
-		$this->assertSame( [], self::warnings( [ self::block( 'core/group', '', [ 'metadata' => [ 'name' => BindingsEditor\FORM_SLOT['slot'] ] ], [ $stand_in ] ) ] ) );
+		$this->assertSame( [], self::warnings( [ self::block( 'core/group', '', [ 'metadata' => [ 'name' => 'Contact details' ] ], [ $stand_in ] ) ] ) );
+		$this->assertSame( [], self::warnings( [ self::block( 'core/cover', '', [ 'metadata' => [ 'name' => BindingsEditor\FORM_SLOT['slot'] ] ], [ $stand_in ] ) ] ), 'the slot is a column or a group, never another block that carries its name' );
 		$this->assertSame( [], self::warnings( [ $stand_in ] ) );
+
+		// The stacked layout's slot is a group: the stand-in in it warns, and
+		// a form block in its place does not.
+		$group_slot = static fn ( array $inner ): array => self::block( 'core/group', '', [ 'metadata' => [ 'name' => BindingsEditor\FORM_SLOT['slot'] ] ], $inner );
+		$this->assertCount( 1, self::warnings( [ $group_slot( [ $stand_in ] ) ] ) );
+		$this->assertSame( [], self::warnings( [ $group_slot( [ self::block( 'example/contact-form' ) ] ) ] ) );
 	}
 
 	public function test_an_image_with_empty_alt_outside_the_placeholders_gets_one_missing_alt_warning(): void {

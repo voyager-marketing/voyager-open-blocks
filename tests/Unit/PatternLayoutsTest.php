@@ -213,10 +213,39 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'split', $intents['hero']['layout'] ?? null );
 		$this->assertSame( 'hero', $intents['hero-cover']['section'] ?? null );
 		$this->assertSame( 'cover', $intents['hero-cover']['layout'] ?? null );
+	}
 
-		foreach ( [ 'logo-marquee', 'contact-section' ] as $one ) {
-			$this->assertArrayNotHasKey( 'section', $intents[ $one ], "{$one} has one layout" );
+	public function test_every_intent_names_its_section_and_every_section_comes_in_two_layouts(): void {
+		$intents  = self::intents();
+		$sections = [];
+
+		foreach ( $intents as $name => $intent ) {
+			if ( is_string( $intent['section'] ?? null ) && is_string( $intent['layout'] ?? null ) ) {
+				$sections[ $intent['section'] ][] = $name;
+			}
 		}
+
+		$this->assertNotSame( [], $intents, 'no intent files were read' );
+		$this->assertSame( [], array_keys( array_filter( $intents, static fn ( array $intent ): bool => ! is_string( $intent['section'] ?? null ) || ! is_string( $intent['layout'] ?? null ) ) ), 'these intents name no section and layout, so each is a section with one layout' );
+		$this->assertSame( [], array_keys( array_filter( $sections, static fn ( array $names ): bool => 2 !== count( $names ) ) ), 'these sections do not come in two layouts' );
+	}
+
+	public function test_the_logo_marquee_comes_in_two_layouts_marquee_first_then_grid(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'logo-marquee', $intents['logo-marquee']['section'] ?? null );
+		$this->assertSame( 'marquee', $intents['logo-marquee']['layout'] ?? null );
+		$this->assertSame( 'logo-marquee', $intents['logo-marquee-grid']['section'] ?? null );
+		$this->assertSame( 'grid', $intents['logo-marquee-grid']['layout'] ?? null );
+	}
+
+	public function test_the_contact_section_comes_in_two_layouts_split_first_then_stacked(): void {
+		$intents = self::intents();
+
+		$this->assertSame( 'contact-section', $intents['contact-section']['section'] ?? null );
+		$this->assertSame( 'split', $intents['contact-section']['layout'] ?? null );
+		$this->assertSame( 'contact-section', $intents['contact-section-stacked']['section'] ?? null );
+		$this->assertSame( 'stacked', $intents['contact-section-stacked']['layout'] ?? null );
 	}
 
 	public function test_the_cta_band_comes_in_two_layouts_row_first_then_cover(): void {
@@ -363,6 +392,93 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( '/voyager-open-blocks-assets/placeholders/image-4x3.svg', $image['url'] ?? null, 'the slot ships the pack\'s 4:3 placeholder' );
 		$this->assertSame( '', $image['alt'] ?? null, 'the placeholder ships with empty alt text, which validate warns on until the site\'s own image and its alt text replace it' );
 		$this->assertSame( [], self::blocks_named( $split, 'core/cover' ) );
+	}
+
+	public function test_the_logo_grid_and_the_stacked_contact_section_take_their_section_s_copy_rules_default_copy_links_and_bindings(): void {
+		$intents = self::intents();
+
+		foreach ( [ 'logo-marquee' => 'logo-marquee-grid', 'contact-section' => 'contact-section-stacked' ] as $first => $second ) {
+			$this->assertArrayHasKey( $second, $intents, "{$second} has no intent" );
+			$this->assertSame( $intents[ $first ]['copy_rules'], $intents[ $second ]['copy_rules'] ?? null, "{$second}: its section's copy rules, unchanged, so compose copy written for one layout fits the other" );
+			$this->assertSame( self::copy_slots( $intents[ $first ] ), self::copy_slots( $intents[ $second ] ), "{$second}: its section's slots in the same order, with the same default copy, links and bindings" );
+			$this->assertSame( $intents[ $first ]['categories'], $intents[ $second ]['categories'] ?? null, "{$second}: its section's inserter categories" );
+			$this->assertSame( $intents[ $first ]['intent']['blocks'][0]['attrs']['metadata']['name'] ?? null, $intents[ $second ]['intent']['blocks'][0]['attrs']['metadata']['name'] ?? null, "{$second}: the section keeps its name" );
+		}
+
+		// The contact details block takes no copy, so copy_slots() leaves it
+		// out: the stacked layout carries the split's, its "Phone" and
+		// "Email" labels and its seven bindings included.
+		$this->assertSame(
+			self::labelled( $intents['contact-section']['intent']['blocks'][0], 'Details' ),
+			self::labelled( $intents['contact-section-stacked']['intent']['blocks'][0] ?? [], 'Details' ),
+			'contact-section-stacked: the split\'s contact details block, unchanged'
+		);
+	}
+
+	public function test_the_logo_grid_is_one_still_grid_of_the_marquee_s_six_logos_each_centred_in_its_cell(): void {
+		$intents = self::intents();
+		$grid    = $intents['logo-marquee-grid'] ?? [];
+		$section = $grid['intent']['blocks'][0] ?? [];
+
+		$this->assertSame( self::labelled( $intents['logo-marquee']['intent']['blocks'][0], 'Eyebrow' ), self::labelled( $section, 'Eyebrow' ), 'logo-marquee-grid: the marquee\'s eyebrow, unchanged' );
+
+		// Nothing moves: no Marquee style and no reveal anywhere in it.
+		foreach ( self::nodes( $section ) as $row ) {
+			$class = (string) ( $row['node']['attrs']['className'] ?? '' );
+			$this->assertStringNotContainsString( 'is-style-voyager-open-marquee', $class, 'logo-marquee-grid: a still grid takes no Marquee style' );
+			$this->assertStringNotContainsString( 'voyager-open-reveal', $class, 'logo-marquee-grid: a still grid takes no reveal' );
+		}
+
+		// tests/fixtures/contrast.json's layout.columns lists the patterns that hold a row.
+		$rows = self::rows_of_items( $grid );
+		$this->assertCount( 1, $rows, 'logo-marquee-grid holds one row of items' );
+		$this->assertSame( 'Logos', $rows[0]['attrs']['metadata']['name'] ?? null );
+		$this->assertSame( 'wide', $rows[0]['attrs']['align'] ?? null, 'logo-marquee-grid: a row of logos goes wide' );
+		$this->assertSame( 3, $rows[0]['attrs']['layout']['columnCount'] ?? null, 'logo-marquee-grid: three across at most' );
+		$this->assertIsString( $rows[0]['attrs']['layout']['minimumColumnWidth'] ?? null, 'logo-marquee-grid: the grid wraps where a logo would get too narrow' );
+		// Given a gap for rows and another for columns, WordPress 7.1 puts both
+		// into the grid-template-columns it writes for a column count with a
+		// minimum width (wp-includes/block-supports/layout.php), the browser
+		// drops it, and the grid renders one column.
+		$this->assertIsString( $rows[0]['attrs']['style']['spacing']['blockGap'] ?? null, 'logo-marquee-grid: one gap value, so WordPress writes columns the browser keeps' );
+
+		// The marquee's six placeholders in the same order, each as tall and
+		// as contained, and each the full width of its cell, so contain
+		// draws the logo in the middle of it.
+		$logos   = self::blocks_named( $grid, 'core/image' );
+		$shipped = self::blocks_named( $intents['logo-marquee'], 'core/image' );
+		$this->assertCount( 6, $logos, 'logo-marquee-grid: six logos' );
+		$this->assertSame( array_map( static fn ( array $row ): mixed => $row['node']['url'] ?? null, $shipped ), array_map( static fn ( array $row ): mixed => $row['node']['url'] ?? null, $logos ), 'logo-marquee-grid: the marquee\'s placeholder logos, in order' );
+		foreach ( $logos as $row ) {
+			$logo = $row['node'];
+			$this->assertSame( $rows[0], $row['parent'], 'logo-marquee-grid: each logo is a cell of the grid' );
+			$this->assertSame( '', $logo['alt'] ?? null, 'a placeholder logo ships with empty alt text' );
+			$this->assertSame( [ '100%', '40px', 'contain' ], [ $logo['attrs']['width'] ?? null, $logo['attrs']['height'] ?? null, $logo['attrs']['scale'] ?? null ] );
+		}
+	}
+
+	public function test_the_stacked_contact_section_holds_no_row_and_puts_the_form_slot_under_the_details(): void {
+		$stacked = self::intents()['contact-section-stacked'] ?? [];
+		$section = $stacked['intent']['blocks'][0] ?? [];
+
+		// tests/fixtures/contrast.json's layout.columns lists the patterns that hold a row.
+		$this->assertSame( [], self::rows_of_items( $stacked ), 'contact-section-stacked: one column, so no row of items' );
+		$this->assertSame(
+			[ 'Contact section', 'Contact details', 'Heading', 'Body', 'Details', 'Click to call', 'Form slot', 'Form', 'Form heading', 'Form body', 'Email button' ],
+			self::labels_in( $section ),
+			'contact-section-stacked: the heading and line, the details and the call button, then the form slot below them'
+		);
+		foreach ( array_slice( self::nodes( $section ), 1 ) as $row ) {
+			$this->assertArrayNotHasKey( 'align', $row['node']['attrs'] ?? [], 'contact-section-stacked: everything in the full-width section stays at content width' );
+		}
+
+		// validate and the editor hints find the form's stand-in by its name
+		// and its slot's: a group named "Form" directly in the "Form slot".
+		$form = array_values( array_filter( self::with_parents( $stacked ), static fn ( array $row ): bool => 'Form' === ( $row['node']['attrs']['metadata']['name'] ?? null ) ) );
+		$this->assertCount( 1, $form );
+		$this->assertSame( 'core/group', $form[0]['node']['block'] ?? null );
+		$this->assertSame( 'Form slot', $form[0]['parent']['attrs']['metadata']['name'] ?? null );
+		$this->assertSame( 'core/group', $form[0]['parent']['block'] ?? null, 'contact-section-stacked: one column has no core/column, so the slot is a group' );
 	}
 
 	public function test_services_comes_in_two_layouts_grid_first_then_list(): void {

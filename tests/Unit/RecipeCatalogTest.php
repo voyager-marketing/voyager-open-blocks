@@ -144,7 +144,7 @@ final class RecipeCatalogTest extends TestCase {
 				),
 				'sections[0] names voyager-open/hero with layout "banner"',
 			],
-			'a layout on a section with one layout' => [
+			'a layout the section does not come in' => [
 				'home',
 				$home(
 					static function ( array &$recipe ): void {

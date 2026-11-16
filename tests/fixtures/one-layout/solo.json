@@ -1,0 +1,25 @@
+{
+	"title": "Solo",
+	"description": "A section in one layout: its intent names no section and no layout. The pack ships none since every section came in two layouts, so ComposeTest and CopyRulesTest read this one to check how contract 5 reads a section with one layout.",
+	"categories": [ "voyager-open" ],
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": { "tagName": "section", "align": "full", "metadata": { "name": "Solo" }, "layout": { "type": "constrained" } },
+				"children": [
+					{ "block": "core/heading", "level": 2, "text": "One layout", "attrs": { "metadata": { "name": "Heading" } } }
+				]
+			}
+		]
+	}
+}

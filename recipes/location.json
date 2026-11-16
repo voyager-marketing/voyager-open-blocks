@@ -62,7 +62,7 @@
 		},
 		{
 			"pattern": "voyager-open/contact-section",
-			"layout": null,
+			"layout": "stacked",
 			"style": "plain",
 			"copy_guidance": {
 				"Heading": "An invitation to get in touch from this area, in a few words.",

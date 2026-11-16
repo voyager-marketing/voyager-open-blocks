@@ -1,0 +1,290 @@
+{
+	"title": "Contact section in one column",
+	"section": "contact-section",
+	"layout": "stacked",
+	"description": "The contact section in one column at content width, for a narrow content area: the heading and one line, a contact details block bound to voyager/site-data (address, phone, email, hours) whose phone and email dial and open a new message when tapped, then a form slot below it. The slot holds an email fallback until a form plugin's block replaces it.",
+	"categories": [
+		"voyager-open",
+		"contact"
+	],
+	"keywords": [
+		"contact",
+		"form",
+		"phone",
+		"email",
+		"address",
+		"hours",
+		"one column",
+		"stacked"
+	],
+	"viewportWidth": 1280,
+	"copy_rules": {
+		"Heading": {
+			"purpose": "The section's h2: an invitation to get in touch, in a few words.",
+			"min": 3,
+			"max": 60,
+			"required": true,
+			"claim": false
+		},
+		"Body": {
+			"purpose": "One line on the ways to reach the business, or when. Leave it out when the details say enough.",
+			"min": 20,
+			"max": 120,
+			"required": false,
+			"claim": false
+		},
+		"Click to call": {
+			"purpose": "The call button's label. Its link is bound to the Site Data phone number, and its text is its own, so name the action, such as Call us, never the number. Leave it out when the business takes no calls.",
+			"min": 2,
+			"max": 24,
+			"required": false,
+			"claim": false
+		},
+		"Form heading": {
+			"purpose": "The form slot's h3: what the visitor can send, in a few words.",
+			"min": 3,
+			"max": 40,
+			"required": true,
+			"claim": false
+		},
+		"Form body": {
+			"purpose": "One line on what to put in the message, until a form plugin's block replaces the slot.",
+			"min": 20,
+			"max": 120,
+			"required": true,
+			"claim": false
+		},
+		"Email button": {
+			"purpose": "The form slot's one fill button, until a form plugin's block replaces it. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as Email us, never the address.",
+			"min": 2,
+			"max": 24,
+			"required": true,
+			"claim": false
+		}
+	},
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": {
+					"tagName": "section",
+					"align": "full",
+					"metadata": {
+						"name": "Contact section"
+					},
+					"style": {
+						"spacing": {
+							"padding": {
+								"top": "var:preset|spacing|60",
+								"bottom": "var:preset|spacing|60",
+								"left": "var:preset|spacing|50",
+								"right": "var:preset|spacing|50"
+							},
+							"blockGap": "var:preset|spacing|50"
+						}
+					},
+					"layout": {
+						"type": "constrained"
+					}
+				},
+				"children": [
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Contact details"
+							},
+							"layout": {
+								"type": "default"
+							}
+						},
+						"children": [
+							{
+								"block": "core/heading",
+								"level": 2,
+								"text": "Get in touch",
+								"attrs": {
+									"metadata": {
+										"name": "Heading"
+									}
+								}
+							},
+							{
+								"block": "core/paragraph",
+								"text": "Call, email or stop by during business hours.",
+								"attrs": {
+									"metadata": {
+										"name": "Body"
+									}
+								}
+							},
+							{
+								"block": "voyager-open/contact-details",
+								"attrs": {
+									"phone": "Phone",
+									"email": "Email",
+									"address": "Street address",
+									"addressLocality": "City, state, postal code",
+									"hours": "Hours",
+									"metadata": {
+										"name": "Details",
+										"bindings": {
+											"phone": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "phone"
+												}
+											},
+											"phoneLink": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "phone_link"
+												}
+											},
+											"email": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "email"
+												}
+											},
+											"emailLink": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "email_link"
+												}
+											},
+											"address": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "address"
+												}
+											},
+											"addressLocality": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "address_locality"
+												}
+											},
+											"hours": {
+												"source": "voyager/site-data",
+												"args": {
+													"key": "hours"
+												}
+											}
+										}
+									}
+								}
+							},
+							{
+								"block": "core/buttons",
+								"children": [
+									{
+										"block": "core/button",
+										"text": "Call us",
+										"url": "/contact/",
+										"attrs": {
+											"className": "is-style-outline",
+											"metadata": {
+												"name": "Click to call",
+												"bindings": {
+													"url": {
+														"source": "voyager/site-data",
+														"args": {
+															"key": "phone_link"
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						]
+					},
+					{
+						"block": "core/group",
+						"attrs": {
+							"metadata": {
+								"name": "Form slot"
+							},
+							"layout": {
+								"type": "default"
+							}
+						},
+						"children": [
+							{
+								"block": "core/group",
+								"attrs": {
+									"metadata": {
+										"name": "Form"
+									},
+									"style": {
+										"border": {
+											"width": "1px",
+											"style": "solid"
+										},
+										"spacing": {
+											"padding": {
+												"top": "var:preset|spacing|50",
+												"bottom": "var:preset|spacing|50",
+												"left": "var:preset|spacing|50",
+												"right": "var:preset|spacing|50"
+											}
+										}
+									},
+									"layout": {
+										"type": "constrained"
+									}
+								},
+								"children": [
+									{
+										"block": "core/heading",
+										"level": 3,
+										"text": "Send us a note",
+										"attrs": {
+											"metadata": {
+												"name": "Form heading"
+											}
+										}
+									},
+									{
+										"block": "core/paragraph",
+										"text": "Tell us a little about what you need and how to reach you.",
+										"attrs": {
+											"metadata": {
+												"name": "Form body"
+											}
+										}
+									},
+									{
+										"block": "core/buttons",
+										"children": [
+											{
+												"block": "core/button",
+												"text": "Email us",
+												"url": "/contact/",
+												"attrs": {
+													"metadata": {
+														"name": "Email button",
+														"bindings": {
+															"url": {
+																"source": "voyager/site-data",
+																"args": {
+																	"key": "email_link"
+																}
+															}
+														}
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

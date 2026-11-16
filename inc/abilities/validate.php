@@ -856,8 +856,9 @@ function cover_url( array $block ): string {
  *
  * The same test assets/editor/hints.js makes, from the same names
  * (BindingsEditor\FORM_SLOT): a core/group named "Form" whose parent is the
- * core/column named "Form slot". Once a form block replaces the group, or the
- * group is moved out of that column, it is not.
+ * block named "Form slot", the split layout's core/column or the stacked
+ * layout's core/group. Once a form block replaces the group, or the group is
+ * moved out of that slot, it is not.
  *
  * @param Block      $block  Parsed block.
  * @param Block|null $parent Its parent, null at the top level.
@@ -866,7 +867,7 @@ function is_form_fallback( array $block, ?array $parent ): bool {
 	return null !== $parent
 		&& 'core/group' === $block['blockName']
 		&& BindingsEditor\FORM_SLOT['fallback'] === ( BlockTree\metadata( $block )['name'] ?? null )
-		&& 'core/column' === $parent['blockName']
+		&& in_array( $parent['blockName'], BindingsEditor\FORM_SLOT['blocks'], true )
 		&& BindingsEditor\FORM_SLOT['slot'] === ( BlockTree\metadata( $parent )['name'] ?? null );
 }
 
@@ -902,8 +903,8 @@ function image_warnings( array $blocks, array $placeholders, string $prefix = ''
 		$name    = placeholder_name( null === $image ? $cover : $image['url'] );
 		$warning = null;
 
-		if ( is_form_fallback( $block, $parent ) ) {
-			$warning = sprintf( 'placeholder: %s is the stand-in for a form that the contact section ships, still in its "%s" column. Replace it with a form plugin\'s block in the editor, so visitors get a form.', $where, BindingsEditor\FORM_SLOT['slot'] );
+		if ( null !== $parent && is_form_fallback( $block, $parent ) ) {
+			$warning = sprintf( 'placeholder: %s is the stand-in for a form that the contact section ships, still in its "%s" %s. Replace it with a form plugin\'s block in the editor, so visitors get a form.', $where, BindingsEditor\FORM_SLOT['slot'], 'core/column' === $parent['blockName'] ? 'column' : 'group' );
 		} elseif ( '' !== $cover && '' !== $name && in_array( $name, $placeholders, true ) ) {
 			$warning = sprintf( 'placeholder: %s shows the pack\'s placeholder image %s as its background. Replace it in the editor with the site\'s own image and set its focal point on the subject, or remove the block.', $where, $name );
 		} elseif ( '' !== $name && in_array( $name, $placeholders, true ) ) {

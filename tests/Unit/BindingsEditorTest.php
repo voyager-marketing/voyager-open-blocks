@@ -106,24 +106,28 @@ final class BindingsEditorTest extends TestCase {
 		}
 	}
 
-	public function test_the_form_slot_names_match_the_contact_section_intent(): void {
-		$found = false;
+	public function test_the_form_slot_names_match_each_contact_section_intent(): void {
+		// The split layout's slot is a column, the stacked layout's a group.
+		foreach ( [ 'contact-section' => 'core/column', 'contact-section-stacked' => 'core/group' ] as $intent => $slot_block ) {
+			$this->assertContains( $slot_block, BindingsEditor\FORM_SLOT['blocks'], "{$intent}: its slot's block is one the hints and validate look in" );
+			$found = false;
 
-		foreach ( self::flatten( self::intent_blocks( 'contact-section' ) ) as $block ) {
-			if ( 'core/column' !== ( $block['block'] ?? null ) || BindingsEditor\FORM_SLOT['slot'] !== self::name_of( $block ) ) {
-				continue;
-			}
+			foreach ( self::flatten( self::intent_blocks( $intent ) ) as $block ) {
+				if ( $slot_block !== ( $block['block'] ?? null ) || BindingsEditor\FORM_SLOT['slot'] !== self::name_of( $block ) ) {
+					continue;
+				}
 
-			/** @var list<array<string, mixed>> $children */
-			$children = is_array( $block['children'] ?? null ) ? $block['children'] : [];
-			foreach ( $children as $child ) {
-				if ( 'core/group' === ( $child['block'] ?? null ) && BindingsEditor\FORM_SLOT['fallback'] === self::name_of( $child ) ) {
-					$found = true;
+				/** @var list<array<string, mixed>> $children */
+				$children = is_array( $block['children'] ?? null ) ? $block['children'] : [];
+				foreach ( $children as $child ) {
+					if ( 'core/group' === ( $child['block'] ?? null ) && BindingsEditor\FORM_SLOT['fallback'] === self::name_of( $child ) ) {
+						$found = true;
+					}
 				}
 			}
-		}
 
-		$this->assertTrue( $found, 'contact-section.json has no "Form" group directly inside a "Form slot" column.' );
+			$this->assertTrue( $found, "{$intent}.json has no \"Form\" group directly inside a \"Form slot\" {$slot_block}." );
+		}
 	}
 
 	public function test_a_stored_key_links_to_its_field_on_site_data(): void {
