@@ -155,6 +155,8 @@ On the front page the pack prints one schema.org LocalBusiness node from Site Da
 
 `--plant` plants a fault for each check: a second LocalBusiness node on every page, an undefined property and no phone in the pack's node through its filter, and the pack's listener taken off each SEO plugin's schema filter. The run must fail every check on its own plant and nothing else, print `Planted run: every check failed on its plant, and nothing else failed.` and exit 1. It exits 0 on a pass, 1 when a check fails, 2 when it could not tell (a crash, a download, a vocabulary that does not match its sha256, a setup that did not take) and 3 when a planted check passed or failed on something else. CI runs both, in [`e2e.yml`](../.github/workflows/e2e.yml) job `schema`, which is not a required check. Yoast Local SEO is not on WordPress.org, so only the unit tests cover it.
 
+One gap is known and left open. The pack knows the site's business in an SEO plugin's graph by its type, Organization or LocalBusiness, or by an `@id` that ends in `#organization`, which all three plugins give the site's entity (`is_site_entity()`). A business subtype printed only by a schema of the page's own, under another `@id`, is neither: Rank Math's schema builder adding a Dentist to a static front page, for one. The pack then prints its node beside it. Knowing every LocalBusiness subtype would take schema.org's type list in PHP, which the pack does not carry. On such a site, return `[]` from `voyager_open_blocks_structured_data` to print nothing.
+
 ### Site checks
 
 Each of these runs against the local site and exits non-zero on the first mismatch.

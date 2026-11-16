@@ -171,6 +171,12 @@ function types( array $node ): array {
  * LocalBusiness, or carrying the `#organization` @id the three plugins give
  * the site's entity, whatever business type they print it as.
  *
+ * A known gap: a business subtype printed only by a page's own schema under
+ * another @id, such as a Dentist from Rank Math's schema builder on a static
+ * front page, is neither, so the pack prints its node beside it. Knowing every
+ * LocalBusiness subtype would take schema.org's type list, which the pack
+ * does not carry. The filter returning [] turns the pack's node off there.
+ *
  * @param mixed $node A top-level node of a plugin's graph.
  */
 function is_site_entity( mixed $node ): bool {
