@@ -320,20 +320,17 @@ test( 'the edit own cost is its running total less the build, when it resumed th
 } );
 
 // ---------------------------------------------------------------------------
-// The claim words are tests/Unit/PatternLayoutsTest.php's, with the changes
-// measures.mjs names: no bare digit and no #, rating and review start a word,
-// and years count only next to a number or "since", decades with them.
+// The claim words are the pack's one list, CLAIM_WORDS in
+// inc/abilities/claims.php, which insert and compose check copy with and the
+// unit tests hold default copy to, with the one change measures.mjs names:
+// years count only next to a number or "since", decades with them.
 
-test( 'the claim words follow PatternLayoutsTest.php CLAIMS', async () => {
+test( 'the claim words follow inc/abilities/claims.php CLAIM_WORDS', async () => {
 	const { CLAIM_PARTS, YEARS } = await measures();
-	const php = readFileSync( join( here, '..', 'tests', 'Unit', 'PatternLayoutsTest.php' ), 'utf8' );
-	const source = /private const CLAIMS = '\/(.+)\/i';/.exec( php )?.[ 1 ];
-	assert.ok( source, 'PatternLayoutsTest.php holds the CLAIMS list; if it moved, read it from its new home here' );
-	const expected = source
-		.split( '|' )
-		.filter( ( part ) => ! [ '#', '\\d' ].includes( part ) )
-		.map( ( part ) => ( [ 'rating', 'review' ].includes( part ) ? `\\b${ part }` : part ) )
-		.map( ( part ) => ( part === 'years?\\b' ? YEARS : part ) );
+	const php = readFileSync( join( here, '..', 'inc', 'abilities', 'claims.php' ), 'utf8' );
+	const source = /^const CLAIM_WORDS = '(.+)';$/m.exec( php )?.[ 1 ];
+	assert.ok( source, 'inc/abilities/claims.php holds CLAIM_WORDS; if it moved, read it from its new home here' );
+	const expected = source.split( '|' ).map( ( part ) => ( part === 'years?\\b' ? YEARS : part ) );
 	assert.ok( expected.includes( YEARS ), 'the PHP list still holds years?\\b, which this replaces' );
 	assert.deepEqual( CLAIM_PARTS, expected );
 } );

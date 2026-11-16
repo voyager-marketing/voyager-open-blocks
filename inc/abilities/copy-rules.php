@@ -143,6 +143,10 @@ function repeated_rules( array $rules, array $repeat ): array {
  * - claim: a claim slot got a plain string. Copy never comes from Site Data,
  *   which reaches a page through a binding, so only text the site owner gave
  *   (the object form) fills it.
+ * - unsourced_claim: any other slot got a plain string holding a claim word,
+ *   such as "free" or "certified", that no Site Data credential, service or
+ *   figure gives (unsourced_claims() in claims.php decides). Text the site
+ *   owner gave is not checked.
  * - required: omit names a required slot, or a block that holds one. A block
  *   whose label starts the slot's own and a space is the slot's item ("Service 3"
  *   for "Service 3 heading"): leaving out a whole item takes its slots with it,
@@ -151,14 +155,16 @@ function repeated_rules( array $rules, array $repeat ): array {
  *   (emptying_label()), such as the proof strip's facts layout without its one
  *   facts block, which no copy rule covers.
  *
- * @param array<string, array<mixed>>                    $rules Label => rule, from the intent's copy_rules.
- * @param array<string, array{text: string, user: bool}> $copy  From copy_values().
- * @param array<int, string>                             $omit  Labels to leave out.
- * @param array<int, Row>                                $rows  The pattern's blocks as BlockTree\describe() lists them, after repeat and before omit.
- * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}>
+ * @param array<string, array<mixed>>                    $rules     Label => rule, from the intent's copy_rules.
+ * @param array<string, array{text: string, user: bool}> $copy      From copy_values().
+ * @param array<int, string>                             $omit      Labels to leave out.
+ * @param array<int, Row>                                $rows      The pattern's blocks as BlockTree\describe() lists them, after repeat and before omit.
+ * @param array<string, string>                          $site_data Site Data values, as SiteData\values() resolves them: what the business has given. Empty, as on a site with none, no claim word is sourced.
+ * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string, words?: list<string>, credentials?: list<string>}>
  */
-function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows ): array {
+function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows, array $site_data = [] ): array {
 	$refused = [];
+	$sources = null;
 
 	foreach ( $copy as $label => $value ) {
 		$rule = $rules[ $label ] ?? null;
@@ -186,6 +192,15 @@ function copy_rule_refusals( array $rules, array $copy, array $omit, array $rows
 				'reason'  => 'claim',
 				'message' => sprintf( '"%1$s" is a claim slot: its text comes from the site owner, never from you, so a plain string is refused, even one that matches a Site Data value. If the site owner gave you this text, pass it as {"text": "...", "source": "user"}. If a Site Data field holds it, leave "%1$s" out of copy and bind the block to that field (get-catalog lists the fields).', $label ),
 			];
+		}
+
+		if ( true !== ( $rule['claim'] ?? false ) && ! $value['user'] ) {
+			$sources ??= claim_sources( $site_data );
+			$words     = unsourced_claims( $value['text'], $sources );
+
+			if ( [] !== $words ) {
+				$refused[] = unsourced_claim_refusal( (string) $label, $words, $sources );
+			}
 		}
 	}
 
@@ -389,14 +404,15 @@ function path_within( string $path, array $paths ): bool {
  * repeat, omit or copy cannot apply, such as a label no block has, is the
  * error BlockTree returns for it.
  *
- * @param array<int, Block>                              $blocks The pattern's blocks, by reference. Changed even when a slot is refused; the caller saves nothing then.
- * @param array<string, array<mixed>>                    $rules  The pattern's copy rules, from its intent.
- * @param array<string, array{text: string, user: bool}> $values Copy, from copy_values().
- * @param array<int, string>                             $omit   Labels to leave out, from omit_input().
- * @param array<string, string[]>                        $repeat From repeat_input().
- * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}>|WP_Error The copy rules' refusals, [] when none.
+ * @param array<int, Block>                              $blocks    The pattern's blocks, by reference. Changed even when a slot is refused; the caller saves nothing then.
+ * @param array<string, array<mixed>>                    $rules     The pattern's copy rules, from its intent.
+ * @param array<string, array{text: string, user: bool}> $values    Copy, from copy_values().
+ * @param array<int, string>                             $omit      Labels to leave out, from omit_input().
+ * @param array<string, string[]>                        $repeat    From repeat_input().
+ * @param array<string, string>                          $site_data Site Data values, as SiteData\values() resolves them, for the claim words copy may hold.
+ * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string, words?: list<string>, credentials?: list<string>}>|WP_Error The copy rules' refusals, [] when none.
  */
-function fill_pattern( array &$blocks, array $rules, array $values, array $omit, array $repeat ) {
+function fill_pattern( array &$blocks, array $rules, array $values, array $omit, array $repeat, array $site_data = [] ) {
 	if ( [] !== $repeat ) {
 		$repeated = BlockTree\repeat( $blocks, $repeat );
 		if ( is_wp_error( $repeated ) ) {
@@ -406,7 +422,7 @@ function fill_pattern( array &$blocks, array $rules, array $values, array $omit,
 
 	$broken = [] === $values && [] === $omit
 		? []
-		: copy_rule_refusals( repeated_rules( $rules, $repeat ), $values, $omit, BlockTree\describe( $blocks ) );
+		: copy_rule_refusals( repeated_rules( $rules, $repeat ), $values, $omit, BlockTree\describe( $blocks ), $site_data );
 
 	if ( [] !== $omit ) {
 		$omitted = BlockTree\omit( $blocks, $omit );
@@ -476,9 +492,9 @@ function held_labels( array $rows, string $label ): array {
  * A bound slot is not listed again under its copy rule. It takes no copy at
  * all, so whether the copy fits its rule does not matter.
  *
- * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}> $bound From bound_copy_slots().
- * @param list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}>                  $rules From copy_rule_refusals().
- * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}> The copy rules' refusals that remain.
+ * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}>                                  $bound From bound_copy_slots().
+ * @param list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string, words?: list<string>, credentials?: list<string>}> $rules From copy_rule_refusals().
+ * @return list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string, words?: list<string>, credentials?: list<string>}> The copy rules' refusals that remain.
  */
 function rule_refusals_beside( array $bound, array $rules ): array {
 	$slots = array_column( $bound, 'slot' );
@@ -494,8 +510,8 @@ function rule_refusals_beside( array $bound, array $rules ): array {
  * voyager_open_blocks_copy_rules, and data.refused holds the bound slots, then
  * the copy rules' refusals.
  *
- * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}> $bound From bound_copy_slots().
- * @param list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}>                  $rules From copy_rule_refusals().
+ * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}>                                  $bound From bound_copy_slots().
+ * @param list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string, words?: list<string>, credentials?: list<string>}> $rules From copy_rule_refusals().
  */
 function copy_error( array $bound, array $rules ): WP_Error {
 	$rules = rule_refusals_beside( $bound, $rules );

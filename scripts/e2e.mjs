@@ -1297,7 +1297,7 @@ const withCopy = await run( `${ ns }/insert`, {
 	item: 'voyager-open/cta-band',
 	copy: {
 		Heading: 'Leaks fixed today & done right',
-		Body: "Call before noon and we're there by 5pm, <b>guaranteed</b>.",
+		Body: "Call before noon and we're there by 5pm, <b>weekdays</b>.",
 	},
 } );
 const copied = withCopy.data.markup || '';
@@ -1311,7 +1311,7 @@ step(
 		withCopy.data.validation?.round_trip === true &&
 		copied.includes( '>Leaks fixed today &amp; done right</h2>' ) &&
 		copied.includes(
-			">Call before noon and we're there by 5pm, &lt;b&gt;guaranteed&lt;/b&gt;.</p>"
+			">Call before noon and we're there by 5pm, &lt;b&gt;weekdays&lt;/b&gt;.</p>"
 		) &&
 		copied.includes( '>Call us</a>' ) &&
 		! copied.includes( 'Ready to get started?' ) &&
@@ -3081,9 +3081,10 @@ const insertInto = ( input ) =>
 	run( `${ ns }/insert`, { post_id: rulesPage.data.id, ...input } );
 const beforeRules = await rulesContent();
 
-// The fitness check: the hero's Heading allows 60 characters.
+// The fitness check: the hero's Heading allows 60 characters. It makes no
+// claim, so too_long is the only reason it is refused.
 const longHeading =
-	'Same-day plumbing repairs for every home and business in town';
+	'Plumbing repairs and new pipework for homes across the county';
 const tooLong = await insertInto( {
 	item: 'voyager-open/hero',
 	copy: { Heading: longHeading },
@@ -3802,7 +3803,7 @@ step(
 
 	const heroCopy = {
 		Heading: 'Plumbing repairs in Springfield, done today',
-		Body: 'Tell us what is leaking, and a plumber comes the same day.',
+		Body: 'Tell us what is leaking, and a plumber comes out to fix it.',
 		'Primary button': 'Book a repair',
 	};
 	const servicesCopy = {
@@ -4114,6 +4115,79 @@ step(
 			) }`
 		);
 	}
+
+	// The fitness check for claim words: copy for a slot that is not a claim
+	// slot holds no claim the business has not given. A free estimate is
+	// refused while no Site Data credential offers one, and composes once one
+	// does. Both are dry runs, and the credentials are put back.
+	const credentialsBefore = ( await api( '/wp/v2/settings' ) ).data
+		.voyager_site_credentials;
+	const credentialList = String( credentialsBefore ?? '' )
+		.split( /\r\n|\r|\n/ )
+		.map( ( line ) => line.trim() )
+		.filter( Boolean );
+	const freeEstimateBand = [
+		{
+			pattern: 'voyager-open/cta-band',
+			copy: {
+				Eyebrow: 'Free estimate',
+				Heading: 'Ready to book your roof check?',
+				Body: 'Tell us about the job and we will reply within two days.',
+			},
+		},
+	];
+	const unsourced = await run( composeAbility, {
+		title: `E2E: compose free estimate ${ stamp }`,
+		sections: freeEstimateBand,
+		dry_run: true,
+	} );
+	const unsourcedRow = ( unsourced.data.refused || [] ).find(
+		( r ) => r.reason === 'unsourced_claim'
+	);
+	step(
+		'fitness: compose of a CTA band with Eyebrow "Free estimate", while no Site Data credential offers a free estimate, is refused as unsourced_claim, naming the word and listing the credentials',
+		typeof credentialsBefore === 'string' &&
+			credentialList.length > 0 &&
+			! /\bfree\b/i.test( credentialsBefore ) &&
+			unsourced.status === 200 &&
+			unsourced.data.saved === false &&
+			JSON.stringify( rowsOf( unsourced ) ) ===
+				JSON.stringify( [ '0 Eyebrow unsourced_claim' ] ) &&
+			JSON.stringify( unsourcedRow?.words ) === '["free"]' &&
+			JSON.stringify( unsourcedRow?.credentials ) ===
+				JSON.stringify( credentialList ) &&
+			( unsourcedRow?.message || '' ).includes( '"free"' ) &&
+			credentialList.every( ( credential ) =>
+				( unsourcedRow?.message || '' ).includes( `"${ credential }"` )
+			),
+		composeSummary( unsourced )
+	);
+	await api( '/wp/v2/settings', {
+		method: 'POST',
+		body: {
+			voyager_site_credentials: `${ credentialsBefore }\nFree estimates`,
+		},
+	} );
+	const sourced = await run( composeAbility, {
+		title: `E2E: compose free estimate ${ stamp }`,
+		sections: freeEstimateBand,
+		dry_run: true,
+	} );
+	const credentialsPutBack = await api( '/wp/v2/settings', {
+		method: 'POST',
+		body: { voyager_site_credentials: credentialsBefore },
+	} );
+	step(
+		'the same CTA band composes with nothing refused once a Site Data credential says "Free estimates", and the credentials are put back',
+		sourced.status === 200 &&
+			sourced.data.saved === false &&
+			( sourced.data.refused || [] ).length === 0 &&
+			credentialsPutBack.data?.voyager_site_credentials ===
+				credentialsBefore &&
+			( await titled( `E2E: compose free estimate ${ stamp }` ) )
+				.length === 0,
+		composeSummary( sourced )
+	);
 
 	// Input compose refuses outright: a page that is not a draft, a recipe
 	// with sections, a recipe slug get-catalog does not list (refused by the
@@ -7797,7 +7871,10 @@ await api( recorder, { method: 'DELETE' } );
 					f.message.includes(
 						'"Heading" at 1 holds "Say what you do and who it is for"'
 					) &&
-					f.message.includes( 'If not, it was left in place' )
+					f.message.includes( 'If not, it was left in place' ) &&
+					f.message.includes(
+						'adding no claim the business has not given'
+					)
 			) &&
 			plantedFindings.some(
 				( f ) =>

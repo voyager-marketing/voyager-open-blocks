@@ -425,9 +425,9 @@ function adjacent_style_refusals( array $styles ): array {
  * error message around them, so a bound row also carries message, the line
  * insert's message gives it, which says where to change the value instead.
  *
- * @param int                                                                                                                    $section Index of the section.
- * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}> $bound   From bound_copy_slots().
- * @param list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string}>                  $broken  From copy_rule_refusals().
+ * @param int                                                                                                                                                     $section Index of the section.
+ * @param list<array{slot: string, reason: string, block: string, path: string, attribute: string, source: string, key: string}>                                  $bound   From bound_copy_slots().
+ * @param list<array{slot: string, reason: string, message: string, max?: int, length?: int, omitted?: string, words?: list<string>, credentials?: list<string>}> $broken  From copy_rule_refusals().
  * @return list<array<mixed>>
  */
 function section_refusals( int $section, array $bound, array $broken ): array {
@@ -650,10 +650,11 @@ function compose( array $input ) {
 
 	// Build the page, section by section, as insert builds a pattern copy,
 	// with the same code: fill_pattern() runs repeat, the copy rules, omit,
-	// then copy.
-	$page   = [];
-	$built  = [];
-	$styles = [];
+	// then copy. A claim word in copy is checked against Site Data, read once.
+	$page      = [];
+	$built     = [];
+	$styles    = [];
+	$site_data = SiteData\values();
 
 	foreach ( $sections as $index => $section ) {
 		$name    = $patterns[ $index ];
@@ -663,7 +664,7 @@ function compose( array $input ) {
 		$broken  = [];
 
 		if ( [] !== $section['copy'] || [] !== $section['omit'] || [] !== $section['repeat'] ) {
-			$broken = fill_pattern( $new, Patterns\intent_meta( $name )['copy_rules'], $section['copy'], $section['omit'], $section['repeat'] );
+			$broken = fill_pattern( $new, Patterns\intent_meta( $name )['copy_rules'], $section['copy'], $section['omit'], $section['repeat'], $site_data );
 			if ( is_wp_error( $broken ) ) {
 				return section_error( $index, $name, $broken );
 			}

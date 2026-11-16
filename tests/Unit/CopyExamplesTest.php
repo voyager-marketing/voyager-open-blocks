@@ -284,7 +284,9 @@ final class CopyExamplesTest extends TestCase {
 			}
 		}
 
-		foreach ( Abilities\copy_rule_refusals( $rules, Abilities\copy_values( $copy ), [], [] ) as $row ) {
+		// With no Site Data at all, so no example makes a claim that only a
+		// credential could give (unsourced_claim).
+		foreach ( Abilities\copy_rule_refusals( $rules, Abilities\copy_values( $copy ), [], [], [] ) as $row ) {
 			$problems[] = "{$where}: {$row['reason']}: {$row['message']}";
 		}
 

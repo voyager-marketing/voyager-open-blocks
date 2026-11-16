@@ -20,19 +20,16 @@ const NUMBER = String.raw`\d+|(?:${ TENS.join( '|' ) })(?:[- ](?:${ UNITS.slice(
 export const YEARS = String.raw`(?:\b(?:${ NUMBER })\+?(?:\s+|-)(?:years?|decades?)\b|\b(?:years?|decades?)\s+since\b)`;
 
 /**
- * Words of a factual claim or a promise: the list in
- * tests/Unit/PatternLayoutsTest.php (CLAIMS), with three changes, because it
- * is written for a pattern's default copy and this reads an agent's page:
+ * Words of a factual claim or a promise: the pack's one list, CLAIM_WORDS in
+ * inc/abilities/claims.php, the words insert and compose check an agent's
+ * copy with. It has no bare digit and no `#`, which every phone number,
+ * address and opening time would trip, and `rating` and `review` start a
+ * word, so "operating", "celebrating", "decorating" and "preview" make no
+ * claim, while "ratings", "reviews" and "reviewed" still do. One change here,
+ * because this reads a whole page: `years?` counts only next to a number or
+ * "since", and `decades?` with it (YEARS above).
  *
- * - no bare digit and no `#`, which every phone number, address and opening
- *   time would trip;
- * - `rating` and `review` start a word, so "operating", "celebrating",
- *   "decorating" and "preview" make no claim, while "ratings", "reviews" and
- *   "reviewed" still do;
- * - `years?` counts only next to a number or "since", and `decades?` with it
- *   (YEARS above).
- *
- * bench/test-score.mjs checks that this is that list with those changes.
+ * bench/test-score.mjs checks that this is that list with that change.
  */
 export const CLAIM_PARTS = [
 	'licen[cs]',
