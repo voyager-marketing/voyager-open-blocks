@@ -160,6 +160,120 @@ return [
 			'voyager/site-data' => [ 'email_link' ],
 		],
 	],
+	'voyager-open/contact-section-stacked' => [
+		'args' => [
+			'title' => 'Contact section in one column',
+			'description' => 'The contact section in one column at content width, for a narrow content area: the heading and one line, a contact details block bound to voyager/site-data (address, phone, email, hours) whose phone and email dial and open a new message when tapped, then a form slot below it. The slot holds an email fallback until a form plugin\'s block replaces it.',
+			'content' => '<!-- wp:group {"tagName":"section","metadata":{"name":"Contact section"},"align":"full","style":{"spacing":{"padding":{"top":"var:preset|spacing|60","bottom":"var:preset|spacing|60","left":"var:preset|spacing|50","right":"var:preset|spacing|50"},"blockGap":"var:preset|spacing|50"}},"layout":{"type":"constrained"}} -->
+<section class="wp-block-group alignfull" style="padding-top:var(--wp--preset--spacing--60);padding-right:var(--wp--preset--spacing--50);padding-bottom:var(--wp--preset--spacing--60);padding-left:var(--wp--preset--spacing--50)"><!-- wp:group {"metadata":{"name":"Contact details"},"layout":{"type":"default"}} -->
+<div class="wp-block-group"><!-- wp:heading {"metadata":{"name":"Heading"}} -->
+<h2 class="wp-block-heading">Get in touch</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph {"metadata":{"name":"Body"}} -->
+<p>Call, email or stop by during business hours.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:voyager-open/contact-details {"phone":"Phone","email":"Email","address":"Street address","addressLocality":"City, state, postal code","hours":"Hours","metadata":{"name":"Details","bindings":{"phone":{"source":"voyager/site-data","args":{"key":"phone"}},"phoneLink":{"source":"voyager/site-data","args":{"key":"phone_link"}},"email":{"source":"voyager/site-data","args":{"key":"email"}},"emailLink":{"source":"voyager/site-data","args":{"key":"email_link"}},"address":{"source":"voyager/site-data","args":{"key":"address"}},"addressLocality":{"source":"voyager/site-data","args":{"key":"address_locality"}},"hours":{"source":"voyager/site-data","args":{"key":"hours"}}}}} /-->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button {"metadata":{"name":"Click to call","bindings":{"url":{"source":"voyager/site-data","args":{"key":"phone_link"}}}},"className":"is-style-outline"} -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="/contact/">Call us</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"metadata":{"name":"Form slot"},"layout":{"type":"default"}} -->
+<div class="wp-block-group"><!-- wp:group {"metadata":{"name":"Form"},"style":{"border":{"width":"1px","style":"solid"},"spacing":{"padding":{"top":"var:preset|spacing|50","bottom":"var:preset|spacing|50","left":"var:preset|spacing|50","right":"var:preset|spacing|50"}}},"layout":{"type":"constrained"}} -->
+<div class="wp-block-group" style="border-style:solid;border-width:1px;padding-top:var(--wp--preset--spacing--50);padding-right:var(--wp--preset--spacing--50);padding-bottom:var(--wp--preset--spacing--50);padding-left:var(--wp--preset--spacing--50)"><!-- wp:heading {"level":3,"metadata":{"name":"Form heading"}} -->
+<h3 class="wp-block-heading">Send us a note</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph {"metadata":{"name":"Form body"}} -->
+<p>Tell us a little about what you need and how to reach you.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button {"metadata":{"name":"Email button","bindings":{"url":{"source":"voyager/site-data","args":{"key":"email_link"}}}}} -->
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/contact/">Email us</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons --></div>
+<!-- /wp:group --></div>
+<!-- /wp:group --></section>
+<!-- /wp:group -->
+',
+			'categories' => [ 'voyager-open', 'contact' ],
+			'keywords' => [
+				'contact',
+				'form',
+				'phone',
+				'email',
+				'address',
+				'hours',
+				'one column',
+				'stacked',
+			],
+			'blockTypes' => [],
+			'viewportWidth' => 1280,
+		],
+		'section' => 'contact-section',
+		'layout' => 'stacked',
+		'copy_rules' => [
+			'Heading' => [
+				'purpose' => 'The section\'s h2: an invitation to get in touch, in a few words.',
+				'min' => 3,
+				'max' => 60,
+				'required' => true,
+				'claim' => false,
+			],
+			'Body' => [
+				'purpose' => 'One line on the ways to reach the business, or when. Leave it out when the details say enough.',
+				'min' => 20,
+				'max' => 120,
+				'required' => false,
+				'claim' => false,
+			],
+			'Click to call' => [
+				'purpose' => 'The call button\'s label. Its link is bound to the Site Data phone number, and its text is its own, so name the action, such as Call us, never the number. Leave it out when the business takes no calls.',
+				'min' => 2,
+				'max' => 24,
+				'required' => false,
+				'claim' => false,
+			],
+			'Form heading' => [
+				'purpose' => 'The form slot\'s h3: what the visitor can send, in a few words.',
+				'min' => 3,
+				'max' => 40,
+				'required' => true,
+				'claim' => false,
+			],
+			'Form body' => [
+				'purpose' => 'One line on what to put in the message, until a form plugin\'s block replaces the slot.',
+				'min' => 20,
+				'max' => 120,
+				'required' => true,
+				'claim' => false,
+			],
+			'Email button' => [
+				'purpose' => 'The form slot\'s one fill button, until a form plugin\'s block replaces it. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as Email us, never the address.',
+				'min' => 2,
+				'max' => 24,
+				'required' => true,
+				'claim' => false,
+			],
+		],
+		'bindings' => [
+			'voyager/site-data' => [
+				'phone',
+				'phone_link',
+				'email',
+				'email_link',
+				'address',
+				'address_locality',
+				'hours',
+			],
+		],
+	],
 	'voyager-open/contact-section' => [
 		'args' => [
 			'title' => 'Contact section',
@@ -209,8 +323,8 @@ return [
 			'blockTypes' => [],
 			'viewportWidth' => 1280,
 		],
-		'section' => null,
-		'layout' => null,
+		'section' => 'contact-section',
+		'layout' => 'split',
 		'copy_rules' => [
 			'Heading' => [
 				'purpose' => 'The section\'s h2: an invitation to get in touch, in a few words.',
@@ -825,6 +939,60 @@ return [
 			'voyager/site-data' => [ 'phone', 'phone_link' ],
 		],
 	],
+	'voyager-open/logo-marquee-grid' => [
+		'args' => [
+			'title' => 'Logo marquee as a grid',
+			'description' => 'An eyebrow over a still grid of logos, three across at most at wide width, each centred in its cell. The grid wraps where a logo would get too narrow, and the logos stack on a phone. Nothing moves. Ships placeholder logos to replace with the site\'s own media.',
+			'content' => '<!-- wp:group {"tagName":"section","metadata":{"name":"Logo marquee"},"align":"full","style":{"spacing":{"padding":{"top":"var:preset|spacing|50","bottom":"var:preset|spacing|50","left":"var:preset|spacing|50","right":"var:preset|spacing|50"},"blockGap":"var:preset|spacing|40"}},"layout":{"type":"constrained"}} -->
+<section class="wp-block-group alignfull" style="padding-top:var(--wp--preset--spacing--50);padding-right:var(--wp--preset--spacing--50);padding-bottom:var(--wp--preset--spacing--50);padding-left:var(--wp--preset--spacing--50)"><!-- wp:heading {"metadata":{"name":"Eyebrow"},"style":{"typography":{"textAlign":"center","textTransform":"uppercase","letterSpacing":"0.08em"}},"fontSize":"small"} -->
+<h2 class="wp-block-heading has-text-align-center has-small-font-size" style="letter-spacing:0.08em;text-transform:uppercase">Some of the teams we work with</h2>
+<!-- /wp:heading -->
+
+<!-- wp:group {"metadata":{"name":"Logos"},"align":"wide","style":{"spacing":{"blockGap":"var:preset|spacing|40"}},"layout":{"type":"grid","columnCount":3,"minimumColumnWidth":"12rem"}} -->
+<div class="wp-block-group alignwide"><!-- wp:image {"width":"100%","height":"40px","scale":"contain"} -->
+<figure class="wp-block-image is-resized"><img src="/voyager-open-blocks-assets/placeholders/logo-1.svg" alt="" style="object-fit:contain;width:100%;height:40px"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"width":"100%","height":"40px","scale":"contain"} -->
+<figure class="wp-block-image is-resized"><img src="/voyager-open-blocks-assets/placeholders/logo-2.svg" alt="" style="object-fit:contain;width:100%;height:40px"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"width":"100%","height":"40px","scale":"contain"} -->
+<figure class="wp-block-image is-resized"><img src="/voyager-open-blocks-assets/placeholders/logo-3.svg" alt="" style="object-fit:contain;width:100%;height:40px"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"width":"100%","height":"40px","scale":"contain"} -->
+<figure class="wp-block-image is-resized"><img src="/voyager-open-blocks-assets/placeholders/logo-4.svg" alt="" style="object-fit:contain;width:100%;height:40px"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"width":"100%","height":"40px","scale":"contain"} -->
+<figure class="wp-block-image is-resized"><img src="/voyager-open-blocks-assets/placeholders/logo-5.svg" alt="" style="object-fit:contain;width:100%;height:40px"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"width":"100%","height":"40px","scale":"contain"} -->
+<figure class="wp-block-image is-resized"><img src="/voyager-open-blocks-assets/placeholders/logo-6.svg" alt="" style="object-fit:contain;width:100%;height:40px"/></figure>
+<!-- /wp:image --></div>
+<!-- /wp:group --></section>
+<!-- /wp:group -->
+',
+			'categories' => [ 'voyager-open', 'media' ],
+			'keywords' => [ 'logos', 'clients', 'partners', 'grid', 'brands', 'still' ],
+			'blockTypes' => [],
+			'viewportWidth' => 1280,
+		],
+		'section' => 'logo-marquee',
+		'layout' => 'grid',
+		'copy_rules' => [
+			'Eyebrow' => [
+				'purpose' => 'The section\'s only heading, an h2 at the small size: whose logos these are, such as clients, partners or suppliers. No count of customers, and no claim the logos do not show.',
+				'min' => 10,
+				'max' => 50,
+				'required' => true,
+				'claim' => false,
+			],
+		],
+		'bindings' => [],
+	],
 	'voyager-open/logo-marquee' => [
 		'args' => [
 			'title' => 'Logo marquee',
@@ -868,8 +1036,8 @@ return [
 			'blockTypes' => [],
 			'viewportWidth' => 1280,
 		],
-		'section' => null,
-		'layout' => null,
+		'section' => 'logo-marquee',
+		'layout' => 'marquee',
 		'copy_rules' => [
 			'Eyebrow' => [
 				'purpose' => 'The section\'s only heading, an h2 at the small size: whose logos these are, such as clients, partners or suppliers. No count of customers, and no claim the logos do not show.',

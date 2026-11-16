@@ -30,15 +30,19 @@ const BINDINGS_HANDLE = 'voyager-open-blocks-bindings';
 const HINTS_HANDLE = 'voyager-open-blocks-editor-hints';
 
 /**
- * Block metadata names that mark the contact section's form slot.
+ * Block metadata names that mark the contact section's form slot, and the
+ * blocks the slot can be.
  *
  * patterns/intents/contact-section.json names the column "Form slot" and the
- * group inside it, which holds an email fallback, "Form". While that group is
- * still in that column, the slot has not been given a form block.
+ * group inside it, which holds an email fallback, "Form".
+ * contact-section-stacked.json, in one column, has no core/column, so its
+ * "Form slot" is a group. While the "Form" group is still in its slot, the
+ * slot has not been given a form block.
  */
 const FORM_SLOT = [
 	'slot'     => 'Form slot',
 	'fallback' => 'Form',
+	'blocks'   => [ 'core/column', 'core/group' ],
 ];
 
 /**

@@ -2,7 +2,7 @@
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
 		"title": "Logo marquee pattern",
-		"description": "voyager-open/logo-marquee: a drifting row of placeholder logos.",
+		"description": "The logo marquee in its two layouts: voyager-open/logo-marquee, a row of placeholder logos that drifts when it is wider than the screen, and voyager-open/logo-marquee-grid, the same logos in a still grid.",
 		"author": "voyager-marketing",
 		"categories": [
 			"Blocks"

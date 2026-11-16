@@ -13,8 +13,9 @@
  *   under any plugin folder, so content copied from another site still
  *   counts, whether it is a core/image's url, a core/media-text's mediaUrl
  *   or a core/cover's background url; and the contact section's form slot
- *   fallback (a group named "Form" in a column named "Form slot", the names
- *   patterns/intents/contact-section.json gives them). Both are found from
+ *   fallback (a group named "Form" in the column or group named "Form slot",
+ *   the names patterns/intents/contact-section.json and
+ *   contact-section-stacked.json give them). Both are found from
  *   data, never from the text on screen.
  * - A "Still to fill in" panel on a selected section that holds any of the
  *   above, so a freshly inserted pattern says what is left to do.
@@ -282,7 +283,9 @@
 		const parent = editor.getBlockRootClientId( clientId );
 		return (
 			!! parent &&
-			editor.getBlockName( parent ) === 'core/column' &&
+			( formSlot.blocks || [] ).includes(
+				editor.getBlockName( parent )
+			) &&
 			editor.getBlockAttributes( parent )?.metadata?.name ===
 				formSlot.slot
 		);

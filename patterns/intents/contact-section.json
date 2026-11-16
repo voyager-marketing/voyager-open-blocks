@@ -1,5 +1,7 @@
 {
 	"title": "Contact section",
+	"section": "contact-section",
+	"layout": "split",
 	"description": "A contact details block bound to voyager/site-data (address, phone, email, hours), whose phone and email dial and open a new message when tapped, beside a form slot. The slot holds an email fallback until a form plugin's block replaces it.",
 	"categories": [
 		"voyager-open",

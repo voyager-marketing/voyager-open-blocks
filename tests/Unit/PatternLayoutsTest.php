@@ -436,6 +436,11 @@ final class PatternLayoutsTest extends TestCase {
 		$this->assertSame( 'wide', $rows[0]['attrs']['align'] ?? null, 'logo-marquee-grid: a row of logos goes wide' );
 		$this->assertSame( 3, $rows[0]['attrs']['layout']['columnCount'] ?? null, 'logo-marquee-grid: three across at most' );
 		$this->assertIsString( $rows[0]['attrs']['layout']['minimumColumnWidth'] ?? null, 'logo-marquee-grid: the grid wraps where a logo would get too narrow' );
+		// Given a gap for rows and another for columns, WordPress 7.1 puts both
+		// into the grid-template-columns it writes for a column count with a
+		// minimum width (wp-includes/block-supports/layout.php), the browser
+		// drops it, and the grid renders one column.
+		$this->assertIsString( $rows[0]['attrs']['style']['spacing']['blockGap'] ?? null, 'logo-marquee-grid: one gap value, so WordPress writes columns the browser keeps' );
 
 		// The marquee's six placeholders in the same order, each as tall and
 		// as contained, and each the full width of its cell, so contain
