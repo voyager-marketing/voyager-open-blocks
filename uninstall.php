@@ -7,7 +7,8 @@
  * (the `_voyager_open_blocks_uses`, `_voyager_open_blocks_lists` and
  * `_voyager_open_blocks_refs` post meta, its options and its scheduled
  * events), the record of the last purge, and the year the purge last saw,
- * with its daily check.
+ * with its daily check, and the parts of get-catalog's answer kept for each
+ * locale, with the count of triggers they are kept under.
  * The index is read from the content, and activation builds it again.
  *
  * Kept on purpose:
@@ -42,6 +43,12 @@ function voyager_open_blocks_uninstall_site(): void {
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_theme' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_usage_queue' );
 	wp_clear_scheduled_hook( 'voyager_open_blocks_year_check' );
+
+	// One transient per locale, named as get-catalog names it (catalog_transient()).
+	delete_option( 'voyager_open_blocks_catalog_version' );
+	foreach ( array_merge( [ 'en_US' ], get_available_languages() ) as $locale ) {
+		delete_transient( 'voyager_open_blocks_catalog_' . preg_replace( '/[^A-Za-z0-9_]/', '', $locale ) );
+	}
 
 	// The dismissal is a user option, stored per site under the site's table prefix.
 	$db = $GLOBALS['wpdb'] ?? null;

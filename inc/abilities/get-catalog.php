@@ -10,6 +10,11 @@
  * and the answer then holds only what they name. include with all six keys
  * is the whole catalog.
  *
+ * The parts that change only with the code, the theme or a setting are kept
+ * between calls (catalog_answer()), and built again after any of
+ * CATALOG_TRIGGERS. Whether a Site Data field is filled, and used_on, are
+ * read on every call.
+ *
  * @package VoyagerOpenBlocks
  */
 
@@ -20,6 +25,7 @@ namespace VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Catalog;
 use VoyagerOpenBlocks\Patterns;
+use VoyagerOpenBlocks\PostMetaText;
 use VoyagerOpenBlocks\SectionStyles;
 use VoyagerOpenBlocks\SiteData;
 use VoyagerOpenBlocks\Usage;
@@ -34,6 +40,42 @@ if ( ! defined( 'ABSPATH' ) ) {
  * names any of them.
  */
 const CATALOG_KEYS = [ 'styles', 'blocks', 'patterns', 'sources', 'used_on', 'recipes' ];
+
+/**
+ * The transient a locale's kept catalog parts are in, less the locale.
+ */
+const CATALOG_CACHE = 'voyager_open_blocks_catalog_';
+
+/**
+ * The option that counts the triggers that have fired. catalog_version()
+ * holds it, so each trigger makes the next call build every part again.
+ */
+const CATALOG_VERSION = 'voyager_open_blocks_catalog_version';
+
+/**
+ * Seconds the kept parts last when no trigger fires. A transient that never
+ * expires is autoloaded on every request, and this one holds the catalog.
+ */
+const CATALOG_TTL = 86400;
+
+/**
+ * The hooks after which the kept parts are built again: a plugin activated,
+ * deactivated or upgraded (upgrader_process_complete also fires for a theme
+ * or WordPress upgrade), another theme, a save of the Global Styles (a style
+ * variation chosen in the Site Editor is one), and the bindable post meta
+ * allowlist added, changed or deleted. The pack's own Version is in
+ * catalog_version().
+ */
+const CATALOG_TRIGGERS = [
+	'activated_plugin',
+	'deactivated_plugin',
+	'upgrader_process_complete',
+	'switch_theme',
+	'save_post_wp_global_styles',
+	'add_option_' . PostMetaText\OPTION,
+	'update_option_' . PostMetaText\OPTION,
+	'delete_option_' . PostMetaText\OPTION,
+];
 
 /**
  * Register get-catalog.
@@ -117,6 +159,9 @@ function get_catalog( $input = null ) {
 /**
  * What builds each part of the answer.
  *
+ * catalog_answer() keeps what the first eight build between calls, and calls
+ * filled and used_on on every call: whether a Site Data field holds a value,
+ * and how many posts show it, change with the content, not with any trigger.
  * The tests pass their own builders, to count the calls.
  *
  * @return array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>}
@@ -137,7 +182,14 @@ function catalog_builders(): array {
 }
 
 /**
- * get-catalog's answer for an input, from the builders.
+ * get-catalog's answer for an input.
+ *
+ * The parts that change only when a trigger fires (CATALOG_TRIGGERS) are kept
+ * in a transient for the request's locale, under catalog_version(), and a
+ * call builds only the parts it needs and the transient does not hold. A
+ * post type's sources are kept only for a registered post type, and a recipe
+ * only when its slug names one, so what an input can add to the transient is
+ * bounded. filled and used_on are built on every call.
  *
  * @param array<mixed> $input Input.
  * @param array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>} $build From catalog_builders().
@@ -149,48 +201,96 @@ function catalog_answer( array $input, array $build ) {
 	$names     = catalog_list( $input['patterns'] ?? null );
 	$slug      = Cast\to_string( $input['recipe'] ?? '' );
 
+	$name    = catalog_transient();
+	$version = catalog_version();
+	$parts   = cached_parts( $name, $version );
+	$built   = false;
+
+	/**
+	 * A part from the transient, or built and kept when $keep.
+	 *
+	 * @param callable(): mixed $make
+	 */
+	$part = static function ( string $key, callable $make, bool $keep = true ) use ( &$parts, &$built ): mixed {
+		if ( array_key_exists( $key, $parts ) ) {
+			return $parts[ $key ];
+		}
+
+		$value = $make();
+
+		if ( $keep ) {
+			$parts[ $key ] = $value;
+			$built         = true;
+		}
+
+		return $value;
+	};
+
+	$sources = static function () use ( $part, $build, $post_type ): array {
+		$sources = $part( 'sources:' . $post_type, static fn (): array => $build['sources']( $post_type ), post_type_exists( $post_type ) );
+
+		return is_array( $sources ) ? $sources : [];
+	};
+
 	if ( [] === $include && [] === $names && '' === $slug ) {
-		return [
-			'styles'   => $build['styles'](),
-			'patterns' => $build['brief_patterns'](),
-			'sources'  => $build['filled']( $build['sources']( $post_type ) ),
-			'recipes'  => $build['brief_recipes'](),
+		$out = [
+			'styles'   => $part( 'styles', $build['styles'] ),
+			'patterns' => $part( 'brief_patterns', $build['brief_patterns'] ),
+			'sources'  => $build['filled']( $sources() ),
+			'recipes'  => $part( 'brief_recipes', $build['brief_recipes'] ),
 		];
-	}
+	} else {
+		$out = [];
 
-	$out = [];
+		foreach ( CATALOG_KEYS as $key ) {
+			$all = in_array( $key, $include, true );
 
-	foreach ( CATALOG_KEYS as $key ) {
-		$all = in_array( $key, $include, true );
+			if ( ! $all && ( 'patterns' !== $key || [] === $names ) ) {
+				continue;
+			}
 
-		if ( ! $all && ( 'patterns' !== $key || [] === $names ) ) {
-			continue;
+			$out[ $key ] = match ( $key ) {
+				'styles'   => $part( 'styles', $build['styles'] ),
+				'blocks'   => $part( 'blocks', $build['blocks'] ),
+				'patterns' => named_patterns( $part( 'patterns', $build['patterns'] ), $all ? null : $names ),
+				'sources'  => $build['filled']( $sources() ),
+				'used_on'  => $build['used_on']( $sources() ),
+				default    => $part( 'recipes', $build['recipes'] ),
+			};
 		}
 
-		$out[ $key ] = match ( $key ) {
-			'styles'   => $build['styles'](),
-			'blocks'   => $build['blocks'](),
-			'patterns' => named_patterns( $build['patterns'](), $all ? null : $names ),
-			'sources'  => $build['filled']( $build['sources']( $post_type ) ),
-			'used_on'  => $build['used_on']( $build['sources']( $post_type ) ),
-			default    => $build['recipes'](),
-		};
+		if ( '' !== $slug ) {
+			$key    = 'recipe:' . $slug;
+			$recipe = $parts[ $key ] ?? $build['recipe']( $slug );
+
+			if ( null === $recipe ) {
+				$brief = $part( 'brief_recipes', $build['brief_recipes'] );
+				$slugs = array_filter( array_column( is_array( $brief ) ? array_filter( $brief, 'is_array' ) : [], 'slug' ), 'is_string' );
+				$out   = new WP_Error(
+					'voyager_open_blocks_invalid_recipe',
+					sprintf( 'No recipe "%1$s". get-catalog with no input lists the recipes: %2$s.', $slug, [] === $slugs ? 'none on this site' : implode( ', ', $slugs ) ),
+					[ 'status' => 400 ]
+				);
+			} else {
+				if ( ! array_key_exists( $key, $parts ) ) {
+					$parts[ $key ] = $recipe;
+					$built         = true;
+				}
+
+				$out['recipe'] = $recipe;
+			}
+		}
 	}
 
-	if ( '' !== $slug ) {
-		$recipe = $build['recipe']( $slug );
-
-		if ( null === $recipe ) {
-			$slugs = array_filter( array_column( array_filter( $build['brief_recipes'](), 'is_array' ), 'slug' ), 'is_string' );
-
-			return new WP_Error(
-				'voyager_open_blocks_invalid_recipe',
-				sprintf( 'No recipe "%1$s". get-catalog with no input lists the recipes: %2$s.', $slug, [] === $slugs ? 'none on this site' : implode( ', ', $slugs ) ),
-				[ 'status' => 400 ]
-			);
-		}
-
-		$out['recipe'] = $recipe;
+	if ( $built ) {
+		set_transient(
+			$name,
+			[
+				'version' => $version,
+				'parts'   => $parts,
+			],
+			CATALOG_TTL
+		);
 	}
 
 	return $out;
@@ -213,6 +313,88 @@ function named_patterns( mixed $patterns, ?array $names ): array {
 
 	return array_values( array_filter( $patterns, static fn ( mixed $row ): bool => is_array( $row ) && in_array( $row['name'] ?? null, $names, true ) ) );
 }
+
+/**
+ * The transient that holds the kept parts for this request's locale, since
+ * the labels, titles and descriptions in them are translated.
+ */
+function catalog_transient(): string {
+	return CATALOG_CACHE . (string) preg_replace( '/[^A-Za-z0-9_]/', '', determine_locale() );
+}
+
+/**
+ * The kept parts, when the transient holds them under this version, or none.
+ *
+ * @param string $name    Transient name, from catalog_transient().
+ * @param string $version From catalog_version().
+ * @return array<mixed>
+ */
+function cached_parts( string $name, string $version ): array {
+	$kept = get_transient( $name );
+
+	if ( ! is_array( $kept ) || $version !== ( $kept['version'] ?? null ) || ! is_array( $kept['parts'] ?? null ) ) {
+		return [];
+	}
+
+	return $kept['parts'];
+}
+
+/**
+ * The version the kept parts are stored under: the pack's Version, how many
+ * triggers have fired, the active theme, and the pack's data files
+ * (pack_stamp()). A part kept under any other version is built again.
+ */
+function catalog_version(): string {
+	return implode(
+		'|',
+		[
+			VOYAGER_OPEN_BLOCKS_VERSION,
+			(string) Cast\to_int( get_option( CATALOG_VERSION, 0 ) ),
+			get_stylesheet(),
+			pack_stamp(),
+		]
+	);
+}
+
+/**
+ * When the files the kept parts are read from last changed: the generated
+ * patterns array, the blocks manifest and each recipe.
+ *
+ * A release changes the Version as well, but a checkout changes these files
+ * with no new Version: after `npm run patterns:build`, `npm run build` or an
+ * edit to a recipe, the next call builds again.
+ *
+ * @param string|null $dir Plugin directory. Defaults to this plugin's.
+ */
+function pack_stamp( ?string $dir = null ): string {
+	$dir   = $dir ?? VOYAGER_OPEN_BLOCKS_DIR;
+	$stamp = [];
+
+	foreach ( [ $dir . '/inc/generated/patterns.php', $dir . '/build/blocks-manifest.php', ...( glob( $dir . '/recipes/*.json' ) ?: [] ) ] as $file ) {
+		$stamp[] = substr( $file, strlen( $dir ) ) . ':' . ( is_file( $file ) ? (int) filemtime( $file ) : 0 );
+	}
+
+	return md5( implode( ',', $stamp ) );
+}
+
+/**
+ * Add one to the count of triggers, so the next call builds every part again.
+ *
+ * Autoloaded, so reading it costs no query.
+ */
+function bump_catalog(): void {
+	update_option( CATALOG_VERSION, Cast\to_int( get_option( CATALOG_VERSION, 0 ) ) + 1, true );
+}
+
+/**
+ * Hook bump_catalog() to each of CATALOG_TRIGGERS.
+ */
+function catalog_triggers(): void {
+	foreach ( CATALOG_TRIGGERS as $hook ) {
+		add_action( $hook, __NAMESPACE__ . '\bump_catalog', 10, 0 );
+	}
+}
+catalog_triggers();
 
 /**
  * A list input, each string once, in the order given.
