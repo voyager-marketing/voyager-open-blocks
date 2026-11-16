@@ -75,6 +75,31 @@ export const NOT_CLAIMS = [
 ];
 
 /**
+ * The words for the people who do the work, the pack's TRADE_NOUNS in
+ * inc/abilities/claims.php, which bench/test-score.mjs holds this to. A
+ * credential or service whose other words are all trade nouns traces its
+ * claim word when one of them sits within two words of it: "Licensed
+ * roofers" with "Licensed contractors". A credential with other words still
+ * needs one of those: "Certified roofers" shares nothing with
+ * "Manufacturer-certified installers". Each counts with an "s" too.
+ */
+export const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contractor', 'staff', 'team' ];
+// How many words may stand between a claim word and a trade noun it is said of.
+const TRADE_NOUN_REACH = 2;
+const isTradeNoun = ( word ) => TRADE_NOUNS.includes( word ) || ( word.endsWith( 's' ) && TRADE_NOUNS.includes( word.slice( 0, -1 ) ) );
+
+/**
+ * Whether a trade noun sits within two words of a claim word, either side:
+ * no more than TRADE_NOUN_REACH words between them.
+ * @param {string} text  The sentence the claim word was found in.
+ * @param {Object} claim From claimWords().
+ */
+function tradeNounNear( text, claim ) {
+	const words = ( s ) => s.match( /[\p{L}\p{N}]+/gu ) ?? [];
+	return [ ...words( text.slice( 0, claim.start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( text.slice( claim.end ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
+}
+
+/**
  * A Site Data figure in a sentence traces the claim words about that figure,
  * and no others: "Rated 4.8, the best in Ohio" traces "rated", not "best".
  * Years with a number trace only to the years since the year founded
@@ -87,6 +112,10 @@ const FIGURE_CLAIMS = {
 	license: [ 'licen[cs]' ],
 };
 
+// A sentence with NOT_CLAIMS blanked out, each character a space, so a claim
+// word keeps its place.
+const withoutNotClaims = ( sentence ) => NOT_CLAIMS.reduce( ( s, re ) => s.replace( re, ( m ) => ' '.repeat( m.length ) ), sentence );
+
 /**
  * Each claim word in a sentence, once per kind: its part of CLAIM_PARTS, the
  * whole word it is in, where it is, and for years the number of years. Two
@@ -94,7 +123,7 @@ const FIGURE_CLAIMS = {
  * @param {string} sentence Normalized with match().
  */
 export function claimWords( sentence ) {
-	const text = NOT_CLAIMS.reduce( ( s, re ) => s.replace( re, ( m ) => ' '.repeat( m.length ) ), sentence );
+	const text = withoutNotClaims( sentence );
 	const found = new Map();
 	PARTS.forEach( ( re, part ) => {
 		for ( const m of text.matchAll( re ) ) {
@@ -220,7 +249,10 @@ function contentWords( text, skip = [] ) {
  *   to "Free storm damage inspections"; "free" with "estimate" does not), or
  *   holds nothing but claim words ("Licensed and insured" traces
  *   "licensed" on its own). Words of the business name, its industry and its
- *   town are in every sentence, so they share nothing;
+ *   town are in every sentence, so they share nothing. A source whose other
+ *   words are all trade nouns traces it when a trade noun sits within two
+ *   words of it ("Licensed roofers" with "Licensed contractors", TRADE_NOUNS
+ *   above);
  * - a Site Data figure in the sentence speaks to it: the year founded traces
  *   "since" and "established", the rating and review count "rated",
  *   "rating", "review" and "stars", the licence "licensed";
@@ -256,7 +288,7 @@ export function claims( html, brief, { year = null } = {} ) {
 		.map( ( text ) => {
 			const found = claimWords( text );
 			const rest = contentWords( text, found ).filter( ( w ) => ! generic.some( ( g ) => sameWord( g, w ) ) );
-			return { text, found, bare: found.length > 0 && rest.length === 0 };
+			return { text, found, bare: found.length > 0 && rest.length === 0, trade: found.length > 0 && rest.length > 0 && rest.every( isTradeNoun ) };
 		} );
 	const figures = Object.entries( FIGURE_CLAIMS )
 		.filter( ( [ key ] ) => brief[ key ] != null && brief[ key ] !== '' )
@@ -265,7 +297,7 @@ export function claims( html, brief, { year = null } = {} ) {
 	const founded = Number( brief.founded );
 	const age = Number.isInteger( year ) && Number.isInteger( founded ) && founded <= year ? year - founded : null;
 
-	const traced = ( claim, sentence, words ) => {
+	const traced = ( claim, sentence, words, tested ) => {
 		if ( claim.part === YEARS_PART && claim.years.value !== null ) {
 			if ( claim.years.age && age !== null && claim.years.value <= age ) {
 				return true;
@@ -275,7 +307,11 @@ export function claims( html, brief, { year = null } = {} ) {
 		}
 		return sources.some( ( source ) => {
 			const same = source.found.find( ( c ) => c.part === claim.part && ( c.years?.value ?? null ) === ( claim.years?.value ?? null ) );
-			return same && ( source.bare || shares( words, contentWords( source.text, [ same ] ) ) );
+			if ( ! same ) {
+				return false;
+			}
+			const others = contentWords( source.text, [ same ] );
+			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( tested, claim ) );
 		} );
 	};
 
@@ -294,7 +330,8 @@ export function claims( html, brief, { year = null } = {} ) {
 			}
 			const label = sentences.length === 1 && ! /[.!?]$/.test( sentence.trim() ) && ( isFigure( lines[ i - 1 ] ?? '' ) || isFigure( lines[ i + 1 ] ?? '' ) );
 			const words = contentWords( normal );
-			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words ) ).map( ( c ) => c.word );
+			const tested = withoutNotClaims( normal );
+			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, tested ) ).map( ( c ) => c.word );
 			out.push( { text: sentence, traced: untraced.length === 0, untraced } );
 		}
 	} );

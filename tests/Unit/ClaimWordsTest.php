@@ -324,19 +324,12 @@ final class ClaimWordsTest extends TestCase {
 		// what the claim word is said of.
 		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed roofers serve Kestovar.' ], $contractors ) ) );
 		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Our roofers are licensed.' ], $contractors ) ) );
-		$this->assertSame(
-			[],
-			self::reasons(
-				self::check(
-					'hero',
-					[ 'Body' => 'Licensed and insured crews on every job.' ],
-					[
-						'credentials' => 'Licensed and insured contractors',
-						'year'        => '2026',
-					]
-				)
-			)
-		);
+		$insured = [
+			'credentials' => 'Licensed and insured contractors',
+			'year'        => '2026',
+		];
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed and insured crews on every job.' ], $insured ) ) );
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed roofers serve Kestovar.' ], $insured ) ) );
 
 		// A trade noun anywhere else in the sentence is not, so the sentence
 		// says no more about the work than it does without one.

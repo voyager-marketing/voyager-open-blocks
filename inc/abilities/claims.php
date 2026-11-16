@@ -54,13 +54,19 @@ const NOT_CLAIMS = [
 ];
 
 /**
- * The words for the people who do the work. One of them in a sentence keeps
- * any of them a credential or service says: "manufacturer-certified crews"
- * keeps "Manufacturer-certified installers". Each counts with an "s" too.
- * Words for the work itself, such as "installation" or "roofing", are not
- * on the list.
+ * The words for the people who do the work. One of them within two words of
+ * a claim word, either side (TRADE_NOUN_REACH), keeps any of them a
+ * credential or service says with that claim word: "manufacturer-certified
+ * crews" keeps "Manufacturer-certified installers", and "our roofers are
+ * licensed" keeps "Licensed contractors". A trade noun anywhere else in the
+ * sentence keeps none. Each counts with an "s" too. Words for the work
+ * itself, such as "installation" or "roofing", are not on the list.
+ * bench/test-score.mjs holds the benchmark scorer's list to this one.
  */
 const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contractor', 'staff', 'team' ];
+
+/** How many words may stand between a claim word and a trade noun it is said of: two in "licensed and insured crews". */
+const TRADE_NOUN_REACH = 2;
 
 /**
  * The Site Data figure a claim word can be said with, by its alternative in
@@ -221,12 +227,13 @@ function claim_sources( array $site_data ): array {
  *   and form ("installers" for "installer", "storm-damage" for "storm
  *   damage"). So "Free storm damage inspections" is said again as "a free
  *   inspection for storm damage", while "a free inspection" and "a free
- *   estimate" say more than it does. A trade noun in the sentence keeps the
- *   statement's trade nouns: "manufacturer-certified crews" keeps
- *   "Manufacturer-certified installers". The credential's other claim words
- *   may be left out: "Licensed and insured" sources "licensed" alone. Each
- *   time a word appears needs a statement of its own: "free" twice in a
- *   sentence needs two statements that say "free".
+ *   estimate" say more than it does. A trade noun within two words of the
+ *   claim word keeps the statement's trade nouns (trade_noun_near()):
+ *   "manufacturer-certified crews" keeps "Manufacturer-certified
+ *   installers". The credential's other claim words may be left out:
+ *   "Licensed and insured" sources "licensed" alone. Each time a word
+ *   appears needs a statement of its own: "free" twice in a sentence needs
+ *   two statements that say "free".
  *
  * @param string                                                                                                                                                                             $text    Plain copy the agent wrote.
  * @param array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>, trade: list<string>}>, figures: array<string, string>, tenure: int|null} $sources From claim_sources().
@@ -243,9 +250,7 @@ function unsourced_claims( string $text, array $sources ): array {
 		}
 
 		$numbered = 1 === preg_match( CLAIM_NUMBER, without_figures( $sentence, $sources['figures'] ) );
-		$words    = claim_text_words( $sentence );
-		$stems    = array_map( __NAMESPACE__ . '\claim_stem', $words );
-		$trade    = [] !== array_filter( $words, __NAMESPACE__ . '\is_trade_noun' );
+		$stems    = array_map( __NAMESPACE__ . '\claim_stem', claim_text_words( $sentence ) );
 
 		foreach ( claim_alternatives() as $alternative ) {
 			$found = (int) preg_match_all( '/' . $alternative . '/i', $tested, $matches, PREG_OFFSET_CAPTURE );
@@ -270,6 +275,7 @@ function unsourced_claims( string $text, array $sources ): array {
 			}
 
 			$given = 0;
+			$trade = trade_noun_near( $tested, $matches[0] );
 
 			foreach ( $sources['statements'] as $statement ) {
 				$count = $statement['claims'][ $alternative ] ?? 0;
@@ -372,6 +378,29 @@ function ages_within( string $tested, string $alternative, int $found, ?int $ten
 	}
 
 	return $within >= $found;
+}
+
+/**
+ * Whether a trade noun is what a claim word is said of: a word of
+ * TRADE_NOUNS with no more than TRADE_NOUN_REACH words between it and one
+ * of the claim word's matches, either side. "manufacturer-certified roofers", "licensed and
+ * insured crews" and "our roofers are licensed" hold one; "licensed to
+ * operate, and our roofers are proud" does not.
+ *
+ * @param string                     $tested  The sentence, NOT_CLAIMS taken out.
+ * @param array<array{string, int}> $matches The claim word's matches in it, each its text and byte offset.
+ */
+function trade_noun_near( string $tested, array $matches ): bool {
+	foreach ( $matches as [ $match, $offset ] ) {
+		$before = array_slice( claim_text_words( substr( $tested, 0, $offset ) ), -TRADE_NOUN_REACH - 1 );
+		$after  = array_slice( claim_text_words( substr( $tested, $offset ) ), 1, TRADE_NOUN_REACH + 1 );
+
+		if ( [] !== array_filter( array_merge( $before, $after ), __NAMESPACE__ . '\is_trade_noun' ) ) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /**

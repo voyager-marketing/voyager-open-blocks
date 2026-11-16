@@ -333,9 +333,9 @@ test( 'a trade noun stands in for a credential trade noun only within two words 
 		'roofers stands for contractors beside licensed, as the pack reads it, and nowhere else in the sentence'
 	);
 	assert.deepEqual(
-		claims( page( 'Licensed and insured crews on every job.' ), { ...contractors, credentials: [ 'Licensed and insured contractors' ] }, { year: 2026 } ).map( ( c ) => c.untraced ),
-		[ [] ],
-		'two words between: and, insured'
+		claims( page( 'Licensed and insured crews on every job.', 'Licensed roofers serve Kestovar.' ), { ...contractors, credentials: [ 'Licensed and insured contractors' ] }, { year: 2026 } ).map( ( c ) => c.untraced ),
+		[ [], [] ],
+		'two words between, and and insured; and the credential other claim word may go, as in the pack'
 	);
 } );
 
