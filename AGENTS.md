@@ -10,6 +10,7 @@ Working on this repo:
 - Every block and pattern ships a `skills/<name>/SKILL.md`. Update it when its attributes, structure or bindings change.
 - Run `npm run check` before a commit. Run `npm run context` against a local site (README, "Local site") when registration changes.
 - Run `composer phpstan` and `composer test` too when you touch PHP (`composer install` first). PHPStan is at level max with no baseline: fix what it reports.
+- Keep a PHP file's `if ( ! defined( 'ABSPATH' ) ) { exit; }` guard in its first 50 lines. In a file with a `namespace` statement, Plugin Check 2.2.0 finds the guard only there and otherwise reports `missing_direct_file_access_protection`: its parser pass reads only top-level statements, which the namespace wraps, and its fallback reads the first 50 lines (`includes/Checker/Checks/Plugin_Repo/Direct_File_Access_Check.php`). A long file docblock above the guard is enough to push it out. `npm run plugin-check` runs Plugin Check on the zip.
 - No client names, client content or client-specific bindings. Placeholder data uses example.com and the 555-01xx range.
 - Patterns use core blocks and theme presets only. No `core/html`, and no inline colours.
 
