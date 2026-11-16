@@ -34,6 +34,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { claims, decode, renderedLines, stepCosts } from './measures.mjs';
 
 const here = dirname( fileURLToPath( import.meta.url ) );
 const args = parseArgs( process.argv.slice( 2 ) );
@@ -45,29 +46,6 @@ const outDir = resolve( args.out ?? join( here, v2 ? 'results-v2' : 'results' ) 
 // The CLI's JS entry, run with this Node: the .bin shim is a shell script that
 // spawnSync cannot start on Windows, so every page scored invalid there.
 const blockRunner = resolve( here, '..', 'node_modules', 'block-runner', 'dist', 'cli.js' );
-
-/**
- * Words of a factual claim or a promise: the list in
- * tests/Unit/PatternLayoutsTest.php (CLAIMS), with two changes, because it is
- * written for a pattern's default copy and this reads an agent's page:
- *
- * - no bare digit and no `#`, which every phone number, address and opening
- *   time would trip;
- * - `rating` and `review` start a word, so "operating", "celebrating",
- *   "decorating" and "preview" make no claim, while "ratings", "reviews" and
- *   "reviewed" still do.
- *
- * bench/test-score.mjs checks that this is that list with those changes.
- */
-const CLAIM_WORDS = /licen[cs]|insur|bonded|certif|accredit|award|\brated\b|\brating|\breview|\bstars?\b|years?\b|\bsince\b|established|guarantee|\bwarrant|\bbest\b|\btop\b|\bleading\b|\bfree\b|same[- ]day/i;
-
-/** Phrases that hold a claim word and make no claim, removed before the test. */
-const NOT_CLAIMS = [ /\bfeel free\b/gi ];
-
-// Elements whose end is the end of a line of text: a sentence never runs on
-// across them.
-const BLOCK_TAGS =
-	'address|article|aside|blockquote|br|button|caption|dd|details|div|dl|dt|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|summary|table|td|th|tr|ul';
 
 const FIELDS = {
 	phone: { keys: [ 'phone', 'phone_link' ], literal: ( b ) => digits( b.phone ) },
@@ -315,25 +293,34 @@ function scoreRun( dir, { group, model, brief, repeat } ) {
 	row.cache_ok = Boolean( build?.from_cache && edit?.from_cache );
 	row.cache_stale = edit?.stale ?? null;
 
-	// Turns and cost, from each transcript's result event.
+	// Turns and cost, from each transcript's result event. The edit resumes the
+	// build's session, so its own cost is its running total less the build's
+	// (stepCosts() in measures.mjs).
+	const results = {};
 	for ( const step of [ 'build', 'edit' ] ) {
-		const result = resultEvent( join( dir, `transcript-${ step }.jsonl` ) );
-		row[ `turns_${ step }` ] = result?.num_turns ?? null;
-		row[ `cost_${ step }_usd` ] = result?.total_cost_usd ?? null;
+		results[ step ] = resultEvent( join( dir, `transcript-${ step }.jsonl` ) );
+		row[ `turns_${ step }` ] = results[ step ]?.num_turns ?? null;
 	}
-	const costs = [ row.cost_build_usd, row.cost_edit_usd ].filter( ( c ) => typeof c === 'number' );
-	row.cost_usd = costs.length ? round4( costs.reduce( ( a, b ) => a + b, 0 ) ) : null;
+	const cost = stepCosts( results.build, results.edit );
+	row.cost_build_usd = cost.build;
+	row.cost_edit_usd = cost.edit;
+	row.cost_usd = cost.total;
 
-	// Claims traced, on the rendered build page.
+	// Claims traced, on the rendered build page. Years since the year founded
+	// count from the year the run started.
 	const page = read( join( dir, 'page.rendered.html' ) );
 	if ( page === null ) {
 		row.claims = null;
 		row.claims_untraced = null;
 		row.untraced_claims = [];
+		row.untraced_claim_words = [];
 	} else {
-		const found = claims( page, brief );
+		const started = Number( String( run?.started ?? '' ).slice( 0, 4 ) );
+		const found = claims( page, brief, { year: Number.isInteger( started ) && started > 0 ? started : null } );
+		const untraced = found.filter( ( c ) => ! c.traced );
 		row.claims = found.length;
-		row.untraced_claims = found.filter( ( c ) => ! c.traced ).map( ( c ) => c.text );
+		row.untraced_claims = untraced.map( ( c ) => c.text );
+		row.untraced_claim_words = untraced.map( ( c ) => c.untraced.join( ', ' ) );
 		row.claims_untraced = row.untraced_claims.length;
 	}
 
@@ -344,83 +331,6 @@ function scoreRun( dir, { group, model, brief, repeat } ) {
 	return row;
 }
 
-/**
- * Each sentence on the page's main content that holds a claim word, and
- * whether it is traced: it contains one of the brief's credentials, or a
- * Site Data figure (the founding year, rating, review count or licence).
- * Other Site Data values, such as the services or the business name, source
- * no claim, so they trace nothing. A line that is only a label, such as
- * "Year founded", is traced when the line beside it is such a figure with no
- * word beside it, as in the stats row.
- * @param html
- * @param brief
- */
-function claims( html, brief ) {
-	const texts = ( brief.credentials || [] ).map( match ).filter( Boolean );
-	const figures = [ brief.founded, brief.rating, brief.review_count, brief.license ].filter( ( f ) => f != null && f !== '' ).map( String );
-	const holdsFigure = ( s ) => figures.some( ( f ) => figure( f ).test( s ) );
-	// A figure on its own line: the figure, and no word beside it, as in
-	// "1999", "4.8 / 5" or "276+".
-	const isFigure = ( line ) => holdsFigure( line ) && ! /\p{L}/u.test( line );
-	const lines = renderedLines( html, { main: true } );
-	const out = [];
-	lines.forEach( ( line, i ) => {
-		const sentences = line.split( /(?<=[.!?])\s+(?=[A-Z0-9"'(])/ );
-		for ( const sentence of sentences ) {
-			const tested = NOT_CLAIMS.reduce( ( s, re ) => s.replace( re, ' ' ), sentence );
-			if ( ! CLAIM_WORDS.test( tested ) ) {
-				continue;
-			}
-			const m = match( sentence );
-			const label = sentences.length === 1 && ! /[.!?]$/.test( sentence.trim() ) && ( isFigure( lines[ i - 1 ] ?? '' ) || isFigure( lines[ i + 1 ] ?? '' ) );
-			const traced = texts.some( ( t ) => m.includes( t ) ) || holdsFigure( sentence ) || label;
-			out.push( { text: sentence, traced } );
-		}
-	} );
-	return out;
-}
-
-function figure( value ) {
-	const escaped = value.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
-	return new RegExp( `(?<![\\d.,])${ escaped }(?![\\d]|[.,]\\d)` );
-}
-
-// Lowercase, straight quotes, plain hyphens and single spaces, for comparing
-// a brief's text with a page's.
-function match( s ) {
-	return String( s )
-		.replace( /[‘’‛′]/g, "'" )
-		.replace( /[“”″]/g, '"' )
-		.replace( /[‐-―−]/g, '-' )
-		.replace( /\s+/g, ' ' )
-		.trim()
-		.toLowerCase();
-}
-
-/**
- * A rendered page's text, one line per block of text, without scripts,
- * styles, comments or the head.
- * @param html
- * @param root0
- * @param root0.main Only the page's <main>, when it has one.
- */
-function renderedLines( html, { main = false } = {} ) {
-	let body = /<body\b[^>]*>([\s\S]*)<\/body>/i.exec( html )?.[ 1 ] ?? html;
-	if ( main ) {
-		body = /<main\b[^>]*>([\s\S]*)<\/main>/i.exec( body )?.[ 1 ] ?? body;
-	}
-	return decode(
-		body
-			.replace( /<!--[\s\S]*?-->/g, ' ' )
-			.replace( /<(script|style|noscript|template|svg)\b[\s\S]*?<\/\1>/gi, ' ' )
-			.replace( new RegExp( `</?(?:${ BLOCK_TAGS })\\b[^>]*>`, 'gi' ), '\n' )
-			.replace( /<[^>]+>/g, ' ' )
-	)
-		.split( '\n' )
-		.map( ( l ) => l.replace( /\s+/g, ' ' ).trim() )
-		.filter( Boolean );
-}
-
 function renderedText( html ) {
 	// Lines joined by a mark digitsIn() stops at, so a number never runs on
 	// into the next line's.
@@ -429,15 +339,6 @@ function renderedText( html ) {
 
 function telLinks( html ) {
 	return [ ...html.matchAll( /href\s*=\s*["']\s*(tel:[^"']*)["']/gi ) ].map( ( m ) => decode( m[ 1 ] ) ).join( ' ' );
-}
-
-function decode( s ) {
-	const named = { amp: '&', nbsp: ' ', quot: '"', apos: "'", lt: '<', gt: '>', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', ndash: '–', mdash: '—', hellip: '…', lpar: '(', rpar: ')', middot: '·', copy: '©', times: '×' };
-	return String( s )
-		.replace( /&#x([0-9a-f]+);/gi, ( all, h ) => String.fromCodePoint( parseInt( h, 16 ) ) )
-		.replace( /&#(\d+);/g, ( all, d ) => String.fromCodePoint( Number( d ) ) )
-		.replace( /&([a-z]+);/gi, ( all, n ) => named[ n.toLowerCase() ] ?? all )
-		.replace( / /g, ' ' );
 }
 
 function events( file ) {
@@ -557,9 +458,9 @@ function toMarkdownV2( summary, all ) {
 	}
 	const untraced = all.filter( ( r ) => r.untraced_claims.length );
 	if ( untraced.length ) {
-		lines.push( '', 'Untraced claims, per page:', '' );
+		lines.push( '', 'Untraced claims, per page, each with the claim words no Site Data holds:', '' );
 		for ( const r of untraced ) {
-			lines.push( `- ${ r.group }/${ r.model }/${ r.brief }/${ r.repeat }: ${ r.untraced_claims.map( ( c ) => `"${ c }"` ).join( '; ' ) }` );
+			lines.push( `- ${ r.group }/${ r.model }/${ r.brief }/${ r.repeat }: ${ r.untraced_claims.map( ( c, i ) => `"${ c }" (${ r.untraced_claim_words[ i ] })` ).join( '; ' ) }` );
 		}
 	}
 	return lines.join( '\n' ) + '\n';

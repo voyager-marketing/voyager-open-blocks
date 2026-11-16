@@ -17,8 +17,9 @@
 // The smoke runs (fixtures/runs-v2-smoke): the main content of the three
 // rendered pages of the first benchmark smoke runs, one brief in the pack
 // group, line for line as the scorer reads them, and the result event of each
-// transcript. Twelve sentences scored untraced there. Seven were rewordings of
-// the brief's own credentials; the rest are the agent's own claims.
+// transcript. Twelve sentences scored untraced there when a whole credential
+// had to appear in the sentence. Four claim a free estimate or quote that no
+// credential gives, and stay untraced.
 //
 // Then the rules one at a time, through measures.mjs: tracing per claim word,
 // years and decades only next to a number, a figure derived from the year
@@ -264,6 +265,12 @@ test( 'a claim word is traced when one credential or service holds it and shares
 		claims( page( 'Same-day repairs for your gutters.', 'Same-day roof replacement.' ), services, { year: 2026 } ).map( ( c ) => c.untraced ),
 		[ [], [ 'same-day' ] ],
 		'a service traces too; roof names the business, so it links no claim'
+	);
+	const agency = { ...brief, business: 'Anchor Insurance Agency', industry: 'insurance', credentials: [ 'Home, auto and business' ], services: [] };
+	assert.deepEqual(
+		claims( page( 'Home, auto and business insurance.', 'Licensed and insured agents.' ), agency, { year: 2026 } ).map( ( c ) => [ c.text, c.untraced ] ),
+		[ [ 'Licensed and insured agents.', [ 'licensed', 'insured' ] ] ],
+		'insurance names an insurance agency, so it makes no claim there; insured still does'
 	);
 } );
 
