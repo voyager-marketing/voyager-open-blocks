@@ -269,6 +269,41 @@ function text_binding( array $rows, string $label ): ?array {
 }
 
 /**
+ * A pattern's copy rules as get-catalog lists them: each as its intent holds
+ * it, but the rule of a slot whose text a binding owns.
+ *
+ * Such a slot takes no copy: insert and compose refuse it as bound, by the
+ * test text_binding() makes on the same rows (bound_copy_slots()). Its rule is
+ * listed as its purpose, `copy: false` and what its text is bound to, with no
+ * min, max, required or claim, which an agent reads as "write something
+ * here". The checks still read the intent's own rules (copy_rule_refusals()),
+ * so omit of the slot is still refused as required when its rule says so.
+ * Contract 3 in docs/v2-contracts.md has the shape.
+ *
+ * @param array<mixed>    $rules Label => rule, from the intent's copy_rules.
+ * @param array<int, Row> $rows  The pattern's blocks as BlockTree\describe() lists them.
+ * @return array<string, array<mixed>>
+ */
+function listed_copy_rules( array $rules, array $rows ): array {
+	$out = [];
+
+	foreach ( $rules as $label => $rule ) {
+		$label = (string) $label;
+		$rule  = is_array( $rule ) ? $rule : [];
+		$bound = text_binding( $rows, $label );
+
+		$out[ $label ] = null === $bound
+			? $rule
+			: ( isset( $rule['purpose'] ) ? [ 'purpose' => $rule['purpose'] ] : [] ) + [
+				'copy'  => false,
+				'bound' => $bound,
+			];
+	}
+
+	return $out;
+}
+
+/**
  * Blocks that show nothing of their own: they hold other blocks and lay them
  * out. A section left holding only these saves as an empty band.
  */

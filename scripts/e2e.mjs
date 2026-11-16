@@ -22,7 +22,12 @@
  *      empty does; and the home recipe's sections copied straight from the
  *      brief answer, and from its detail with copy written in, each compose
  *      with nothing refused, while a section with a key compose does not
- *      take is still refused,
+ *      take is still refused; the home recipe's detail marks each slot whose
+ *      text is bound copy: false, the hero's call button among them and not
+ *      the contact section's, copy for every slot it does not mark composes
+ *      with nothing refused and copy for each marked one is refused as
+ *      bound, and it lists the Site Data fields its sections bind, each as
+ *      sources lists it, filled included,
  *  1b. the prompt ability: its `item` enum lists every skill under skills/
  *      with a "Tell your agent" prompt, read here from each SKILL.md on its
  *      own, and its listing says the MCP Adapter serves it as a prompt.
@@ -57,7 +62,8 @@
  *      still warns six times), the contact section's form
  *      slot and the image slot of each of
  *      the hero's two layouts (listed by get-catalog with their copy labels;
- *      one placeholder warning, and no other), each
+ *      the call button, which shows the phone, copy: false; one
+ *      placeholder warning, and no other), each
  *      placed with insert on a draft of its own, the services section's two
  *      layouts (listed with their copy labels; a fourth card through repeat,
  *      its icon then set with configure, one card dropped through omit, and
@@ -217,7 +223,8 @@
  *      the reduced-motion rule that stops it. Then it deletes both pages.
  *  16. the stats section: get-catalog lists voyager-open/stats and
  *      voyager-open/stats-band with their copy labels, each value bound to
- *      founded, rating or review_count. The year founded, the rating and the
+ *      founded, rating or review_count and marked copy: false. The year
+ *      founded, the rating and the
  *      review count are set to 1998, 4.80 and 0127 through POST
  *      /wp/v2/settings, and a published page holding voyager-open/stats
  *      shows 1998, 4.8 and 127 in its section, in that order. The page counts
@@ -799,6 +806,7 @@ step(
 					delete rest.copy_rules;
 					return rest;
 				} ),
+				site_data: undefined,
 			},
 			homeWhole
 		) &&
@@ -927,6 +935,158 @@ step(
 		.filter( ( [ , filled ] ) => filled === false )
 		.map( ( [ key ] ) => key )
 		.join( ', ' ) }`
+);
+
+// One recipe call holds what compose needs. The home recipe's detail marks
+// each slot whose text a binding owns copy: false, with what it is bound to
+// and no required, and copy written for every slot it does not mark, a claim
+// as the site owner's text, composes with nothing refused. Copy for each slot
+// it marks is refused as bound, those slots and no other, so compose still
+// refuses an agent that sends it. The contact section's call button, whose
+// link alone is bound, takes copy and is not marked.
+const markedBound = ( rule ) => rule?.copy === false;
+const omittedBy = ( label, omit ) =>
+	( omit || [] ).some(
+		( left ) => label === left || label.startsWith( `${ left } ` )
+	);
+const copyFor = ( label, rule ) => {
+	let text = `Our own ${ label.toLowerCase() }`;
+	while ( text.length < ( rule.min || 0 ) ) {
+		text += ' and more';
+	}
+	return text.slice( 0, rule.max || 80 ).trim();
+};
+const homeWithCopy = homeDetailSections.map( ( section ) => {
+	const copy = {};
+	for ( const [ label, rule ] of Object.entries(
+		section.copy_rules || {}
+	) ) {
+		if ( markedBound( rule ) || omittedBy( label, section.omit ) ) {
+			continue;
+		}
+		const text = copyFor( label, rule );
+		copy[ label ] = rule.claim ? { text, source: 'user' } : text;
+	}
+	return { ...section, copy };
+} );
+const homeMarked = homeDetailSections.flatMap( ( section, index ) =>
+	Object.entries( section.copy_rules || {} )
+		.filter( ( [ , rule ] ) => markedBound( rule ) )
+		.map( ( [ label ] ) => ( { section: index, slot: label } ) )
+);
+const copiedSlots = homeWithCopy.reduce(
+	( sum, section ) => sum + Object.keys( section.copy ).length,
+	0
+);
+const composeRefused = ( response ) =>
+	( response.data.refused || [] ).map(
+		( row ) => `${ row.section } ${ row.slot } ${ row.reason }`
+	);
+const everySlot = await run( `${ ns }/compose`, {
+	title: `E2E: home with copy for every slot ${ Date.now() }`,
+	sections: homeWithCopy,
+	dry_run: true,
+} );
+step(
+	`fitness: compose of the home recipe, with copy for each of the ${ copiedSlots } slots its detail does not mark copy: false, refuses nothing`,
+	copiedSlots > 20 && composedClean( everySlot ),
+	`${ everySlot.status }, refused ${
+		composeRefused( everySlot ).join( '; ' ) || 'none'
+	}${ said( everySlot ) }`
+);
+const markedCopy = await run( `${ ns }/compose`, {
+	title: `E2E: home with copy for its bound slots ${ Date.now() }`,
+	sections: homeWithCopy.map( ( section, index ) => ( {
+		...section,
+		copy: {
+			...section.copy,
+			...Object.fromEntries(
+				homeMarked
+					.filter( ( marked ) => marked.section === index )
+					.map( ( marked ) => [ marked.slot, 'Call us today' ] )
+			),
+		},
+	} ) ),
+	dry_run: true,
+} );
+const heroCall = homeDetailSections[ 0 ]?.copy_rules?.[ 'Click to call' ];
+const contactCall = wholePatterns.find(
+	( row ) => row.name === 'voyager-open/contact-section'
+)?.copy_rules?.[ 'Click to call' ];
+step(
+	"get-catalog marks the hero's Click to call in the home recipe copy: false, bound to the Site Data phone, with no required, and not the contact section's; copy for each slot it marks is refused as bound, those and no other",
+	heroCall?.copy === false &&
+		heroCall?.bound?.source === 'voyager/site-data' &&
+		heroCall?.bound?.key === 'phone' &&
+		! ( 'required' in ( heroCall || {} ) ) &&
+		!! contactCall &&
+		! markedBound( contactCall ) &&
+		homeMarked.length >= 4 &&
+		markedCopy.status === 200 &&
+		markedCopy.data.saved === false &&
+		sameJson(
+			composeRefused( markedCopy ).sort(),
+			homeMarked
+				.map(
+					( marked ) => `${ marked.section } ${ marked.slot } bound`
+				)
+				.sort()
+		),
+	`hero ${ JSON.stringify( heroCall ) }; contact ${ JSON.stringify(
+		contactCall
+	) }; marked ${
+		homeMarked
+			.map( ( marked ) => `${ marked.section } ${ marked.slot }` )
+			.join( ', ' ) || 'none'
+	}; refused ${ composeRefused( markedCopy ).join( '; ' ) || 'none' }${ said(
+		markedCopy
+	) }`
+);
+
+// The home recipe's detail lists the Site Data fields its sections bind, the
+// keys read here from the whole catalog's blocks, each row as sources lists
+// it, filled included, so an agent needs no sources call to see which are
+// empty.
+const homeSiteData = homeDetail.data.recipe?.site_data;
+const homeBoundKeys = [
+	...new Set(
+		homeDetailSections.flatMap( ( section ) =>
+			( sectionPattern( section )?.blocks || [] ).flatMap( ( block ) =>
+				Object.values( block.bindings || {} )
+					.filter(
+						( binding ) =>
+							binding?.source === 'voyager/site-data' &&
+							typeof binding?.args?.key === 'string'
+					)
+					.map( ( binding ) => binding.args.key )
+			)
+		)
+	),
+];
+step(
+	'get-catalog with recipe "home" lists the Site Data fields its sections bind, each as sources lists it, filled included',
+	Array.isArray( homeSiteData ) &&
+		homeBoundKeys.includes( 'phone' ) &&
+		homeBoundKeys.includes( 'founded' ) &&
+		sameJson(
+			homeSiteData.map( ( field ) => field?.args?.key ),
+			homeBoundKeys
+		) &&
+		homeSiteData.every(
+			( field ) =>
+				typeof field?.filled === 'boolean' &&
+				sameJson(
+					field,
+					( briefSiteData?.fields || [] ).find(
+						( listed ) => listed.args?.key === field?.args?.key
+					)
+				)
+		),
+	`site_data ${ JSON.stringify(
+		( homeSiteData || [] ).map(
+			( field ) => `${ field?.args?.key }:${ field?.filled }`
+		)
+	) }; bound ${ homeBoundKeys.join( ', ' ) }`
 );
 
 const siteData = ( catalog.data.sources || [] ).find(
@@ -1959,17 +2119,26 @@ for ( const [ item, block, file ] of [
 	const labels = ( listed?.blocks || [] )
 		.filter( ( b ) => b.copy )
 		.map( ( b ) => b.label );
+	const heroCallRow = ( listed?.blocks || [] ).find(
+		( b ) => b.label === 'Click to call'
+	);
 	step(
-		`get-catalog lists ${ item } with its copy labels`,
+		`get-catalog lists ${ item } with its copy labels, and its call button, which shows the phone, copy: false`,
 		JSON.stringify( labels ) ===
 			JSON.stringify( [
 				'Eyebrow',
 				'Heading',
 				'Body',
 				'Primary button',
-				'Click to call',
-			] ),
-		listed ? labels.join( ', ' ) : 'not listed'
+			] ) &&
+			heroCallRow?.copy === false &&
+			heroCallRow?.bindings?.text?.args?.key === 'phone' &&
+			listed?.copy_rules?.[ 'Click to call' ]?.copy === false,
+		listed
+			? `${ labels.join( ', ' ) }; Click to call ${ JSON.stringify(
+					heroCallRow
+				) }`
+			: 'not listed'
 	);
 	const hero = await validateInserted( item );
 	const warnings = hero.report.data.warnings || [];
@@ -2825,14 +2994,22 @@ step(
 		: 'not listed'
 );
 step(
-	'get-catalog lists voyager-open/cta-band with section "cta-band", layout "row", and copy_rules as its intent holds them, as an object',
+	'get-catalog lists voyager-open/cta-band with section "cta-band", layout "row", and copy_rules as its intent holds them, as an object, but its call button, which shows the phone: its purpose, copy: false and bound',
 	bandListed?.section === 'cta-band' &&
 		bandListed?.layout === 'row' &&
 		!! bandListed?.copy_rules &&
 		typeof bandListed.copy_rules === 'object' &&
 		! Array.isArray( bandListed.copy_rules ) &&
+		!! bandIntent.copy_rules?.[ 'Click to call' ] &&
 		JSON.stringify( bandListed.copy_rules ) ===
-			JSON.stringify( bandIntent.copy_rules || {} ),
+			JSON.stringify( {
+				...bandIntent.copy_rules,
+				'Click to call': {
+					purpose: bandIntent.copy_rules[ 'Click to call' ].purpose,
+					copy: false,
+					bound: { source: 'voyager/site-data', key: 'phone' },
+				},
+			} ),
 	bandListed
 		? JSON.stringify( {
 				section: bandListed.section,
@@ -6878,29 +7055,32 @@ for ( const [ item, layout, lead ] of [
 	const labels = ( statsListed?.blocks || [] )
 		.filter( ( b ) => b.copy )
 		.map( ( b ) => b.label );
+	// Each value shows its Site Data field, so it takes no copy: its block
+	// and its rule say copy: false, and only the labels are copy.
 	const expected = [
 		...lead,
-		...statsFigures.flatMap( ( f ) => [
-			`${ f.figure } value`,
-			`${ f.figure } label`,
-		] ),
+		...statsFigures.map( ( f ) => `${ f.figure } label` ),
 	];
 	const unbound = statsFigures.filter( ( f ) => {
-		const content = ( statsListed?.blocks || [] ).find(
+		const value = ( statsListed?.blocks || [] ).find(
 			( b ) => b.label === `${ f.figure } value`
-		)?.bindings?.content;
+		);
+		const rule = statsListed?.copy_rules?.[ `${ f.figure } value` ];
 		return ! (
-			content?.source === 'voyager/site-data' &&
-			content?.args?.key === f.key
+			value?.bindings?.content?.source === 'voyager/site-data' &&
+			value?.bindings?.content?.args?.key === f.key &&
+			value?.copy === false &&
+			rule?.copy === false &&
+			rule?.bound?.key === f.key &&
+			! ( 'claim' in rule )
 		);
 	} );
 	step(
-		`get-catalog lists ${ item } (section stats, layout ${ layout }) with its copy labels, each value bound to founded, rating or review_count`,
+		`get-catalog lists ${ item } (section stats, layout ${ layout }) with its copy labels, each value bound to founded, rating or review_count and marked copy: false`,
 		statsListed?.section === 'stats' &&
 			statsListed?.layout === layout &&
 			JSON.stringify( labels ) === JSON.stringify( expected ) &&
-			unbound.length === 0 &&
-			statsListed?.copy_rules?.[ 'Rating value' ]?.claim === true,
+			unbound.length === 0,
 		statsListed
 			? `labels ${ labels.join( ', ' ) }; unbound ${
 					unbound.map( ( f ) => f.figure ).join( ', ' ) || 'none'

@@ -18,8 +18,11 @@ declare(strict_types=1);
 
 namespace VoyagerOpenBlocks\Abilities;
 
+use VoyagerOpenBlocks\BlockTree;
+use VoyagerOpenBlocks\Cast;
 use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\SectionStyles;
+use VoyagerOpenBlocks\SiteData;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -183,36 +186,63 @@ function recipe_list( ?string $dir = null, ?string $intents = null ): array {
 /**
  * One recipe as get-catalog's recipe input gives it: as recipe_list() lists
  * it, each section with copy_rules too, the copy rules of the pattern its
- * section and layout name (contract 3), so one answer holds what the page's
- * copy needs. compose takes a section in this shape as it is.
+ * section and layout name as get-catalog lists them, each bound slot marked
+ * (listed_copy_rules(), contract 3), and site_data, each Site Data key its
+ * sections' patterns bind, once, in page order. get-catalog gives each key
+ * as its field, with filled read on every call (recipe_site_data()), so one
+ * answer holds what the page needs. compose takes a section in this shape as
+ * it is.
  *
- * @param string      $slug    Recipe slug, such as home.
- * @param string|null $dir     Recipes directory. Defaults to this plugin's recipes.
- * @param string|null $intents Intents directory. Defaults to this plugin's, and the copy rules to the generated array built from them.
- * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object, omit?: list<string>, copy_rules: object}>}|null Null when no recipe has the slug.
+ * The marks and the keys are read from each pattern's blocks, as compose
+ * places them (pattern_rows()), so a mark is a slot compose refuses copy for.
+ *
+ * @param string                                  $slug    Recipe slug, such as home.
+ * @param string|null                             $dir     Recipes directory. Defaults to this plugin's recipes.
+ * @param string|null                             $intents Intents directory. Defaults to this plugin's, and the copy rules to the generated array built from them.
+ * @param (callable(string): array<int, Row>)|null $rows    A pattern's blocks by its name, as BlockTree\describe() lists them. Defaults to pattern_rows(), the pattern as registered; the tests pass blocks built from the intents.
+ * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object, omit?: list<string>, copy_rules: object}>, site_data: list<string>}|null Null when no recipe has the slug.
  */
-function recipe_detail( string $slug, ?string $dir = null, ?string $intents = null ): ?array {
+function recipe_detail( string $slug, ?string $dir = null, ?string $intents = null, ?callable $rows = null ): ?array {
 	$recipe = find_recipe( $slug, $dir, $intents );
 
 	if ( null === $recipe ) {
 		return null;
 	}
 
+	$rows     = $rows ?? static fn ( string $name ): array => pattern_rows( $name );
 	$layouts  = section_layouts( $intents );
 	$sections = [];
+	$keys     = [];
 
 	foreach ( $recipe['sections'] as $section ) {
 		// read_recipe() skips a file whose section and layout name no pattern.
-		$name = resolve_layout( $layouts, $section['pattern'], $section['layout'] ) ?? $section['pattern'];
+		$name   = resolve_layout( $layouts, $section['pattern'], $section['layout'] ) ?? $section['pattern'];
+		$blocks = $rows( $name );
 
 		$section['copy_guidance'] = (object) $section['copy_guidance'];
-		$section['copy_rules']    = (object) Patterns\intent_meta( $name, $intents )['copy_rules'];
+		$section['copy_rules']    = (object) listed_copy_rules( Patterns\intent_meta( $name, $intents )['copy_rules'], $blocks );
 		$sections[]               = $section;
+
+		array_push( $keys, ...Patterns\keys_in( $blocks, SiteData\SOURCE ) );
 	}
 
-	$recipe['sections'] = $sections;
+	$recipe['sections']  = $sections;
+	$recipe['site_data'] = array_values( array_unique( $keys ) );
 
 	return $recipe;
+}
+
+/**
+ * A registered pattern's blocks as BlockTree\describe() lists them: the
+ * blocks compose places for it, read as compose reads them.
+ *
+ * @param string $name Pattern name, such as voyager-open/hero.
+ * @return array<int, Row>
+ */
+function pattern_rows( string $name ): array {
+	$pattern = \WP_Block_Patterns_Registry::get_instance()->get_registered( $name );
+
+	return BlockTree\describe( BlockTree\parse( Cast\to_string( $pattern['content'] ?? '' ) ) );
 }
 
 /**

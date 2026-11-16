@@ -76,7 +76,7 @@ Each intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` 
 | `Heading` | The band's `h2`: one short question or invitation that asks the reader to act. | 10 | 60 | yes |
 | `Body` | One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short. | 20 | 100 | yes |
 | `Primary button` | The band's main action, as what happens when it is pressed, such as "Get a quote". | 2 | 24 | yes |
-| `Click to call` | Bound to the Site Data phone number. Its own text shows only while the number is empty. | 2 | 24 | yes |
+| `Click to call` | Shows the Site Data phone number and dials it when tapped. It takes no copy: `get-catalog` lists its rule as `copy: false`, bound to `phone`. Its own text shows only while the number is empty. | 2 | 24 | yes |
 
 No slot is a claim slot, and the shipped copy makes no claim. Do not put a licence, a rating, a guarantee or a number of years in the band unless the site owner gave it to you. Those belong in the proof strip.
 

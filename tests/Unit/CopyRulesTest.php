@@ -218,6 +218,125 @@ final class CopyRulesTest extends TestCase {
 		$this->assertStringContainsString( 'is bound to voyager/site-data, key "rating", so it takes no copy either', $value[0]['message'] );
 	}
 
+	public function test_get_catalog_lists_a_bound_slot_s_rule_as_its_purpose_copy_false_and_its_binding(): void {
+		$rows  = [
+			[
+				'path'     => '0',
+				'block'    => 'core/button',
+				'label'    => 'Call',
+				'bindings' => [
+					'text' => [
+						'source' => 'voyager/site-data',
+						'args'   => [ 'key' => 'phone' ],
+					],
+					'url'  => [
+						'source' => 'voyager/site-data',
+						'args'   => [ 'key' => 'phone_link' ],
+					],
+				],
+			],
+			[
+				'path'     => '1',
+				'block'    => 'core/button',
+				'label'    => 'Link only',
+				'bindings' => [
+					'url' => [
+						'source' => 'voyager/site-data',
+						'args'   => [ 'key' => 'phone_link' ],
+					],
+				],
+			],
+			[
+				'path'     => '2',
+				'block'    => 'core/paragraph',
+				'label'    => 'Override',
+				'bindings' => [ 'content' => [ 'source' => 'core/pattern-overrides' ] ],
+			],
+			[
+				'path'     => '3',
+				'block'    => 'core/heading',
+				'label'    => 'Subtitle',
+				'bindings' => [
+					'content' => [
+						'source' => 'core/post-meta',
+						'args'   => [ 'key' => 'subtitle' ],
+					],
+				],
+			],
+			[
+				'path'  => '4',
+				'block' => 'core/heading',
+				'label' => 'Heading',
+			],
+		];
+		$rule  = [
+			'purpose'  => 'What goes there.',
+			'min'      => 2,
+			'max'      => 24,
+			'required' => true,
+			'claim'    => false,
+		];
+		$rules = [
+			'Call'      => $rule,
+			'Link only' => $rule,
+			'Override'  => $rule,
+			'Subtitle'  => [
+				'max'      => 60,
+				'required' => true,
+			],
+			'Heading'   => $rule,
+			'No block'  => $rule,
+		];
+
+		$this->assertSame(
+			[
+				'Call'      => [
+					'purpose' => 'What goes there.',
+					'copy'    => false,
+					'bound'   => [
+						'source' => 'voyager/site-data',
+						'key'    => 'phone',
+					],
+				],
+				'Link only' => $rule,
+				'Override'  => $rule,
+				'Subtitle'  => [
+					'copy'  => false,
+					'bound' => [
+						'source' => 'core/post-meta',
+						'key'    => 'subtitle',
+					],
+				],
+				'Heading'   => $rule,
+				'No block'  => $rule,
+			],
+			Abilities\listed_copy_rules( $rules, $rows ),
+			'only a slot whose text is bound is marked: a bound link, a pattern override and a slot with no block keep their rules'
+		);
+
+		// The shipped hero: the call button marked, every other rule the intent's.
+		$hero = Abilities\listed_copy_rules( self::rules( 'hero' ), self::rows( 'hero' ) );
+		$this->assertSame(
+			[
+				'purpose' => self::rules( 'hero' )['Click to call']['purpose'] ?? null,
+				'copy'    => false,
+				'bound'   => [
+					'source' => 'voyager/site-data',
+					'key'    => 'phone',
+				],
+			],
+			$hero['Click to call'] ?? null
+		);
+		unset( $hero['Click to call'] );
+		$rest = self::rules( 'hero' );
+		unset( $rest['Click to call'] );
+		$this->assertSame( $rest, $hero );
+
+		// The checks still read the intent's own rules: omit of the call
+		// button is refused as required, as above.
+		$this->assertSame( true, self::rules( 'hero' )['Click to call']['required'] ?? null );
+	}
+
 	public function test_omitting_a_block_that_holds_required_slots_names_each_of_them(): void {
 		$refused = self::check( 'hero', [], [ 'Lead' ] );
 

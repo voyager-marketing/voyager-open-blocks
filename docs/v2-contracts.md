@@ -106,7 +106,18 @@ What text each named block in a pattern takes, so an agent's copy fits the desig
   ```
 
   `min` and `max` count characters of plain text.
-- `get-catalog` returns `copy_rules` for each pattern it gives in full, and for each section of the recipe it gives with `recipe` (contract 8), as the intent holds them, and an empty object when the intent has none. The `copy: true` it already puts on each named block in a pattern's `blocks` list stays exactly as it is.
+- `get-catalog` returns `copy_rules` for each pattern it gives in full, and for each section of the recipe it gives with `recipe` (contract 8), as the intent holds them, and an empty object when the intent has none, with one exception: a bound slot.
+- A bound slot is a named heading, paragraph, button, list item or details block whose text attribute (`content`, a button's `text`, a details block's `summary`) is bound to any source but `core/pattern-overrides`, such as the hero's "Click to call", whose `text` shows the Site Data phone. It takes no copy: `insert` and `compose` refuse copy for it as `bound`, read from the pattern's blocks with the same test. `get-catalog` lists its rule as its `purpose`, `copy: false` and what the text is bound to, and nothing else, so no `required: true` reads as "write something here":
+
+  ```json
+  "Click to call": {
+  	"purpose": "string",
+  	"copy": false,
+  	"bound": { "source": "voyager/site-data", "key": "phone" }
+  }
+  ```
+
+  In the pattern's `blocks` list, its block carries `copy: false`, and every other named text block `copy: true`. The intent's own rule is unchanged and still decides `omit`: `omit` of a bound slot whose intent says `required: true` is refused as `required`. A slot whose link alone is bound, such as the contact section's "Click to call", takes copy and is listed as its intent holds it.
 - A copy value, in `insert`'s `copy` and in a `compose` section's `copy`, is either a string or an object:
 
   ```
@@ -278,8 +289,14 @@ What the pack offers on a site, in one tool result, with detail on request.
 
   Each row is the whole catalog's row less its other keys. A recipe's sections are what `compose` takes as `sections`, so a page with the patterns' own text needs nothing more. `filled` is on each Site Data field while this plugin owns the source: whether the field has a value now, read as the binding reads it, so a key `compose` lists in `empty` reads `false`.
 - With any of them, the answer holds only what they name:
-  - `recipe`: `{ "recipe": {...} }`, the recipe as `include: ["recipes"]` lists it, each section with `copy_rules` too, the copy rules (contract 3) of the pattern its section and layout name. Its sections are what `compose` takes as `sections`, with `copy` added.
+  - `recipe`: `{ "recipe": {...} }`, the recipe as `include: ["recipes"]` lists it, each section with `copy_rules` too, the copy rules (contract 3) of the pattern its section and layout name, each bound slot marked `copy: false`. Its sections are what `compose` takes as `sections`, with `copy` added for every slot not marked. After the sections, `site_data` lists the Site Data fields its sections' patterns bind, each once, in page order, each row as `sources` gives it, `filled` included, so the one answer says which bound values are empty:
+
+    ```
+    "site_data": [ { "label", "args": { "key" }, "filled"? } ]
+    ```
+
+    A key the Site Data source lists no field for is left out. The recipe is kept between calls with its keys only (`inc/abilities/get-catalog.php`, under the same version as every kept part, which follows the generated patterns array); each call reads the fields and `filled` as `sources` does.
   - `patterns`: `{ "patterns": [...] }`, the whole row of each named pattern the site registers, in the registry's order.
   - `include`: each named list whole and in full, in the order above. `include: ["patterns"]` lists every pattern, whatever `patterns` names. All six is the whole catalog, which was the only answer before this contract.
 - Budget: the brief answer, and `recipe` with any recipe the pack ships, each stay under 20,000 characters of JSON on the shipped pack, counted as WordPress sends the body over REST (`npm run e2e`).
-- Why this shape. The whole catalog grows with every pattern and copy rule, and passed 70,000 characters, which an agent's client may save to a file rather than show as one tool result; the agent then spends turns reading the file back. An agent building a page needs the recipes and the patterns' names and layouts first, then the copy guidance and copy rules for the sections it fills, and nothing else. So the brief answer is enough to pick a recipe or a pattern, `recipe` gives a whole page's copy guidance and rules in one more call, `patterns` serves a section outside a recipe, and `include` keeps every key the catalog had. A caller that read the whole answer adds `include` with all six keys.
+- Why this shape. The whole catalog grows with every pattern and copy rule, and passed 70,000 characters, which an agent's client may save to a file rather than show as one tool result; the agent then spends turns reading the file back. An agent building a page needs the recipes and the patterns' names and layouts first, then the copy guidance and copy rules for the sections it fills, and nothing else. So the brief answer is enough to pick a recipe or a pattern, `recipe` gives a whole page's copy guidance, its copy rules with the bound slots marked, and the Site Data it binds, in one more call, `patterns` serves a section outside a recipe, and `include` keeps every key the catalog had. A caller that read the whole answer adds `include` with all six keys.

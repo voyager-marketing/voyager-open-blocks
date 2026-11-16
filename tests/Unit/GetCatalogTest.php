@@ -2,8 +2,10 @@
 /**
  * get-catalog in brief and in detail (contract 8 in docs/v2-contracts.md):
  * the brief rows are the whole catalog's rows less the rest, a recipe in
- * detail carries each section's copy rules and fits in one tool result, and
- * a section as get-catalog lists it takes compose's section schema.
+ * detail carries each section's copy rules, each slot whose text is bound
+ * marked copy: false, and the Site Data fields its sections bind, and fits
+ * in one tool result, and a section as get-catalog lists it takes compose's
+ * section schema.
  *
  * The recipes and copy rules come from recipes/ and patterns/intents/, so
  * these check what ships. scripts/e2e.mjs runs get-catalog over REST and
@@ -20,6 +22,7 @@ use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use VoyagerOpenBlocks\Abilities;
+use VoyagerOpenBlocks\BlockTree;
 use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\SiteData;
 
@@ -63,6 +66,53 @@ final class GetCatalogTest extends TestCase {
 		/** @var array<string, mixed> $schema */
 		$schema = $args['input_schema'];
 		return $schema;
+	}
+
+	/**
+	 * A pattern's blocks as BlockTree\describe() lists them, built from its
+	 * intent (IntentBlocks). recipe_detail() reads the registered pattern by
+	 * default, which needs WordPress to parse.
+	 *
+	 * @param string $name Pattern name, such as voyager-open/hero.
+	 * @return array<int, array{path: string, block: string, label?: string, bindings?: array<mixed>, pattern?: string, copy?: bool}>
+	 */
+	private static function rows( string $name ): array {
+		return BlockTree\describe( IntentBlocks::blocks( substr( $name, strlen( 'voyager-open/' ) ) ) );
+	}
+
+	/**
+	 * A recipe as get-catalog's recipe input builds it, from the shipped
+	 * recipes and intents.
+	 *
+	 * @param string $slug Recipe slug.
+	 * @return array<string, mixed>|null
+	 */
+	private static function detail( string $slug ): ?array {
+		return Abilities\recipe_detail( $slug, null, self::INTENTS, static fn ( string $name ): array => self::rows( $name ) );
+	}
+
+	/**
+	 * The Site Data source as Catalog\sources() lists it, every field, each
+	 * with filled, as with_filled() adds it.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function site_data_source(): array {
+		$fields = [];
+		foreach ( SiteData\fields() as $key => $field ) {
+			$fields[] = [
+				'label'  => $field['label'],
+				'args'   => [ 'key' => (string) $key ],
+				'filled' => true,
+			];
+		}
+
+		return [
+			'name'   => SiteData\SOURCE,
+			'label'  => 'Site data',
+			'fields' => $fields,
+			'note'   => null,
+		];
 	}
 
 	/**
@@ -116,19 +166,21 @@ final class GetCatalogTest extends TestCase {
 		$layouts = Abilities\section_layouts( self::INTENTS );
 
 		foreach ( Abilities\recipes( null, self::INTENTS ) as $whole ) {
-			$detail = Abilities\recipe_detail( $whole['slug'], null, self::INTENTS );
+			$detail = self::detail( $whole['slug'] );
 			$this->assertNotNull( $detail );
-			$this->assertSame( [ 'slug', 'title', 'description', 'page_type', 'sections' ], array_keys( $detail ) );
+			$this->assertSame( [ 'slug', 'title', 'description', 'page_type', 'sections', 'site_data' ], array_keys( $detail ) );
+			$this->assertIsArray( $detail['sections'] );
 			$this->assertCount( count( $whole['sections'] ), $detail['sections'] );
+			$keys = [];
 
 			foreach ( $detail['sections'] as $at => $section ) {
 				$name = Abilities\resolve_layout( $layouts, $section['pattern'], $section['layout'] );
 				$this->assertNotNull( $name );
 
 				$this->assertSame(
-					json_encode( (object) Patterns\intent_meta( $name, self::INTENTS )['copy_rules'] ),
+					json_encode( (object) Abilities\listed_copy_rules( Patterns\intent_meta( $name, self::INTENTS )['copy_rules'], self::rows( $name ) ) ),
 					json_encode( $section['copy_rules'] ),
-					"{$whole['slug']} section {$at}: copy_rules are not {$name}'s"
+					"{$whole['slug']} section {$at}: copy_rules are not {$name}'s as get-catalog lists them"
 				);
 				$this->assertSame( json_encode( (object) $whole['sections'][ $at ]['copy_guidance'] ), json_encode( $section['copy_guidance'] ) );
 
@@ -137,25 +189,179 @@ final class GetCatalogTest extends TestCase {
 				$expected = $whole['sections'][ $at ];
 				unset( $expected['copy_guidance'] );
 				$this->assertSame( $expected, $rest );
+
+				// The Site Data keys the intent binds, read from the intent file.
+				array_push( $keys, ...Patterns\keys_in( IntentBlocks::intent( substr( $name, strlen( 'voyager-open/' ) ) )['intent'] ?? [], SiteData\SOURCE ) );
+			}
+
+			$this->assertSame( array_values( array_unique( $keys ) ), $detail['site_data'], "{$whole['slug']}: site_data is not each key its sections bind, once, in page order" );
+		}
+
+		$this->assertNotSame( [], self::detail( 'home' )['site_data'] ?? [], 'the home page binds Site Data, so the check is seen to read it' );
+		$this->assertNull( self::detail( 'no-such-recipe' ) );
+	}
+
+	public function test_a_slot_whose_text_is_bound_is_marked_copy_false_and_is_the_slot_compose_refuses_copy_for(): void {
+		$layouts = Abilities\section_layouts( self::INTENTS );
+		$marked  = [];
+
+		foreach ( Abilities\recipes( null, self::INTENTS ) as $recipe ) {
+			$detail = self::detail( $recipe['slug'] );
+			$this->assertNotNull( $detail );
+			$this->assertIsArray( $detail['sections'] );
+
+			foreach ( $detail['sections'] as $at => $section ) {
+				$name = Abilities\resolve_layout( $layouts, $section['pattern'], $section['layout'] );
+				$this->assertNotNull( $name );
+
+				/** @var array<string, array<string, mixed>> $rules */
+				$rules = json_decode( (string) json_encode( $section['copy_rules'] ), true );
+				$bound = array_keys( array_filter( $rules, static fn ( array $rule ): bool => false === ( $rule['copy'] ?? null ) ) );
+
+				// compose and insert refuse copy for exactly these, given copy for every slot.
+				$refused = array_column( Abilities\bound_copy_slots( self::rows( $name ), array_fill_keys( array_keys( $rules ), 'Some copy' ) ), 'slot' );
+				sort( $refused );
+				$sorted = $bound;
+				sort( $sorted );
+				$this->assertSame( $refused, $sorted, "{$recipe['slug']} section {$at} ({$name}): the slots marked copy: false are not the ones compose refuses copy for" );
+
+				foreach ( $bound as $label ) {
+					$this->assertSame( [ 'purpose', 'copy', 'bound' ], array_keys( $rules[ $label ] ), "{$name} \"{$label}\": a bound slot carries its purpose, copy: false and bound, and no min, max, required or claim" );
+					$marked[ "{$name} {$label}" ] = $rules[ $label ]['bound'];
+				}
 			}
 		}
 
-		$this->assertNull( Abilities\recipe_detail( 'no-such-recipe', null, self::INTENTS ) );
+		$this->assertSame( [ 'source' => 'voyager/site-data', 'key' => 'phone' ], $marked['voyager-open/hero Click to call'] ?? null, 'the hero\'s call button shows the phone' );
+		$this->assertSame( [ 'source' => 'voyager/site-data', 'key' => 'founded' ], $marked['voyager-open/stats Founded value'] ?? null );
+		$this->assertArrayNotHasKey( 'voyager-open/contact-section Click to call', $marked, 'the contact section\'s call button binds its link alone, so its text is copy' );
+
+		$contact = self::detail( 'contact' );
+		$this->assertNotNull( $contact );
+		$this->assertIsArray( $contact['sections'] );
+		/** @var array<string, array<string, mixed>> $rules */
+		$rules = json_decode( (string) json_encode( $contact['sections'][1]['copy_rules'] ), true );
+		$this->assertSame( 'voyager-open/contact-section', $contact['sections'][1]['pattern'] );
+		$this->assertSame( [ 'purpose', 'min', 'max', 'required', 'claim' ], array_keys( $rules['Click to call'] ), 'listed as its intent holds it' );
 	}
 
 	public function test_the_home_recipe_has_copy_rules_for_every_section_and_each_recipe_in_detail_fits_in_one_tool_result(): void {
-		$home = Abilities\recipe_detail( 'home', null, self::INTENTS );
+		$home = self::detail( 'home' );
 		$this->assertNotNull( $home );
+		$this->assertIsArray( $home['sections'] );
 		foreach ( $home['sections'] as $at => $section ) {
 			$this->assertNotSame( '{}', json_encode( $section['copy_rules'] ), "home section {$at} ({$section['pattern']}) has no copy rules" );
 		}
 
 		foreach ( Abilities\recipes( null, self::INTENTS ) as $recipe ) {
-			// As WordPress sends it over REST: wp_json_encode() with no flags.
-			$json = (string) json_encode( [ 'recipe' => Abilities\recipe_detail( $recipe['slug'], null, self::INTENTS ) ] );
+			// As get-catalog answers: each key as its field, every field with
+			// filled. As WordPress sends it over REST: wp_json_encode() with no flags.
+			$answer = Abilities\recipe_site_data( self::detail( $recipe['slug'] ), [ self::site_data_source() ] );
+			$this->assertIsArray( $answer );
+			$this->assertIsArray( $answer['site_data'] );
+			$this->assertNotSame( [], $answer['site_data'], "{$recipe['slug']} binds Site Data, so its fields are counted" );
+
+			$json = (string) json_encode( [ 'recipe' => $answer ] );
 			$this->assertLessThan( self::LIMIT, strlen( $json ), "get-catalog with recipe {$recipe['slug']} is " . strlen( $json ) . ' characters of JSON' );
 			$this->assertGreaterThan( 1000, strlen( $json ), "get-catalog with recipe {$recipe['slug']} holds almost nothing" );
 		}
+	}
+
+	public function test_a_recipe_s_site_data_is_each_key_as_the_site_data_source_lists_its_field(): void {
+		$sources = [
+			[
+				'name'   => 'core/post-meta',
+				'fields' => [
+					[
+						'label' => 'Phone',
+						'args'  => [ 'key' => 'phone' ],
+					],
+				],
+			],
+			[
+				'name'   => SiteData\SOURCE,
+				'fields' => [
+					[
+						'label'  => 'Phone number',
+						'args'   => [ 'key' => 'phone' ],
+						'filled' => true,
+					],
+					[
+						'label'  => 'Email address',
+						'args'   => [ 'key' => 'email' ],
+						'filled' => false,
+					],
+					[
+						'label'  => 'Rating',
+						'args'   => [ 'key' => 'rating' ],
+						'filled' => false,
+					],
+				],
+			],
+		];
+		$recipe  = [
+			'slug'      => 'home',
+			'sections'  => [],
+			'site_data' => [ 'email', 'no-such-key', 'phone' ],
+		];
+
+		$this->assertSame(
+			[
+				'slug'      => 'home',
+				'sections'  => [],
+				'site_data' => [ $sources[1]['fields'][1], $sources[1]['fields'][0] ],
+			],
+			Abilities\recipe_site_data( $recipe, $sources ),
+			'each key in the recipe\'s order, as the Site Data source lists it, filled included; another source\'s field and a key with no field are left out'
+		);
+		$this->assertSame( [], Abilities\recipe_site_data( [ 'slug' => 'home' ], $sources )['site_data'] ?? null, 'a recipe with no keys lists none' );
+		$this->assertNull( Abilities\recipe_site_data( null, $sources ), 'anything but a recipe passes through' );
+	}
+
+	public function test_get_catalog_lists_a_bound_text_block_copy_false_and_its_rule_as_bound(): void {
+		$listed = [];
+
+		foreach ( [ 'hero', 'contact-section' ] as $slug ) {
+			$rows = array_values(
+				array_map(
+					// As Catalog\patterns() lists a named or bound block.
+					static fn ( array $row ): array => isset( $row['label'], BlockTree\TEXT_ATTRIBUTES[ $row['block'] ] ) ? $row + [ 'copy' => true ] : $row,
+					array_filter( BlockTree\describe( IntentBlocks::blocks( $slug ) ), static fn ( array $row ): bool => isset( $row['label'] ) || isset( $row['bindings'] ) )
+				)
+			);
+
+			$listed[] = [
+				'name'       => 'voyager-open/' . $slug,
+				'copy_rules' => (object) Patterns\intent_meta( 'voyager-open/' . $slug, self::INTENTS )['copy_rules'],
+				'blocks'     => $rows,
+			];
+		}
+
+		[ $hero, $contact ] = Abilities\listed_patterns( $listed );
+		$this->assertIsArray( $hero );
+		$this->assertIsArray( $contact );
+
+		$copy = static fn ( array $pattern ): array => array_column( array_filter( (array) $pattern['blocks'], static fn ( mixed $row ): bool => is_array( $row ) && isset( $row['copy'] ) ), 'copy', 'label' );
+
+		$this->assertSame(
+			[
+				'Eyebrow'        => true,
+				'Heading'        => true,
+				'Body'           => true,
+				'Primary button' => true,
+				'Click to call'  => false,
+			],
+			$copy( $hero ),
+			'the hero\'s call button shows the phone, so it takes no copy'
+		);
+		$this->assertTrue( $copy( $contact )['Click to call'] ?? false, 'the contact section\'s call button binds its link alone, so its text is copy' );
+
+		/** @var array<string, array<string, mixed>> $hero_rules */
+		$hero_rules = json_decode( (string) json_encode( $hero['copy_rules'] ), true );
+		$this->assertFalse( $hero_rules['Click to call']['copy'] ?? null );
+		$this->assertSame( 60, $hero_rules['Heading']['max'] ?? null, 'every other rule is the intent\'s' );
+		$this->assertSame( json_encode( $listed[1]['copy_rules'] ), json_encode( $contact['copy_rules'] ), 'a pattern with no bound slot keeps its rules as they are' );
+		$this->assertIsObject( $contact['copy_rules'], 'copy_rules stays an object, so {} is never []' );
 	}
 
 	public function test_a_section_as_get_catalog_lists_it_takes_compose_s_section_schema(): void {
@@ -163,8 +369,9 @@ final class GetCatalogTest extends TestCase {
 		$this->assertSame( [ 'copy_rules' ], self::refused_keys( [ 'pattern' => 'voyager-open/hero', 'copy_rules' => 'none' ] ), 'the check must refuse copy_rules that is not an object' );
 
 		foreach ( Abilities\recipes( null, self::INTENTS ) as $recipe ) {
-			$detail = Abilities\recipe_detail( $recipe['slug'], null, self::INTENTS );
+			$detail = self::detail( $recipe['slug'] );
 			$this->assertNotNull( $detail );
+			$this->assertIsArray( $detail['sections'] );
 			$brief = Abilities\brief_recipes( [ $recipe ] )[0];
 
 			foreach ( [ 'brief' => $brief['sections'], 'detail' => $detail['sections'] ] as $form => $sections ) {
