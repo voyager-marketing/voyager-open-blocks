@@ -1,5 +1,7 @@
 {
 	"title": "Logo marquee",
+	"section": "logo-marquee",
+	"layout": "marquee",
 	"description": "An eyebrow over a row of logos that drifts sideways when it is wider than the screen (core/group Marquee style). Ships placeholder logos to replace with the site's own media.",
 	"categories": [ "voyager-open", "media" ],
 	"keywords": [ "logos", "clients", "partners", "marquee", "brands", "strip" ],

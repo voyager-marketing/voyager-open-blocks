@@ -92,10 +92,12 @@ $voyager_open_seed = static function (): void {
 		'cta-band'        => [ 'CTA band', '<!-- wp:pattern {"slug":"voyager-open/cta-band"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/cta-band-cover"} /-->' ],
 		// The proof strip in both layouts: credentials typed in, then the Credentials from Site Data.
 		'proof-strip'     => [ 'Proof strip', '<!-- wp:pattern {"slug":"voyager-open/proof-strip"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/proof-strip-facts"} /-->' ],
-		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' ],
+		// The logo marquee in both layouts: a row that drifts when it is wider than the screen, then a still grid.
+		'logo-marquee'    => [ 'Logo marquee', '<!-- wp:pattern {"slug":"voyager-open/logo-marquee"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/logo-marquee-grid"} /-->' ],
 		// The closing CTA in both layouts: centred, then beside an image.
 		'closing-cta'     => [ 'Closing CTA', '<!-- wp:pattern {"slug":"voyager-open/closing-cta"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/closing-cta-split"} /-->' ],
-		'contact-section' => [ 'Contact section', '<!-- wp:pattern {"slug":"voyager-open/contact-section"} /-->' ],
+		// The contact section in both layouts: the details beside the form slot, then one column, the form slot under the details.
+		'contact-section' => [ 'Contact section', '<!-- wp:pattern {"slug":"voyager-open/contact-section"} /-->' . "\n\n" . '<!-- wp:pattern {"slug":"voyager-open/contact-section-stacked"} /-->' ],
 		'icon'            => [
 			'Icon',
 			implode(

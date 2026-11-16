@@ -2,7 +2,7 @@
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
 		"title": "Contact section pattern",
-		"description": "voyager-open/contact-section: bound contact details beside a form slot.",
+		"description": "The contact section in its two layouts: voyager-open/contact-section, bound contact details beside a form slot, and voyager-open/contact-section-stacked, the same in one column, the form slot under the details.",
 		"author": "voyager-marketing",
 		"categories": [
 			"Blocks"

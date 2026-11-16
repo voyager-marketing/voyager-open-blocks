@@ -24,6 +24,13 @@ final class ComposeTest extends TestCase {
 
 	private const INTENTS = __DIR__ . '/../../patterns/intents';
 
+	/**
+	 * Intents for a section with one layout, solo.json, beside a section with
+	 * two, pair.json and pair-wide.json: every section the pack ships comes
+	 * in two layouts.
+	 */
+	private const ONE_LAYOUT = __DIR__ . '/../fixtures/one-layout';
+
 	protected function setUp(): void {
 		parent::setUp();
 		$GLOBALS['voyager_test_options']  = [];
@@ -90,14 +97,18 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( 'voyager-open/cta-band-cover', self::resolve( 'voyager-open/cta-band', 'cover' ) );
 		$this->assertSame( 'voyager-open/closing-cta', self::resolve( 'voyager-open/closing-cta', 'centered' ) );
 		$this->assertSame( 'voyager-open/closing-cta-split', self::resolve( 'voyager-open/closing-cta', 'split' ) );
+		$this->assertSame( 'voyager-open/logo-marquee', self::resolve( 'voyager-open/logo-marquee', 'marquee' ) );
+		$this->assertSame( 'voyager-open/logo-marquee-grid', self::resolve( 'voyager-open/logo-marquee', 'grid' ) );
+		$this->assertSame( 'voyager-open/contact-section', self::resolve( 'voyager-open/contact-section', 'split' ) );
+		$this->assertSame( 'voyager-open/contact-section-stacked', self::resolve( 'voyager-open/contact-section', 'stacked' ) );
 	}
 
 	public function test_a_layout_no_intent_of_the_section_carries_names_no_pattern(): void {
 		$this->assertNull( self::resolve( 'voyager-open/hero', 'list' ) );
 		$this->assertNull( self::resolve( 'voyager-open/services', 'cover' ) );
 		$this->assertNull( self::resolve( 'voyager-open/closing-cta', 'cover' ) );
-		// A section with one layout takes null only.
-		$this->assertNull( self::resolve( 'voyager-open/contact-section', 'split' ) );
+		$this->assertNull( self::resolve( 'voyager-open/contact-section', 'cover' ) );
+		$this->assertNull( self::resolve( 'voyager-open/logo-marquee', 'list' ) );
 		// A layout's own pattern is not a section: pass its section and the layout.
 		$this->assertNull( self::resolve( 'voyager-open/hero-cover', null ) );
 		$this->assertNull( self::resolve( 'voyager-open/no-such-section', null ) );
@@ -118,11 +129,26 @@ final class ComposeTest extends TestCase {
 		$this->assertSame( [ 'list', 'facts' ], array_column( $layouts['voyager-open/proof-strip'] ?? [], 'layout' ) );
 		$this->assertSame( [ 'row', 'cover' ], array_column( $layouts['voyager-open/cta-band'] ?? [], 'layout' ) );
 		$this->assertSame( [ 'centered', 'split' ], array_column( $layouts['voyager-open/closing-cta'] ?? [], 'layout' ) );
-		$this->assertSame( [ null ], array_column( $layouts['voyager-open/contact-section'] ?? [], 'layout' ) );
+		$this->assertSame( [ 'marquee', 'grid' ], array_column( $layouts['voyager-open/logo-marquee'] ?? [], 'layout' ) );
+		$this->assertSame( [ 'split', 'stacked' ], array_column( $layouts['voyager-open/contact-section'] ?? [], 'layout' ) );
 		$this->assertArrayNotHasKey( 'voyager-open/hero-cover', $layouts );
 		$this->assertArrayNotHasKey( 'voyager-open/cta-band-cover', $layouts );
 		$this->assertArrayNotHasKey( 'voyager-open/closing-cta-split', $layouts );
+		$this->assertArrayNotHasKey( 'voyager-open/logo-marquee-grid', $layouts );
+		$this->assertArrayNotHasKey( 'voyager-open/contact-section-stacked', $layouts );
 		$this->assertCount( count( $files ), array_merge( ...array_values( $layouts ) ) );
+	}
+
+	public function test_a_section_with_one_layout_takes_null_only(): void {
+		$layouts = Abilities\section_layouts( self::ONE_LAYOUT );
+
+		$this->assertSame( [ null ], array_column( $layouts['voyager-open/solo'] ?? [], 'layout' ), 'an intent with no section key is a section with one layout, named by its own slug' );
+		$this->assertSame( [ 'first', 'wide' ], array_column( $layouts['voyager-open/pair'] ?? [], 'layout' ), 'beside it, a section with two' );
+		$this->assertSame( 'voyager-open/solo', Abilities\resolve_layout( $layouts, 'voyager-open/solo', null ) );
+		$this->assertNull( Abilities\resolve_layout( $layouts, 'voyager-open/solo', 'wide' ), 'a section with one layout takes null only, even a layout another section carries' );
+		$this->assertSame( 'voyager-open/pair-wide', Abilities\resolve_layout( $layouts, 'voyager-open/pair', 'wide' ) );
+		$this->assertSame( 'section 2: voyager-open/solo comes in one layout, so its layout is null or left out, not "wide".', Abilities\unknown_layout( 2, 'voyager-open/solo', 'wide', $layouts ) );
+		$this->assertSame( 'section 2: voyager-open/pair has no layout "cover". Its layouts: first, wide.', Abilities\unknown_layout( 2, 'voyager-open/pair', 'cover', $layouts ) );
 	}
 
 	public function test_two_adjacent_sections_that_share_a_style_other_than_plain_are_refused_naming_both(): void {
