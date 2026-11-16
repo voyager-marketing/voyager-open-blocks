@@ -56,7 +56,9 @@
  *   5. runs `block-runner validate --strict` on every markup the abilities returned
  *      and on the saved page, and the validate ability on the same markup, on the
  *      saved page and on broken markup, including one case only block-runner catches,
- *      its stale_fallback warnings on bench/runs/loop/willow-vet/after-edit.html
+ *      its stale_fallback warnings on a call button bound to phone_link whose
+ *      link is still a typed tel: number, which bind on that link replaces
+ *      with /contact/, and on bench/runs/loop/willow-vet/after-edit.html
  *      (the call button's old number, and the sample phone and email its
  *      contact section was saved with),
  *      and its placeholder and missing_alt warnings: the logo marquee's six
@@ -122,7 +124,8 @@
  *      string, and two adjacent Accent sections with copy for a bound slot,
  *      are each refused with every fault and save nothing; a published page,
  *      a recipe with sections, an unknown recipe, post_id with a title not
- *      the draft's, and an unknown layout are refused; a dry run creates no
+ *      the draft's, an unknown layout, and a block's name as a section's
+ *      pattern, said to be a block and where it sits, are refused; a dry run creates no
  *      post; and undo
  *      reverses a compose save byte for byte, on an existing draft and on a
  *      new one. Then the page recipes: get-catalog lists every file in
@@ -2035,6 +2038,69 @@ step(
 		pageCallLabels.every( ( text ) => text === 'Call us' ) &&
 		staleWarnings( pageReport ).length === 0,
 	`call buttons hold ${ JSON.stringify( pageCallLabels ) }; ${ staleWarnings( pageReport ).join( ' ' ) || 'no stale_fallback' }`
+);
+
+// A typed tel: link left on a bound call button, the skills benchmark's one
+// failure: the button is bound to phone_link, and its saved link, which
+// visitors get while the phone is empty, is still the number typed in.
+// validate warns stale_fallback on it. On a saved page, bind on that link
+// writes /contact/ in its place, and validate then warns on nothing.
+const typedCall = ( withBinding ) =>
+	`<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button ${
+		withBinding
+			? '{"metadata":{"bindings":{"url":{"source":"voyager/site-data","args":{"key":"phone_link"}}}}} '
+			: ''
+	}-->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="tel:+15035550147">Call us</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
+const typedReport = await checkMarkup( { markup: typedCall( true ) } );
+const typedStale = staleWarnings( typedReport );
+step(
+	'fitness: validate warns stale_fallback on a call button bound to phone_link whose link is still tel:+15035550147',
+	typedReport.status === 200 &&
+		typedStale.length === 1 &&
+		typedStale[ 0 ].includes( 'binding "url"' ) &&
+		typedStale[ 0 ].includes(
+			'"tel:+15035550147" looks like a phone number'
+		),
+	typedStale.join( ' ' ) ||
+		typedReport.data.code ||
+		`status ${ typedReport.status }`
+);
+
+const typedPage = await api( '/wp/v2/pages', {
+	method: 'POST',
+	body: {
+		title: `E2E: typed call link ${ stamp }`,
+		status: 'draft',
+		content: typedCall( false ),
+	},
+} );
+const typedBound = await run( `${ ns }/bind`, {
+	post_id: typedPage.data.id,
+	path: '0/0',
+	attribute: 'url',
+	source: 'voyager/site-data',
+	args: { key: 'phone_link' },
+} );
+const typedRaw =
+	(
+		await api( `/wp/v2/pages/${ typedPage.data.id }`, {
+			query: { context: 'edit' },
+		} )
+	).data.content?.raw || '';
+const typedAfter = await checkMarkup( { post_id: typedPage.data.id } );
+step(
+	'bind on that link writes /contact/ in place of tel:+15035550147, and validate then warns no stale_fallback',
+	typedPage.status === 201 &&
+		typedBound.status === 200 &&
+		typedRaw.includes( 'href="/contact/"' ) &&
+		! typedRaw.includes( 'tel:' ) &&
+		typedRaw.includes( '"key":"phone_link"' ) &&
+		clean( typedAfter ) &&
+		staleWarnings( typedAfter ).length === 0,
+	typedBound.data.message ||
+		`${ typedRaw.match( /href="[^"]*"/ )?.[ 0 ] }; ${
+			staleWarnings( typedAfter ).join( ' ' ) || 'no stale_fallback'
+		}`
 );
 
 // placeholder and missing_alt: the pack's placeholders left in place, and
@@ -4416,6 +4482,18 @@ step(
 			'voyager_open_blocks_invalid_layout',
 			'voyager-open/contact-section has no layout "cover". Its layouts: split, stacked.',
 		],
+		[
+			"a block's name as a section's pattern",
+			{
+				title: `E2E: compose block name ${ stamp }`,
+				sections: [
+					...sections.slice( 0, 1 ),
+					{ pattern: 'voyager-open/facts' },
+				],
+			},
+			'voyager_open_blocks_invalid_pattern',
+			'section 1: voyager-open/facts is a block, not a pattern: it sits in voyager-open/proof-strip-facts, voyager-open/service-area and voyager-open/service-area-split.',
+		],
 	];
 	for ( const [ label, input, code, words ] of refusedInputs ) {
 		const refused = await run( composeAbility, input );
@@ -5917,7 +5995,11 @@ for ( const id of [ ownDraft.data.id, privatePost.data.id ] ) {
 		cleanup.push( `/wp/v2/posts/${ id }` );
 	}
 }
-for ( const id of [ lockedPage.data.id, willowPage.data.id ] ) {
+for ( const id of [
+	lockedPage.data.id,
+	willowPage.data.id,
+	typedPage.data.id,
+] ) {
 	if ( id ) {
 		cleanup.push( `/wp/v2/pages/${ id }` );
 	}
