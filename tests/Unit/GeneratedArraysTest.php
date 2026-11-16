@@ -127,14 +127,58 @@ final class GeneratedArraysTest extends TestCase {
 	}
 
 	/**
+	 * Every binding source an intent binds through, read from the intent
+	 * files, so a pattern that binds a new source is compared too, and the
+	 * pack's two sources and core's post meta, whether a pattern binds them or
+	 * not, as controls that the comparison holds for a source no pattern binds.
+	 *
 	 * @return array<string, array{string}>
 	 */
 	public static function sources(): array {
-		return [
-			'site data'       => [ SiteData\SOURCE ],
-			'post meta text'  => [ PostMetaText\SOURCE ],
-			'a source unused' => [ 'core/post-meta' ],
-		];
+		$sources = [];
+
+		foreach ( self::intentFiles() as $intent_file ) {
+			array_push( $sources, ...self::sources_in( json_decode( (string) file_get_contents( $intent_file ), true ) ) );
+		}
+
+		$cases = [];
+		foreach ( array_unique( [ ...$sources, SiteData\SOURCE, PostMetaText\SOURCE, 'core/post-meta' ] ) as $source ) {
+			$cases[ $source ] = [ $source ];
+		}
+
+		return $cases;
+	}
+
+	/**
+	 * The sources of every binding in an intent, at any depth: each object
+	 * with a string `source` beside an `args` object, the shape keys_in() reads.
+	 *
+	 * @param mixed $node A decoded intent file, or any part of one.
+	 * @return list<string>
+	 */
+	private static function sources_in( mixed $node ): array {
+		if ( ! is_array( $node ) ) {
+			return [];
+		}
+
+		$found = isset( $node['source'], $node['args'] ) && is_string( $node['source'] ) && is_array( $node['args'] ) ? [ $node['source'] ] : [];
+
+		foreach ( $node as $child ) {
+			array_push( $found, ...self::sources_in( $child ) );
+		}
+
+		return $found;
+	}
+
+	public function test_the_sources_are_read_from_the_intents(): void {
+		$read = [];
+		foreach ( self::intentFiles() as $intent_file ) {
+			array_push( $read, ...self::sources_in( json_decode( (string) file_get_contents( $intent_file ), true ) ) );
+		}
+
+		$this->assertContains( SiteData\SOURCE, $read, 'no intent binds voyager/site-data, so the read finds nothing' );
+		$this->assertSame( [], array_values( array_diff( array_unique( $read ), array_keys( self::sources() ) ) ), 'a source an intent binds is not compared' );
+		$this->assertSame( [ 'voyager/test-source' ], self::sources_in( [ 'blocks' => [ [ 'attrs' => [ 'metadata' => [ 'bindings' => [ 'content' => [ 'source' => 'voyager/test-source', 'args' => [ 'key' => 'x' ] ] ] ] ] ] ] ] ), 'the read finds a source at any depth' );
 	}
 
 	#[DataProvider( 'sources' )]
