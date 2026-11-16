@@ -27,6 +27,7 @@
 		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed―our roofers love this job.", "given": false },
 		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed − our roofers love this job.", "given": false },
 		{ "credentials": [ "Licensed contractors" ], "text": "Licensed / roofers love this job.", "given": false },
-		{ "credentials": [ "Licensed contractors" ], "text": "Licensed, experienced roofers serve Kestovar.", "given": false }
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed, experienced roofers serve Kestovar.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensedİ our roofers are great.", "given": true }
 	]
 }
