@@ -75,6 +75,9 @@ final class ClaimWordsTest extends TestCase {
 			'rating'       => (string) $brief['rating'],
 			'review_count' => (string) $brief['review_count'],
 			'license'      => '',
+			// The year Site Data counts years in business to. Pinned, so the
+			// years since 1999 stay 27 whatever year the suite runs in.
+			'year'         => '2026',
 		];
 	}
 
@@ -199,9 +202,42 @@ final class ClaimWordsTest extends TestCase {
 		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'cta-band', [ 'Body' => 'Free storm damage inspections, and free estimates on any roof.' ] ) ) );
 	}
 
+	public function test_a_number_of_years_up_to_the_years_since_founded_is_given(): void {
+		// kestovar-roofing was founded in 1999, 27 years before 2026.
+		foreach ( [ 'Over 25 years of roofing in Kestovar.', 'Twenty-seven years of roofing in Kestovar.', 'Roofing Kestovar homes for 20+ years.' ] as $text ) {
+			$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => $text ] ) ), $text );
+		}
+
+		// One over the years since founded, and one year counted from a later
+		// founding, are refused, naming the years and the most it may say.
+		$refused = self::check( 'hero', [ 'Body' => 'Twenty-eight years of roofing in Kestovar.' ] );
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ) );
+		$this->assertStringContainsString( 'up to 27', (string) ( $refused[0]['message'] ?? '' ) );
+
+		$later = [
+			'founded' => '2015',
+			'year'    => '2026',
+		];
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'hero', [ 'Body' => 'Over 25 years of roofing in Kestovar.' ], $later ) ) );
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Over 10 years of roofing in Kestovar.' ], $later ) ) );
+
+		// No year founded: no number of years is given.
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'hero', [ 'Body' => 'Over 10 years of roofing in Kestovar.' ], [] ) ) );
+
+		// A "10-year" roof says how long something lasts, not how old the
+		// business is: founded gives no such number.
+		$refused = self::check( 'hero', [ 'Body' => 'Every new roof is built as a 10-year roof.' ], $later );
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ) );
+		$this->assertSame( [ 'year' ], $refused[0]['words'] ?? null );
+
+		// Two counts in a sentence each need to be within it.
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'hero', [ 'Body' => 'Over 25 years in Kestovar and 40 years in the trade.' ] ) ) );
+	}
+
 	public function test_a_figure_with_a_number_needs_its_site_data_value(): void {
 		foreach ( [
-			'Over 25 years of roofing in Kestovar.' => 'years',
+			'Over 30 years of roofing in Kestovar.' => 'years',
+			'Twenty-eight years of roofing here.'   => 'years',
 			'Serving Kestovar homes since 1985.'    => 'since',
 			'Rated 4.9 by Kestovar homeowners.'     => 'rated',
 			'Five-star roofing for every home.'     => 'star',

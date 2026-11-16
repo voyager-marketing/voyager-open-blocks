@@ -62,6 +62,15 @@ const CLAIM_FIGURES = [
  */
 const FIGURE_NAMES = [ 'years?\b', '\bsince\b', 'established', '\brating', '\bstars?\b', '\breview' ];
 
+/**
+ * An age in years: a number, written in digits or as words up to
+ * ninety-nine, then "years", as in "25 years", "25+ years" or "twenty-five
+ * years". A "25-year" or "10 year" warranty says how long something lasts,
+ * not how old the business is, so the unit is plural. The number is
+ * captured.
+ */
+const CLAIM_AGE = '/\b(\d+|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](?:one|two|three|four|five|six|seven|eight|nine))?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\+?(?:\s+|-)years\b/i';
+
 /** A number: a digit, or a number written as a word, from two up. */
 const CLAIM_NUMBER = '/\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|dozens?)\b/i';
 
@@ -88,10 +97,12 @@ function claim_alternatives(): array {
  * counted by alternative, and its other words: every word but those claim
  * words and CLAIM_STOPWORDS, each as claim_stem() gives it. Figures are the
  * year founded, the rating, the review count and the licence number, each
- * left out when empty.
+ * left out when empty. Tenure is the years since the year founded, as of
+ * Site Data's current year (`year`, or this year when it is empty), and
+ * null when no year founded is set or it is later than that.
  *
  * @param array<string, string> $site_data Site Data values, as SiteData\values() resolves them; a key it lacks is empty.
- * @return array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>}>, figures: array<string, string>}
+ * @return array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>}>, figures: array<string, string>, tenure: int|null}
  */
 function claim_sources( array $site_data ): array {
 	$lines       = static fn ( string $key ): array => array_values( array_filter( array_map( 'trim', explode( "\n", $site_data[ $key ] ?? '' ) ), static fn ( string $line ): bool => '' !== $line ) );
@@ -139,10 +150,14 @@ function claim_sources( array $site_data ): array {
 		}
 	}
 
+	$year   = (int) ( '' === trim( $site_data['year'] ?? '' ) ? gmdate( 'Y' ) : $site_data['year'] );
+	$tenure = isset( $figures['founded'] ) && (int) $figures['founded'] <= $year ? $year - (int) $figures['founded'] : null;
+
 	return [
 		'credentials' => $credentials,
 		'statements'  => $statements,
 		'figures'     => $figures,
+		'tenure'      => $tenure,
 	];
 }
 
@@ -158,7 +173,10 @@ function claim_sources( array $site_data ): array {
  * - A word with a figure (CLAIM_FIGURES) is sourced when that figure is set
  *   and the sentence holds its value, or holds no other number ("highly
  *   rated" with a rating set). A licence word is sourced whenever the
- *   licence number is set.
+ *   licence number is set. A number of years is sourced by the year founded
+ *   when each "years" in the sentence is an age (CLAIM_AGE) no more than the
+ *   years since then: "over 25 years" when the business was founded 27 years
+ *   ago, never "over 30 years" (ages_within()).
  * - Otherwise a credential or service sources it when it holds the same claim
  *   word and the sentence holds every one of its other words, in any order
  *   and form ("installers" for "installer", "storm-damage" for "storm
@@ -169,8 +187,8 @@ function claim_sources( array $site_data ): array {
  *   a word appears needs a statement of its own: "free" twice in a sentence
  *   needs two statements that say "free".
  *
- * @param string                                                                                                                         $text    Plain copy the agent wrote.
- * @param array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>}>, figures: array<string, string>} $sources From claim_sources().
+ * @param string                                                                                                                                                       $text    Plain copy the agent wrote.
+ * @param array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>}>, figures: array<string, string>, tenure: int|null} $sources From claim_sources().
  * @return array<string, string> Each unsourced word, lowercased and whole ("certified" for "certif"), => its alternative in CLAIM_WORDS.
  */
 function unsourced_claims( string $text, array $sources ): array {
@@ -201,6 +219,10 @@ function unsourced_claims( string $text, array $sources ): array {
 			}
 
 			if ( '' !== $value && ( 'license' === $figure || ! $numbered || holds_figure( $sentence, $value ) ) ) {
+				continue;
+			}
+
+			if ( 'founded' === $figure && ages_within( $tested, $found, $sources['tenure'] ) ) {
 				continue;
 			}
 
@@ -274,6 +296,54 @@ function claim_stem( string $word ): string {
 }
 
 /**
+ * Whether every "years" in a sentence is an age no more than the business's
+ * tenure: as many CLAIM_AGE matches, each at most the tenure, as the
+ * sentence says "year" or "years".
+ *
+ * @param string   $tested The sentence, NOT_CLAIMS taken out.
+ * @param int      $found  How many times the sentence says "year" or "years".
+ * @param int|null $tenure Years since the year founded, from claim_sources().
+ */
+function ages_within( string $tested, int $found, ?int $tenure ): bool {
+	if ( null === $tenure || ! preg_match_all( CLAIM_AGE, $tested, $matches ) ) {
+		return false;
+	}
+
+	$within = array_filter( $matches[1], static fn ( string $number ): bool => ( claim_number( $number ) ?? PHP_INT_MAX ) <= $tenure );
+
+	return count( $within ) >= $found;
+}
+
+/**
+ * A number in digits or in words up to ninety-nine, as CLAIM_AGE captures it,
+ * or null.
+ *
+ * @param string $text Such as 25, twenty-five or twenty five.
+ */
+function claim_number( string $text ): ?int {
+	$text  = strtolower( $text );
+	$units = [ 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen' ];
+	$tens  = [ 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety' ];
+
+	if ( ctype_digit( $text ) ) {
+		return (int) $text;
+	}
+
+	$parts = preg_split( '/[- ]/', $text ) ?: [];
+	$ten   = array_search( $parts[0] ?? '', $tens, true );
+
+	if ( false !== $ten ) {
+		$unit = isset( $parts[1] ) ? array_search( $parts[1], $units, true ) : -1;
+
+		return false === $unit ? null : ( $ten + 2 ) * 10 + $unit + 1;
+	}
+
+	$unit = array_search( $text, $units, true );
+
+	return false === $unit ? null : $unit + 1;
+}
+
+/**
  * A sentence without the Site Data figures it holds, so a number left in it
  * is one Site Data does not give: "Highly rated, with 276 reviews" holds no
  * other number when the review count is 276.
@@ -340,9 +410,9 @@ function quoted_list( array $items ): string {
  * claims the agent may make in their own words, and, when a word has a
  * figure, the figures that are set.
  *
- * @param string                                                                                                                         $label   The slot.
- * @param array<string, string>                                                                                                          $words   From unsourced_claims().
- * @param array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>}>, figures: array<string, string>} $sources From claim_sources().
+ * @param string                                                                                                                                                       $label   The slot.
+ * @param array<string, string>                                                                                                                                        $words   From unsourced_claims().
+ * @param array{credentials: list<string>, statements: list<array{claims: array<string, int>, words: list<string>}>, figures: array<string, string>, tenure: int|null} $sources From claim_sources().
  * @return array{slot: string, reason: string, message: string, words: list<string>, credentials: list<string>}
  */
 function unsourced_claim_refusal( string $label, array $words, array $sources ): array {
@@ -363,7 +433,7 @@ function unsourced_claim_refusal( string $label, array $words, array $sources ):
 
 		$message .= [] === $figures
 			? ' Site Data holds no year founded, rating, review count or licence number.'
-			: ' Say a figure with its Site Data value: ' . implode( ', ', $figures ) . '.';
+			: ' Say a figure with its Site Data value: ' . implode( ', ', $figures ) . ( null === $sources['tenure'] ? '' : sprintf( ', or a number of years in business up to %d', $sources['tenure'] ) ) . '.';
 	}
 
 	return [
