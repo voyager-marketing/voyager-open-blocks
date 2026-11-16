@@ -10,6 +10,7 @@
  * - voyager_test_post_meta      post ID => meta key => value
  * - voyager_test_post_types     post ID => post type
  * - voyager_test_filters        hook => priority => callbacks
+ * - voyager_test_actions        hook => callbacks add_action() was given
  * - voyager_test_doing_it_wrong function names reported through _doing_it_wrong()
  * - voyager_test_registered_meta  keys registered through register_post_meta()
  * - voyager_test_binding_sources  source name => true, read by get_block_bindings_source()
@@ -39,7 +40,11 @@ if ( ! function_exists( 'esc_html__' ) ) {
 }
 
 if ( ! function_exists( 'add_action' ) ) {
+	/**
+	 * Records the callback in voyager_test_actions; nothing runs it.
+	 */
 	function add_action( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+		$GLOBALS['voyager_test_actions'][ $hook ][] = $callback;
 		return true;
 	}
 }

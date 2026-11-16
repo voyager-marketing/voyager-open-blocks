@@ -11,7 +11,8 @@
  * - voyager_test_public_types  what get_post_types() returns, default post,
  *                              page and attachment
  *
- * get_stylesheet() names the theme `theme`. No $wpdb is set up, so the
+ * get_stylesheet() names the theme `theme`, or voyager_test_stylesheet when a
+ * test sets it, as tests/catalog-cache-stubs.php does. No $wpdb is set up, so the
  * index's own queries (Usage\select()) find nothing.
  *
  * @package VoyagerOpenBlocks
@@ -74,7 +75,7 @@ if ( ! function_exists( 'get_post_types' ) ) {
 
 if ( ! function_exists( 'get_stylesheet' ) ) {
 	function get_stylesheet(): string {
-		return 'theme';
+		return $GLOBALS['voyager_test_stylesheet'] ?? 'theme';
 	}
 }
 

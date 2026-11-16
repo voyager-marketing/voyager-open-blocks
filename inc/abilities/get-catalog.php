@@ -111,7 +111,39 @@ function register_get_catalog(): void {
  * @return array<string, mixed>|WP_Error
  */
 function get_catalog( $input = null ) {
-	$input     = is_array( $input ) ? $input : [];
+	return catalog_answer( is_array( $input ) ? $input : [], catalog_builders() );
+}
+
+/**
+ * What builds each part of the answer.
+ *
+ * The tests pass their own builders, to count the calls.
+ *
+ * @return array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>}
+ */
+function catalog_builders(): array {
+	return [
+		'styles'         => static fn (): array => SectionStyles\catalog(),
+		'blocks'         => static fn (): array => Catalog\blocks(),
+		'patterns'       => static fn (): array => Catalog\patterns(),
+		'brief_patterns' => static fn (): array => brief_patterns( \WP_Block_Patterns_Registry::get_instance()->get_all_registered() ),
+		'sources'        => static fn ( string $post_type ): array => Catalog\sources( $post_type ),
+		'recipes'        => static fn (): array => recipe_list(),
+		'brief_recipes'  => static fn (): array => brief_recipes( recipes() ),
+		'recipe'         => static fn ( string $slug ): ?array => recipe_detail( $slug ),
+		'filled'         => static fn ( array $sources ): array => with_filled( $sources ),
+		'used_on'        => static fn ( array $sources ): array => Usage\used_on( $sources ),
+	];
+}
+
+/**
+ * get-catalog's answer for an input, from the builders.
+ *
+ * @param array<mixed> $input Input.
+ * @param array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>} $build From catalog_builders().
+ * @return array<string, mixed>|WP_Error
+ */
+function catalog_answer( array $input, array $build ) {
 	$post_type = ! empty( $input['post_type'] ) ? Cast\to_string( $input['post_type'] ) : 'page';
 	$include   = catalog_list( $input['include'] ?? null );
 	$names     = catalog_list( $input['patterns'] ?? null );
@@ -119,10 +151,10 @@ function get_catalog( $input = null ) {
 
 	if ( [] === $include && [] === $names && '' === $slug ) {
 		return [
-			'styles'   => SectionStyles\catalog(),
-			'patterns' => brief_patterns( \WP_Block_Patterns_Registry::get_instance()->get_all_registered() ),
-			'sources'  => with_filled( Catalog\sources( $post_type ) ),
-			'recipes'  => brief_recipes( recipes() ),
+			'styles'   => $build['styles'](),
+			'patterns' => $build['brief_patterns'](),
+			'sources'  => $build['filled']( $build['sources']( $post_type ) ),
+			'recipes'  => $build['brief_recipes'](),
 		];
 	}
 
@@ -136,20 +168,20 @@ function get_catalog( $input = null ) {
 		}
 
 		$out[ $key ] = match ( $key ) {
-			'styles'   => SectionStyles\catalog(),
-			'blocks'   => Catalog\blocks(),
-			'patterns' => Catalog\patterns( $all ? null : $names ),
-			'sources'  => with_filled( Catalog\sources( $post_type ) ),
-			'used_on'  => Usage\used_on( Catalog\sources( $post_type ) ),
-			default    => recipe_list(),
+			'styles'   => $build['styles'](),
+			'blocks'   => $build['blocks'](),
+			'patterns' => named_patterns( $build['patterns'](), $all ? null : $names ),
+			'sources'  => $build['filled']( $build['sources']( $post_type ) ),
+			'used_on'  => $build['used_on']( $build['sources']( $post_type ) ),
+			default    => $build['recipes'](),
 		};
 	}
 
 	if ( '' !== $slug ) {
-		$recipe = recipe_detail( $slug );
+		$recipe = $build['recipe']( $slug );
 
 		if ( null === $recipe ) {
-			$slugs = array_column( recipes(), 'slug' );
+			$slugs = array_filter( array_column( array_filter( $build['brief_recipes'](), 'is_array' ), 'slug' ), 'is_string' );
 
 			return new WP_Error(
 				'voyager_open_blocks_invalid_recipe',
@@ -162,6 +194,24 @@ function get_catalog( $input = null ) {
 	}
 
 	return $out;
+}
+
+/**
+ * The patterns get-catalog's patterns input names, from the whole list, in
+ * its order: what Catalog\patterns() gives for those names.
+ *
+ * @param mixed             $patterns Every pattern, from Catalog\patterns().
+ * @param list<string>|null $names    The names, or null for every pattern.
+ * @return list<mixed>
+ */
+function named_patterns( mixed $patterns, ?array $names ): array {
+	$patterns = is_array( $patterns ) ? array_values( $patterns ) : [];
+
+	if ( null === $names ) {
+		return $patterns;
+	}
+
+	return array_values( array_filter( $patterns, static fn ( mixed $row ): bool => is_array( $row ) && in_array( $row['name'] ?? null, $names, true ) ) );
 }
 
 /**
@@ -271,8 +321,8 @@ function brief_recipes( array $recipes ): array {
  * Only when this plugin owns Site Data. Another owner's values are its own,
  * so its fields carry no filled.
  *
- * @param array<int, array<string, mixed>> $sources From Catalog\sources().
- * @return array<int, array<string, mixed>>
+ * @param array<mixed> $sources From Catalog\sources().
+ * @return array<mixed>
  */
 function with_filled( array $sources ): array {
 	if ( ! SiteData\owned() ) {
@@ -280,7 +330,7 @@ function with_filled( array $sources ): array {
 	}
 
 	foreach ( $sources as $index => $source ) {
-		if ( SiteData\SOURCE !== ( $source['name'] ?? null ) || ! is_array( $source['fields'] ?? null ) ) {
+		if ( ! is_array( $source ) || SiteData\SOURCE !== ( $source['name'] ?? null ) || ! is_array( $source['fields'] ?? null ) ) {
 			continue;
 		}
 
@@ -292,7 +342,8 @@ function with_filled( array $sources ): array {
 			$fields[]        = $field;
 		}
 
-		$sources[ $index ]['fields'] = $fields;
+		$source['fields']  = $fields;
+		$sources[ $index ] = $source;
 	}
 
 	return $sources;
