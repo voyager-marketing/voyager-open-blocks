@@ -1,6 +1,6 @@
 # Change notes
 
-`readme.txt`'s changelog is what WordPress.org shows. Pull requests do not edit it. A pull request that changes something a site owner would notice adds one note here instead, and the release pull request folds every note into the changelog at once. That keeps parallel pull requests from all editing the same lines of `readme.txt`.
+`readme.txt`'s changelog is where a site owner reads what changed in each release. Pull requests do not edit it. A pull request that changes something a site owner would notice adds one note here instead, and the release pull request folds every note into the changelog at once. That keeps parallel pull requests from all editing the same lines of `readme.txt`.
 
 ## One note per pull request
 

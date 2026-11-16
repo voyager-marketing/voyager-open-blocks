@@ -87,7 +87,7 @@ The loop is built on two open tools from Human Made: [Wesper](https://github.com
 
 == Installation ==
 
-1. In wp-admin, go to Plugins > Add New Plugin, search for Voyager Open Blocks, then install and activate it. Or download `voyager-open-blocks.zip` from the [latest GitHub release](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest) and upload it under Plugins > Add New Plugin > Upload Plugin.
+1. Download `voyager-open-blocks.zip` from the [latest GitHub release](https://github.com/voyager-marketing/voyager-open-blocks/releases/latest). In wp-admin, go to Plugins > Add New Plugin > Upload Plugin, choose the zip, then activate it.
 2. Enter your business details under Settings > Site Data, so the sections have values to show. Until you do, they show placeholder text.
 3. In the block editor, open the inserter, choose Patterns, then the "Business sections (Open Blocks)" category.
 
