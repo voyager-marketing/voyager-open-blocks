@@ -100,28 +100,41 @@ const isTradeNoun = ( word ) => TRADE_NOUNS.includes( word ) || ( word.endsWith(
  * Whether a trade noun sits within two words of a claim word, either side,
  * with nothing between them that REACH_BREAK ends the reach at. "We are
  * licensed; roofers are proud" holds none.
- * @param {string} text  The sentence the claim word was found in, NOT_CLAIMS blanked.
- * @param {string} raw   The sentence as written, its spaces collapsed and lowercased, so each character sits where it does in text.
- * @param {Object} claim From claimWords().
+ *
+ * Read, as the pack reads it, on the sentence as written: not lowercased,
+ * since lowercasing can add a character ("İ" becomes "i" and a combining
+ * dot, which is a break) where the pack sees a letter. The claim word's
+ * places are in the lowercased text, so each is mapped back, and the rest of
+ * the claim word's letters are skipped, as the pack skips them.
+ * @param {string} cased The sentence, its spaces collapsed and NOT_CLAIMS blanked, not lowercased.
+ * @param {Object} claim From claimWords(), its places in the lowercased sentence.
  */
-function tradeNounNear( text, raw, claim ) {
-	const words = ( s ) => s.match( /[\p{L}\p{N}]+/gu ) ?? [];
-	if ( raw.length !== text.length ) {
-		// The two no longer line up, so where the reach ends is unknown: no
-		// stand-in, which fails safe.
-		return false;
+function tradeNounNear( cased, claim ) {
+	const words = ( s ) => ( s.match( /[\p{L}\p{N}]+/gu ) ?? [] ).map( ( w ) => w.toLowerCase() );
+	// Where each character of cased starts once the sentence is lowercased.
+	const at = [];
+	let n = 0;
+	for ( const ch of cased ) {
+		for ( let k = 0; k < ch.length; k++ ) {
+			at.push( n );
+		}
+		n += ch.toLowerCase().length;
 	}
+	at.push( n );
+	const place = ( p ) => ( at.includes( p ) ? at.indexOf( p ) : at.findLastIndex( ( q ) => q <= p ) );
+	const start = place( claim.start );
+	const end = place( claim.end );
 	let from = 0;
-	let to = text.length;
-	for ( const m of raw.matchAll( REACH_BREAK_RE ) ) {
-		if ( m.index + m[ 0 ].length <= claim.start ) {
+	let to = cased.length;
+	for ( const m of cased.matchAll( REACH_BREAK_RE ) ) {
+		if ( m.index + m[ 0 ].length <= start ) {
 			from = m.index + m[ 0 ].length;
-		} else if ( m.index >= claim.end ) {
+		} else if ( m.index >= end ) {
 			to = m.index;
 			break;
 		}
 	}
-	return [ ...words( text.slice( from, claim.start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( text.slice( claim.end, to ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
+	return [ ...words( cased.slice( from, start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( cased.slice( end, to ).replace( /^\p{L}+/u, '' ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
 }
 
 /**
@@ -322,7 +335,7 @@ export function claims( html, brief, { year = null } = {} ) {
 	const founded = Number( brief.founded );
 	const age = Number.isInteger( year ) && Number.isInteger( founded ) && founded <= year ? year - founded : null;
 
-	const traced = ( claim, sentence, words, tested, raw ) => {
+	const traced = ( claim, sentence, words, cased ) => {
 		if ( claim.part === YEARS_PART && claim.years.value !== null ) {
 			if ( claim.years.age && age !== null && claim.years.value <= age ) {
 				return true;
@@ -336,7 +349,7 @@ export function claims( html, brief, { year = null } = {} ) {
 				return false;
 			}
 			const others = contentWords( source.text, [ same ] );
-			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( tested, raw, claim ) );
+			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( cased, claim ) );
 		} );
 	};
 
@@ -355,11 +368,8 @@ export function claims( html, brief, { year = null } = {} ) {
 			}
 			const label = sentences.length === 1 && ! /[.!?]$/.test( sentence.trim() ) && ( isFigure( lines[ i - 1 ] ?? '' ) || isFigure( lines[ i + 1 ] ?? '' ) );
 			const words = contentWords( normal );
-			const tested = withoutNotClaims( normal );
-			// match() folds quotes and dashes one character for one, so the
-			// sentence with only its spaces collapsed lines up with normal.
-			const raw = sentence.replace( /\s+/g, ' ' ).trim().toLowerCase();
-			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, tested, raw ) ).map( ( c ) => c.word );
+			const cased = withoutNotClaims( sentence.replace( /\s+/g, ' ' ).trim() );
+			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, cased ) ).map( ( c ) => c.word );
 			out.push( { text: sentence, traced: untraced.length === 0, untraced } );
 		}
 	} );
