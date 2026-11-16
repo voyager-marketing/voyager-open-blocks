@@ -73,6 +73,10 @@
  *     19 cases at least: JSON-LD read out of a page, nodes checked against a
  *     small vocabulary, each plant caught alone, and crashes planted before
  *     and after the checks, which must exit 2.
+ * 27. The benchmark scorer (bench/score.mjs and bench/measures.mjs) passes
+ *     its known-answer test, all of its 22 cases at least: both protocol
+ *     versions, the smoke runs' claims and costs, and each claim and cost
+ *     rule alone.
  *
  * The site-level gate (Wesper sees every block, source and pattern) needs a
  * running site: `npm run playground -- setup`, then `npm run context`.
@@ -803,6 +807,19 @@ report(
 	"npm run check:schema's verdict passes its known-answer test, planted crashes included",
 	schemaTest.ok,
 	schemaTest.detail
+);
+
+// The benchmark's numbers come from bench/score.mjs, so a scorer that
+// miscounts a claim or a cost misreports every run. Its known answers need
+// no site and no model: saved runs in bench/fixtures/, and each rule alone.
+const benchScoreTest = knownAnswer(
+	join( root, 'bench', 'test-score.mjs' ),
+	22
+);
+report(
+	'the benchmark scorer passes its known-answer test',
+	benchScoreTest.ok,
+	benchScoreTest.detail
 );
 
 // npm run design-check lists the contrast pairs it lets through under the

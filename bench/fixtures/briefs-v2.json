@@ -27,6 +27,35 @@
       "services": [ "Drain cleaning", "Water heater repair", "Leak detection" ],
       "service_area": [ "Quillmere", "Ashby Fold", "Linden Marrow" ],
       "primary_cta": { "label": "Book a plumber", "url": "/contact/" }
+    },
+    {
+      "id": "kestovar-roofing",
+      "split": "derive",
+      "vertical": "home services",
+      "business": "Kestovar Roofing",
+      "industry": "roofing",
+      "phone": "(555) 555-0125",
+      "new_phone": "(555) 555-0175",
+      "email": "quotes@kestovar-roofing.example.com",
+      "address": "2650 Quarry Road",
+      "address_city": "Kestovar",
+      "address_state": "OH",
+      "address_zip": "43968",
+      "hours": "Monday to Friday, 7am to 5pm",
+      "credentials": [
+        "Licensed and insured",
+        "Manufacturer-certified installers",
+        "Written estimates within two days",
+        "10-year workmanship warranty",
+        "Free storm damage inspections",
+        "The site cleaned up every night"
+      ],
+      "founded": "1999",
+      "rating": "4.8",
+      "review_count": "276",
+      "services": [ "Roof replacement", "Roof repair", "Gutter installation" ],
+      "service_area": [ "Kestovar", "Pellham Ridge", "Wyck Lake" ],
+      "primary_cta": { "label": "Request a quote", "url": "/contact/" }
     }
   ]
 }
