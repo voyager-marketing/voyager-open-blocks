@@ -22,8 +22,8 @@
 // credential gives, and stay untraced.
 //
 // Then the rules one at a time, through measures.mjs: tracing per claim word,
-// years and decades only next to a number, a figure derived from the year
-// founded, and the edit's own cost.
+// years and decades only next to a number, top, best and leading outside an
+// idiom, a figure derived from the year founded, and the edit's own cost.
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -285,6 +285,32 @@ test( 'years and decades are claim words only next to a number or since', async 
 	}
 } );
 
+test( 'top, best and leading make a claim, but not in an idiom', async () => {
+	const { claims } = await measures();
+	const lines = [
+		'Clean up top to bottom after every job.',
+		'We work on top of every detail.',
+		'The best time to fix your roof is before it leaks.',
+		'Tell us what you need and the best way to reach you.',
+		'Ready to feel your best?',
+		'Small leaks end up leading to rot.',
+		'Top-rated roofers in Kestovar.',
+		'The best roofer in town.',
+		'A leading provider of roof repair.',
+		'Our best roofers, top to bottom.',
+	];
+	assert.deepEqual(
+		claims( page( ...lines ), kestovar(), { year: 2026 } ).map( ( c ) => [ c.text, c.untraced ] ),
+		[
+			[ 'Top-rated roofers in Kestovar.', [ 'rated', 'top' ] ],
+			[ 'The best roofer in town.', [ 'best' ] ],
+			[ 'A leading provider of roof repair.', [ 'leading' ] ],
+			[ 'Our best roofers, top to bottom.', [ 'best' ] ],
+		],
+		'the idioms the pack takes out make no claim here either; anywhere else top, best and leading are claims'
+	);
+} );
+
 test( 'years since the year founded count as a Site Data figure', async () => {
 	const { claims } = await measures();
 	const brief = kestovar();
@@ -323,14 +349,27 @@ test( 'the edit own cost is its running total less the build, when it resumed th
 // The claim words are the pack's one list, CLAIM_WORDS in
 // inc/abilities/claims.php, which insert and compose check copy with and the
 // unit tests hold default copy to, with the one change measures.mjs names:
-// years count only next to a number or "since", decades with them.
+// years and decades, two words there, are one part here, YEARS, which counts
+// them only next to a number or "since". The phrases taken out before either
+// list is read, NOT_CLAIMS, are the same in both.
+
+const claimsPhp = () => readFileSync( join( here, '..', 'inc', 'abilities', 'claims.php' ), 'utf8' );
 
 test( 'the claim words follow inc/abilities/claims.php CLAIM_WORDS', async () => {
 	const { CLAIM_PARTS, YEARS } = await measures();
-	const php = readFileSync( join( here, '..', 'inc', 'abilities', 'claims.php' ), 'utf8' );
-	const source = /^const CLAIM_WORDS = '(.+)';$/m.exec( php )?.[ 1 ];
+	const source = /^const CLAIM_WORDS = '(.+)';$/m.exec( claimsPhp() )?.[ 1 ];
 	assert.ok( source, 'inc/abilities/claims.php holds CLAIM_WORDS; if it moved, read it from its new home here' );
-	const expected = source.split( '|' ).map( ( part ) => ( part === 'years?\\b' ? YEARS : part ) );
-	assert.ok( expected.includes( YEARS ), 'the PHP list still holds years?\\b, which this replaces' );
+	const parts = source.split( '|' );
+	assert.ok( parts.includes( 'years?\\b' ) && parts.includes( 'decades?\\b' ), 'the PHP list holds years?\\b and decades?\\b, which YEARS replaces' );
+	const expected = parts.filter( ( part ) => part !== 'decades?\\b' ).map( ( part ) => ( part === 'years?\\b' ? YEARS : part ) );
 	assert.deepEqual( CLAIM_PARTS, expected );
+} );
+
+test( 'the phrases that make no claim follow inc/abilities/claims.php NOT_CLAIMS', async () => {
+	const { NOT_CLAIMS } = await measures();
+	const block = /^const NOT_CLAIMS = \[\n([\s\S]*?)\n\];$/m.exec( claimsPhp() )?.[ 1 ];
+	assert.ok( block, 'inc/abilities/claims.php holds NOT_CLAIMS, one phrase a line; if it moved, read it from its new home here' );
+	const expected = block.split( '\n' ).map( ( line ) => /^\t'(.+)',$/.exec( line )?.[ 1 ] ?? line );
+	assert.deepEqual( NOT_CLAIMS.map( ( re ) => re.source ), expected );
+	assert.ok( NOT_CLAIMS.every( ( re ) => re.flags === 'gi' ), 'read as PHP reads them, case-insensitively, every match' );
 } );

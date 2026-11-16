@@ -186,6 +186,13 @@ final class ClaimWordsTest extends TestCase {
 			[ 'hero', 'Body', 'Highly rated by Kestovar homeowners, and fully licensed.' ],
 			[ 'hero', 'Body', 'Highly rated, with 276 reviews from Kestovar homeowners.' ],
 			[ 'stats', 'Rating label', 'Rating from 276 reviews' ],
+			// "Manufacturer-certified installers", with another word for the
+			// people who do the work.
+			[ 'services', 'Service 1 text', 'Manufacturer-certified roofers' ],
+			[ 'hero', 'Body', 'Manufacturer-certified crews on every Kestovar roof.' ],
+			[ 'hero', 'Body', 'Every roof is fitted by a manufacturer-certified team.' ],
+			// The installation, a form of "installers" before any trade noun.
+			[ 'services', 'Service 1 text', 'New roofs with manufacturer-certified installation.' ],
 		] as [ $slug, $slot, $text ] ) {
 			$out[ "{$slug} {$slot}: {$text}" ] = [ $slug, $slot, $text ];
 		}
@@ -232,6 +239,79 @@ final class ClaimWordsTest extends TestCase {
 
 		// Two counts in a sentence each need to be within it.
 		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'hero', [ 'Body' => 'Over 25 years in Kestovar and 40 years in the trade.' ] ) ) );
+	}
+
+	public function test_a_number_of_decades_up_to_the_years_since_founded_is_given(): void {
+		$text    = 'Three decades of roofing in Kestovar.';
+		$founded = static fn ( string $year ): array => [
+			'founded' => $year,
+			'year'    => '2026',
+		];
+
+		// Founded in 2023, three years before 2026: no decade is given, and
+		// the refusal names the word and the most it may say.
+		$refused = self::check( 'hero', [ 'Body' => $text ], $founded( '2023' ) );
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ) );
+		$this->assertSame( [ 'decades' ], $refused[0]['words'] ?? null );
+		$this->assertStringContainsString( 'up to 3', (string) ( $refused[0]['message'] ?? '' ) );
+
+		// Founded in 1990, 36 years: three decades are given.
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => $text ], $founded( '1990' ) ) ) );
+
+		// kestovar-roofing, 27 years: two decades, never three.
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Two decades of roofing in Kestovar.' ] ) ) );
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Over 2 decades and 25 years of roofing in Kestovar.' ] ) ) );
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'hero', [ 'Body' => $text ] ) ) );
+
+		// No year founded: no number of decades is given.
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'hero', [ 'Body' => $text ], [] ) ) );
+
+		// A "two-decade" roof says how long it lasts, not how old the
+		// business is.
+		$refused = self::check( 'hero', [ 'Body' => 'Every new roof is built as a two-decade roof.' ], $founded( '1990' ) );
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ) );
+		$this->assertSame( [ 'decade' ], $refused[0]['words'] ?? null );
+	}
+
+	public function test_top_best_and_leading_in_a_claim_shape_are_refused(): void {
+		foreach ( [
+			'Top-rated roofers in Kestovar.'                  => 'top',
+			'The best roofer in town.'                        => 'best',
+			'Rated best in town by Kestovar homeowners.'      => 'best',
+			'Kestovar\'s leading provider of roof repair.'    => 'leading',
+			'Our best roofers on every job, top to bottom.'   => 'best',
+			'Leading roofers, leading to fewer leaks.'        => 'leading',
+			'The best time to call is now: we are the best.'  => 'best',
+		] as $text => $word ) {
+			$refused = self::check( 'hero', [ 'Body' => $text ] );
+
+			$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ), $text );
+			$this->assertSame( [ $word ], $refused[0]['words'] ?? null, $text );
+
+			$this->assertContains( $word, self::check( 'hero', [ 'Body' => $text ], [] )[0]['words'] ?? [], "{$text}, no Site Data" );
+		}
+	}
+
+	public function test_a_trade_noun_stands_only_for_another_trade_noun(): void {
+		foreach ( [
+			'Certified roofers on every job.'                => 'certified',
+			'Built with manufacturer-certified materials.'   => 'certified',
+			'Manufacturer-certified roofing on every job.'   => 'certified',
+		] as $text => $word ) {
+			$refused = self::check( 'services', [ 'Service 1 text' => $text ] );
+
+			$this->assertSame( [ 'Service 1 text: unsourced_claim' ], self::reasons( $refused ), $text );
+			$this->assertSame( [ $word ], $refused[0]['words'] ?? null, $text );
+		}
+
+		// A trade noun in the sentence stands for the credential's own, and
+		// for nothing else: "roof" in "Free roof inspections" is not one.
+		$roofs = [
+			'credentials' => 'Free roof inspections',
+			'year'        => '2026',
+		];
+		$this->assertSame( [], self::reasons( self::check( 'cta-band', [ 'Body' => 'A free inspection of your roof.' ], $roofs ) ) );
+		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'cta-band', [ 'Body' => 'Free inspections by our crews.' ], $roofs ) ) );
 	}
 
 	public function test_a_figure_with_a_number_needs_its_site_data_value(): void {
@@ -289,6 +369,15 @@ final class ClaimWordsTest extends TestCase {
 			[ 'stats', 'Rating label', 'Average rating' ],
 			[ 'stats', 'Review count label', 'Customer reviews' ],
 			[ 'services', 'Service 1 text', 'A full roof check each year, with any loose shingles fixed.' ],
+			[ 'services', 'Service 1 text', 'New roofs built to last for decades.' ],
+			// "top", "best" and "leading" in an idiom, not a claim shape.
+			[ 'services', 'Service 1 text', 'Clean up top to bottom after every job.' ],
+			[ 'hero', 'Body', 'We work on top of every detail.' ],
+			[ 'cta-band', 'Body', 'The best time to fix your roof is before it leaks.' ],
+			[ 'cta-band', 'Body', 'Tell us what you need and the best way to reach you.' ],
+			[ 'cta-band', 'Heading', 'Ready to see your roof looking its best?' ],
+			[ 'hero', 'Body', 'We give every roof our best, from the first call to a top-to-bottom clean-up.' ],
+			[ 'hero', 'Body', 'Small leaks left alone end up leading to rot in the deck.' ],
 		] as [ $slug, $slot, $text ] ) {
 			$out[ "{$slug} {$slot}: {$text}, no Site Data" ]  = [ $slug, $slot, $text, [] ];
 			$out[ "{$slug} {$slot}: {$text}, kestovar" ]      = [ $slug, $slot, $text, null ];
@@ -321,7 +410,7 @@ final class ClaimWordsTest extends TestCase {
 		$alternatives = Abilities\claim_alternatives();
 
 		$this->assertSame( Abilities\CLAIM_WORDS, implode( '|', $alternatives ), 'no alternative holds a |, so the list splits into its words' );
-		$this->assertCount( 20, $alternatives );
+		$this->assertCount( 21, $alternatives );
 
 		foreach ( $alternatives as $alternative ) {
 			$this->assertSame( 0, preg_match( '/' . $alternative . '/i', '' ), "{$alternative} compiles" );
