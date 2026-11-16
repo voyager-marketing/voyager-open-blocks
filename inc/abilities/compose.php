@@ -7,7 +7,9 @@
  * stands in for the list: its sections, each with its style, its omit and no
  * copy, go through sections_input() and are built as a list is. Each section
  * names a pack pattern by its section and layout, resolved as contract 5 says,
- * and is inserted as a copy. Its repeat, omit and copy are applied and checked
+ * or by the pattern's own name, read as its section and layout
+ * (layout_named()), and is inserted as a copy. Its repeat, omit and copy are
+ * applied and checked
  * with fill_pattern(), the code insert fills a pattern with (copy-rules.php),
  * then bound_copy_slots(), and its style
  * is set on its top-level group the way configure's style input sets it
@@ -16,7 +18,9 @@
  * every refused slot is listed with its section's index.
  *
  * The page is saved with save_blocks(), the revision handling insert uses, so
- * undo reverses a compose save.
+ * undo reverses a compose save. compose never renames a draft, since undo
+ * restores content and not the title: title beside post_id is taken only when
+ * it is the draft's title already (title_refusal()).
  *
  * @package VoyagerOpenBlocks
  */
@@ -58,13 +62,13 @@ function register_compose(): void {
 					'post_id'  => [
 						'type'        => 'integer',
 						'minimum'     => 1,
-						'description' => 'A draft whose whole content compose replaces. Not with title.',
+						'description' => 'A draft whose whole content compose replaces. Its title stays.',
 					],
 					'title'    => [
 						'type'        => 'string',
 						'minLength'   => 1,
 						'pattern'     => '\S',
-						'description' => 'Title of a new draft page, owned by you. Not with post_id.',
+						'description' => 'Title of a new draft page, owned by you. With post_id, only the draft\'s own title.',
 					],
 					'recipe'   => recipe_input_schema(),
 					'sections' => [
@@ -77,13 +81,13 @@ function register_compose(): void {
 							'properties'           => [
 								'pattern'       => [
 									'type'        => 'string',
-									'enum'        => array_keys( section_layouts() ),
-									'description' => 'voyager-open/ and the section get-catalog lists on its patterns, such as voyager-open/services for both its grid and its list, or the pattern\'s own name when its section is null, such as voyager-open/closing-cta.',
+									'enum'        => compose_patterns(),
+									'description' => 'A pattern get-catalog lists, by its name, such as voyager-open/services-list, or by its section, such as voyager-open/services with layout list.',
 								],
 								'layout'        => [
 									'type'        => [ 'string', 'null' ],
 									'minLength'   => 1,
-									'description' => 'The layout get-catalog lists on the pattern, such as list for voyager-open/services-list. null, the default, is the section\'s first layout, and the only one a section with one layout takes.',
+									'description' => 'With a section, its layout get-catalog lists; null, the default, is the first. With a pattern\'s name, null or that pattern\'s layout.',
 								],
 								'style'         => [
 									'type'        => 'string',
@@ -95,7 +99,7 @@ function register_compose(): void {
 									'type'                 => 'object',
 									'default'              => [],
 									'additionalProperties' => copy_value_schema(),
-									'description'          => 'Text by copy label, as insert\'s copy takes it, within the pattern\'s copy_rules. A claim slot takes only the object form, and a bound slot, such as "Click to call", none.',
+									'description'          => 'Text by copy label, as insert\'s copy takes it, within the pattern\'s copy_rules. A claim slot takes only the object form, and a slot whose text is bound, such as "Founded value", none.',
 								],
 								'omit'          => omit_schema( 'As insert\'s omit, for this section, such as ["Service 3"] for two service cards. A recipe\'s section may carry omit: pass it on.' ),
 								'repeat'        => repeat_schema( 'As insert\'s repeat, such as {"Credential 4": ["Credential 5"]} for a fifth fact. A copy holds the text and copy rule of the block it copies, so give it copy: a copy of a claim slot is a claim.' ),
@@ -231,6 +235,109 @@ function resolve_layout( array $layouts, string $section, ?string $layout ): ?st
 	}
 
 	return null;
+}
+
+/**
+ * What a compose section's pattern may name: each section, and each layout by
+ * its own pattern name, each once, sorted.
+ *
+ * A section's first layout keeps the section's name, so most names are both.
+ *
+ * @param string|null $dir Intents directory to read instead, as section_layouts() takes it.
+ * @return list<string>
+ */
+function compose_patterns( ?string $dir = null ): array {
+	$layouts = section_layouts( $dir );
+	$names   = array_keys( $layouts );
+
+	foreach ( $layouts as $entries ) {
+		array_push( $names, ...array_column( $entries, 'pattern' ) );
+	}
+
+	$names = array_values( array_unique( $names ) );
+	sort( $names );
+
+	return $names;
+}
+
+/**
+ * The section and layout a layout's own pattern name stands for.
+ *
+ * get-catalog lists every pattern by its name, such as
+ * voyager-open/proof-strip-facts, beside its section and layout. compose
+ * takes that name as a section's pattern and reads it as its section and
+ * layout, proof-strip and facts, so it builds what the two would. A section's
+ * own name is read as the section, as before, so voyager-open/proof-strip with
+ * layout facts is still the facts layout.
+ *
+ * @param array<string, list<array{layout: string|null, pattern: string}>> $layouts From section_layouts().
+ * @param string                                                            $pattern A compose section's pattern.
+ * @return array{section: string, layout: string}|null Null when pattern names a section, or no layout.
+ */
+function layout_named( array $layouts, string $pattern ): ?array {
+	if ( isset( $layouts[ $pattern ] ) ) {
+		return null;
+	}
+
+	foreach ( $layouts as $section => $entries ) {
+		foreach ( $entries as $entry ) {
+			if ( $entry['pattern'] === $pattern && null !== $entry['layout'] ) {
+				return [
+					'section' => $section,
+					'layout'  => $entry['layout'],
+				];
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Why a layout's own pattern name and a layout that is not its own are refused, as one sentence.
+ *
+ * @param int                                    $index   Index of the section.
+ * @param string                                 $pattern The pattern given, a layout's own name.
+ * @param string                                 $layout  The layout given.
+ * @param array{section: string, layout: string} $named   From layout_named().
+ */
+function layout_disagrees( int $index, string $pattern, string $layout, array $named ): string {
+	return sprintf(
+		'section %1$d: %2$s is the %3$s layout of %4$s, and layout "%5$s" disagrees with it. Leave layout out, or pass %4$s with the layout you want.',
+		$index,
+		$pattern,
+		$named['layout'],
+		$named['section'],
+		$layout
+	);
+}
+
+/**
+ * Why compose refuses title beside post_id, or '' when it takes it.
+ *
+ * compose never renames a draft: undo restores a save's content and not its
+ * title, so a title compose changed could not be undone. A title that is the
+ * draft's own already, such as one left in a call that now adds post_id, is
+ * taken and changes nothing. Both are compared with surrounding space trimmed
+ * and HTML entities decoded, since WordPress may store "&" as "&amp;".
+ *
+ * @param int    $post_id The draft.
+ * @param string $title   The title given.
+ * @param string $current The draft's title, as WordPress stores it.
+ */
+function title_refusal( int $post_id, string $title, string $current ): string {
+	$same = static fn ( string $text ): string => html_entity_decode( trim( $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+
+	if ( $same( $title ) === $same( $current ) ) {
+		return '';
+	}
+
+	return sprintf(
+		'Nothing was saved: draft %1$d is titled "%2$s", and compose does not rename a draft (undo restores content, not titles). Drop title to replace the draft\'s content and keep its title, or drop post_id to build a new draft titled "%3$s".',
+		$post_id,
+		$current,
+		$title
+	);
 }
 
 /**
@@ -445,12 +552,10 @@ function compose( array $input ) {
 		);
 	}
 
-	if ( $has_post === $has_title ) {
+	if ( ! $has_post && ! $has_title ) {
 		return new WP_Error(
 			'voyager_open_blocks_invalid_post_id',
-			$has_post
-				? 'Nothing was saved: pass post_id or title, not both. post_id replaces a draft\'s content; title creates a new draft page.'
-				: 'Pass title to create a new draft page, or post_id of a draft whose content compose replaces.',
+			'Pass title to create a new draft page, or post_id of a draft whose content compose replaces.',
 			[ 'status' => 400 ]
 		);
 	}
@@ -498,18 +603,34 @@ function compose( array $input ) {
 			);
 		}
 
+		// A title beside post_id must be the draft's own: compose never renames one.
+		$refusal = $has_title ? title_refusal( $post_id, Cast\to_string( $input['title'] ), $post->post_title ) : '';
+		if ( '' !== $refusal ) {
+			return new WP_Error( 'voyager_open_blocks_invalid_post_id', $refusal, [ 'status' => 400 ] );
+		}
+
 		$post_type = $post->post_type;
 	}
 
-	// Each section's pattern, from its section and layout. Every one that
-	// names no pattern is listed at once.
+	// Each section's pattern, from its section and layout, or from a layout's
+	// own name read as its section and layout. Every one that names no
+	// pattern, or a layout that is not its own, is listed at once.
 	$layouts  = section_layouts();
 	$registry = \WP_Block_Patterns_Registry::get_instance();
 	$patterns = [];
 	$unknown  = [];
 
 	foreach ( $sections as $index => $section ) {
-		$name = resolve_layout( $layouts, $section['pattern'], $section['layout'] );
+		$named = layout_named( $layouts, $section['pattern'] );
+
+		if ( null !== $named && null !== $section['layout'] && $named['layout'] !== $section['layout'] ) {
+			$unknown[] = layout_disagrees( $index, $section['pattern'], $section['layout'], $named );
+			continue;
+		}
+
+		$name = null === $named
+			? resolve_layout( $layouts, $section['pattern'], $section['layout'] )
+			: resolve_layout( $layouts, $named['section'], $named['layout'] );
 
 		if ( null === $name || ! $registry->is_registered( $name ) ) {
 			$unknown[] = unknown_layout( $index, $section['pattern'], $section['layout'], $layouts );
@@ -522,7 +643,7 @@ function compose( array $input ) {
 	if ( [] !== $unknown ) {
 		return new WP_Error(
 			'voyager_open_blocks_invalid_layout',
-			'Nothing was saved: ' . implode( ' ', $unknown ) . ' get-catalog lists each pattern\'s section and layout; leave layout out for the first.',
+			'Nothing was saved: ' . implode( ' ', $unknown ) . ' get-catalog lists each pattern\'s name, section and layout. Pass a pattern\'s name, or its section with its layout; leave layout out for the first.',
 			[ 'status' => 400 ]
 		);
 	}

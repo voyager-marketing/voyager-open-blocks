@@ -52,7 +52,7 @@ function register_audit(): void {
 		CATEGORY . '/audit',
 		[
 			'label'               => __( 'Audit a page before it goes live', 'voyager-open-blocks' ),
-			'description'         => __( 'Lists what to fix on a saved post before it goes live, and saves nothing. Each finding has a code, block, path and a message saying how to fix it. typed_contact: text holding a phone number, email or street address, where a Site Data binding belongs. default_copy: a named text block still holding the pack\'s text. placeholder, missing_alt, stale_fallback: as validate warns them. contrast: a block\'s own text and background colours under 4.5:1. empty_field: a bound Site Data field that is empty.', 'voyager-open-blocks' ),
+			'description'         => __( 'Lists what to fix on a saved post before it goes live, and saves nothing. Each finding has a code, block, path and a message saying how to fix it. typed_contact: text holding a phone number, email or street address, where a Site Data binding belongs. default_copy: a named text block holding the pack\'s text, which can stay if you gave it as copy. placeholder, missing_alt, stale_fallback: as validate warns them. contrast: a block\'s own text and background colours under 4.5:1. empty_field: a bound Site Data field that is empty.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -538,6 +538,13 @@ function shipped_copy(): array {
  * A block matches by its label and its whole text, never by its text alone,
  * so the same words under another label are not flagged.
  *
+ * audit reads the saved post and nothing else, and insert and compose write
+ * copy as plain text (BlockTree\set_copy()), so the pack's words left in
+ * place and the same words given as copy read alike. Some copy rules even
+ * suggest them, such as "Call us" for the contact section's call button.
+ * The finding is kept for both, and its message says how the caller tells
+ * them apart: text it gave as copy for that label can stay.
+ *
  * @param array<int, Block>           $blocks The page's blocks.
  * @param array<string, list<string>> $index  From shipped_copy().
  * @return list<array{code: string, block: string, path: string, message: string}>
@@ -554,7 +561,7 @@ function default_copy_findings( array $blocks, array $index ): array {
 			'code'    => 'default_copy',
 			'block'   => $row['block'],
 			'path'    => $row['path'],
-			'message' => sprintf( '%1$s "%2$s" at %3$s still holds "%4$s", the text the pack ships there. Replace it in the editor with the site\'s own words, or remove the block.', $row['block'], $row['label'], $row['path'], $row['text'] ),
+			'message' => sprintf( '%1$s "%2$s" at %3$s holds "%4$s", the text the pack ships there. If you gave that text as copy for "%2$s", it is your choice and can stay. If not, it was left in place: replace it in the editor with the site\'s own words, or remove the block.', $row['block'], $row['label'], $row['path'], $row['text'] ),
 		];
 	}
 
