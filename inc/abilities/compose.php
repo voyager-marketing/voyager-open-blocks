@@ -176,22 +176,27 @@ function can_compose( $input = null ): bool {
 }
 
 /**
- * The pack's sections and their layouts, read from the intents (contract 5).
+ * The pack's sections and their layouts, as the intents say (contract 5).
  *
  * An intent with a `section` key is one layout of that section. One without is
  * a section with one layout, named by its own slug. The layout that keeps the
  * section's slug is its first.
  *
- * @param string|null $dir Intents directory. Defaults to this plugin's patterns/intents.
+ * Read from the generated array (Patterns\generated()), which holds the
+ * intents in the order glob() lists their files, so registering get-catalog
+ * and compose reads no intent file.
+ *
+ * @param string|null $dir Intents directory to read instead, such as a test's. Defaults to the generated array, built from this plugin's patterns/intents.
  * @return array<string, list<array{layout: string|null, pattern: string}>> Section (voyager-open/<section>) => its layouts, the first one first.
  */
 function section_layouts( ?string $dir = null ): array {
-	$dir = $dir ?? VOYAGER_OPEN_BLOCKS_DIR . '/patterns/intents';
-	$out = [];
+	$patterns = null === $dir
+		? array_keys( Patterns\generated() )
+		: array_map( static fn ( string $file ): string => Catalog\PREFIX . basename( $file, '.json' ), glob( $dir . '/*.json' ) ?: [] );
+	$out      = [];
 
-	foreach ( glob( $dir . '/*.json' ) ?: [] as $file ) {
-		$slug    = basename( $file, '.json' );
-		$pattern = Catalog\PREFIX . $slug;
+	foreach ( $patterns as $pattern ) {
+		$slug    = substr( $pattern, strlen( Catalog\PREFIX ) );
 		$meta    = Patterns\intent_meta( $pattern, $dir );
 		$section = Catalog\PREFIX . ( $meta['section'] ?? $slug );
 		$entry   = [
