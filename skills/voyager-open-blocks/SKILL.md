@@ -17,8 +17,8 @@ Abilities place the pack's blocks and patterns, and check every write. Their des
 
 ## Build a page
 
-1. `voyager-open-blocks/get-catalog`, then with `recipe`, such as `home`, for its sections' copy rules. If missing, the plugin is inactive: say so.
-2. `compose` with a `title` and those `sections`, each with `copy` from its `copy_guidance`. `omit` what you lack facts for; `repeat` adds items.
+1. `voyager-open-blocks/get-catalog`, then with `recipe`, such as `home`, for its sections' copy rules and Site Data `filled`. If missing, the plugin is inactive: say so.
+2. `compose` with a `title` and those `sections`, each with `copy` from its `copy_guidance`, none where a rule says `copy: false`. `omit` what you lack facts for; `repeat` adds items.
 3. `validate`, then `audit`, the draft's `post_id`.
 4. Report the `preview_url` and each `audit` finding.
 
@@ -52,4 +52,4 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 
 ## More
 
-Each item has a skill, such as `voyager-open-hero`. `examples/` holds five businesses' home pages as `compose` calls. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.
+Each item has a skill, such as `voyager-open-hero`. Read the site's `DESIGN.md`, then the pack's, in the plugin folder.
