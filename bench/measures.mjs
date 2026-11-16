@@ -26,8 +26,9 @@ export const YEARS = String.raw`(?:\b(?:${ NUMBER })\+?(?:\s+|-)(?:years?|decade
  * address and opening time would trip, and `rating` and `review` start a
  * word, so "operating", "celebrating", "decorating" and "preview" make no
  * claim, while "ratings", "reviews" and "reviewed" still do. One change here,
- * because this reads a whole page: `years?` counts only next to a number or
- * "since", and `decades?` with it (YEARS above).
+ * because this reads a whole page: `years?` and `decades?`, two words there,
+ * are one part here, YEARS above, which counts them only next to a number or
+ * "since".
  *
  * bench/test-score.mjs checks that this is that list with that change.
  */
@@ -57,8 +58,21 @@ export const CLAIM_WORDS = new RegExp( CLAIM_PARTS.join( '|' ), 'i' );
 const PARTS = CLAIM_PARTS.map( ( part ) => new RegExp( part, 'gi' ) );
 const YEARS_PART = CLAIM_PARTS.indexOf( YEARS );
 
-/** Phrases that hold a claim word and make no claim, removed before the test. */
-const NOT_CLAIMS = [ /\bfeel free\b/gi ];
+/**
+ * Phrases that hold a claim word and make no claim, removed before the test:
+ * "feel free", and "top", "best" and "leading" in an idiom ("top to
+ * bottom", "the best way", "feel your best", "leading to"). The pack's own
+ * list, NOT_CLAIMS in inc/abilities/claims.php, which bench/test-score.mjs
+ * holds this to.
+ */
+export const NOT_CLAIMS = [
+	/\bfeel free\b/gi,
+	/\btop[- ]to[- ]bottom\b/gi,
+	/\bon top of\b/gi,
+	/\bbest (?:time|way)s?\b/gi,
+	/\b(?:my|your|his|her|its|our|their) best\b(?![- ]*[a-z])/gi,
+	/\bleading (?:up )?(?:to|into)\b/gi,
+];
 
 /**
  * A Site Data figure in a sentence traces the claim words about that figure,
