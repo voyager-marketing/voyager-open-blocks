@@ -26,8 +26,9 @@ export const YEARS = String.raw`(?:\b(?:${ NUMBER })\+?(?:\s+|-)(?:years?|decade
  * address and opening time would trip, and `rating` and `review` start a
  * word, so "operating", "celebrating", "decorating" and "preview" make no
  * claim, while "ratings", "reviews" and "reviewed" still do. One change here,
- * because this reads a whole page: `years?` counts only next to a number or
- * "since", and `decades?` with it (YEARS above).
+ * because this reads a whole page: `years?` and `decades?`, two words there,
+ * are one part here, YEARS above, which counts them only next to a number or
+ * "since".
  *
  * bench/test-score.mjs checks that this is that list with that change.
  */
@@ -57,8 +58,84 @@ export const CLAIM_WORDS = new RegExp( CLAIM_PARTS.join( '|' ), 'i' );
 const PARTS = CLAIM_PARTS.map( ( part ) => new RegExp( part, 'gi' ) );
 const YEARS_PART = CLAIM_PARTS.indexOf( YEARS );
 
-/** Phrases that hold a claim word and make no claim, removed before the test. */
-const NOT_CLAIMS = [ /\bfeel free\b/gi ];
+/**
+ * Phrases that hold a claim word and make no claim, removed before the test:
+ * "feel free", and "top", "best" and "leading" in an idiom ("top to
+ * bottom", "the best way", "feel your best", "leading to"). The pack's own
+ * list, NOT_CLAIMS in inc/abilities/claims.php, which bench/test-score.mjs
+ * holds this to.
+ */
+export const NOT_CLAIMS = [
+	/\bfeel free\b/gi,
+	/\btop[- ]to[- ]bottom\b/gi,
+	/\bon top of\b/gi,
+	/\bbest (?:time|way)s?\b/gi,
+	/\b(?:my|your|his|her|its|our|their) best\b(?![- ]*[a-z])/gi,
+	/\bleading (?:up )?(?:to|into)\b/gi,
+];
+
+/**
+ * The words for the people who do the work, the pack's TRADE_NOUNS in
+ * inc/abilities/claims.php, which bench/test-score.mjs holds this to. A
+ * credential or service whose other words are all trade nouns traces its
+ * claim word when one of them sits within two words of it: "Licensed
+ * roofers" with "Licensed contractors". A credential with other words still
+ * needs one of those: "Certified roofers" shares nothing with
+ * "Manufacturer-certified installers". Each counts with an "s" too.
+ */
+export const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contractor', 'staff', 'team' ];
+// How many words may stand between a claim word and a trade noun it is said
+// of, the pack's TRADE_NOUN_REACH.
+export const TRADE_NOUN_REACH = 2;
+
+// What ends a trade noun's reach, the pack's CLAIM_REACH_BREAK: any character
+// but a letter, a digit, a space, an apostrophe and a hyphen with a letter on
+// both sides. Read on the sentence as written, as the pack reads it, not after
+// match() folds dashes and quotes.
+export const REACH_BREAK = String.raw`[^\p{L}\p{N}\s'’-]|(?<!\p{L})-|-(?!\p{L})`;
+const REACH_BREAK_RE = new RegExp( REACH_BREAK, 'gu' );
+const isTradeNoun = ( word ) => TRADE_NOUNS.includes( word ) || ( word.endsWith( 's' ) && TRADE_NOUNS.includes( word.slice( 0, -1 ) ) );
+
+/**
+ * Whether a trade noun sits within two words of a claim word, either side,
+ * with nothing between them that REACH_BREAK ends the reach at. "We are
+ * licensed; roofers are proud" holds none.
+ *
+ * Read, as the pack reads it, on the sentence as written: not lowercased,
+ * since lowercasing can add a character ("İ" becomes "i" and a combining
+ * dot, which is a break) where the pack sees a letter. The claim word's
+ * places are in the lowercased text, so each is mapped back, and the rest of
+ * the claim word's letters are skipped, as the pack skips them.
+ * @param {string} cased The sentence, its spaces collapsed and NOT_CLAIMS blanked, not lowercased.
+ * @param {Object} claim From claimWords(), its places in the lowercased sentence.
+ */
+function tradeNounNear( cased, claim ) {
+	const words = ( s ) => ( s.match( /[\p{L}\p{N}]+/gu ) ?? [] ).map( ( w ) => w.toLowerCase() );
+	// Where each character of cased starts once the sentence is lowercased.
+	const at = [];
+	let n = 0;
+	for ( const ch of cased ) {
+		for ( let k = 0; k < ch.length; k++ ) {
+			at.push( n );
+		}
+		n += ch.toLowerCase().length;
+	}
+	at.push( n );
+	const place = ( p ) => ( at.includes( p ) ? at.indexOf( p ) : at.findLastIndex( ( q ) => q <= p ) );
+	const start = place( claim.start );
+	const end = place( claim.end );
+	let from = 0;
+	let to = cased.length;
+	for ( const m of cased.matchAll( REACH_BREAK_RE ) ) {
+		if ( m.index + m[ 0 ].length <= start ) {
+			from = m.index + m[ 0 ].length;
+		} else if ( m.index >= end ) {
+			to = m.index;
+			break;
+		}
+	}
+	return [ ...words( cased.slice( from, start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( cased.slice( end, to ).replace( /^\p{L}+/u, '' ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
+}
 
 /**
  * A Site Data figure in a sentence traces the claim words about that figure,
@@ -73,6 +150,10 @@ const FIGURE_CLAIMS = {
 	license: [ 'licen[cs]' ],
 };
 
+// A sentence with NOT_CLAIMS blanked out, each character a space, so a claim
+// word keeps its place.
+const withoutNotClaims = ( sentence ) => NOT_CLAIMS.reduce( ( s, re ) => s.replace( re, ( m ) => ' '.repeat( m.length ) ), sentence );
+
 /**
  * Each claim word in a sentence, once per kind: its part of CLAIM_PARTS, the
  * whole word it is in, where it is, and for years the number of years. Two
@@ -80,7 +161,7 @@ const FIGURE_CLAIMS = {
  * @param {string} sentence Normalized with match().
  */
 export function claimWords( sentence ) {
-	const text = NOT_CLAIMS.reduce( ( s, re ) => s.replace( re, ( m ) => ' '.repeat( m.length ) ), sentence );
+	const text = withoutNotClaims( sentence );
 	const found = new Map();
 	PARTS.forEach( ( re, part ) => {
 		for ( const m of text.matchAll( re ) ) {
@@ -206,7 +287,10 @@ function contentWords( text, skip = [] ) {
  *   to "Free storm damage inspections"; "free" with "estimate" does not), or
  *   holds nothing but claim words ("Licensed and insured" traces
  *   "licensed" on its own). Words of the business name, its industry and its
- *   town are in every sentence, so they share nothing;
+ *   town are in every sentence, so they share nothing. A source whose other
+ *   words are all trade nouns traces it when a trade noun sits within two
+ *   words of it ("Licensed roofers" with "Licensed contractors", TRADE_NOUNS
+ *   above);
  * - a Site Data figure in the sentence speaks to it: the year founded traces
  *   "since" and "established", the rating and review count "rated",
  *   "rating", "review" and "stars", the licence "licensed";
@@ -242,7 +326,7 @@ export function claims( html, brief, { year = null } = {} ) {
 		.map( ( text ) => {
 			const found = claimWords( text );
 			const rest = contentWords( text, found ).filter( ( w ) => ! generic.some( ( g ) => sameWord( g, w ) ) );
-			return { text, found, bare: found.length > 0 && rest.length === 0 };
+			return { text, found, bare: found.length > 0 && rest.length === 0, trade: found.length > 0 && rest.length > 0 && rest.every( isTradeNoun ) };
 		} );
 	const figures = Object.entries( FIGURE_CLAIMS )
 		.filter( ( [ key ] ) => brief[ key ] != null && brief[ key ] !== '' )
@@ -251,7 +335,7 @@ export function claims( html, brief, { year = null } = {} ) {
 	const founded = Number( brief.founded );
 	const age = Number.isInteger( year ) && Number.isInteger( founded ) && founded <= year ? year - founded : null;
 
-	const traced = ( claim, sentence, words ) => {
+	const traced = ( claim, sentence, words, cased ) => {
 		if ( claim.part === YEARS_PART && claim.years.value !== null ) {
 			if ( claim.years.age && age !== null && claim.years.value <= age ) {
 				return true;
@@ -261,7 +345,11 @@ export function claims( html, brief, { year = null } = {} ) {
 		}
 		return sources.some( ( source ) => {
 			const same = source.found.find( ( c ) => c.part === claim.part && ( c.years?.value ?? null ) === ( claim.years?.value ?? null ) );
-			return same && ( source.bare || shares( words, contentWords( source.text, [ same ] ) ) );
+			if ( ! same ) {
+				return false;
+			}
+			const others = contentWords( source.text, [ same ] );
+			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( cased, claim ) );
 		} );
 	};
 
@@ -280,7 +368,8 @@ export function claims( html, brief, { year = null } = {} ) {
 			}
 			const label = sentences.length === 1 && ! /[.!?]$/.test( sentence.trim() ) && ( isFigure( lines[ i - 1 ] ?? '' ) || isFigure( lines[ i + 1 ] ?? '' ) );
 			const words = contentWords( normal );
-			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words ) ).map( ( c ) => c.word );
+			const cased = withoutNotClaims( sentence.replace( /\s+/g, ' ' ).trim() );
+			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, cased ) ).map( ( c ) => c.word );
 			out.push( { text: sentence, traced: untraced.length === 0, untraced } );
 		}
 	} );

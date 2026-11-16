@@ -1,0 +1,33 @@
+{
+	"$comment": "Whether a trade noun stands in for a credential's own: each case is a sentence, the credentials it is read against, and whether its claim word is given. tests/Unit/ClaimWordsTest.php runs every case through the pack (unsourced_claims()) and bench/test-score.mjs through the benchmark scorer (claims()), each against this answer, so the two agree on every sentence.",
+	"cases": [
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed roofers serve Kestovar.", "given": true },
+		{ "credentials": [ "Licensed contractors" ], "text": "Our roofers are licensed.", "given": true },
+		{ "credentials": [ "Licensed contractors" ], "text": "Our roofers' work is licensed.", "given": true },
+		{ "credentials": [ "Licensed contractors" ], "text": "Our roofers’ work is licensed.", "given": true },
+		{ "credentials": [ "Licensed and insured contractors" ], "text": "Licensed and insured crews on every job.", "given": true },
+		{ "credentials": [ "Licensed and insured contractors" ], "text": "Licensed roofers serve Kestovar.", "given": true },
+		{ "credentials": [ "Manufacturer-certified installers" ], "text": "Manufacturer-certified roofers", "given": true },
+		{ "credentials": [ "Manufacturer-certified installers" ], "text": "Manufacturer-certified crews on every Kestovar roof.", "given": true },
+		{ "credentials": [ "Manufacturer-certified installers" ], "text": "We use certified materials.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed to operate, and our roofers are proud of their work.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed to operate, and proud of our work.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Our roofers clean up daily and are fully licensed.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed, our roofers say, to operate.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We are licensed; roofers are proud of their work.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed; our roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We are licensed: roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Roofers (all licensed) on every job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed—our roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed – our roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We are licensed - roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed -- our roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed… our roofers love every job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed... our roofers love every job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed―our roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "We're licensed − our roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed / roofers love this job.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensed, experienced roofers serve Kestovar.", "given": false },
+		{ "credentials": [ "Licensed contractors" ], "text": "Licensedİ our roofers are great.", "given": true }
+	]
+}
