@@ -88,25 +88,39 @@ export const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contr
 // of, the pack's TRADE_NOUN_REACH.
 export const TRADE_NOUN_REACH = 2;
 
-// A clause mark, as the pack's CLAIM_CLAUSE_MARK reads one: a comma,
-// semicolon, colon, bracket, a hyphen with a space either side, or two
-// hyphens. match() turns an em or en dash into a hyphen, so claims() turns
-// each into a comma first, where the pack reads it as a mark of its own.
-const CLAUSE_MARK = /[,;:()[\]]|\s-+\s|--/;
+// What ends a trade noun's reach, the pack's CLAIM_REACH_BREAK: any character
+// but a letter, a digit, a space, an apostrophe and a hyphen with a letter on
+// both sides. Read on the sentence as written, as the pack reads it, not after
+// match() folds dashes and quotes.
+export const REACH_BREAK = String.raw`[^\p{L}\p{N}\s'’-]|(?<!\p{L})-|-(?!\p{L})`;
+const REACH_BREAK_RE = new RegExp( REACH_BREAK, 'gu' );
 const isTradeNoun = ( word ) => TRADE_NOUNS.includes( word ) || ( word.endsWith( 's' ) && TRADE_NOUNS.includes( word.slice( 0, -1 ) ) );
 
 /**
  * Whether a trade noun sits within two words of a claim word, either side,
- * in the same clause: no more than TRADE_NOUN_REACH words and no clause mark
- * between them. "We are licensed; roofers are proud" holds none.
- * @param {string} text   The sentence the claim word was found in, NOT_CLAIMS blanked.
- * @param {string} marked The same sentence with each em or en dash a comma, so its clause marks sit where they are in text.
- * @param {Object} claim  From claimWords().
+ * with nothing between them that REACH_BREAK ends the reach at. "We are
+ * licensed; roofers are proud" holds none.
+ * @param {string} text  The sentence the claim word was found in, NOT_CLAIMS blanked.
+ * @param {string} raw   The sentence as written, its spaces collapsed and lowercased, so each character sits where it does in text.
+ * @param {Object} claim From claimWords().
  */
-function tradeNounNear( text, marked, claim ) {
+function tradeNounNear( text, raw, claim ) {
 	const words = ( s ) => s.match( /[\p{L}\p{N}]+/gu ) ?? [];
-	const from = claim.start - marked.slice( 0, claim.start ).split( CLAUSE_MARK ).at( -1 ).length;
-	const to = claim.end + marked.slice( claim.end ).split( CLAUSE_MARK )[ 0 ].length;
+	if ( raw.length !== text.length ) {
+		// The two no longer line up, so where the reach ends is unknown: no
+		// stand-in, which fails safe.
+		return false;
+	}
+	let from = 0;
+	let to = text.length;
+	for ( const m of raw.matchAll( REACH_BREAK_RE ) ) {
+		if ( m.index + m[ 0 ].length <= claim.start ) {
+			from = m.index + m[ 0 ].length;
+		} else if ( m.index >= claim.end ) {
+			to = m.index;
+			break;
+		}
+	}
 	return [ ...words( text.slice( from, claim.start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( text.slice( claim.end, to ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
 }
 
@@ -308,7 +322,7 @@ export function claims( html, brief, { year = null } = {} ) {
 	const founded = Number( brief.founded );
 	const age = Number.isInteger( year ) && Number.isInteger( founded ) && founded <= year ? year - founded : null;
 
-	const traced = ( claim, sentence, words, tested, marked ) => {
+	const traced = ( claim, sentence, words, tested, raw ) => {
 		if ( claim.part === YEARS_PART && claim.years.value !== null ) {
 			if ( claim.years.age && age !== null && claim.years.value <= age ) {
 				return true;
@@ -322,7 +336,7 @@ export function claims( html, brief, { year = null } = {} ) {
 				return false;
 			}
 			const others = contentWords( source.text, [ same ] );
-			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( tested, marked, claim ) );
+			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( tested, raw, claim ) );
 		} );
 	};
 
@@ -342,8 +356,10 @@ export function claims( html, brief, { year = null } = {} ) {
 			const label = sentences.length === 1 && ! /[.!?]$/.test( sentence.trim() ) && ( isFigure( lines[ i - 1 ] ?? '' ) || isFigure( lines[ i + 1 ] ?? '' ) );
 			const words = contentWords( normal );
 			const tested = withoutNotClaims( normal );
-			const marked = match( sentence.replace( /[\u2013\u2014]/g, ',' ) );
-			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, tested, marked ) ).map( ( c ) => c.word );
+			// match() folds quotes and dashes one character for one, so the
+			// sentence with only its spaces collapsed lines up with normal.
+			const raw = sentence.replace( /\s+/g, ' ' ).trim().toLowerCase();
+			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, tested, raw ) ).map( ( c ) => c.word );
 			out.push( { text: sentence, traced: untraced.length === 0, untraced } );
 		}
 	} );

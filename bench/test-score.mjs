@@ -400,5 +400,5 @@ test( 'the trade nouns, their reach and what ends it follow inc/abilities/claims
 	const { REACH_BREAK } = await measures();
 	const rule = /^const CLAIM_REACH_BREAK = '(.+)';$/m.exec( claimsPhp() )?.[ 1 ];
 	assert.ok( rule, 'inc/abilities/claims.php holds CLAIM_REACH_BREAK on one line' );
-	assert.equal( REACH_BREAK, rule.replaceAll( "\'", "'" ), 'what ends the reach, character for character' );
+	assert.equal( REACH_BREAK, rule.replaceAll( String.raw`\'`, "'" ), 'what ends the reach, character for character' );
 } );

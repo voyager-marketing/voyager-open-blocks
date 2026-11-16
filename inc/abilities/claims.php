@@ -55,14 +55,14 @@ const NOT_CLAIMS = [
 
 /**
  * The words for the people who do the work. One of them within two words of
- * a claim word, either side, in the same clause (trade_noun_near()), keeps
- * any of them a credential or service says with that claim word:
- * "manufacturer-certified crews" keeps "Manufacturer-certified installers",
- * and "our roofers are licensed" keeps "Licensed contractors". A trade noun
- * anywhere else in the sentence keeps none. Each counts with an "s" too.
- * Words for the work itself, such as "installation" or "roofing", are not on
- * the list. bench/test-score.mjs holds the benchmark scorer's list, and its
- * reach, to these.
+ * a claim word, either side, with no mark between them (trade_noun_near(),
+ * CLAIM_REACH_BREAK), keeps any of them a credential or service says with
+ * that claim word: "manufacturer-certified crews" keeps
+ * "Manufacturer-certified installers", and "our roofers are licensed" keeps
+ * "Licensed contractors". A trade noun anywhere else in the sentence keeps
+ * none. Each counts with an "s" too. Words for the work itself, such as
+ * "installation" or "roofing", are not on the list. bench/test-score.mjs
+ * holds the benchmark scorer's list, its reach and what ends it to these.
  */
 const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contractor', 'staff', 'team' ];
 
@@ -70,13 +70,14 @@ const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contractor',
 const TRADE_NOUN_REACH = 2;
 
 /**
- * A clause mark: a comma, semicolon, colon, bracket or dash (an em or en
- * dash, a hyphen with a space either side, or two hyphens). A trade
- * noun past one is not what the claim word is said of: "We are licensed;
- * roofers are proud". A hyphen inside a word, as in "manufacturer-certified",
- * is no clause mark.
+ * What ends a trade noun's reach, read on the sentence as written, without
+ * delimiters and with the u flag: any character but a letter, a digit, a
+ * space, an apostrophe (' or ’) and a hyphen with a letter on both sides,
+ * as in "manufacturer-certified". So a comma, semicolon, colon, bracket,
+ * dash, ellipsis, slash or any other mark ends it. bench/measures.mjs reads
+ * the same rule, REACH_BREAK, and bench/test-score.mjs holds it to this one.
  */
-const CLAIM_CLAUSE_MARK = '/[,;:()\[\]\x{2013}\x{2014}]|\s-+\s|--/u';
+const CLAIM_REACH_BREAK = '[^\p{L}\p{N}\s\'’-]|(?<!\p{L})-|-(?!\p{L})';
 
 /**
  * The Site Data figure a claim word can be said with, by its alternative in
@@ -392,23 +393,36 @@ function ages_within( string $tested, string $alternative, int $found, ?int $ten
 
 /**
  * Whether a trade noun is what a claim word is said of: a word of
- * TRADE_NOUNS in the same clause as one of the claim word's matches, no
- * clause mark (CLAIM_CLAUSE_MARK) between them, and no more than
- * TRADE_NOUN_REACH words between them, either side.
- * "manufacturer-certified roofers", "licensed and insured crews" and "our
- * roofers are licensed" hold one; "licensed to operate, and our roofers are
- * proud" and "we are licensed; roofers are proud" do not. A list split by
+ * TRADE_NOUNS with no more than TRADE_NOUN_REACH words between it and one
+ * of the claim word's matches, either side, and nothing else between them
+ * but what CLAIM_REACH_BREAK lets through. "manufacturer-certified roofers",
+ * "licensed and insured crews" and "our roofers are licensed" hold one;
+ * "licensed to operate, and our roofers are proud", "we are licensed;
+ * roofers are proud" and "licensed… our roofers" do not. A list split by
  * commas fails safe: "licensed, experienced roofers" holds none.
  *
  * @param string                     $tested  The sentence, NOT_CLAIMS taken out.
  * @param array<array{string, int}> $matches The claim word's matches in it, each its text and byte offset.
  */
 function trade_noun_near( string $tested, array $matches ): bool {
+	$breaks = preg_match_all( '/' . CLAIM_REACH_BREAK . '/u', $tested, $found, PREG_OFFSET_CAPTURE ) ? $found[0] : [];
+
 	foreach ( $matches as [ $match, $offset ] ) {
-		$before = preg_split( CLAIM_CLAUSE_MARK, substr( $tested, 0, $offset ) ) ?: [ '' ];
-		$after  = preg_split( CLAIM_CLAUSE_MARK, substr( $tested, $offset ) ) ?: [ '' ];
-		$before = array_slice( claim_text_words( $before[ count( $before ) - 1 ] ), -TRADE_NOUN_REACH - 1 );
-		$after  = array_slice( claim_text_words( $after[0] ), 1, TRADE_NOUN_REACH + 1 );
+		$end  = $offset + strlen( $match );
+		$from = 0;
+		$to   = strlen( $tested );
+
+		foreach ( $breaks as [ $mark, $at ] ) {
+			if ( $at + strlen( $mark ) <= $offset ) {
+				$from = $at + strlen( $mark );
+			} elseif ( $at >= $end ) {
+				$to = $at;
+				break;
+			}
+		}
+
+		$before = array_slice( claim_text_words( substr( $tested, $from, $offset - $from ) ), -TRADE_NOUN_REACH - 1 );
+		$after  = array_slice( claim_text_words( (string) preg_replace( '/^\p{L}+/u', '', substr( $tested, $end, $to - $end ) ) ), 0, TRADE_NOUN_REACH + 1 );
 
 		if ( [] !== array_filter( array_merge( $before, $after ), __NAMESPACE__ . '\is_trade_noun' ) ) {
 			return true;
