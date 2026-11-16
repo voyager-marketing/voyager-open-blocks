@@ -22,7 +22,12 @@
  *      empty does; and the home recipe's sections copied straight from the
  *      brief answer, and from its detail with copy written in, each compose
  *      with nothing refused, while a section with a key compose does not
- *      take is still refused,
+ *      take is still refused; the home recipe's detail marks each slot whose
+ *      text is bound copy: false, the hero's call button among them and not
+ *      the contact section's, copy for every slot it does not mark composes
+ *      with nothing refused and copy for each marked one is refused as
+ *      bound, and it lists the Site Data fields its sections bind, each as
+ *      sources lists it, filled included,
  *  1b. the prompt ability: its `item` enum lists every skill under skills/
  *      with a "Tell your agent" prompt, read here from each SKILL.md on its
  *      own, and its listing says the MCP Adapter serves it as a prompt.
@@ -799,6 +804,7 @@ step(
 					delete rest.copy_rules;
 					return rest;
 				} ),
+				site_data: undefined,
 			},
 			homeWhole
 		) &&
@@ -927,6 +933,158 @@ step(
 		.filter( ( [ , filled ] ) => filled === false )
 		.map( ( [ key ] ) => key )
 		.join( ', ' ) }`
+);
+
+// One recipe call holds what compose needs. The home recipe's detail marks
+// each slot whose text a binding owns copy: false, with what it is bound to
+// and no required, and copy written for every slot it does not mark, a claim
+// as the site owner's text, composes with nothing refused. Copy for each slot
+// it marks is refused as bound, those slots and no other, so compose still
+// refuses an agent that sends it. The contact section's call button, whose
+// link alone is bound, takes copy and is not marked.
+const markedBound = ( rule ) => rule?.copy === false;
+const omittedBy = ( label, omit ) =>
+	( omit || [] ).some(
+		( left ) => label === left || label.startsWith( `${ left } ` )
+	);
+const copyFor = ( label, rule ) => {
+	let text = `Our own ${ label.toLowerCase() }`;
+	while ( text.length < ( rule.min || 0 ) ) {
+		text += ' and more';
+	}
+	return text.slice( 0, rule.max || 80 ).trim();
+};
+const homeWithCopy = homeDetailSections.map( ( section ) => {
+	const copy = {};
+	for ( const [ label, rule ] of Object.entries(
+		section.copy_rules || {}
+	) ) {
+		if ( markedBound( rule ) || omittedBy( label, section.omit ) ) {
+			continue;
+		}
+		const text = copyFor( label, rule );
+		copy[ label ] = rule.claim ? { text, source: 'user' } : text;
+	}
+	return { ...section, copy };
+} );
+const homeMarked = homeDetailSections.flatMap( ( section, index ) =>
+	Object.entries( section.copy_rules || {} )
+		.filter( ( [ , rule ] ) => markedBound( rule ) )
+		.map( ( [ label ] ) => ( { section: index, slot: label } ) )
+);
+const copiedSlots = homeWithCopy.reduce(
+	( sum, section ) => sum + Object.keys( section.copy ).length,
+	0
+);
+const composeRefused = ( response ) =>
+	( response.data.refused || [] ).map(
+		( row ) => `${ row.section } ${ row.slot } ${ row.reason }`
+	);
+const everySlot = await run( `${ ns }/compose`, {
+	title: `E2E: home with copy for every slot ${ Date.now() }`,
+	sections: homeWithCopy,
+	dry_run: true,
+} );
+step(
+	`fitness: compose of the home recipe, with copy for each of the ${ copiedSlots } slots its detail does not mark copy: false, refuses nothing`,
+	copiedSlots > 20 && composedClean( everySlot ),
+	`${ everySlot.status }, refused ${
+		composeRefused( everySlot ).join( '; ' ) || 'none'
+	}${ said( everySlot ) }`
+);
+const markedCopy = await run( `${ ns }/compose`, {
+	title: `E2E: home with copy for its bound slots ${ Date.now() }`,
+	sections: homeWithCopy.map( ( section, index ) => ( {
+		...section,
+		copy: {
+			...section.copy,
+			...Object.fromEntries(
+				homeMarked
+					.filter( ( marked ) => marked.section === index )
+					.map( ( marked ) => [ marked.slot, 'Call us today' ] )
+			),
+		},
+	} ) ),
+	dry_run: true,
+} );
+const heroCall = homeDetailSections[ 0 ]?.copy_rules?.[ 'Click to call' ];
+const contactCall = wholePatterns.find(
+	( row ) => row.name === 'voyager-open/contact-section'
+)?.copy_rules?.[ 'Click to call' ];
+step(
+	"get-catalog marks the hero's Click to call in the home recipe copy: false, bound to the Site Data phone, with no required, and not the contact section's; copy for each slot it marks is refused as bound, those and no other",
+	heroCall?.copy === false &&
+		heroCall?.bound?.source === 'voyager/site-data' &&
+		heroCall?.bound?.key === 'phone' &&
+		! ( 'required' in ( heroCall || {} ) ) &&
+		!! contactCall &&
+		! markedBound( contactCall ) &&
+		homeMarked.length >= 4 &&
+		markedCopy.status === 200 &&
+		markedCopy.data.saved === false &&
+		sameJson(
+			composeRefused( markedCopy ).sort(),
+			homeMarked
+				.map(
+					( marked ) => `${ marked.section } ${ marked.slot } bound`
+				)
+				.sort()
+		),
+	`hero ${ JSON.stringify( heroCall ) }; contact ${ JSON.stringify(
+		contactCall
+	) }; marked ${
+		homeMarked
+			.map( ( marked ) => `${ marked.section } ${ marked.slot }` )
+			.join( ', ' ) || 'none'
+	}; refused ${ composeRefused( markedCopy ).join( '; ' ) || 'none' }${ said(
+		markedCopy
+	) }`
+);
+
+// The home recipe's detail lists the Site Data fields its sections bind, the
+// keys read here from the whole catalog's blocks, each row as sources lists
+// it, filled included, so an agent needs no sources call to see which are
+// empty.
+const homeSiteData = homeDetail.data.recipe?.site_data;
+const homeBoundKeys = [
+	...new Set(
+		homeDetailSections.flatMap( ( section ) =>
+			( sectionPattern( section )?.blocks || [] ).flatMap( ( block ) =>
+				Object.values( block.bindings || {} )
+					.filter(
+						( binding ) =>
+							binding?.source === 'voyager/site-data' &&
+							typeof binding?.args?.key === 'string'
+					)
+					.map( ( binding ) => binding.args.key )
+			)
+		)
+	),
+];
+step(
+	'get-catalog with recipe "home" lists the Site Data fields its sections bind, each as sources lists it, filled included',
+	Array.isArray( homeSiteData ) &&
+		homeBoundKeys.includes( 'phone' ) &&
+		homeBoundKeys.includes( 'founded' ) &&
+		sameJson(
+			homeSiteData.map( ( field ) => field?.args?.key ),
+			homeBoundKeys
+		) &&
+		homeSiteData.every(
+			( field ) =>
+				typeof field?.filled === 'boolean' &&
+				sameJson(
+					field,
+					( briefSiteData?.fields || [] ).find(
+						( listed ) => listed.args?.key === field?.args?.key
+					)
+				)
+		),
+	`site_data ${ JSON.stringify(
+		( homeSiteData || [] ).map(
+			( field ) => `${ field?.args?.key }:${ field?.filled }`
+		)
+	) }; bound ${ homeBoundKeys.join( ', ' ) }`
 );
 
 const siteData = ( catalog.data.sources || [] ).find(
