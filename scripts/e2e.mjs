@@ -1106,6 +1106,35 @@ if ( everySlotId ) {
 		query: { force: true },
 	} );
 }
+
+// The quick card's one-line compose example is input compose takes: run
+// with dry_run, it is refused nothing and valid. A card with no example
+// fails, so the check cannot pass on nothing.
+const cardExample = ( () => {
+	const line = readFileSync( join( repo, ENTRY_SKILL ), 'utf8' ).match(
+		/Example: `(\{.*\})`/
+	);
+	try {
+		return line ? JSON.parse( line[ 1 ] ) : null;
+	} catch {
+		return null;
+	}
+} )();
+const fromCard = cardExample
+	? await run( `${ ns }/compose`, { ...cardExample, dry_run: true } )
+	: { status: 0, data: {} };
+step(
+	"the quick card's compose example, run with dry_run, is refused nothing and valid",
+	!! cardExample &&
+		Array.isArray( cardExample.sections ) &&
+		cardExample.sections.length > 0 &&
+		composedClean( fromCard ),
+	cardExample
+		? `${ fromCard.status }, refused ${
+				composeRefused( fromCard ).join( '; ' ) || 'none'
+			}${ said( fromCard ) }`
+		: `no "Example:" compose input in ${ ENTRY_SKILL }`
+);
 const markedCopy = await run( `${ ns }/compose`, {
 	title: `E2E: home with copy for its bound slots ${ Date.now() }`,
 	sections: homeWithCopy.map( ( section, index ) => ( {
