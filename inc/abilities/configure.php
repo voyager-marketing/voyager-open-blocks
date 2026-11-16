@@ -29,7 +29,7 @@ function register_configure(): void {
 		CATEGORY . '/configure',
 		[
 			'label'               => __( 'Configure a Voyager Open block', 'voyager-open-blocks' ),
-			'description'         => __( 'Sets attributes on a block that saves no HTML, the pack\'s icon, facts and contact details blocks, checked against its block.json. An attribute the block binds is refused with voyager_open_blocks_bound_slot, as its value comes from the binding. Or, with style, sets a section style on a core/group, replacing any other, as the editor\'s Styles panel does. Any other block is refused. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
+			'description'         => __( 'Sets attributes on a block that saves no HTML, the pack\'s icon, facts and contact details blocks, checked against its block.json. An attribute the block binds is refused with voyager_open_blocks_bound_slot, as its value comes from the binding. Or, with style, sets a section style on a core/group, replacing any other, as the editor\'s Styles panel does. Any other block is refused. It changes a live page in place, as insert does: dry_run first. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
