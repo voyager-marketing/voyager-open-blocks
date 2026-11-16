@@ -79,10 +79,10 @@ function register_compose(): void {
 						'items'       => [
 							'type'                 => 'object',
 							'properties'           => [
+								// No enum: compose names what a section's pattern is (unknown_pattern()).
 								'pattern'       => [
 									'type'        => 'string',
-									'enum'        => compose_patterns(),
-									'description' => 'A pattern get-catalog lists, by its name, such as voyager-open/services-list, or by its section, such as voyager-open/services with layout list.',
+									'description' =>'A pattern get-catalog lists, by its name, such as voyager-open/services-list, or by its section, such as voyager-open/services with layout list.',
 								],
 								'layout'        => [
 									'type'        => [ 'string', 'null' ],
@@ -496,6 +496,35 @@ function empty_site_data( array $rows ): array {
 }
 
 /**
+ * Why a section's pattern is no name compose takes, as one sentence, or ''
+ * when compose takes it (compose_patterns()).
+ *
+ * compose's input schema gives a section's pattern no enum. WordPress checks
+ * an input against the schema before the ability runs
+ * (WP_Ability::validate_input()), and an enum refuses a block's name with only
+ * "is not one of" and the list, so an agent that asked for a block learns
+ * nothing about where it is. The name is checked here instead, as get-catalog
+ * checks its patterns input (pattern_refusal()): a block's name is said to be
+ * a block, with the patterns that hold it (block_holders()).
+ *
+ * @param int                                                $index    Index of the section.
+ * @param string                                             $name     Its pattern.
+ * @param list<string>                                       $names    From compose_patterns().
+ * @param array<string, array{args: array{content: string}}> $patterns Pattern name => its entry, as Patterns\generated() gives them.
+ */
+function unknown_pattern( int $index, string $name, array $names, array $patterns ): string {
+	if ( in_array( $name, $names, true ) ) {
+		return '';
+	}
+
+	$holders = block_holders( $name, $patterns );
+
+	return [] === $holders
+		? sprintf( 'section %1$d: %2$s is not a pattern the pack ships.', $index, $name )
+		: sprintf( 'section %1$d: %2$s is a block, not a pattern: it sits in %3$s. Pass one of those, or place the block with insert.', $index, $name, and_list( $holders ) );
+}
+
+/**
  * Why a section's layout names no pattern, as one sentence.
  *
  * @param int                                                               $index   Index of the section.
@@ -616,11 +645,21 @@ function compose( array $input ) {
 	// own name read as its section and layout. Every one that names no
 	// pattern, or a layout that is not its own, is listed at once.
 	$layouts  = section_layouts();
+	$names    = compose_patterns();
 	$registry = \WP_Block_Patterns_Registry::get_instance();
 	$patterns = [];
 	$unknown  = [];
+	$no_name  = false;
 
 	foreach ( $sections as $index => $section ) {
+		$refusal = unknown_pattern( $index, $section['pattern'], $names, Patterns\generated() );
+
+		if ( '' !== $refusal ) {
+			$unknown[] = $refusal;
+			$no_name   = true;
+			continue;
+		}
+
 		$named = layout_named( $layouts, $section['pattern'] );
 
 		if ( null !== $named && null !== $section['layout'] && $named['layout'] !== $section['layout'] ) {
@@ -642,8 +681,10 @@ function compose( array $input ) {
 
 	if ( [] !== $unknown ) {
 		return new WP_Error(
-			'voyager_open_blocks_invalid_layout',
-			'Nothing was saved: ' . implode( ' ', $unknown ) . ' get-catalog lists each pattern\'s name, section and layout. Pass a pattern\'s name, or its section with its layout; leave layout out for the first.',
+			$no_name ? 'voyager_open_blocks_invalid_pattern' : 'voyager_open_blocks_invalid_layout',
+			'Nothing was saved: ' . implode( ' ', $unknown )
+				. ( $no_name ? ' A section\'s pattern takes these names: ' . implode( ', ', $names ) . '.' : '' )
+				. ' get-catalog lists each pattern\'s name, section and layout. Pass a pattern\'s name, or its section with its layout; leave layout out for the first.',
 			[ 'status' => 400 ]
 		);
 	}

@@ -482,15 +482,32 @@ final class GetCatalogTest extends TestCase {
 	public function test_compose_takes_each_pattern_get_catalog_lists_by_its_name(): void {
 		$items = self::input_schema( 'VoyagerOpenBlocks\Abilities\register_compose', 'voyager-open-blocks/compose' )['properties']['sections']['items'] ?? null;
 		$this->assertIsArray( $items );
-		$enum = $items['properties']['pattern']['enum'] ?? null;
-		$this->assertIsArray( $enum );
+		$this->assertIsArray( $items['properties']['pattern'] ?? null );
+		$this->assertArrayNotHasKey( 'enum', $items['properties']['pattern'], 'an enum refuses a block\'s name with WordPress\'s bare "is not one of" before compose runs' );
 
 		// Each name get-catalog lists on its patterns, such as
 		// voyager-open/proof-strip-facts, and each section's name.
-		$this->assertSame( [], array_values( array_diff( array_keys( Patterns\generated() ), $enum ) ) );
-		$this->assertSame( [], array_values( array_diff( array_keys( Abilities\section_layouts() ), $enum ) ) );
-		$this->assertContains( 'voyager-open/proof-strip-facts', $enum );
-		$this->assertSame( Abilities\compose_patterns(), $enum );
+		$names    = Abilities\compose_patterns();
+		$patterns = Patterns\generated();
+		$this->assertSame( [], array_values( array_diff( array_keys( $patterns ), $names ) ) );
+		$this->assertSame( [], array_values( array_diff( array_keys( Abilities\section_layouts() ), $names ) ) );
+		$this->assertContains( 'voyager-open/proof-strip-facts', $names );
+		foreach ( $names as $name ) {
+			$this->assertSame( '', Abilities\unknown_pattern( 0, $name, $names, $patterns ), "compose refuses {$name}" );
+		}
+	}
+
+	public function test_compose_refuses_a_block_s_name_saying_it_is_a_block_and_where_it_sits(): void {
+		$names    = Abilities\compose_patterns();
+		$patterns = Patterns\generated();
+
+		$this->assertSame(
+			'section 2: voyager-open/contact-details is a block, not a pattern: it sits in voyager-open/contact-section and voyager-open/contact-section-stacked. Pass one of those, or place the block with insert.',
+			Abilities\unknown_pattern( 2, 'voyager-open/contact-details', $names, $patterns )
+		);
+		$this->assertStringStartsWith( 'section 0: core/group is a block, not a pattern: it sits in voyager-open/', Abilities\unknown_pattern( 0, 'core/group', $names, $patterns ) );
+		$this->assertSame( 'section 1: voyager-open/nothing is not a pattern the pack ships.', Abilities\unknown_pattern( 1, 'voyager-open/nothing', $names, $patterns ) );
+		$this->assertSame( 'section 1: voyager-open/hero-split is not a pattern the pack ships.', Abilities\unknown_pattern( 1, 'voyager-open/hero-split', $names, $patterns ), 'a section and its layout run together name nothing' );
 	}
 
 	public function test_a_brief_pattern_is_its_name_description_section_and_layout(): void {
