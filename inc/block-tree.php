@@ -39,6 +39,70 @@ const TEXT_ATTRIBUTES = [
 ];
 
 /**
+ * Blocks with a bindable attribute that core reads from the href of the
+ * block's link, in its saved HTML. WordPress 7.1 gives core/button's url the
+ * source `attribute`, selector `a`, attribute `href`
+ * (wp-includes/blocks/button/block.json). A binding writes its value into
+ * that href when the block renders, and a null value, such as an empty Site
+ * Data field, leaves the saved href in place (WP_Block::process_block_bindings()
+ * and WP_Block::replace_html() in wp-includes/class-wp-block.php), so the
+ * saved href is the binding's fallback.
+ */
+const LINK_ATTRIBUTES = [
+	'core/button' => 'url',
+];
+
+/**
+ * The href of a block's first link, in its own saved HTML.
+ *
+ * @param Block $block Parsed block.
+ * @return string The href, trimmed, or '' when the block saves no link with one.
+ */
+function link_href( array $block ): string {
+	$first = $block['innerContent'][0] ?? null;
+
+	if ( ! is_string( $first ) ) {
+		return '';
+	}
+
+	$tags = new \WP_HTML_Tag_Processor( $first );
+
+	if ( ! $tags->next_tag( [ 'tag_name' => 'a' ] ) ) {
+		return '';
+	}
+
+	$href = $tags->get_attribute( 'href' );
+
+	return is_string( $href ) ? trim( $href ) : '';
+}
+
+/**
+ * Set the href of a block's first link, in its own saved HTML.
+ *
+ * @param Block  $block Block, by reference. Unchanged when it saves no link.
+ * @param string $href  The new href.
+ * @return bool Whether the block had a link to change.
+ */
+function set_link_href( array &$block, string $href ): bool {
+	$first = $block['innerContent'][0] ?? null;
+
+	if ( ! is_string( $first ) ) {
+		return false;
+	}
+
+	$tags = new \WP_HTML_Tag_Processor( $first );
+
+	if ( ! $tags->next_tag( [ 'tag_name' => 'a' ] ) || ! $tags->set_attribute( 'href', $href ) ) {
+		return false;
+	}
+
+	$block['innerContent'][0] = $tags->get_updated_html();
+	$block['innerHTML']       = implode( '', array_filter( $block['innerContent'], 'is_string' ) );
+
+	return true;
+}
+
+/**
  * Parse markup into blocks, dropping whitespace-only freeform blocks at the top level.
  *
  * @param string $markup Block markup.

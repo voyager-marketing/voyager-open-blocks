@@ -29,7 +29,7 @@ function register_bind(): void {
 		CATEGORY . '/bind',
 		[
 			'label'               => __( 'Bind a block attribute to a field', 'voyager-open-blocks' ),
-			'description'         => __( 'Binds a block attribute to a field, so the block shows the site\'s value. The attribute must be bindable on that block: content on a paragraph or heading, text and url on a button, label and linkUrl on the icon, items on the facts block, and all seven on the contact details block; a refusal lists the ones that are. args must equal a field\'s args from get-catalog. The block\'s own text stays as the fallback, shown while the field is empty. A binding replaces the whole attribute: give a phone number inside a longer line a block of its own first. The site owner makes a post meta field bindable under Settings > Site Data. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
+			'description'         => __( 'Binds a block attribute to a field, so the block shows the site\'s value. The attribute must be bindable on that block: content on a paragraph or heading, text and url on a button, label and linkUrl on the icon, items on the facts block, and all seven on the contact details block; a refusal lists the ones that are. args must equal a field\'s args from get-catalog. The block\'s own text stays as the fallback, shown while the field is empty; a button\'s typed tel: or mailto: link, bound to a phone or email link, becomes /contact/. A binding replaces the whole attribute: give a phone number inside a longer line a block of its own first. The site owner makes a post meta field bindable under Settings > Site Data. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -121,5 +121,39 @@ function bind( array $input ) {
 	$metadata['bindings']       = $bindings;
 	$block['attrs']['metadata'] = $metadata;
 
+	replace_typed_link( $block, $attribute, isset( $args['key'] ) && is_string( $args['key'] ) ? $args['key'] : '' );
+
 	return finish( $post_id, $blocks, $block, implode( '/', $path ), ! empty( $input['dry_run'] ) );
+}
+
+/**
+ * Replace the typed tel: or mailto: link a block's new link binding would
+ * keep as its fallback with CONTACT_LINK, the pack's own.
+ *
+ * Visitors get the fallback whenever the field is empty, and it stays in the
+ * post when the value changes, so a typed number left there is a stale copy.
+ * Only the attribute core reads from the block's link
+ * (BlockTree\LINK_ATTRIBUTES), such as a button's url, bound to a key that
+ * names a phone or an email (contact_kinds()), holding a link that is a typed
+ * copy of what the key names (link_looks_like()): the test stale_fallbacks()
+ * makes, so validate passes what bind leaves. The block's text stays as it is.
+ *
+ * @param Block  $block     The block, by reference.
+ * @param string $attribute The attribute being bound.
+ * @param string $key       The key it is bound to, '' when the args name none.
+ * @return string The link replaced, or '' when none was.
+ */
+function replace_typed_link( array &$block, string $attribute, string $key ): string {
+	if ( ( BlockTree\LINK_ATTRIBUTES[ (string) $block['blockName'] ] ?? null ) !== $attribute ) {
+		return '';
+	}
+
+	$href = BlockTree\link_href( $block );
+	$kind = link_looks_like( $href );
+
+	if ( null === $kind || ! in_array( $kind, contact_kinds( $key ), true ) || ! BlockTree\set_link_href( $block, CONTACT_LINK ) ) {
+		return '';
+	}
+
+	return $href;
 }
