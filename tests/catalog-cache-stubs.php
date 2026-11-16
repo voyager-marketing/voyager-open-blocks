@@ -11,7 +11,8 @@
  *                            as the options table would hold them
  * - voyager_test_locale      what determine_locale() returns, default en_US
  * - voyager_test_stylesheet  what get_stylesheet() returns, default theme
- * - voyager_test_registered_post_types  what post_type_exists() knows, default post and page
+ * - voyager_test_stylesheet_dir, voyager_test_template_dir  the active theme's
+ *                            folder and its parent's, default a folder that is not there
  * - voyager_test_multisite   what is_multisite() returns, default false
  * - voyager_test_site_options  network option name => value
  *
@@ -49,9 +50,15 @@ if ( ! function_exists( 'determine_locale' ) ) {
 	}
 }
 
-if ( ! function_exists( 'post_type_exists' ) ) {
-	function post_type_exists( string $post_type ): bool {
-		return in_array( $post_type, $GLOBALS['voyager_test_registered_post_types'] ?? [ 'post', 'page' ], true );
+if ( ! function_exists( 'get_stylesheet_directory' ) ) {
+	function get_stylesheet_directory(): string {
+		return $GLOBALS['voyager_test_stylesheet_dir'] ?? '/tmp/no-such-theme';
+	}
+}
+
+if ( ! function_exists( 'get_template_directory' ) ) {
+	function get_template_directory(): string {
+		return $GLOBALS['voyager_test_template_dir'] ?? '/tmp/no-such-theme';
 	}
 }
 

@@ -33,12 +33,12 @@ final class CatalogCacheTest extends TestCase {
 	/**
 	 * The builders whose parts are kept between calls.
 	 */
-	private const KEPT = [ 'styles', 'blocks', 'patterns', 'brief_patterns', 'sources', 'recipes', 'brief_recipes', 'recipe' ];
+	private const KEPT = [ 'styles', 'blocks', 'patterns', 'brief_patterns', 'recipes', 'brief_recipes', 'recipe' ];
 
 	/**
-	 * The builders called on every call.
+	 * The builders called on every call that answers with them.
 	 */
-	private const FRESH = [ 'filled', 'used_on' ];
+	private const FRESH = [ 'sources', 'filled', 'used_on' ];
 
 	/**
 	 * The triggers the cache must build again after: a plugin activated,
@@ -80,7 +80,8 @@ final class CatalogCacheTest extends TestCase {
 		$GLOBALS['voyager_test_actions']                = [];
 		$GLOBALS['voyager_test_locale']                 = 'en_US';
 		$GLOBALS['voyager_test_stylesheet']             = 'theme';
-		$GLOBALS['voyager_test_registered_post_types']  = [ 'post', 'page' ];
+		$GLOBALS['voyager_test_stylesheet_dir']         = '/tmp/no-such-theme';
+		$GLOBALS['voyager_test_template_dir']           = '/tmp/no-such-theme';
 		$GLOBALS['voyager_test_multisite']              = false;
 		$GLOBALS['voyager_test_site_options']           = [];
 		$this->calls                                    = [];
@@ -332,7 +333,7 @@ final class CatalogCacheTest extends TestCase {
 		$this->answer( [ 'include' => [ 'sources', 'used_on' ] ] );
 
 		$this->assertCount( 1, $this->calls['styles'], 'the brief answer and include styles share one styles part' );
-		$this->assertSame( [ 'page' ], $this->calls['sources'], 'the brief answer, include sources and used_on share the page\'s sources' );
+		$this->assertSame( [ 'page', 'page' ], $this->calls['sources'], 'the sources are read once in each call that answers with them, though sources and used_on both need them' );
 	}
 
 	public function test_the_issue_s_triggers_are_hooked(): void {
@@ -449,7 +450,8 @@ final class CatalogCacheTest extends TestCase {
 	}
 
 	public function test_used_on_and_filled_are_read_on_every_call_with_the_cache_warm(): void {
-		$input = [ 'include' => [ 'sources', 'used_on' ] ];
+		$input = [ 'include' => [ 'styles', 'blocks', 'patterns', 'sources', 'used_on', 'recipes' ] ];
+		$this->answer();
 
 		$before = $this->answer( $input );
 		$this->assertSame( 0, $before['used_on']['voyager/site-data:phone']['posts'] );
@@ -467,23 +469,62 @@ final class CatalogCacheTest extends TestCase {
 		$this->assertTrue( $this->answer()['sources'][0]['fields'][0]['filled'], 'and so does the brief answer' );
 
 		$kept = unserialize( $GLOBALS['voyager_test_transients'][ Abilities\catalog_transient() ]['value'] );
-		$this->assertSame( [ 'sources:page', 'styles', 'brief_patterns', 'brief_recipes' ], array_keys( $kept['parts'] ), 'no used_on and no filled are kept' );
-		$this->assertArrayNotHasKey( 'filled', $kept['parts']['sources:page'][0]['fields'][0], 'the kept sources hold no filled' );
+		$this->assertSame( [ 'styles', 'brief_patterns', 'brief_recipes', 'blocks', 'patterns', 'recipes' ], array_keys( $kept['parts'] ), 'no sources, no filled and no used_on are kept' );
 	}
 
-	public function test_sources_are_kept_per_registered_post_type_and_an_unknown_one_is_never_kept(): void {
+	public function test_sources_are_read_on_every_call_for_the_post_type_asked_and_never_kept(): void {
 		$this->answer( [ 'post_type' => 'page' ] );
 		$this->answer( [ 'post_type' => 'post' ] );
 		$this->answer( [ 'post_type' => 'page' ] );
-		$this->answer( [ 'post_type' => 'post' ] );
-		$this->assertSame( [ 'page', 'post' ], $this->calls['sources'] );
-
 		$this->answer( [ 'post_type' => 'no-such-type' ] );
-		$this->answer( [ 'post_type' => 'no-such-type' ] );
-		$this->assertSame( [ 'page', 'post', 'no-such-type', 'no-such-type' ], $this->calls['sources'], 'an unknown post type is built on every call' );
+		$this->assertSame( [ 'page', 'post', 'page', 'no-such-type' ], $this->calls['sources'], 'other plugins register post meta and binding sources in code, which a deploy changes with no hook' );
 
 		$kept = unserialize( $GLOBALS['voyager_test_transients'][ Abilities\catalog_transient() ]['value'] );
-		$this->assertArrayNotHasKey( 'sources:no-such-type', $kept['parts'], 'so any number of made-up post types adds nothing to the transient' );
+		$this->assertSame( [], array_values( array_filter( array_keys( $kept['parts'] ), static fn ( string $key ): bool => str_starts_with( $key, 'sources' ) ) ), 'so any number of post types adds nothing to the transient' );
+	}
+
+	public function test_a_theme_json_deployed_with_no_hook_builds_the_styles_again(): void {
+		$root = sys_get_temp_dir() . '/voyager-catalog-theme-' . bin2hex( random_bytes( 4 ) );
+		$then = time() - 100;
+		foreach ( [ 'child', 'parent' ] as $theme ) {
+			mkdir( $root . '/' . $theme, 0777, true );
+			file_put_contents( $root . '/' . $theme . '/theme.json', '{}' );
+			touch( $root . '/' . $theme . '/theme.json', $then );
+		}
+		$GLOBALS['voyager_test_stylesheet_dir'] = $root . '/child';
+		$GLOBALS['voyager_test_template_dir']   = $root . '/parent';
+
+		try {
+			clearstatcache();
+			$this->answer();
+			$this->answer();
+			$this->assertCount( 1, $this->calls['styles'], 'warm' );
+
+			// A deploy writes the parent's theme.json, then the child's: no hook fires.
+			foreach ( [ 'parent', 'child' ] as $at => $theme ) {
+				touch( $root . '/' . $theme . '/theme.json', $then + 10 + $at );
+				clearstatcache();
+				$this->answer();
+				$this->assertCount( 2 + $at, $this->calls['styles'], "the {$theme}'s theme.json changed, so the styles are built again" );
+				$this->answer();
+				$this->assertCount( 2 + $at, $this->calls['styles'], 'and kept again' );
+			}
+
+			unlink( $root . '/child/theme.json' );
+			clearstatcache();
+			$this->answer();
+			$this->assertCount( 4, $this->calls['styles'], 'a theme.json removed builds again too' );
+
+			// A theme with no parent is both folders: one file, counted once.
+			$GLOBALS['voyager_test_template_dir'] = $root . '/child';
+			$this->assertSame( Abilities\files_stamp( [ $root . '/child/theme.json' ] ), Abilities\theme_stamp() );
+		} finally {
+			@unlink( $root . '/child/theme.json' );
+			@unlink( $root . '/parent/theme.json' );
+			@rmdir( $root . '/child' );
+			@rmdir( $root . '/parent' );
+			@rmdir( $root );
+		}
 	}
 
 	public function test_an_unknown_recipe_is_refused_and_never_kept(): void {
@@ -543,6 +584,6 @@ final class CatalogCacheTest extends TestCase {
 	}
 
 	public function test_get_catalog_builds_through_every_builder_catalog_answer_takes(): void {
-		$this->assertSame( array_merge( self::KEPT, self::FRESH ), array_keys( Abilities\catalog_builders() ) );
+		$this->assertEqualsCanonicalizing( array_merge( self::KEPT, self::FRESH ), array_keys( Abilities\catalog_builders() ) );
 	}
 }

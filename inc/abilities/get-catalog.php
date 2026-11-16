@@ -160,10 +160,13 @@ function get_catalog( $input = null ) {
 /**
  * What builds each part of the answer.
  *
- * catalog_answer() keeps what the first eight build between calls, and calls
+ * catalog_answer() keeps what styles, blocks, patterns, brief_patterns,
+ * recipes, brief_recipes and recipe build between calls. It calls sources,
  * filled and used_on on every call: whether a Site Data field holds a value,
- * and how many posts show it, change with the content, not with any trigger.
- * The tests pass their own builders, to count the calls.
+ * and how many posts show it, change with the content, and the sources read
+ * the post meta and binding sources other plugins register in code, which a
+ * file deploy changes with no hook. The tests pass their own builders, to
+ * count the calls.
  *
  * @return array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>}
  */
@@ -188,9 +191,9 @@ function catalog_builders(): array {
  * The parts that change only when a trigger fires (CATALOG_TRIGGERS) are kept
  * in a transient for the request's locale, under catalog_version(), and a
  * call builds only the parts it needs and the transient does not hold. A
- * post type's sources are kept only for a registered post type, and a recipe
- * only when its slug names one, so what an input can add to the transient is
- * bounded. filled and used_on are built on every call.
+ * recipe is kept only when its slug names one, so what an input can add to
+ * the transient is bounded. sources, filled and used_on are built on every
+ * call that answers with them, the sources once.
  *
  * @param array<mixed> $input Input.
  * @param array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>} $build From catalog_builders().
@@ -208,29 +211,25 @@ function catalog_answer( array $input, array $build ) {
 	$built   = false;
 
 	/**
-	 * A part from the transient, or built and kept when $keep.
+	 * A part from the transient, or built and kept.
 	 *
 	 * @param callable(): mixed $make
 	 */
-	$part = static function ( string $key, callable $make, bool $keep = true ) use ( &$parts, &$built ): mixed {
-		if ( array_key_exists( $key, $parts ) ) {
-			return $parts[ $key ];
-		}
-
-		$value = $make();
-
-		if ( $keep ) {
-			$parts[ $key ] = $value;
+	$part = static function ( string $key, callable $make ) use ( &$parts, &$built ): mixed {
+		if ( ! array_key_exists( $key, $parts ) ) {
+			$parts[ $key ] = $make();
 			$built         = true;
 		}
 
-		return $value;
+		return $parts[ $key ];
 	};
 
-	$sources = static function () use ( $part, $build, $post_type ): array {
-		$sources = $part( 'sources:' . $post_type, static fn (): array => $build['sources']( $post_type ), post_type_exists( $post_type ) );
+	/** @var array<mixed>|null $read */
+	$read    = null;
+	$sources = static function () use ( &$read, $build, $post_type ): array {
+		$read ??= $build['sources']( $post_type );
 
-		return is_array( $sources ) ? $sources : [];
+		return $read;
 	};
 
 	if ( [] === $include && [] === $names && '' === $slug ) {
@@ -342,8 +341,9 @@ function cached_parts( string $name, string $version ): array {
 
 /**
  * The version the kept parts are stored under: the pack's Version, how many
- * triggers have fired, the active theme, and the pack's data files
- * (pack_stamp()). A part kept under any other version is built again.
+ * triggers have fired, the active theme, the pack's data files
+ * (pack_stamp()) and the theme's theme.json files (theme_stamp()). A part
+ * kept under any other version is built again.
  */
 function catalog_version(): string {
 	return implode(
@@ -353,6 +353,7 @@ function catalog_version(): string {
 			(string) trigger_count(),
 			get_stylesheet(),
 			pack_stamp(),
+			theme_stamp(),
 		]
 	);
 }
@@ -381,11 +382,35 @@ function trigger_count(): int {
  * @param string|null $dir Plugin directory. Defaults to this plugin's.
  */
 function pack_stamp( ?string $dir = null ): string {
-	$dir   = $dir ?? VOYAGER_OPEN_BLOCKS_DIR;
+	$dir = $dir ?? VOYAGER_OPEN_BLOCKS_DIR;
+
+	return files_stamp( [ $dir . '/inc/generated/patterns.php', $dir . '/build/blocks-manifest.php', ...( glob( $dir . '/recipes/*.json' ) ?: [] ) ] );
+}
+
+/**
+ * When the active theme's theme.json files last changed: the child's and the
+ * parent's, the two files the styles part reads (SectionStyles\theme_json_files()).
+ *
+ * A theme is shipped by a deploy that writes its files and fires no hook, so
+ * a new palette in theme.json shows on the next call only because its mtime
+ * is here. A style variation's file in styles/ is not read: choosing one
+ * saves its palette in the Global Styles post, which save_post_wp_global_styles
+ * covers (SectionStyles\active_palette()).
+ */
+function theme_stamp(): string {
+	return files_stamp( array_unique( [ get_stylesheet_directory() . '/theme.json', get_template_directory() . '/theme.json' ] ) );
+}
+
+/**
+ * A hash of each file's path and mtime, 0 for a file that is not there.
+ *
+ * @param array<string> $files Paths.
+ */
+function files_stamp( array $files ): string {
 	$stamp = [];
 
-	foreach ( [ $dir . '/inc/generated/patterns.php', $dir . '/build/blocks-manifest.php', ...( glob( $dir . '/recipes/*.json' ) ?: [] ) ] as $file ) {
-		$stamp[] = substr( $file, strlen( $dir ) ) . ':' . ( is_file( $file ) ? (int) filemtime( $file ) : 0 );
+	foreach ( $files as $file ) {
+		$stamp[] = $file . ':' . ( is_file( $file ) ? (int) filemtime( $file ) : 0 );
 	}
 
 	return md5( implode( ',', $stamp ) );
