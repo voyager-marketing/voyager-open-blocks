@@ -9,7 +9,7 @@ metadata:
 
 # Voyager Open Blocks
 
-Abilities place the pack's blocks and patterns, and check every write.
+Abilities place and check the pack's blocks and patterns.
 
 ## Tell your agent
 
@@ -17,10 +17,10 @@ Abilities place the pack's blocks and patterns, and check every write.
 
 ## Build a page
 
-1. `voyager-open-blocks/get-catalog` with `recipe`, such as `home`, for each section's pattern, layout, copy rules and Site Data `filled`. If missing, the plugin is inactive: say so.
+1. `voyager-open-blocks/get-catalog` with `recipe`, such as `home`: each section's pattern, layout, copy rules and Site Data `filled`, so fetch no pattern. If missing, the plugin is inactive: say so.
 2. One `compose` call with a `title` and those `sections`, each with `copy` from its `copy_guidance`, none where a rule says `copy: false`. `omit` what you lack facts for; `repeat` adds items. Example: `{"title":"Home","sections":[{"pattern":"voyager-open/hero","layout":"split","style":"plain","copy":{"Heading":"Springfield roofers"},"omit":["Eyebrow"]}]}`
 3. `audit` the draft's `post_id`.
-4. Report the `preview_url` and each `audit` finding.
+4. Report the `preview_url` and each `audit` finding. `compose` saves a draft, published afterwards.
 
 On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `bind`. `undo` reverses a save.
 
@@ -43,12 +43,12 @@ On a live page: `find-posts`, `get-post-blocks`, then `insert`, `configure` or `
 2. **Claims need a source**: reviews, credentials and figures come from the owner, as `{"text": "...", "source": "user"}`.
 3. **Core blocks and theme presets only**: no `core/html`, inline colours or hand-written markup.
 4. **Placeholders get replaced**, or say which are left.
-5. **One `compose` call**: it checks before saving and lists every refusal.
+5. **One `compose` call**, checked before saving.
 
 ## Two routes
 
 - **Abilities only**, over MCP or REST.
-- **A shell with Node**: also `npx block-runner validate --strict` on every markup ([docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md)).
+- **A shell with Node**: also `npx block-runner validate --strict` ([docs/agents.md](https://github.com/voyager-marketing/voyager-open-blocks/blob/main/docs/agents.md)).
 
 ## More
 

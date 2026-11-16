@@ -220,7 +220,7 @@ function coded_findings( array $found, array $names ): array {
 /**
  * Stale fallbacks as findings, each with the message validate warns.
  *
- * @param list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, looks_like: string}> $stale From stale_fallbacks().
+ * @param list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, in_link: bool, looks_like: string}> $stale From stale_fallbacks().
  * @return list<array{code: string, block: string, path: string, message: string}>
  */
 function stale_fallback_findings( array $stale ): array {

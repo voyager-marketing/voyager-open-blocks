@@ -203,12 +203,14 @@ function recipe_list( ?string $dir = null, ?string $intents = null ): array {
  *
  * The marks and the keys are read from each pattern's blocks, as compose
  * places them (pattern_rows()), so a mark is a slot compose refuses copy for.
+ * So are each section's items, the numbered items omit takes (omit_items()),
+ * such as "Service 3", which no copy rule names.
  *
  * @param string                                  $slug    Recipe slug, such as home.
  * @param string|null                             $dir     Recipes directory. Defaults to this plugin's recipes.
  * @param string|null                             $intents Intents directory. Defaults to this plugin's, and the copy rules to the generated array built from them.
  * @param (callable(string): array<int, Row>)|null $rows    A pattern's blocks by its name, as BlockTree\describe() lists them. Defaults to pattern_rows(), the pattern as registered; the tests pass blocks built from the intents.
- * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object, omit?: list<string>, copy_rules: object}>, site_data: list<string>}|null Null when no recipe has the slug.
+ * @return array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: object, omit?: list<string>, copy_rules: object, items: list<string>}>, site_data: list<string>}|null Null when no recipe has the slug.
  */
 function recipe_detail( string $slug, ?string $dir = null, ?string $intents = null, ?callable $rows = null ): ?array {
 	$recipe = find_recipe( $slug, $dir, $intents );
@@ -235,6 +237,7 @@ function recipe_detail( string $slug, ?string $dir = null, ?string $intents = nu
 		$section['layout']        = $meta['layout'];
 		$section['copy_guidance'] = (object) $section['copy_guidance'];
 		$section['copy_rules']    = (object) listed_copy_rules( $meta['copy_rules'], $blocks );
+		$section['items']         = omit_items( $meta['copy_rules'], $blocks );
 		$sections[]               = $section;
 
 		array_push( $keys, ...Patterns\keys_in( $blocks, SiteData\SOURCE ) );
@@ -244,6 +247,34 @@ function recipe_detail( string $slug, ?string $dir = null, ?string $intents = nu
 	$recipe['site_data'] = array_values( array_unique( $keys ) );
 
 	return $recipe;
+}
+
+/**
+ * The numbered items of a pattern that omit takes, such as "Service 3" or
+ * "Credential 4", each once, in the order the pattern holds them.
+ *
+ * An item is a named block whose label numbers it (ITEM_LABEL). One is listed
+ * when the copy rules let omit leave it out (copy_rule_refusals()): a whole
+ * service card, whose heading and line go with it, but not "Credential 1", a
+ * slot the rules require. No copy rule names a card itself, so without this
+ * an agent reads the pattern to find the label.
+ *
+ * @param array<string, array<mixed>> $rules The pattern's copy rules, from its intent.
+ * @param array<int, Row>             $rows  The pattern's blocks as BlockTree\describe() lists them.
+ * @return list<string>
+ */
+function omit_items( array $rules, array $rows ): array {
+	$items = [];
+
+	foreach ( $rows as $row ) {
+		$label = $row['label'] ?? null;
+
+		if ( is_string( $label ) && 1 === preg_match( ITEM_LABEL, $label ) && ! in_array( $label, $items, true ) && [] === copy_rule_refusals( $rules, [], [ $label ], $rows ) ) {
+			$items[] = $label;
+		}
+	}
+
+	return $items;
 }
 
 /**

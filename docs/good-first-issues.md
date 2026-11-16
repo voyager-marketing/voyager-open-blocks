@@ -12,7 +12,7 @@ A pattern is a JSON intent that Block Runner assembles into block markup. You ne
 2. Change `title`, `description`, `keywords` and the `intent` tree. Keep `voyager-open` in `categories`, so the pattern lists under "Business sections (Open Blocks)". Without a `title` the plugin skips the file.
 3. Give every block an agent may rewrite a `metadata.name`. Names must be unique within the pattern: the `insert` ability's `copy` input finds blocks by them.
 4. Bind business details to `voyager/site-data` with args copied from [the key list](use-in-your-theme.md#site-data-keys), and author real placeholder text beside each binding. Placeholder data uses example.com and the 555-01xx range.
-5. Run `npm run patterns:build`. It writes `patterns/<name>.html` and fails on an invalid block, a dropped attribute or a repeated name. Commit both files.
+5. Run `npm run patterns:build`. It writes `patterns/<name>.html` and `inc/generated/patterns.php`, the PHP array a request reads in place of the intents and their markup, and fails on an invalid block, a dropped attribute or a repeated name. Commit all three files: the intent, the `.html` and `inc/generated/patterns.php`. Never edit the last two by hand.
 6. Add `skills/voyager-open-<name>/SKILL.md` in the shape of [the CTA band's](../skills/voyager-open-cta-band/SKILL.md), and add the item to the [README](../README.md#what-is-in-the-pack). The [entry skill](../skills/voyager-open-blocks/SKILL.md) is a quick card with no list of items, so it needs no row.
 7. Add a demo page for it to `$demos` in `playground/seed.php`, and `blueprints/<name>.json` landing on `/voyager-open/<name>/`. Copy an existing blueprint and change its `meta` and `landingPage`.
 
@@ -24,11 +24,11 @@ It must pass:
 
 ## 2. Add an outline icon to the icon block
 
-**Files:** [`assets/icons.json`](../assets/icons.json), [`src/icon/block.json`](../src/icon/block.json)
+**Files:** [`assets/icons.json`](../assets/icons.json), [`src/icon/block.json`](../src/icon/block.json), [`inc/generated/icons.php`](../inc/generated/icons.php)
 
 Add one Heroicons outline icon to `assets/icons.json`, in the same shape as its neighbours. Heroicons is MIT licensed, so keep the source name in the pull request. Then add the icon's key to the `icon` enum in `src/icon/block.json`.
 
-Run `npm run build` and commit the changed `build/` files with the source. CI fails when `build/` is stale.
+Run `npm run build`, then `npm run patterns:build`, which writes `inc/generated/icons.php`, the PHP array the icon block reads in place of `assets/icons.json`. Commit the changed `build/` files and `inc/generated/icons.php` with the source. CI fails when either is stale.
 
 ## 3. Add a markup fixture the validator must reject
 

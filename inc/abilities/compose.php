@@ -54,7 +54,7 @@ function register_compose(): void {
 		CATEGORY . '/compose',
 		[
 			'label'               => __( 'Compose a Voyager Open draft page', 'voyager-open-blocks' ),
-			'description'         => __( 'Builds a whole draft page in one call: title for a new page, or post_id of a draft to replace, and sections, top to bottom. For most pages, pass the sections get-catalog gives with recipe, as it lists them, each with copy written from its copy_guidance, and omit any item you have no copy for. Each section is placed and checked as insert places a pattern copy, its copy, omit and repeat included, with its section style on its top-level group. Only drafts: change a live page with insert and configure. When anything is refused, nothing is saved, and refused lists every slot with its section index (adjacent_style for two sections in one style). Returns post_id, revision_id for undo, preview_url, validation (what validate returns for the page, placeholder: on each stand-in left) and empty, each Site Data key the page binds that is empty now, so the page shows the pattern\'s own text there.', 'voyager-open-blocks' ),
+			'description'         => __( 'Builds a new draft page in one call: title for a new page, or post_id of a draft to replace, and sections, top to bottom. For most pages, pass the sections get-catalog gives with recipe, as it lists them, each with copy written from its copy_guidance, and omit any item you have no copy for. Each section is placed and checked as insert places a pattern copy, its copy, omit and repeat included, with its section style on its top-level group. Only drafts, never a live page: change a page that is already live with insert and configure on it, dry_run first, and undo if needed. When anything is refused, nothing is saved, and refused lists every slot with its section index (adjacent_style for two sections in one style). Returns post_id, revision_id for undo, preview_url, validation (what validate returns for the page, placeholder: on each stand-in left) and empty, each Site Data key the page binds that is empty now, so the page shows the pattern\'s own text there.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -75,13 +75,13 @@ function register_compose(): void {
 						'type'        => 'array',
 						'minItems'    => 1,
 						'maxItems'    => MAX_SECTIONS,
-						'description' => 'The page\'s sections, top to bottom. Not with recipe. copy_guidance and copy_rules, as get-catalog lists them, are ignored.',
+						'description' => 'The page\'s sections, top to bottom. Not with recipe. copy_guidance, copy_rules and items, as get-catalog lists them, are ignored.',
 						'items'       => [
 							'type'                 => 'object',
 							'properties'           => [
+								// No enum: compose names what a section's pattern is (unknown_pattern()).
 								'pattern'       => [
 									'type'        => 'string',
-									'enum'        => compose_patterns(),
 									'description' => 'A pattern get-catalog lists, by its name, such as voyager-open/services-list, or by its section, such as voyager-open/services with layout list.',
 								],
 								'layout'        => [
@@ -108,6 +108,7 @@ function register_compose(): void {
 								// it is. Every other key is still refused.
 								'copy_guidance' => [ 'type' => 'object' ],
 								'copy_rules'    => [ 'type' => 'object' ],
+								'items'         => [ 'type' => 'array' ],
 							],
 							'required'             => [ 'pattern' ],
 							'additionalProperties' => false,
@@ -496,6 +497,35 @@ function empty_site_data( array $rows ): array {
 }
 
 /**
+ * Why a section's pattern is no name compose takes, as one sentence, or ''
+ * when compose takes it (compose_patterns()).
+ *
+ * compose's input schema gives a section's pattern no enum. WordPress checks
+ * an input against the schema before the ability runs
+ * (WP_Ability::validate_input()), and an enum refuses a block's name with only
+ * "is not one of" and the list, so an agent that asked for a block learns
+ * nothing about where it is. The name is checked here instead, as get-catalog
+ * checks its patterns input (pattern_refusal()): a block's name is said to be
+ * a block, with the patterns that hold it (block_holders()).
+ *
+ * @param int                                                $index    Index of the section.
+ * @param string                                             $name     Its pattern.
+ * @param list<string>                                       $names    From compose_patterns().
+ * @param array<string, array{args: array{content: string}}> $patterns Pattern name => its entry, as Patterns\generated() gives them.
+ */
+function unknown_pattern( int $index, string $name, array $names, array $patterns ): string {
+	if ( in_array( $name, $names, true ) ) {
+		return '';
+	}
+
+	$holders = block_holders( $name, $patterns );
+
+	return [] === $holders
+		? sprintf( 'section %1$d: %2$s is not a pattern the pack ships.', $index, $name )
+		: sprintf( 'section %1$d: %2$s is a block, not a pattern: it sits in %3$s. Pass one of those, or place the block with insert.', $index, $name, and_list( $holders ) );
+}
+
+/**
  * Why a section's layout names no pattern, as one sentence.
  *
  * @param int                                                               $index   Index of the section.
@@ -616,11 +646,21 @@ function compose( array $input ) {
 	// own name read as its section and layout. Every one that names no
 	// pattern, or a layout that is not its own, is listed at once.
 	$layouts  = section_layouts();
+	$names    = compose_patterns();
 	$registry = \WP_Block_Patterns_Registry::get_instance();
 	$patterns = [];
 	$unknown  = [];
+	$no_name  = false;
 
 	foreach ( $sections as $index => $section ) {
+		$refusal = unknown_pattern( $index, $section['pattern'], $names, Patterns\generated() );
+
+		if ( '' !== $refusal ) {
+			$unknown[] = $refusal;
+			$no_name   = true;
+			continue;
+		}
+
 		$named = layout_named( $layouts, $section['pattern'] );
 
 		if ( null !== $named && null !== $section['layout'] && $named['layout'] !== $section['layout'] ) {
@@ -642,8 +682,10 @@ function compose( array $input ) {
 
 	if ( [] !== $unknown ) {
 		return new WP_Error(
-			'voyager_open_blocks_invalid_layout',
-			'Nothing was saved: ' . implode( ' ', $unknown ) . ' get-catalog lists each pattern\'s name, section and layout. Pass a pattern\'s name, or its section with its layout; leave layout out for the first.',
+			$no_name ? 'voyager_open_blocks_invalid_pattern' : 'voyager_open_blocks_invalid_layout',
+			'Nothing was saved: ' . implode( ' ', $unknown )
+				. ( $no_name ? ' A section\'s pattern takes these names: ' . implode( ', ', $names ) . '.' : '' )
+				. ' get-catalog lists each pattern\'s name, section and layout. Pass a pattern\'s name, or its section with its layout; leave layout out for the first.',
 			[ 'status' => 400 ]
 		);
 	}

@@ -20,6 +20,7 @@ use VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\BlockTree;
 use WP_Error;
 
+require_once dirname( __DIR__ ) . '/validate-stubs.php';
 require_once dirname( __DIR__, 2 ) . '/inc/abilities.php';
 
 final class BoundSlotTest extends TestCase {
@@ -40,10 +41,11 @@ final class BoundSlotTest extends TestCase {
 	 * @param string               $label    metadata.name.
 	 * @param string               $text     Its saved text.
 	 * @param array<string, mixed> $bindings metadata.bindings.
+	 * @param string               $href     Its saved link, the href core reads `url` from.
 	 * @return array{blockName: string, attrs: array<mixed>, innerBlocks: array<array<mixed>>, innerHTML: string, innerContent: array<mixed>}
 	 */
-	private static function button( string $label, string $text, array $bindings ): array {
-		$html = "\n<div class=\"wp-block-button is-style-outline\"><a class=\"wp-block-button__link wp-element-button\" href=\"/contact/\">{$text}</a></div>\n";
+	private static function button( string $label, string $text, array $bindings, string $href = '/contact/' ): array {
+		$html = "\n<div class=\"wp-block-button is-style-outline\"><a class=\"wp-block-button__link wp-element-button\" href=\"{$href}\">{$text}</a></div>\n";
 
 		return [
 			'blockName'    => 'core/button',
@@ -425,5 +427,104 @@ final class BoundSlotTest extends TestCase {
 		$this->assertStringStartsWith( 'stale_fallback: ', $out['blocks'][1]['warnings'][0] );
 		$this->assertSame( [ 'core/group at 0: an earlier warning.', $out['blocks'][1]['warnings'][0] ], $out['warnings'] );
 		$this->assertSame( $report, Abilities\with_stale_fallbacks( $report, [] ) );
+	}
+
+	// A link typed in, kept as the fallback of a button bound to the phone or email link.
+
+	private const EMAIL_LINK = [
+		'source' => 'voyager/site-data',
+		'args'   => [ 'key' => 'email_link' ],
+	];
+
+	public function test_validate_flags_a_typed_tel_link_on_a_call_button_bound_to_phone_link(): void {
+		// The skills benchmark's contact page, its call button bound on its text
+		// and its link, the link still the number typed in.
+		$stale = Abilities\stale_fallbacks( [ self::button( 'Call', 'Call us', [ 'text' => self::PHONE, 'url' => self::PHONE_LINK ], 'tel:+15035550147' ) ] );
+
+		$this->assertCount( 1, $stale );
+		$this->assertSame( 'url', $stale[0]['attribute'] );
+		$this->assertSame( 'phone_link', $stale[0]['key'] );
+		$this->assertSame( 'tel:+15035550147', $stale[0]['fallback'] );
+		$this->assertSame( 'phone', $stale[0]['looks_like'] );
+		$this->assertTrue( $stale[0]['in_link'] );
+		$this->assertSame(
+			'stale_fallback: core/button "Call" at 0, binding "url" (voyager/site-data, key "phone_link"): its fallback "tel:+15035550147" looks like a phone number. Visitors see the fallback whenever the source returns nothing, and it stays in the post when the value changes. Bind "url" again with the same args, which replaces the link with /contact/.',
+			Abilities\stale_fallback_warning( $stale[0] )
+		);
+	}
+
+	public function test_validate_flags_a_typed_mailto_link_on_a_button_bound_to_email_link(): void {
+		$stale = Abilities\stale_fallbacks( [ self::button( 'Email button', 'Email us', [ 'url' => self::EMAIL_LINK ], 'mailto:office@example.com?subject=Hello' ) ] );
+
+		$this->assertCount( 1, $stale );
+		$this->assertSame( 'email', $stale[0]['looks_like'] );
+		$this->assertSame( 'mailto:office@example.com?subject=Hello', $stale[0]['fallback'] );
+	}
+
+	public function test_a_link_that_is_no_typed_copy_of_its_key_is_not_flagged(): void {
+		// The pack's own link, an anchor, digits in a web address, a scheme with
+		// nothing after it, a short number, and a number on another scheme.
+		foreach ( [ '/contact/', '#contact', 'https://example.com/book?ref=5035550147', 'tel:', 'mailto:', 'tel:911', 'sms:+15035550147', 'https://wa.me/15035550147' ] as $href ) {
+			$this->assertSame( [], Abilities\stale_fallbacks( [ self::button( 'Call', 'Call us', [ 'url' => self::PHONE_LINK ], $href ) ] ), $href );
+		}
+
+		// Only what the key names: a tel: link under the email link, and a mailto: link under the phone link.
+		$this->assertSame(
+			[],
+			Abilities\stale_fallbacks(
+				[
+					self::button( 'Email button', 'Email us', [ 'url' => self::EMAIL_LINK ], 'tel:+15035550147' ),
+					self::button( 'Call', 'Call us', [ 'url' => self::PHONE_LINK ], 'mailto:office@example.com' ),
+				]
+			)
+		);
+
+		// Only a bound link is a fallback: not one on a button with no binding,
+		// nor one on a button bound on its text alone.
+		$this->assertSame(
+			[],
+			Abilities\stale_fallbacks(
+				[
+					self::button( 'Call', 'Call us', [], 'tel:+15035550147' ),
+					self::button( 'Call', 'Call us', [ 'text' => self::PHONE ], 'tel:+15035550147' ),
+				]
+			)
+		);
+	}
+
+	public function test_bind_writes_the_pack_s_link_in_place_of_a_typed_one(): void {
+		$button = self::button( 'Call', 'Call (503) 555-0147', [ 'url' => self::PHONE_LINK ], 'tel:+15035550147' );
+
+		$this->assertSame( 'tel:+15035550147', Abilities\replace_typed_link( $button, 'url', 'phone_link' ) );
+		$this->assertSame( "\n<div class=\"wp-block-button is-style-outline\"><a class=\"wp-block-button__link wp-element-button\" href=\"/contact/\">Call (503) 555-0147</a></div>\n", $button['innerHTML'] );
+		$this->assertSame( [ $button['innerHTML'] ], $button['innerContent'] );
+		$this->assertSame( [], Abilities\stale_fallbacks( [ $button ] ), 'what validate warns on is gone' );
+
+		$email = self::button( 'Email button', 'Email us', [ 'url' => self::EMAIL_LINK ], 'mailto:office@example.com' );
+		$this->assertSame( 'mailto:office@example.com', Abilities\replace_typed_link( $email, 'url', 'email_link' ) );
+		$this->assertStringContainsString( 'href="/contact/"', $email['innerHTML'] );
+	}
+
+	public function test_bind_leaves_any_other_link_and_attribute_as_it_is(): void {
+		$icon = [
+			'blockName'    => 'voyager-open/icon',
+			'attrs'        => [ 'linkUrl' => 'tel:+15555550113' ],
+			'innerBlocks'  => [],
+			'innerHTML'    => '',
+			'innerContent' => [],
+		];
+
+		foreach ( [
+			'the pack\'s own link'            => [ self::button( 'Call', 'Call us', [], '/contact/' ), 'url', 'phone_link' ],
+			'the button\'s text'              => [ self::button( 'Call', 'Call us', [], 'tel:+15035550147' ), 'text', 'phone' ],
+			'a tel: link under email_link'    => [ self::button( 'Call', 'Call us', [], 'tel:+15035550147' ), 'url', 'email_link' ],
+			'a mailto: link under phone_link' => [ self::button( 'Email', 'Email us', [], 'mailto:office@example.com' ), 'url', 'phone_link' ],
+			'a key that names neither'        => [ self::button( 'Book', 'Book now', [], 'tel:+15035550147' ), 'url', 'booking_url' ],
+			'a link in the block comment'     => [ $icon, 'linkUrl', 'phone_link' ],
+		] as $case => [ $block, $attribute, $key ] ) {
+			$before = $block;
+			$this->assertSame( '', Abilities\replace_typed_link( $block, $attribute, $key ), $case );
+			$this->assertSame( $before, $block, $case );
+		}
 	}
 }

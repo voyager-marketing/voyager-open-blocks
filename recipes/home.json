@@ -19,7 +19,8 @@
 			"layout": null,
 			"style": "panel",
 			"copy_guidance": {
-				"Credential 1": "The credential a visitor looks for first, such as a licence, from Site Data's credentials list or as the site owner gave it."
+				"Credential 1": "The credential a visitor looks for first, such as a licence, from Site Data's credentials list or as the site owner gave it.",
+				"Credential 4": "The next credential, from the same list or the site owner; leave it out when there are three. For a fifth and sixth, repeat it as Credential 5 and Credential 6."
 			}
 		},
 		{

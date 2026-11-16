@@ -52,7 +52,7 @@ function register_insert(): void {
 		CATEGORY . '/insert',
 		[
 			'label'               => __( 'Insert a Voyager Open block or pattern', 'voyager-open-blocks' ),
-			'description'         => __( 'Places one of the pack\'s patterns or blocks from get-catalog in a post, at the top level or inside the block at parent, and returns its markup and each new block\'s path and label. A pattern goes in as a copy, which takes copy, omit and repeat, or as a reference that follows plugin updates. For a whole draft page, use compose. Refused input saves nothing, and data.refused lists every refused slot. No ability adds a block that is not the pack\'s, changes an image or changes a static button\'s link: tell the user to do that in the editor. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
+			'description'         => __( 'Places one of the pack\'s patterns or blocks from get-catalog in a post, at the top level or inside the block at parent, and returns its markup and each new block\'s path and label. A pattern goes in as a copy, which takes copy, omit and repeat, or as a reference that follows plugin updates. To change a page that is already live, insert into it, dry_run first: compose builds only new draft pages. Refused input saves nothing, and data.refused lists every refused slot. No ability adds a block that is not the pack\'s, changes an image or changes a static button\'s link: tell the user to do that in the editor. A save returns revision_id, which undo takes.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',

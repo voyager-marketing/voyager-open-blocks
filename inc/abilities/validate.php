@@ -35,7 +35,7 @@ function register_validate(): void {
 		CATEGORY . '/validate',
 		[
 			'label'               => __( 'Validate block markup', 'voyager-open-blocks' ),
-			'description'         => __( 'Checks block markup, or a saved post, and saves nothing. For each block, by path: its type is registered, its comment attributes match block.json, its bindings name a bindable attribute and args get-catalog lists, and it survives a parse and serialize round trip. It cannot compare saved HTML with each block\'s save(), so where block-runner validate is not run, say the HTML was not checked. Warnings leave valid true. placeholder: each pack placeholder image, as an image, a media and text image or a cover\'s background, the contact section\'s form stand-in, a saved post\'s empty Site Data list showing its stand-in items, and each text slot of a numbered item, such as "Credential 4", still holding the stand-in text the pack ships there, such as "Your fourth credential". An item\'s short first slot, such as a service\'s heading, is let off when every other slot holds the site\'s own text. missing_alt: any other image with no alt text; never a cover. stale_fallback: a block bound to a phone or email field whose own text looks like one, which visitors see when the field is empty. Tell the user to fix these in the editor before the page goes live, and to set each new cover or media and text image\'s focal point on its subject.', 'voyager-open-blocks' ),
+			'description'         => __( 'Checks block markup, or a saved post, and saves nothing. For each block, by path: its type is registered, its comment attributes match block.json, its bindings name a bindable attribute and args get-catalog lists, and it survives a parse and serialize round trip. It cannot compare saved HTML with each block\'s save(), so where block-runner validate is not run, say the HTML was not checked. Warnings leave valid true. placeholder: each pack placeholder image, as an image, a media and text image or a cover\'s background, the contact section\'s form stand-in, a saved post\'s empty Site Data list showing its stand-in items, and each text slot of a numbered item, such as "Credential 4", still holding the stand-in text the pack ships there, such as "Your fourth credential". An item\'s short first slot, such as a service\'s heading, is let off when every other slot holds the site\'s own text. missing_alt: any other image with no alt text; never a cover. stale_fallback: a block bound to a phone or email field whose own text, or typed tel: or mailto: link, looks like one, which visitors see when the field is empty. Tell the user to fix these in the editor before the page goes live, and to set each new cover or media and text image\'s focal point on its subject.', 'voyager-open-blocks' ),
 			'category'            => CATEGORY,
 			'input_schema'        => [
 				'type'                 => 'object',
@@ -238,16 +238,42 @@ function looks_like( string $text ): ?string {
 }
 
 /**
+ * The link bind writes in place of a typed tel: or mailto: fallback: the one
+ * the pack's call and email buttons ship with.
+ */
+const CONTACT_LINK = '/contact/';
+
+/**
+ * What a link is a typed copy of: 'phone' for a tel: link whose number
+ * looks_like() reads as one, 'email' for a mailto: link holding an email
+ * address, or null. Any other link is neither, digits and all, such as
+ * /contact/, https://example.com/book?ref=5035550147 or an sms: link.
+ *
+ * @param string $href A link's href.
+ */
+function link_looks_like( string $href ): ?string {
+	if ( 1 === preg_match( '/^(tel|mailto):(.*)$/is', trim( $href ), $match ) ) {
+		$kind = 'tel' === strtolower( $match[1] ) ? 'phone' : 'email';
+
+		return looks_like( rawurldecode( $match[2] ) ) === $kind ? $kind : null;
+	}
+
+	return null;
+}
+
+/**
  * Every bound attribute's fallback, by block path.
  *
  * The fallback is what WordPress renders when the source returns nothing:
  * the block's own text for a heading's, paragraph's or list item's content
- * or a button's text, else the attribute's value in the block comment. An
- * attribute read from other saved HTML, such as a button's link, is skipped.
+ * or a button's text, the href of its link for a button's url
+ * (BlockTree\LINK_ATTRIBUTES), else the attribute's value in the block
+ * comment. Any other attribute read from saved HTML, such as an image's url,
+ * is skipped.
  *
  * @param array<int, Block> $blocks Blocks.
  * @param string            $prefix Path of the parent, '' at the top.
- * @return list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool}>
+ * @return list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, in_link: bool}>
  */
 function bound_fallbacks( array $blocks, string $prefix = '' ): array {
 	$out = [];
@@ -259,8 +285,13 @@ function bound_fallbacks( array $blocks, string $prefix = '' ): array {
 
 		foreach ( bound_attributes( $metadata['bindings'] ?? [] ) as $attribute => $binding ) {
 			$in_html  = ( BlockTree\TEXT_ATTRIBUTES[ $name ] ?? null ) === $attribute;
+			$in_link  = ( BlockTree\LINK_ATTRIBUTES[ $name ] ?? null ) === $attribute;
 			$value    = $block['attrs'][ $attribute ] ?? null;
-			$fallback = $in_html ? BlockTree\own_text( $block ) : ( is_string( $value ) ? trim( $value ) : '' );
+			$fallback = match ( true ) {
+				$in_html => BlockTree\own_text( $block ),
+				$in_link => BlockTree\link_href( $block ),
+				default  => is_string( $value ) ? trim( $value ) : '',
+			};
 
 			if ( '' === $fallback ) {
 				continue;
@@ -275,6 +306,7 @@ function bound_fallbacks( array $blocks, string $prefix = '' ): array {
 				'key'       => $binding['key'],
 				'fallback'  => $fallback,
 				'in_html'   => $in_html,
+				'in_link'   => $in_link,
 			];
 		}
 
@@ -633,10 +665,12 @@ function list_stand_in_warnings( array $blocks, array $index, callable $falls_ba
  * ("© 2015-2026", "License #1234567", "PO Box 1234567") and is never a stale
  * copy of one. The pack's own patterns ship labels there, such as the
  * contact section's "Phone" and "Email", so no fallback is let off: a
- * sample number an earlier release shipped warns like any other.
+ * sample number an earlier release shipped warns like any other. A button's
+ * link is read as a link (link_looks_like()): only a typed tel: or mailto:
+ * link is a stale copy, never the pack's /contact/ or a web address.
  *
  * @param array<int, Block> $blocks Blocks.
- * @return list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, looks_like: string}>
+ * @return list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, in_link: bool, looks_like: string}>
  */
 function stale_fallbacks( array $blocks ): array {
 	$stale = [];
@@ -648,7 +682,7 @@ function stale_fallbacks( array $blocks ): array {
 			continue;
 		}
 
-		$kind = looks_like( $fallback['fallback'] );
+		$kind = $fallback['in_link'] ? link_looks_like( $fallback['fallback'] ) : looks_like( $fallback['fallback'] );
 
 		if ( null === $kind || ! in_array( $kind, $kinds, true ) ) {
 			continue;
@@ -663,12 +697,14 @@ function stale_fallbacks( array $blocks ): array {
 /**
  * The warning for one stale fallback. It starts with its code, stale_fallback.
  *
- * @param array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, looks_like: string} $stale From stale_fallbacks().
+ * @param array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, in_link: bool, looks_like: string} $stale From stale_fallbacks().
  */
 function stale_fallback_warning( array $stale ): string {
-	$fix = $stale['in_html']
-		? sprintf( 'Replace it in the editor with a label, such as "%s".', 'email' === $stale['looks_like'] ? 'Email us' : 'Call us' )
-		: sprintf( 'Remove it with configure, passing null for "%s".', $stale['attribute'] );
+	$fix = match ( true ) {
+		$stale['in_html'] => sprintf( 'Replace it in the editor with a label, such as "%s".', 'email' === $stale['looks_like'] ? 'Email us' : 'Call us' ),
+		$stale['in_link'] => sprintf( 'Bind "%1$s" again with the same args, which replaces the link with %2$s.', $stale['attribute'], CONTACT_LINK ),
+		default           => sprintf( 'Remove it with configure, passing null for "%s".', $stale['attribute'] ),
+	};
 
 	return sprintf(
 		'stale_fallback: %s%s at %s, binding "%s" (%s%s): its fallback "%s" looks like %s. Visitors see the fallback whenever the source returns nothing, and it stays in the post when the value changes. %s',
@@ -689,7 +725,7 @@ function stale_fallback_warning( array $stale ): string {
  * report's warnings. Warnings do not change `valid`.
  *
  * @param array{valid: bool, post_type: string, round_trip: bool, blocks: array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>, errors: string[], warnings: string[], markup: string} $report From BlockTree\validate_markup().
- * @param list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, looks_like: string}>     $stale  From stale_fallbacks().
+ * @param list<array{path: string, block: string, label: string, attribute: string, source: string, key: string, fallback: string, in_html: bool, in_link: bool, looks_like: string}>     $stale  From stale_fallbacks().
  * @return array{valid: bool, post_type: string, round_trip: bool, blocks: array<int, array{path: string, block: string, label?: string, errors: string[], warnings: string[]}>, errors: string[], warnings: string[], markup: string}
  */
 function with_stale_fallbacks( array $report, array $stale ): array {

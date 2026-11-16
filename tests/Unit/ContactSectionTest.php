@@ -30,6 +30,7 @@ use VoyagerOpenBlocks\Patterns;
 use VoyagerOpenBlocks\SiteData;
 
 require_once dirname( __DIR__ ) . '/facts-stubs.php';
+require_once dirname( __DIR__ ) . '/validate-stubs.php';
 require_once dirname( __DIR__ ) . '/contact-details-stubs.php';
 require_once dirname( __DIR__, 2 ) . '/inc/patterns.php';
 require_once dirname( __DIR__, 2 ) . '/inc/contact-details.php';
