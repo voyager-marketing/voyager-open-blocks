@@ -314,6 +314,44 @@ final class ClaimWordsTest extends TestCase {
 		$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( self::check( 'cta-band', [ 'Body' => 'Free inspections by our crews.' ], $roofs ) ) );
 	}
 
+	public function test_a_trade_noun_stands_in_only_where_the_claim_word_is_said_of_it(): void {
+		$contractors = [
+			'credentials' => 'Licensed contractors',
+			'year'        => '2026',
+		];
+
+		// Within two words of the claim word, either side, the trade noun is
+		// what the claim word is said of.
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed roofers serve Kestovar.' ], $contractors ) ) );
+		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Our roofers are licensed.' ], $contractors ) ) );
+		$this->assertSame(
+			[],
+			self::reasons(
+				self::check(
+					'hero',
+					[ 'Body' => 'Licensed and insured crews on every job.' ],
+					[
+						'credentials' => 'Licensed and insured contractors',
+						'year'        => '2026',
+					]
+				)
+			)
+		);
+
+		// A trade noun anywhere else in the sentence is not, so the sentence
+		// says no more about the work than it does without one.
+		foreach ( [
+			'Licensed to operate, and our roofers are proud of their work.',
+			'Licensed to operate, and proud of our work.',
+			'Our roofers clean up daily and are fully licensed.',
+		] as $text ) {
+			$refused = self::check( 'hero', [ 'Body' => $text ], $contractors );
+
+			$this->assertSame( [ 'Body: unsourced_claim' ], self::reasons( $refused ), $text );
+			$this->assertSame( [ 'licensed' ], $refused[0]['words'] ?? null, $text );
+		}
+	}
+
 	public function test_a_figure_with_a_number_needs_its_site_data_value(): void {
 		foreach ( [
 			'Over 30 years of roofing in Kestovar.' => 'years',

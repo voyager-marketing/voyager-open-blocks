@@ -311,6 +311,34 @@ test( 'top, best and leading make a claim, but not in an idiom', async () => {
 	);
 } );
 
+test( 'a trade noun stands in for a credential trade noun only within two words of the claim word', async () => {
+	const { claims } = await measures();
+	const contractors = { ...kestovar(), credentials: [ 'Licensed contractors' ], services: [] };
+	const lines = [
+		'Licensed roofers serve Kestovar.',
+		'Our roofers are licensed.',
+		'Licensed to operate, and our roofers are proud of their work.',
+		'Licensed to operate, and proud of our work.',
+		'Our roofers clean up daily and are fully licensed.',
+	];
+	assert.deepEqual(
+		claims( page( ...lines ), contractors, { year: 2026 } ).map( ( c ) => [ c.text, c.untraced ] ),
+		[
+			[ 'Licensed roofers serve Kestovar.', [] ],
+			[ 'Our roofers are licensed.', [] ],
+			[ 'Licensed to operate, and our roofers are proud of their work.', [ 'licensed' ] ],
+			[ 'Licensed to operate, and proud of our work.', [ 'licensed' ] ],
+			[ 'Our roofers clean up daily and are fully licensed.', [ 'licensed' ] ],
+		],
+		'roofers stands for contractors beside licensed, as the pack reads it, and nowhere else in the sentence'
+	);
+	assert.deepEqual(
+		claims( page( 'Licensed and insured crews on every job.' ), { ...contractors, credentials: [ 'Licensed and insured contractors' ] }, { year: 2026 } ).map( ( c ) => c.untraced ),
+		[ [] ],
+		'two words between: and, insured'
+	);
+} );
+
 test( 'years since the year founded count as a Site Data figure', async () => {
 	const { claims } = await measures();
 	const brief = kestovar();
@@ -372,4 +400,11 @@ test( 'the phrases that make no claim follow inc/abilities/claims.php NOT_CLAIMS
 	const expected = block.split( '\n' ).map( ( line ) => /^\t'(.+)',$/.exec( line )?.[ 1 ] ?? line );
 	assert.deepEqual( NOT_CLAIMS.map( ( re ) => re.source ), expected );
 	assert.ok( NOT_CLAIMS.every( ( re ) => re.flags === 'gi' ), 'read as PHP reads them, case-insensitively, every match' );
+} );
+
+test( 'the trade nouns follow inc/abilities/claims.php TRADE_NOUNS', async () => {
+	const { TRADE_NOUNS } = await measures();
+	const list = /^const TRADE_NOUNS = \[ (.+) \];$/m.exec( claimsPhp() )?.[ 1 ];
+	assert.ok( list, 'inc/abilities/claims.php holds TRADE_NOUNS on one line; if it moved, read it from its new home here' );
+	assert.deepEqual( TRADE_NOUNS, list.split( ', ' ).map( ( word ) => /^'([a-z]+)'$/.exec( word )?.[ 1 ] ?? word ) );
 } );
