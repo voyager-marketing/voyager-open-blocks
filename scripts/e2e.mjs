@@ -62,7 +62,8 @@
  *      still warns six times), the contact section's form
  *      slot and the image slot of each of
  *      the hero's two layouts (listed by get-catalog with their copy labels;
- *      one placeholder warning, and no other), each
+ *      the call button, which shows the phone, copy: false; one
+ *      placeholder warning, and no other), each
  *      placed with insert on a draft of its own, the services section's two
  *      layouts (listed with their copy labels; a fourth card through repeat,
  *      its icon then set with configure, one card dropped through omit, and
@@ -222,7 +223,8 @@
  *      the reduced-motion rule that stops it. Then it deletes both pages.
  *  16. the stats section: get-catalog lists voyager-open/stats and
  *      voyager-open/stats-band with their copy labels, each value bound to
- *      founded, rating or review_count. The year founded, the rating and the
+ *      founded, rating or review_count and marked copy: false. The year
+ *      founded, the rating and the
  *      review count are set to 1998, 4.80 and 0127 through POST
  *      /wp/v2/settings, and a published page holding voyager-open/stats
  *      shows 1998, 4.8 and 127 in its section, in that order. The page counts
@@ -2117,17 +2119,26 @@ for ( const [ item, block, file ] of [
 	const labels = ( listed?.blocks || [] )
 		.filter( ( b ) => b.copy )
 		.map( ( b ) => b.label );
+	const heroCallRow = ( listed?.blocks || [] ).find(
+		( b ) => b.label === 'Click to call'
+	);
 	step(
-		`get-catalog lists ${ item } with its copy labels`,
+		`get-catalog lists ${ item } with its copy labels, and its call button, which shows the phone, copy: false`,
 		JSON.stringify( labels ) ===
 			JSON.stringify( [
 				'Eyebrow',
 				'Heading',
 				'Body',
 				'Primary button',
-				'Click to call',
-			] ),
-		listed ? labels.join( ', ' ) : 'not listed'
+			] ) &&
+			heroCallRow?.copy === false &&
+			heroCallRow?.bindings?.text?.args?.key === 'phone' &&
+			listed?.copy_rules?.[ 'Click to call' ]?.copy === false,
+		listed
+			? `${ labels.join( ', ' ) }; Click to call ${ JSON.stringify(
+					heroCallRow
+				) }`
+			: 'not listed'
 	);
 	const hero = await validateInserted( item );
 	const warnings = hero.report.data.warnings || [];
@@ -2983,14 +2994,22 @@ step(
 		: 'not listed'
 );
 step(
-	'get-catalog lists voyager-open/cta-band with section "cta-band", layout "row", and copy_rules as its intent holds them, as an object',
+	'get-catalog lists voyager-open/cta-band with section "cta-band", layout "row", and copy_rules as its intent holds them, as an object, but its call button, which shows the phone: its purpose, copy: false and bound',
 	bandListed?.section === 'cta-band' &&
 		bandListed?.layout === 'row' &&
 		!! bandListed?.copy_rules &&
 		typeof bandListed.copy_rules === 'object' &&
 		! Array.isArray( bandListed.copy_rules ) &&
+		!! bandIntent.copy_rules?.[ 'Click to call' ] &&
 		JSON.stringify( bandListed.copy_rules ) ===
-			JSON.stringify( bandIntent.copy_rules || {} ),
+			JSON.stringify( {
+				...bandIntent.copy_rules,
+				'Click to call': {
+					purpose: bandIntent.copy_rules[ 'Click to call' ].purpose,
+					copy: false,
+					bound: { source: 'voyager/site-data', key: 'phone' },
+				},
+			} ),
 	bandListed
 		? JSON.stringify( {
 				section: bandListed.section,
@@ -7036,29 +7055,32 @@ for ( const [ item, layout, lead ] of [
 	const labels = ( statsListed?.blocks || [] )
 		.filter( ( b ) => b.copy )
 		.map( ( b ) => b.label );
+	// Each value shows its Site Data field, so it takes no copy: its block
+	// and its rule say copy: false, and only the labels are copy.
 	const expected = [
 		...lead,
-		...statsFigures.flatMap( ( f ) => [
-			`${ f.figure } value`,
-			`${ f.figure } label`,
-		] ),
+		...statsFigures.map( ( f ) => `${ f.figure } label` ),
 	];
 	const unbound = statsFigures.filter( ( f ) => {
-		const content = ( statsListed?.blocks || [] ).find(
+		const value = ( statsListed?.blocks || [] ).find(
 			( b ) => b.label === `${ f.figure } value`
-		)?.bindings?.content;
+		);
+		const rule = statsListed?.copy_rules?.[ `${ f.figure } value` ];
 		return ! (
-			content?.source === 'voyager/site-data' &&
-			content?.args?.key === f.key
+			value?.bindings?.content?.source === 'voyager/site-data' &&
+			value?.bindings?.content?.args?.key === f.key &&
+			value?.copy === false &&
+			rule?.copy === false &&
+			rule?.bound?.key === f.key &&
+			! ( 'claim' in rule )
 		);
 	} );
 	step(
-		`get-catalog lists ${ item } (section stats, layout ${ layout }) with its copy labels, each value bound to founded, rating or review_count`,
+		`get-catalog lists ${ item } (section stats, layout ${ layout }) with its copy labels, each value bound to founded, rating or review_count and marked copy: false`,
 		statsListed?.section === 'stats' &&
 			statsListed?.layout === layout &&
 			JSON.stringify( labels ) === JSON.stringify( expected ) &&
-			unbound.length === 0 &&
-			statsListed?.copy_rules?.[ 'Rating value' ]?.claim === true,
+			unbound.length === 0,
 		statsListed
 			? `labels ${ labels.join( ', ' ) }; unbound ${
 					unbound.map( ( f ) => f.figure ).join( ', ' ) || 'none'

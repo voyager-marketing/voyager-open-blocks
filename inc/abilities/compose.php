@@ -99,7 +99,7 @@ function register_compose(): void {
 									'type'                 => 'object',
 									'default'              => [],
 									'additionalProperties' => copy_value_schema(),
-									'description'          => 'Text by copy label, as insert\'s copy takes it, within the pattern\'s copy_rules. A claim slot takes only the object form, and a slot whose text is bound, such as "Founded value", none.',
+									'description'          => 'Text by copy label, as insert\'s copy takes it, within the pattern\'s copy_rules. A claim slot takes only the object form, and a slot get-catalog marks copy: false, its text bound, none.',
 								],
 								'omit'          => omit_schema( 'As insert\'s omit, for this section, such as ["Service 3"] for two service cards. A recipe\'s section may carry omit: pass it on.' ),
 								'repeat'        => repeat_schema( 'As insert\'s repeat, such as {"Credential 4": ["Credential 5"]} for a fifth fact. A copy holds the text and copy rule of the block it copies, so give it copy: a copy of a claim slot is a claim.' ),

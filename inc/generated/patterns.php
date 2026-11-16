@@ -461,7 +461,7 @@ return [
 				'claim' => false,
 			],
 			'Click to call' => [
-				'purpose' => 'Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.',
+				'purpose' => 'Shows the Site Data phone number and dials it when tapped. It takes no copy: the number is changed in Settings > Site Data. Its own text shows only while the number is empty.',
 				'min' => 2,
 				'max' => 24,
 				'required' => true,
@@ -541,7 +541,7 @@ return [
 				'claim' => false,
 			],
 			'Click to call' => [
-				'purpose' => 'Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.',
+				'purpose' => 'Shows the Site Data phone number and dials it when tapped. It takes no copy: the number is changed in Settings > Site Data. Its own text shows only while the number is empty.',
 				'min' => 2,
 				'max' => 24,
 				'required' => true,
@@ -840,7 +840,7 @@ return [
 				'claim' => false,
 			],
 			'Click to call' => [
-				'purpose' => 'Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.',
+				'purpose' => 'Shows the Site Data phone number and dials it when tapped. It takes no copy: the number is changed in Settings > Site Data. Its own text shows only while the number is empty.',
 				'min' => 2,
 				'max' => 24,
 				'required' => true,
@@ -928,7 +928,7 @@ return [
 				'claim' => false,
 			],
 			'Click to call' => [
-				'purpose' => 'Bound to the Site Data phone number. Its own text shows only while the number is empty, so it names the action.',
+				'purpose' => 'Shows the Site Data phone number and dials it when tapped. It takes no copy: the number is changed in Settings > Site Data. Its own text shows only while the number is empty.',
 				'min' => 2,
 				'max' => 24,
 				'required' => true,

@@ -191,13 +191,14 @@ final class CatalogCacheTest extends TestCase {
 				$this->calls['recipe'][] = $slug;
 				return 'home' === $slug
 					? [
-						'slug'     => 'home',
-						'sections' => [
+						'slug'      => 'home',
+						'sections'  => [
 							[
 								'pattern'    => 'voyager-open/hero',
 								'copy_rules' => (object) [ 'Heading' => [ 'max' => 60 ] ],
 							],
 						],
+						'site_data' => [ 'phone' ],
 					]
 					: null;
 			},
@@ -470,6 +471,36 @@ final class CatalogCacheTest extends TestCase {
 
 		$kept = unserialize( $GLOBALS['voyager_test_transients'][ Abilities\catalog_transient() ]['value'] );
 		$this->assertSame( [ 'styles', 'brief_patterns', 'brief_recipes', 'blocks', 'patterns', 'recipes' ], array_keys( $kept['parts'] ), 'no sources, no filled and no used_on are kept' );
+	}
+
+	public function test_a_recipe_s_site_data_is_each_field_as_sources_lists_it_with_filled_read_on_every_call(): void {
+		$recipe  = $this->answer( [ 'recipe' => 'home' ] );
+		$sources = $this->answer( [ 'include' => [ 'sources' ] ] );
+
+		$this->assertSame( [ $sources['sources'][0]['fields'][0] ], $recipe['recipe']['site_data'], 'the field the recipe binds, as sources lists it, filled included' );
+		$this->assertFalse( $recipe['recipe']['site_data'][0]['filled'] );
+		$warm = $this->keptBuilds();
+
+		// The phone is set after the recipe was kept.
+		$this->phone = '(555) 010-0100';
+
+		$after = $this->answer( [ 'recipe' => 'home' ] );
+		$this->assertSame( $warm, $this->keptBuilds(), 'nothing kept was built again' );
+		$this->assertTrue( $after['recipe']['site_data'][0]['filled'], 'filled follows the phone set after the recipe was kept' );
+		$this->assertSame( $this->answer( [ 'include' => [ 'sources' ] ] )['sources'][0]['fields'], $after['recipe']['site_data'] );
+
+		$kept = unserialize( $GLOBALS['voyager_test_transients'][ Abilities\catalog_transient() ]['value'] );
+		$this->assertSame( [ 'phone' ], $kept['parts']['recipe:home']['site_data'], 'the recipe is kept with its keys alone, never a field or a filled' );
+
+		// One call that answers with both reads the sources and filled once.
+		$filled = count( $this->calls['filled'] );
+		$this->answer(
+			[
+				'include' => [ 'sources' ],
+				'recipe'  => 'home',
+			]
+		);
+		$this->assertCount( $filled + 1, $this->calls['filled'] );
 	}
 
 	public function test_sources_are_read_on_every_call_for_the_post_type_asked_and_never_kept(): void {

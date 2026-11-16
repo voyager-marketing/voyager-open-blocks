@@ -8,7 +8,9 @@
  * sources with whether each Site Data field is filled, and each recipe's
  * sections as compose takes them. recipe, patterns and include name detail,
  * and the answer then holds only what they name. include with all six keys
- * is the whole catalog.
+ * is the whole catalog. Wherever it gives copy rules, a slot whose text a
+ * binding owns is marked copy: false (listed_copy_rules()), and recipe also
+ * lists the Site Data fields its page binds, with filled.
  *
  * The parts that change only with the code, the theme or a setting are kept
  * between calls (catalog_answer()), and built again after any of
@@ -85,7 +87,7 @@ function register_get_catalog(): void {
 	$slugs  = array_column( recipes(), 'slug' );
 	$recipe = [
 		'type'        => 'string',
-		'description' => 'A recipe\'s slug, such as home: that recipe in full, each section with copy_guidance, a line per copy label on what it says on this page, and copy_rules, its pattern\'s rule per copy label: purpose, min and max characters, and whether it is required or a claim. A claim\'s line says where its fact comes from, and that is never you. compose takes its sections as they are.',
+		'description' => 'A recipe\'s slug, such as home: that recipe in full, each section with copy_guidance, a line per copy label on what it says on this page, and copy_rules, its pattern\'s rule per copy label: purpose, min and max characters, and whether it is required or a claim. A claim\'s line says where its fact comes from, and that is never you. A rule with copy: false is bound to Site Data: it takes no copy. site_data: each Site Data field the page shows, with filled. compose takes its sections as they are.',
 	];
 
 	// JSON Schema refuses an empty enum, so with no recipe to read it is left out.
@@ -115,7 +117,7 @@ function register_get_catalog(): void {
 							'type' => 'string',
 							'enum' => array_keys( Patterns\generated() ),
 						],
-						'description' => 'Pattern names, such as voyager-open/hero-cover: each in full, with its title, categories, copy_rules and named blocks, their bindings, and copy: true on each whose text insert and compose take.',
+						'description' => 'Pattern names, such as voyager-open/hero-cover: each in full, with its title, categories, copy_rules and named blocks, their bindings, and copy: true on each whose text insert and compose take, copy: false on each whose text is bound.',
 					],
 					'include'   => [
 						'type'        => 'array',
@@ -162,7 +164,8 @@ function get_catalog( $input = null ) {
  *
  * catalog_answer() keeps what styles, blocks, patterns, brief_patterns,
  * recipes, brief_recipes and recipe build between calls. It calls sources,
- * filled and used_on on every call: whether a Site Data field holds a value,
+ * filled and used_on on every call that answers with them, a recipe's
+ * site_data included: whether a Site Data field holds a value,
  * and how many posts show it, change with the content, and the sources read
  * the post meta and binding sources other plugins register in code, which a
  * file deploy changes with no hook. The tests pass their own builders, to
@@ -174,7 +177,7 @@ function catalog_builders(): array {
 	return [
 		'styles'         => static fn (): array => SectionStyles\catalog(),
 		'blocks'         => static fn (): array => Catalog\blocks(),
-		'patterns'       => static fn (): array => Catalog\patterns(),
+		'patterns'       => static fn (): array => listed_patterns( Catalog\patterns() ),
 		'brief_patterns' => static fn (): array => brief_patterns( \WP_Block_Patterns_Registry::get_instance()->get_all_registered() ),
 		'sources'        => static fn ( string $post_type ): array => Catalog\sources( $post_type ),
 		'recipes'        => static fn (): array => recipe_list(),
@@ -192,8 +195,9 @@ function catalog_builders(): array {
  * in a transient for the request's locale, under catalog_version(), and a
  * call builds only the parts it needs and the transient does not hold. A
  * recipe is kept only when its slug names one, so what an input can add to
- * the transient is bounded. sources, filled and used_on are built on every
- * call that answers with them, the sources once.
+ * the transient is bounded. A recipe is kept with its Site Data keys, never a
+ * filled (recipe_site_data()). sources, filled and used_on are built on every
+ * call that answers with them, the sources and filled once.
  *
  * @param array<mixed> $input Input.
  * @param array{styles: callable(): array<mixed>, blocks: callable(): array<mixed>, patterns: callable(): array<mixed>, brief_patterns: callable(): array<mixed>, sources: callable(string): array<mixed>, recipes: callable(): array<mixed>, brief_recipes: callable(): array<mixed>, recipe: callable(string): (array<mixed>|null), filled: callable(array<mixed>): array<mixed>, used_on: callable(array<mixed>): array<mixed>} $build From catalog_builders().
@@ -232,11 +236,19 @@ function catalog_answer( array $input, array $build ) {
 		return $read;
 	};
 
+	/** @var array<mixed>|null $with */
+	$with   = null;
+	$filled = static function () use ( &$with, $build, $sources ): array {
+		$with ??= $build['filled']( $sources() );
+
+		return $with;
+	};
+
 	if ( [] === $include && [] === $names && '' === $slug ) {
 		$out = [
 			'styles'   => $part( 'styles', $build['styles'] ),
 			'patterns' => $part( 'brief_patterns', $build['brief_patterns'] ),
-			'sources'  => $build['filled']( $sources() ),
+			'sources'  => $filled(),
 			'recipes'  => $part( 'brief_recipes', $build['brief_recipes'] ),
 		];
 	} else {
@@ -253,7 +265,7 @@ function catalog_answer( array $input, array $build ) {
 				'styles'   => $part( 'styles', $build['styles'] ),
 				'blocks'   => $part( 'blocks', $build['blocks'] ),
 				'patterns' => named_patterns( $part( 'patterns', $build['patterns'] ), $all ? null : $names ),
-				'sources'  => $build['filled']( $sources() ),
+				'sources'  => $filled(),
 				'used_on'  => $build['used_on']( $sources() ),
 				default    => $part( 'recipes', $build['recipes'] ),
 			};
@@ -277,7 +289,8 @@ function catalog_answer( array $input, array $build ) {
 					$built         = true;
 				}
 
-				$out['recipe'] = $recipe;
+				// Kept with its Site Data keys; each call reads their fields and filled.
+				$out['recipe'] = recipe_site_data( $recipe, $filled() );
 			}
 		}
 	}
@@ -312,6 +325,92 @@ function named_patterns( mixed $patterns, ?array $names ): array {
 	}
 
 	return array_values( array_filter( $patterns, static fn ( mixed $row ): bool => is_array( $row ) && in_array( $row['name'] ?? null, $names, true ) ) );
+}
+
+/**
+ * The pack's patterns as get-catalog lists them: Catalog\patterns(), each
+ * with its copy rules as listed_copy_rules() lists them, and on each named
+ * text block whose text a binding owns `copy: false`, in place of the
+ * `copy: true` Catalog\patterns() puts on every named text block. Such a slot
+ * takes no copy, so neither its rule nor its block may say it does.
+ *
+ * @param array<mixed> $patterns From Catalog\patterns().
+ * @return list<mixed>
+ */
+function listed_patterns( array $patterns ): array {
+	$out = [];
+
+	foreach ( $patterns as $pattern ) {
+		if ( ! is_array( $pattern ) ) {
+			$out[] = $pattern;
+			continue;
+		}
+
+		/** @var array<int, Row> $rows */
+		$rows = is_array( $pattern['blocks'] ?? null ) ? $pattern['blocks'] : [];
+
+		foreach ( $rows as $at => $row ) {
+			if ( isset( $row['copy'], $row['label'] ) && null !== text_binding( [ $row ], $row['label'] ) ) {
+				$rows[ $at ]['copy'] = false;
+			}
+		}
+
+		$rules = $pattern['copy_rules'] ?? [];
+
+		$pattern['copy_rules'] = (object) listed_copy_rules( is_object( $rules ) ? get_object_vars( $rules ) : ( is_array( $rules ) ? $rules : [] ), $rows );
+		$pattern['blocks']     = $rows;
+		$out[]                 = $pattern;
+	}
+
+	return $out;
+}
+
+/**
+ * A recipe's detail with its Site Data keys given as their fields.
+ *
+ * recipe_detail() lists the Site Data keys the recipe's sections bind, and
+ * the recipe is kept between calls with those keys alone. Each call gives
+ * each key as the Site Data source lists its field, in the recipe's order,
+ * with filled as with_filled() read it for this call, so the one answer says
+ * which values are empty and never keeps a filled. A key the source lists no
+ * field for is left out.
+ *
+ * @param mixed        $recipe  From recipe_detail(), kept or built.
+ * @param array<mixed> $sources From Catalog\sources(), through with_filled().
+ * @return mixed The recipe, with site_data a list of fields. Anything but an array as it is.
+ */
+function recipe_site_data( mixed $recipe, array $sources ): mixed {
+	if ( ! is_array( $recipe ) ) {
+		return $recipe;
+	}
+
+	$fields = [];
+
+	foreach ( $sources as $source ) {
+		if ( ! is_array( $source ) || SiteData\SOURCE !== ( $source['name'] ?? null ) || ! is_array( $source['fields'] ?? null ) ) {
+			continue;
+		}
+
+		foreach ( $source['fields'] as $field ) {
+			$key = is_array( $field ) ? ( assoc( $field['args'] ?? null )['key'] ?? null ) : null;
+
+			if ( is_string( $key ) && ! isset( $fields[ $key ] ) ) {
+				$fields[ $key ] = $field;
+			}
+		}
+	}
+
+	$listed = [];
+
+	foreach ( is_array( $recipe['site_data'] ?? null ) ? $recipe['site_data'] : [] as $key ) {
+		if ( is_string( $key ) && isset( $fields[ $key ] ) ) {
+			$listed[] = $fields[ $key ];
+		}
+	}
+
+	$recipe['site_data'] = $listed;
+
+	return $recipe;
 }
 
 /**
