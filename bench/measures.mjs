@@ -84,19 +84,30 @@ export const NOT_CLAIMS = [
  * "Manufacturer-certified installers". Each counts with an "s" too.
  */
 export const TRADE_NOUNS = [ 'installer', 'roofer', 'crew', 'technician', 'contractor', 'staff', 'team' ];
-// How many words may stand between a claim word and a trade noun it is said of.
-const TRADE_NOUN_REACH = 2;
+// How many words may stand between a claim word and a trade noun it is said
+// of, the pack's TRADE_NOUN_REACH.
+export const TRADE_NOUN_REACH = 2;
+
+// A clause mark, as the pack's CLAIM_CLAUSE_MARK reads one: a comma,
+// semicolon, colon, bracket, a hyphen with a space either side, or two
+// hyphens. match() turns an em or en dash into a hyphen, so claims() turns
+// each into a comma first, where the pack reads it as a mark of its own.
+const CLAUSE_MARK = /[,;:()[\]]|\s-+\s|--/;
 const isTradeNoun = ( word ) => TRADE_NOUNS.includes( word ) || ( word.endsWith( 's' ) && TRADE_NOUNS.includes( word.slice( 0, -1 ) ) );
 
 /**
- * Whether a trade noun sits within two words of a claim word, either side:
- * no more than TRADE_NOUN_REACH words between them.
- * @param {string} text  The sentence the claim word was found in.
- * @param {Object} claim From claimWords().
+ * Whether a trade noun sits within two words of a claim word, either side,
+ * in the same clause: no more than TRADE_NOUN_REACH words and no clause mark
+ * between them. "We are licensed; roofers are proud" holds none.
+ * @param {string} text   The sentence the claim word was found in, NOT_CLAIMS blanked.
+ * @param {string} marked The same sentence with each em or en dash a comma, so its clause marks sit where they are in text.
+ * @param {Object} claim  From claimWords().
  */
-function tradeNounNear( text, claim ) {
+function tradeNounNear( text, marked, claim ) {
 	const words = ( s ) => s.match( /[\p{L}\p{N}]+/gu ) ?? [];
-	return [ ...words( text.slice( 0, claim.start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( text.slice( claim.end ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
+	const from = claim.start - marked.slice( 0, claim.start ).split( CLAUSE_MARK ).at( -1 ).length;
+	const to = claim.end + marked.slice( claim.end ).split( CLAUSE_MARK )[ 0 ].length;
+	return [ ...words( text.slice( from, claim.start ) ).slice( -TRADE_NOUN_REACH - 1 ), ...words( text.slice( claim.end, to ) ).slice( 0, TRADE_NOUN_REACH + 1 ) ].some( isTradeNoun );
 }
 
 /**
@@ -297,7 +308,7 @@ export function claims( html, brief, { year = null } = {} ) {
 	const founded = Number( brief.founded );
 	const age = Number.isInteger( year ) && Number.isInteger( founded ) && founded <= year ? year - founded : null;
 
-	const traced = ( claim, sentence, words, tested ) => {
+	const traced = ( claim, sentence, words, tested, marked ) => {
 		if ( claim.part === YEARS_PART && claim.years.value !== null ) {
 			if ( claim.years.age && age !== null && claim.years.value <= age ) {
 				return true;
@@ -311,7 +322,7 @@ export function claims( html, brief, { year = null } = {} ) {
 				return false;
 			}
 			const others = contentWords( source.text, [ same ] );
-			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( tested, claim ) );
+			return source.bare || shares( words, others ) || ( source.trade && tradeNounNear( tested, marked, claim ) );
 		} );
 	};
 
@@ -331,7 +342,8 @@ export function claims( html, brief, { year = null } = {} ) {
 			const label = sentences.length === 1 && ! /[.!?]$/.test( sentence.trim() ) && ( isFigure( lines[ i - 1 ] ?? '' ) || isFigure( lines[ i + 1 ] ?? '' ) );
 			const words = contentWords( normal );
 			const tested = withoutNotClaims( normal );
-			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, tested ) ).map( ( c ) => c.word );
+			const marked = match( sentence.replace( /[\u2013\u2014]/g, ',' ) );
+			const untraced = label ? [] : found.filter( ( c ) => ! traced( c, sentence, words, tested, marked ) ).map( ( c ) => c.word );
 			out.push( { text: sentence, traced: untraced.length === 0, untraced } );
 		}
 	} );
