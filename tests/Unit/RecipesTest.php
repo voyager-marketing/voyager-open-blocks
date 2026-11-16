@@ -537,7 +537,7 @@ final class RecipesTest extends TestCase {
 				},
 				'home section 1 (voyager-open/hero): names no pattern',
 			],
-			'a layout on a section with one layout'   => [
+			'a layout the CTA band does not come in'  => [
 				static function ( array $recipes ) use ( $section, $styled ): void {
 					$cta         = $section( $recipes, 'home', $styled( $recipes, 'home', 'accent' ) );
 					$cta->layout = 'wide';

@@ -1,0 +1,16 @@
+{
+	"title": "Pair, wide",
+	"section": "pair",
+	"layout": "wide",
+	"description": "One of a section's two layouts, beside solo.json's one, so a read of this folder meets both shapes.",
+	"categories": [ "voyager-open" ],
+	"intent": {
+		"blocks": [
+			{
+				"block": "core/group",
+				"attrs": { "tagName": "section", "align": "full", "metadata": { "name": "Pair" }, "layout": { "type": "constrained" } },
+				"children": []
+			}
+		]
+	}
+}

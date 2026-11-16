@@ -84,8 +84,9 @@
  *      and answer of the two left as shipped; omit of an answer without its
  *      question refused as required),
  *      the copy rules (get-catalog's section, layout and copy_rules for the
- *      hero, the CTA band and the contact section, a section with one
- *      layout; insert refusing a 61-character hero heading as
+ *      hero, the CTA band and the contact section, and with no options every
+ *      pattern with a section and a layout, each section in two; insert
+ *      refusing a 61-character hero heading as
  *      too_long, a review quote given as a plain string as a claim, omit of
  *      the hero's heading as required, and a too-long heading, copy for the
  *      bound call button and omit of the body in one call, with and without
@@ -125,10 +126,11 @@
  *      sections with copy, omit and repeat are what insert places with the
  *      same input; omit of a required slot, a claim given as a plain string
  *      for a repeated item, and omit or repeat that cannot apply are refused
- *      as insert refuses them; the CTA band and the closing CTA, each listed
- *      in two layouts, and each second layout, cover and split, built from
- *      one section with layout set and copy, as insert places it, with its
- *      image slot as its one placeholder: warning, the same copy refused
+ *      as insert refuses them; the CTA band, the closing CTA, the logo
+ *      marquee and the contact section, each listed in two layouts, and each
+ *      second layout, cover, split, grid and stacked, built from one section
+ *      with layout set and copy, as insert places it, with its image slots or
+ *      its form slot as its placeholder: warnings, the same copy refused
  *      nothing in the first layout; and the contact recipe saves a page whose
  *      hero has no main button and no button links to the contact page but
  *      through a bound link's fallback,
@@ -2784,13 +2786,21 @@ const bandListed = listedPattern( 'voyager-open/cta-band' );
 const bandIntent = JSON.parse(
 	readFileSync( join( repo, 'patterns', 'intents', 'cta-band.json' ), 'utf8' )
 );
-const oneLayoutListed = listedPattern( 'voyager-open/contact-section' );
-const oneLayoutIntent = JSON.parse(
+const contactSectionListed = listedPattern( 'voyager-open/contact-section' );
+const contactSectionIntent = JSON.parse(
 	readFileSync(
 		join( repo, 'patterns', 'intents', 'contact-section.json' ),
 		'utf8'
 	)
 );
+// Every section the pack ships comes in two layouts, as the answer with no
+// options lists them: each pattern with its section and layout.
+const briefSections = {};
+for ( const row of brief.data.patterns || [] ) {
+	if ( row.name.startsWith( 'voyager-open/' ) ) {
+		( briefSections[ row.section ] ||= [] ).push( row.layout );
+	}
+}
 step(
 	'get-catalog lists voyager-open/hero with section "hero", layout "split" and copy_rules.Heading.max 60',
 	heroListed?.section === 'hero' &&
@@ -2822,18 +2832,36 @@ step(
 		: 'not listed'
 );
 step(
-	'get-catalog lists voyager-open/contact-section, a section with one layout, with section and layout null, and copy_rules as its intent holds them',
-	!! oneLayoutListed &&
-		oneLayoutListed.section === null &&
-		oneLayoutListed.layout === null &&
-		JSON.stringify( oneLayoutListed.copy_rules ) ===
-			JSON.stringify( oneLayoutIntent.copy_rules || {} ),
-	oneLayoutListed
+	'get-catalog lists voyager-open/contact-section with section "contact-section", layout "split", and copy_rules as its intent holds them',
+	!! contactSectionListed &&
+		contactSectionListed.section === 'contact-section' &&
+		contactSectionListed.layout === 'split' &&
+		JSON.stringify( contactSectionListed.copy_rules ) ===
+			JSON.stringify( contactSectionIntent.copy_rules || {} ),
+	contactSectionListed
 		? JSON.stringify( {
-				section: oneLayoutListed.section,
-				layout: oneLayoutListed.layout,
+				section: contactSectionListed.section,
+				layout: contactSectionListed.layout,
 			} )
 		: 'not listed'
+);
+step(
+	'get-catalog with no options lists every pattern with a section and a layout, and every section in two layouts',
+	( brief.data.patterns || [] ).length > 0 &&
+		( brief.data.patterns || [] ).every(
+			( row ) =>
+				typeof row.section === 'string' &&
+				typeof row.layout === 'string'
+		) &&
+		Object.values( briefSections ).every(
+			( layouts ) => layouts.length === 2 && new Set( layouts ).size === 2
+		),
+	Object.entries( briefSections )
+		.map(
+			( [ section, layouts ] ) =>
+				`${ section }: ${ layouts.join( ', ' ) }`
+		)
+		.join( '; ' ) || 'none listed'
 );
 
 // One draft that holds a paragraph, so "unchanged" compares real content.
@@ -3972,19 +4000,19 @@ step(
 			'voyager-open/hero',
 		],
 		[
-			'a layout for a section with one layout',
+			'a layout the contact section does not come in',
 			{
-				title: `E2E: compose one layout ${ stamp }`,
+				title: `E2E: compose contact layout ${ stamp }`,
 				sections: [
 					...sections.slice( 0, 3 ),
 					{
 						pattern: 'voyager-open/contact-section',
-						layout: 'split',
+						layout: 'cover',
 					},
 				],
 			},
 			'voyager_open_blocks_invalid_layout',
-			'voyager-open/contact-section',
+			'voyager-open/contact-section has no layout "cover". Its layouts: split, stacked.',
 		],
 	];
 	for ( const [ label, input, code, words ] of refusedInputs ) {
@@ -4542,20 +4570,32 @@ step(
 		);
 	}
 
-	// The CTA band's cover layout and the closing CTA's split layout. get-catalog
+	// The second layouts: the CTA band's cover, the closing CTA's split, the
+	// logo marquee's grid and the contact section's stacked layout. get-catalog
 	// lists each section in two layouts, the first keeping the section's slug.
 	// compose builds a draft from one section entry with layout set and the
 	// copy written for the section, and the page holds that layout's pattern
-	// as insert places it with the same copy. validate passes it, with the
-	// layout's image slot as its one placeholder: warning. The same copy
-	// fits the first layout too, since both take the section's copy rules.
+	// as insert places it with the same copy. validate passes it, with a
+	// placeholder: warning on each of the layout's slots: its image slot, its
+	// six placeholder logos, or its form slot's stand-in. The same copy fits
+	// the first layout too, since both take the section's copy rules.
 	const bandCopy = {
 		Eyebrow: 'Burst pipe?',
 		Heading: 'Need a plumber today?',
 		Body: 'Call us now, and we will tell you when a plumber can be there.',
 		'Primary button': 'Book a repair',
 	};
-	for ( const [ section, layouts, layout, item, copy, slot ] of [
+	const logoCopy = { Eyebrow: 'Suppliers we buy from' };
+	const contactCopy = {
+		Heading: 'Visit or call',
+		Body: 'We answer the phone during business hours, Monday to Friday.',
+		'Click to call': 'Call the office',
+		'Form heading': 'Ask a question',
+		'Form body':
+			'Tell us what you need, and where, and we will write back.',
+		'Email button': 'Email the office',
+	};
+	for ( const [ section, layouts, layout, item, copy, slots ] of [
 		[
 			'voyager-open/cta-band',
 			[
@@ -4565,7 +4605,7 @@ step(
 			'cover',
 			'voyager-open/cta-band-cover',
 			bandCopy,
-			'core/cover "Background"',
+			[ 'core/cover "Background"' ],
 		],
 		[
 			'voyager-open/closing-cta',
@@ -4576,7 +4616,29 @@ step(
 			'split',
 			'voyager-open/closing-cta-split',
 			ctaCopy,
-			'core/image "Image"',
+			[ 'core/image "Image"' ],
+		],
+		[
+			'voyager-open/logo-marquee',
+			[
+				'voyager-open/logo-marquee marquee',
+				'voyager-open/logo-marquee-grid grid',
+			],
+			'grid',
+			'voyager-open/logo-marquee-grid',
+			logoCopy,
+			Array( 6 ).fill( 'core/image' ),
+		],
+		[
+			'voyager-open/contact-section',
+			[
+				'voyager-open/contact-section split',
+				'voyager-open/contact-section-stacked stacked',
+			],
+			'stacked',
+			'voyager-open/contact-section-stacked',
+			contactCopy,
+			[ 'core/group "Form"' ],
 		],
 	] ) {
 		const slug = section.replace( 'voyager-open/', '' );
@@ -4619,7 +4681,11 @@ step(
 			: { status: 0, data: {} };
 		const builtPlaceholders = codedWarnings( builtReport, 'placeholder' );
 		step(
-			`compose builds a draft from one section, ${ section } with layout "${ layout }" and copy, that holds ${ item } as insert places it with the same copy, and validate passes it with one placeholder: warning, on its ${ slot }`,
+			`compose builds a draft from one section, ${ section } with layout "${ layout }" and copy, that holds ${ item } as insert places it with the same copy, and validate passes it with ${
+				slots.length
+			} placeholder: ${
+				slots.length === 1 ? 'warning' : 'warnings'
+			}, on ${ [ ...new Set( slots ) ].join( ', ' ) }`,
 			built.status === 200 &&
 				built.data.saved === true &&
 				JSON.stringify( built.data.refused ) === '[]' &&
@@ -4629,8 +4695,12 @@ step(
 					builtRaw.includes( text )
 				) &&
 				clean( builtReport ) &&
-				builtPlaceholders.length === 1 &&
-				builtPlaceholders[ 0 ].startsWith( `placeholder: ${ slot } ` ),
+				builtPlaceholders.length === slots.length &&
+				slots.every( ( slot, n ) =>
+					builtPlaceholders[ n ]?.startsWith(
+						`placeholder: ${ slot } `
+					)
+				),
 			`${ composeSummary( built ) }; same as insert: ${
 				!! placed && builtRaw === placed
 			}; validate: ${ warningSummary( builtReport ) }`
