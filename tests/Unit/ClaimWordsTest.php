@@ -332,11 +332,23 @@ final class ClaimWordsTest extends TestCase {
 		$this->assertSame( [], self::reasons( self::check( 'hero', [ 'Body' => 'Licensed roofers serve Kestovar.' ], $insured ) ) );
 
 		// A trade noun anywhere else in the sentence is not, so the sentence
-		// says no more about the work than it does without one.
+		// says no more about the work than it does without one. Nor is one
+		// past a clause mark: a comma, semicolon, colon, dash or bracket ends
+		// the reach. That fails safe: "Licensed, experienced roofers" costs a
+		// retry and lets no claim through.
 		foreach ( [
 			'Licensed to operate, and our roofers are proud of their work.',
 			'Licensed to operate, and proud of our work.',
 			'Our roofers clean up daily and are fully licensed.',
+			'Licensed, our roofers say, to operate.',
+			'We are licensed; roofers are proud of their work.',
+			"We're licensed; our roofers love this job.",
+			'We are licensed: roofers love this job.',
+			"We're licensed\u{2014}our roofers love this job.",
+			"We're licensed \u{2013} our roofers love this job.",
+			'We are licensed - roofers love this job.',
+			'Roofers (all licensed) on every job.',
+			'Licensed, experienced roofers serve Kestovar.',
 		] as $text ) {
 			$refused = self::check( 'hero', [ 'Body' => $text ], $contractors );
 
