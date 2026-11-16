@@ -192,7 +192,7 @@ The two binding sources keep the names they have in the voyager-blocks plugin, s
 
 ## Screenshots
 
-`npm run screenshots` renders the patterns. The WordPress.org listing shows them in this order: 1 CTA band, 2 Proof strip, 3 Logo marquee, 4 Closing CTA, 5 Contact section, 6 Icon block, 7 Settings > Site Data. The captions are under `== Screenshots ==` in `readme.txt`.
+`npm run screenshots` renders the patterns, numbered in this order: 1 CTA band, 2 Proof strip, 3 Logo marquee, 4 Closing CTA, 5 Contact section, 6 Icon block, 7 Settings > Site Data. The captions are under `== Screenshots ==` in `readme.txt`.
 
 ## Releases
 
@@ -200,4 +200,4 @@ release-please opens the release pull request and writes `CHANGELOG.md`. You don
 
 `npm run zip` writes `voyager-open-blocks.zip` from the `files` list in `package.json`. Pushing a `v*` tag runs [`release.yml`](../.github/workflows/release.yml): it builds, zips, checks the zip and attaches it to the tag's GitHub release, creating the release if it does not exist. A tag with a suffix (`v0.2.0-rc.1`) makes a pre-release. The tag's version, without the suffix, must match `Version` in `voyager-open-blocks.php`, and a version bump moves `Stable tag` in `readme.txt` with it.
 
-`readme.txt` is the WordPress.org listing. The zip ships it, and Plugin Check must report no errors on the plugin installed from the zip: `npm run plugin-check` runs it, and CI runs it on every pull request. Run against this checkout linked into a site, Plugin Check also reports files the zip leaves out (`.git`, dotfiles, `playground/`).
+The zip ships `readme.txt`, the plugin's readme in WordPress's format, and Plugin Check must report no errors on the plugin installed from the zip: `npm run plugin-check` runs it, and CI runs it on every pull request. Run against this checkout linked into a site, Plugin Check also reports files the zip leaves out (`.git`, dotfiles, `playground/`).
