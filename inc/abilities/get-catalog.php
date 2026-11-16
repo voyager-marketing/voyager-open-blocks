@@ -701,19 +701,28 @@ function brief_patterns( array $registered ): array {
  * Each recipe in brief: its slug, title and sections, each section as compose
  * takes it, its pattern, layout, style and any omit, less its copy_guidance.
  *
+ * Each section names its pattern as recipe_detail() does and as get-catalog
+ * lists the pattern: by the pattern's own name and layout, so a first layout
+ * reads its name, such as "list", and not null. compose reads the pair as the
+ * file's section and layout (layout_named()).
+ *
  * @param list<array{slug: string, title: string, description: string, page_type: string, sections: list<array{pattern: string, layout: string|null, style: string, copy_guidance: array<string, string>, omit?: list<string>}>}> $recipes From recipes().
+ * @param string|null                                                                                                                                                                                  $intents Intents directory. Defaults to this plugin's.
  * @return list<array{slug: string, title: string, sections: list<array{pattern: string, layout: string|null, style: string, omit?: list<string>}>}>
  */
-function brief_recipes( array $recipes ): array {
-	$out = [];
+function brief_recipes( array $recipes, ?string $intents = null ): array {
+	$layouts = section_layouts( $intents );
+	$out     = [];
 
 	foreach ( $recipes as $recipe ) {
 		$sections = [];
 
 		foreach ( $recipe['sections'] as $section ) {
+			// recipes() skips a file whose section and layout name no pattern.
+			$name  = resolve_layout( $layouts, $section['pattern'], $section['layout'] ) ?? $section['pattern'];
 			$brief = [
-				'pattern' => $section['pattern'],
-				'layout'  => $section['layout'],
+				'pattern' => $name,
+				'layout'  => Patterns\intent_meta( $name, $intents )['layout'],
 				'style'   => $section['style'],
 			];
 

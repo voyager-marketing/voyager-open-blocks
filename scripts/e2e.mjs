@@ -13,7 +13,8 @@
  *  1a. get-catalog in one tool result: with no options it answers in brief,
  *      under 20,000 characters of JSON, each pattern its name, description,
  *      section and layout and each recipe its slug, title and sections as
- *      compose takes them, the whole catalog's rows less the rest; recipe
+ *      compose takes them, the whole catalog's rows less the rest, each
+ *      section's pattern and layout named as the pattern's own; recipe
  *      "home" gives that recipe in full, each section with its copy_guidance
  *      and its pattern's copy_rules, and its pattern and layout named, no
  *      layout null, each as the brief answer lists the pattern, under 20,000
@@ -784,7 +785,7 @@ step(
 	} blocks`
 );
 step(
-	'get-catalog with no options: styles and sources as in full, each pattern its name, description, section and layout, each recipe its slug, title and sections less copy_guidance, and nothing else',
+	"get-catalog with no options: styles and sources as in full, each pattern its name, description, section and layout, each recipe its slug, title and sections less copy_guidance, each section's pattern and layout named as the pattern's own, no layout null, and nothing else",
 	brief.status === 200 &&
 		keysOf( brief ) === '["styles","patterns","sources","recipes"]' &&
 		sameJson( brief.data.styles, catalog.data.styles ) &&
@@ -801,9 +802,21 @@ step(
 				slug: recipe.slug,
 				title: recipe.title,
 				sections: recipe.sections.map( ( section ) =>
-					pick( section, [ 'pattern', 'layout', 'style', 'omit' ] )
+					pick(
+						{
+							...section,
+							pattern: sectionPattern( section )?.name,
+							layout: sectionPattern( section )?.layout ?? null,
+						},
+						[ 'pattern', 'layout', 'style', 'omit' ]
+					)
 				),
 			} ) )
+		) &&
+		( brief.data.recipes || [] ).every( ( recipe ) =>
+			recipe.sections.every(
+				( section ) => typeof section.layout === 'string'
+			)
 		),
 	`keys ${ keysOf( brief ) }, ${
 		( brief.data.patterns || [] ).length

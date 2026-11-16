@@ -145,7 +145,8 @@ final class GetCatalogTest extends TestCase {
 
 	public function test_a_brief_recipe_is_its_slug_title_and_sections_less_copy_guidance(): void {
 		$recipes = Abilities\recipes( null, self::INTENTS );
-		$brief   = Abilities\brief_recipes( $recipes );
+		$brief   = Abilities\brief_recipes( $recipes, self::INTENTS );
+		$nulls   = 0;
 
 		$this->assertCount( 6, $brief );
 		foreach ( $brief as $index => $recipe ) {
@@ -153,12 +154,24 @@ final class GetCatalogTest extends TestCase {
 			$this->assertSame( $recipes[ $index ]['slug'], $recipe['slug'] );
 			$this->assertSame( $recipes[ $index ]['title'], $recipe['title'] );
 
+			$detail = self::detail( $recipe['slug'] );
+			$this->assertNotNull( $detail );
+			$this->assertIsArray( $detail['sections'] );
+
 			foreach ( $recipe['sections'] as $at => $section ) {
 				$whole = $recipes[ $index ]['sections'][ $at ];
 				unset( $whole['copy_guidance'] );
-				$this->assertSame( $whole, $section, "{$recipe['slug']} section {$at} is not its whole section less copy_guidance" );
+				$named = $detail['sections'][ $at ];
+
+				// The pattern and layout as the detail names them, so a first
+				// layout reads its name; the rest as the file holds it.
+				$this->assertSame( [ 'pattern' => $named['pattern'], 'layout' => $named['layout'] ] + $whole, $section, "{$recipe['slug']} section {$at} is not its whole section less copy_guidance, named as the detail names it" );
+				$this->assertIsString( $section['layout'], "{$recipe['slug']} section {$at}: every section comes in two layouts, so its layout has a name" );
+				$nulls += null === $whole['layout'] ? 1 : 0;
 			}
 		}
+
+		$this->assertGreaterThan( 0, $nulls, 'some recipe sections give layout null, so the brief answer is seen to name one' );
 
 		$contact = $brief[ array_search( 'contact', array_column( $brief, 'slug' ), true ) ];
 		$this->assertSame( [ 'Primary button' ], $contact['sections'][0]['omit'] ?? null, 'a section\'s omit stays in the brief answer, so compose leaves the button out' );
@@ -447,7 +460,7 @@ final class GetCatalogTest extends TestCase {
 			$detail = self::detail( $recipe['slug'] );
 			$this->assertNotNull( $detail );
 			$this->assertIsArray( $detail['sections'] );
-			$brief = Abilities\brief_recipes( [ $recipe ] )[0];
+			$brief = Abilities\brief_recipes( [ $recipe ], self::INTENTS )[0];
 
 			foreach ( [ 'brief' => $brief['sections'], 'detail' => $detail['sections'] ] as $form => $sections ) {
 				foreach ( $sections as $at => $section ) {
@@ -456,25 +469,26 @@ final class GetCatalogTest extends TestCase {
 			}
 
 			// compose reads both forms as it reads the recipe's own sections:
-			// copy_guidance and copy_rules change nothing it builds. The
-			// detail names each pattern by its own name and layout, which
-			// compose builds as the file's section and layout.
+			// copy_guidance and copy_rules change nothing it builds. Both name
+			// each pattern by its own name and layout, which compose builds
+			// as the file's section and layout.
 			$expected = Abilities\recipe_sections( $recipe );
-			$this->assertSame( $expected, Abilities\sections_input( $brief['sections'] ) );
+			$layouts  = Abilities\section_layouts( self::INTENTS );
 
-			$layouts = Abilities\section_layouts( self::INTENTS );
-			$read    = Abilities\sections_input( $detail['sections'] );
-			$this->assertCount( count( $expected ), $read );
-			foreach ( $read as $at => $section ) {
-				$this->assertSame(
-					self::composed( $layouts, $expected[ $at ]['pattern'], $expected[ $at ]['layout'] ),
-					self::composed( $layouts, $section['pattern'], $section['layout'] ),
-					"{$recipe['slug']} section {$at}: compose builds another pattern from the detail"
-				);
-				$this->assertSame(
-					array_diff_key( $expected[ $at ], [ 'pattern' => 1, 'layout' => 1 ] ),
-					array_diff_key( $section, [ 'pattern' => 1, 'layout' => 1 ] )
-				);
+			foreach ( [ 'brief' => $brief['sections'], 'detail' => $detail['sections'] ] as $form => $sections ) {
+				$read = Abilities\sections_input( $sections );
+				$this->assertCount( count( $expected ), $read );
+				foreach ( $read as $at => $section ) {
+					$this->assertSame(
+						self::composed( $layouts, $expected[ $at ]['pattern'], $expected[ $at ]['layout'] ),
+						self::composed( $layouts, $section['pattern'], $section['layout'] ),
+						"{$recipe['slug']} section {$at}: compose builds another pattern from the {$form}"
+					);
+					$this->assertSame(
+						array_diff_key( $expected[ $at ], [ 'pattern' => 1, 'layout' => 1 ] ),
+						array_diff_key( $section, [ 'pattern' => 1, 'layout' => 1 ] )
+					);
+				}
 			}
 		}
 	}
