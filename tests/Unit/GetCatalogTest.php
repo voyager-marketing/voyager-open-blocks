@@ -181,6 +181,20 @@ final class GetCatalogTest extends TestCase {
 		}
 	}
 
+	public function test_compose_takes_each_pattern_get_catalog_lists_by_its_name(): void {
+		$items = self::input_schema( 'VoyagerOpenBlocks\Abilities\register_compose', 'voyager-open-blocks/compose' )['properties']['sections']['items'] ?? null;
+		$this->assertIsArray( $items );
+		$enum = $items['properties']['pattern']['enum'] ?? null;
+		$this->assertIsArray( $enum );
+
+		// Each name get-catalog lists on its patterns, such as
+		// voyager-open/proof-strip-facts, and each section's name.
+		$this->assertSame( [], array_values( array_diff( array_keys( Patterns\generated() ), $enum ) ) );
+		$this->assertSame( [], array_values( array_diff( array_keys( Abilities\section_layouts() ), $enum ) ) );
+		$this->assertContains( 'voyager-open/proof-strip-facts', $enum );
+		$this->assertSame( Abilities\compose_patterns(), $enum );
+	}
+
 	public function test_a_brief_pattern_is_its_name_description_section_and_layout(): void {
 		$registered = [
 			[
