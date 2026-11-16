@@ -12,6 +12,8 @@
  * - voyager_test_locale      what determine_locale() returns, default en_US
  * - voyager_test_stylesheet  what get_stylesheet() returns, default theme
  * - voyager_test_registered_post_types  what post_type_exists() knows, default post and page
+ * - voyager_test_multisite   what is_multisite() returns, default false
+ * - voyager_test_site_options  network option name => value
  *
  * @package VoyagerOpenBlocks
  */
@@ -56,6 +58,25 @@ if ( ! function_exists( 'post_type_exists' ) ) {
 if ( ! function_exists( 'update_option' ) ) {
 	function update_option( string $name, mixed $value, mixed $autoload = null ): bool {
 		$GLOBALS['voyager_test_options'][ $name ] = $value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'is_multisite' ) ) {
+	function is_multisite(): bool {
+		return (bool) ( $GLOBALS['voyager_test_multisite'] ?? false );
+	}
+}
+
+if ( ! function_exists( 'get_site_option' ) ) {
+	function get_site_option( string $name, mixed $default = false ): mixed {
+		return $GLOBALS['voyager_test_site_options'][ $name ] ?? $default;
+	}
+}
+
+if ( ! function_exists( 'update_site_option' ) ) {
+	function update_site_option( string $name, mixed $value ): bool {
+		$GLOBALS['voyager_test_site_options'][ $name ] = $value;
 		return true;
 	}
 }

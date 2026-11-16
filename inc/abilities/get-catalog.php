@@ -47,8 +47,9 @@ const CATALOG_KEYS = [ 'styles', 'blocks', 'patterns', 'sources', 'used_on', 're
 const CATALOG_CACHE = 'voyager_open_blocks_catalog_';
 
 /**
- * The option that counts the triggers that have fired. catalog_version()
- * holds it, so each trigger makes the next call build every part again.
+ * The option that counts the triggers that have fired (trigger_count()).
+ * catalog_version() holds it, so each trigger makes the next call build
+ * every part again.
  */
 const CATALOG_VERSION = 'voyager_open_blocks_catalog_version';
 
@@ -349,11 +350,24 @@ function catalog_version(): string {
 		'|',
 		[
 			VOYAGER_OPEN_BLOCKS_VERSION,
-			(string) Cast\to_int( get_option( CATALOG_VERSION, 0 ) ),
+			(string) trigger_count(),
 			get_stylesheet(),
 			pack_stamp(),
 		]
 	);
+}
+
+/**
+ * How many triggers have fired.
+ *
+ * On a multisite network the count is the network's, since a plugin is
+ * activated network-wide and upgraded once for every site, from the network
+ * admin. A trigger on one site then builds every site's parts again, which
+ * costs one build each. On a single site it is an autoloaded option, so
+ * reading it costs no query.
+ */
+function trigger_count(): int {
+	return Cast\to_int( is_multisite() ? get_site_option( CATALOG_VERSION, 0 ) : get_option( CATALOG_VERSION, 0 ) );
 }
 
 /**
@@ -378,12 +392,16 @@ function pack_stamp( ?string $dir = null ): string {
 }
 
 /**
- * Add one to the count of triggers, so the next call builds every part again.
- *
- * Autoloaded, so reading it costs no query.
+ * Add one to the count of triggers (trigger_count()), so the next call builds
+ * every part again.
  */
 function bump_catalog(): void {
-	update_option( CATALOG_VERSION, Cast\to_int( get_option( CATALOG_VERSION, 0 ) ) + 1, true );
+	if ( is_multisite() ) {
+		update_site_option( CATALOG_VERSION, trigger_count() + 1 );
+		return;
+	}
+
+	update_option( CATALOG_VERSION, trigger_count() + 1, true );
 }
 
 /**

@@ -69,6 +69,9 @@ if ( is_multisite() ) {
 		voyager_open_blocks_uninstall_site();
 		restore_current_blog();
 	}
+
+	// On a network, get-catalog counts its triggers in a network option.
+	delete_site_option( 'voyager_open_blocks_catalog_version' );
 } else {
 	voyager_open_blocks_uninstall_site();
 }

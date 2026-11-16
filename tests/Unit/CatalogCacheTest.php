@@ -81,6 +81,8 @@ final class CatalogCacheTest extends TestCase {
 		$GLOBALS['voyager_test_locale']                 = 'en_US';
 		$GLOBALS['voyager_test_stylesheet']             = 'theme';
 		$GLOBALS['voyager_test_registered_post_types']  = [ 'post', 'page' ];
+		$GLOBALS['voyager_test_multisite']              = false;
+		$GLOBALS['voyager_test_site_options']           = [];
 		$this->calls                                    = [];
 		$this->phone                                    = '';
 		$this->posts                                    = 0;
@@ -375,6 +377,35 @@ final class CatalogCacheTest extends TestCase {
 		foreach ( $this->keptBuilds() as $builder => $count ) {
 			$this->assertSame( $warm[ $builder ] + 1, $count, "after {$hook}, {$builder} is built again, once" );
 		}
+	}
+
+	public function test_on_a_network_a_trigger_on_one_site_builds_every_site_again(): void {
+		$GLOBALS['voyager_test_multisite'] = true;
+		Abilities\catalog_triggers();
+
+		// Each site has its own options and transients; the network's are shared.
+		$sites = [];
+		foreach ( [ 1, 2 ] as $site ) {
+			$GLOBALS['voyager_test_options']    = [];
+			$GLOBALS['voyager_test_transients'] = [];
+			$this->answer();
+			$sites[ $site ] = [ $GLOBALS['voyager_test_options'], $GLOBALS['voyager_test_transients'] ];
+		}
+		$this->assertCount( 2, $this->calls['styles'] );
+
+		// Site 1 again: warm. Then a plugin is activated network-wide, from the
+		// network admin, which runs as the main site: site 1.
+		[ $GLOBALS['voyager_test_options'], $GLOBALS['voyager_test_transients'] ] = $sites[1];
+		$this->answer();
+		$this->assertCount( 2, $this->calls['styles'], 'site 1 is warm' );
+		self::fire( 'activated_plugin' );
+		$this->assertSame( 1, $GLOBALS['voyager_test_site_options'][ Abilities\CATALOG_VERSION ] ?? null, 'the count is the network\'s' );
+		$this->assertArrayNotHasKey( Abilities\CATALOG_VERSION, $GLOBALS['voyager_test_options'] );
+
+		// Site 2 builds again, though nothing ran on it.
+		[ $GLOBALS['voyager_test_options'], $GLOBALS['voyager_test_transients'] ] = $sites[2];
+		$this->answer();
+		$this->assertCount( 3, $this->calls['styles'], 'site 2 builds again after a trigger on site 1' );
 	}
 
 	public function test_another_version_of_the_pack_builds_again(): void {
