@@ -75,14 +75,14 @@ function register_compose(): void {
 						'type'        => 'array',
 						'minItems'    => 1,
 						'maxItems'    => MAX_SECTIONS,
-						'description' => 'The page\'s sections, top to bottom. Not with recipe. copy_guidance and copy_rules, as get-catalog lists them, are ignored.',
+						'description' => 'The page\'s sections, top to bottom. Not with recipe. copy_guidance, copy_rules and items, as get-catalog lists them, are ignored.',
 						'items'       => [
 							'type'                 => 'object',
 							'properties'           => [
 								// No enum: compose names what a section's pattern is (unknown_pattern()).
 								'pattern'       => [
 									'type'        => 'string',
-									'description' =>'A pattern get-catalog lists, by its name, such as voyager-open/services-list, or by its section, such as voyager-open/services with layout list.',
+									'description' => 'A pattern get-catalog lists, by its name, such as voyager-open/services-list, or by its section, such as voyager-open/services with layout list.',
 								],
 								'layout'        => [
 									'type'        => [ 'string', 'null' ],
@@ -108,6 +108,7 @@ function register_compose(): void {
 								// it is. Every other key is still refused.
 								'copy_guidance' => [ 'type' => 'object' ],
 								'copy_rules'    => [ 'type' => 'object' ],
+								'items'         => [ 'type' => 'array' ],
 							],
 							'required'             => [ 'pattern' ],
 							'additionalProperties' => false,

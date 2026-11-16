@@ -202,7 +202,7 @@ final class GetCatalogTest extends TestCase {
 
 				// The section as the file holds it, but named by its pattern's own name and layout.
 				$rest = (array) $section;
-				unset( $rest['copy_rules'], $rest['copy_guidance'] );
+				unset( $rest['copy_rules'], $rest['copy_guidance'], $rest['items'] );
 				$expected = [
 					'pattern' => $name,
 					'layout'  => Patterns\intent_meta( $name, self::INTENTS )['layout'],
@@ -239,6 +239,39 @@ final class GetCatalogTest extends TestCase {
 		}
 
 		return null === $layout || $named['layout'] === $layout ? Abilities\resolve_layout( $layouts, $named['section'], $named['layout'] ) : null;
+	}
+
+	public function test_a_recipe_in_detail_lists_the_numbered_items_omit_takes(): void {
+		$home = self::detail( 'home' );
+		$this->assertNotNull( $home );
+		$this->assertIsArray( $home['sections'] );
+		$items = array_column( $home['sections'], 'items', 'pattern' );
+
+		$this->assertSame( [ 'Credential 4' ], $items['voyager-open/proof-strip'] ?? null, 'the first three credentials are required, so omit takes only the fourth' );
+		$this->assertSame( [ 'Service 1', 'Service 2', 'Service 3' ], $items['voyager-open/services'] ?? null, 'a whole card goes with its heading and line' );
+		$this->assertSame( [], $items['voyager-open/hero'] ?? null, 'the hero numbers no item' );
+
+		// Each item listed, on every recipe, compose leaves out with nothing refused.
+		$listed = 0;
+		foreach ( Abilities\recipes( null, self::INTENTS ) as $recipe ) {
+			$detail = self::detail( $recipe['slug'] );
+			$this->assertNotNull( $detail );
+			$this->assertIsArray( $detail['sections'] );
+
+			foreach ( $detail['sections'] as $at => $section ) {
+				$this->assertIsArray( $section['items'] ?? null, "{$recipe['slug']} section {$at} lists no items" );
+				$name = (string) $section['pattern'];
+
+				foreach ( $section['items'] as $label ) {
+					$blocks = IntentBlocks::blocks( substr( $name, strlen( 'voyager-open/' ) ) );
+					$filled = Abilities\fill_pattern( $blocks, Patterns\intent_meta( $name, self::INTENTS )['copy_rules'], [], [ $label ], [] );
+					$this->assertSame( [], $filled, "{$recipe['slug']} section {$at}: omit of {$label} is refused" );
+					$this->assertNotContains( $label, array_column( BlockTree\describe( $blocks ), 'label' ), "{$recipe['slug']} section {$at}: {$label} is still there" );
+					++$listed;
+				}
+			}
+		}
+		$this->assertGreaterThan( 0, $listed );
 	}
 
 	public function test_a_recipe_in_detail_names_each_section_s_pattern_and_layout_and_compose_builds_what_the_file_names(): void {

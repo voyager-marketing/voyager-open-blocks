@@ -831,7 +831,7 @@ const namedSection = ( section ) => ( {
 	layout: sectionPattern( section )?.layout ?? null,
 } );
 step(
-	'get-catalog with recipe "home": the recipe as the whole catalog lists it, each section with copy_rules, its pattern\'s rules, and its pattern and layout named',
+	'get-catalog with recipe "home": the recipe as the whole catalog lists it, each section with copy_rules, its pattern\'s rules, items, the numbered items omit takes, and its pattern and layout named',
 	!! homeWhole &&
 		homeDetailSections.length === homeWhole.sections.length &&
 		sameJson(
@@ -840,6 +840,7 @@ step(
 				sections: homeDetailSections.map( ( section ) => {
 					const rest = { ...section };
 					delete rest.copy_rules;
+					delete rest.items;
 					return rest;
 				} ),
 				site_data: undefined,
@@ -855,7 +856,14 @@ step(
 				sameJson(
 					section.copy_rules,
 					sectionPattern( section ).copy_rules
-				)
+				) &&
+				Array.isArray( section.items )
+		) &&
+		sameJson(
+			homeDetailSections.find(
+				( section ) => section.pattern === 'voyager-open/services'
+			)?.items,
+			[ 'Service 1', 'Service 2', 'Service 3' ]
 		),
 	homeDetailSections
 		.map(

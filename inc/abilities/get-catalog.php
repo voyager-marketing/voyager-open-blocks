@@ -89,7 +89,7 @@ function register_get_catalog(): void {
 	$slugs  = array_column( recipes(), 'slug' );
 	$recipe = [
 		'type'        => 'string',
-		'description' => 'A recipe\'s slug, such as home: that recipe in full, each section with its pattern and layout named, copy_guidance, a line per copy label on what it says on this page, and copy_rules, its pattern\'s rule per copy label: purpose, min and max characters, and whether it is required or a claim. A claim\'s line says where its fact comes from, and that is never you. A rule with copy: false is bound to Site Data: it takes no copy. site_data: each Site Data field the page shows, with filled. compose takes its sections as they are.',
+		'description' => 'A recipe\'s slug, such as home: that recipe in full, each section with its pattern and layout named, copy_guidance, a line per copy label on what it says on this page, and copy_rules, its pattern\'s rule per copy label: purpose, min and max characters, and whether it is required or a claim. items: the numbered items omit takes whole, such as Service 3. A claim\'s line says where its fact comes from, and that is never you. A rule with copy: false is bound to Site Data: it takes no copy. site_data: each Site Data field the page shows, with filled. compose takes its sections as they are.',
 	];
 
 	// JSON Schema refuses an empty enum, so with no recipe to read it is left out.
