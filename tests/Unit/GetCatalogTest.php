@@ -217,6 +217,14 @@ final class GetCatalogTest extends TestCase {
 		$this->assertSame( Abilities\CATALOG_KEYS, $schema['properties']['include']['items']['enum'] );
 	}
 
+	public function test_section_layouts_from_the_generated_array_are_the_intents(): void {
+		$from_files = Abilities\section_layouts( self::INTENTS );
+
+		$this->assertGreaterThan( 10, count( $from_files ) );
+		$this->assertSame( $from_files, Abilities\section_layouts(), 'the sections, their layouts and their order, as the intent files give them' );
+		$this->assertSame( Abilities\recipes( null, self::INTENTS ), Abilities\recipes(), 'so every recipe reads the same' );
+	}
+
 	public function test_a_list_input_is_read_from_an_array_or_a_comma_separated_string(): void {
 		$this->assertSame( [ 'used_on', 'blocks' ], Abilities\catalog_list( [ 'used_on', 'blocks', 'used_on' ] ) );
 		$this->assertSame( [ 'blocks', 'used_on' ], Abilities\catalog_list( 'blocks, used_on' ) );
