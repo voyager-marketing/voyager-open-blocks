@@ -279,7 +279,7 @@ final class AuditTest extends TestCase {
 
 		$this->assertSame( [ 'default_copy' ], self::codes( $found ) );
 		$this->assertSame(
-			'core/button "Click to call" at 0 holds "Call us", the text the pack ships there. If you gave that text as copy for "Click to call", it is your choice and can stay. If not, it was left in place: replace it in the editor with the site\'s own words, or remove the block.',
+			'core/button "Click to call" at 0 holds "Call us", the text the pack ships there. If you gave that text as copy for "Click to call", it is your choice and can stay. If not, it was left in place: replace it in the editor with the site\'s own words, adding no claim the business has not given, such as a free estimate it never offered, or remove the block.',
 			$found[0]['message']
 		);
 

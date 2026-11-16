@@ -22,7 +22,7 @@
 			"claim": false
 		},
 		"Body": {
-			"purpose": "One line on what the visitor gets or what happens next.",
+			"purpose": "One line on what the visitor gets or what happens next. No price, rating, licence or promise unless the owner gave it.",
 			"min": 20,
 			"max": 120,
 			"required": true,

@@ -62,12 +62,12 @@ Each intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` 
 
 | Label | What goes there | Min | Max | Required |
 |---|---|---|---|---|
-| `Heading` | The page's last `h2`: one short sentence that invites the reader to get in touch. | 10 | 60 | yes |
-| `Body` | One line on how to reach the business and what happens next. | 20 | 120 | yes |
+| `Heading` | The page's last `h2`: one short sentence that invites the reader to get in touch. No price, rating, licence or promise unless the owner gave it. | 10 | 60 | yes |
+| `Body` | One line on how to reach the business and what happens next. No price, rating, licence or promise unless the owner gave it. | 20 | 120 | yes |
 | `Primary button` | The page's last main action, as what happens when it is pressed, such as "Book an estimate". | 2 | 24 | yes |
 | `Email button` | The second button's label. Its link is bound to the Site Data email address, and its text is its own, so name the action, such as "Email us", never the address. | 2 | 24 | yes |
 
-No slot is a claim slot, and the shipped copy makes no claim. Do not put a licence, a rating, a guarantee or a number of years in the closing CTA unless the site owner gave it to you.
+No slot is a claim slot, and the shipped copy makes no claim. Do not put a licence, a rating, a guarantee or a number of years in the closing CTA unless the site owner gave it to you. `insert` and `compose` refuse a claim word no Site Data credential, service or figure gives, such as a free estimate the business never offered (`unsourced_claim`).
 
 ## The image slot
 

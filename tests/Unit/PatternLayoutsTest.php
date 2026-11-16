@@ -14,7 +14,10 @@ declare(strict_types=1);
 namespace VoyagerOpenBlocks\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use VoyagerOpenBlocks\Abilities;
 use VoyagerOpenBlocks\BlockTree;
+
+require_once dirname( __DIR__, 2 ) . '/inc/abilities/claims.php';
 
 final class PatternLayoutsTest extends TestCase {
 
@@ -23,12 +26,15 @@ final class PatternLayoutsTest extends TestCase {
 	/**
 	 * Words and marks of a factual claim or a promise: a credential, a year, a
 	 * rating, an award, a price or a time. Default copy holds none of them
-	 * (contract 3). "star", "top", "free", "rated", "best", "since" and
-	 * "leading" are whole words, and a word starts with "warrant", so
-	 * "started", "stop", "freeze", "operated", "asbestos", "sincere",
-	 * "misleading" and "unwarranted" make no claim.
+	 * (contract 3). The words are the pack's one list, the one insert and
+	 * compose check copy with (Abilities\CLAIM_WORDS, in
+	 * inc/abilities/claims.php), and default copy is held to a digit and #
+	 * too. "star", "top", "free", "rated", "best", "since" and "leading" are
+	 * whole words, and a word starts with "rating", "review" or "warrant", so
+	 * "started", "stop", "freeze", "operated", "operating", "preview",
+	 * "asbestos", "sincere", "misleading" and "unwarranted" make no claim.
 	 */
-	private const CLAIMS = '/licen[cs]|insur|bonded|certif|accredit|award|\brated\b|rating|review|\bstars?\b|years?\b|\bsince\b|established|guarantee|\bwarrant|\bbest\b|\btop\b|\bleading\b|\bfree\b|same[- ]day|#|\d/i';
+	private const CLAIMS = '/' . Abilities\CLAIM_WORDS . '|#|\d/i';
 
 	/**
 	 * How a step's heading starts: its number, a full stop and a space

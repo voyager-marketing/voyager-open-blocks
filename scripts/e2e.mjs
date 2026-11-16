@@ -1297,7 +1297,7 @@ const withCopy = await run( `${ ns }/insert`, {
 	item: 'voyager-open/cta-band',
 	copy: {
 		Heading: 'Leaks fixed today & done right',
-		Body: "Call before noon and we're there by 5pm, <b>guaranteed</b>.",
+		Body: "Call before noon and we're there by 5pm, <b>weekdays</b>.",
 	},
 } );
 const copied = withCopy.data.markup || '';
@@ -1311,7 +1311,7 @@ step(
 		withCopy.data.validation?.round_trip === true &&
 		copied.includes( '>Leaks fixed today &amp; done right</h2>' ) &&
 		copied.includes(
-			">Call before noon and we're there by 5pm, &lt;b&gt;guaranteed&lt;/b&gt;.</p>"
+			">Call before noon and we're there by 5pm, &lt;b&gt;weekdays&lt;/b&gt;.</p>"
 		) &&
 		copied.includes( '>Call us</a>' ) &&
 		! copied.includes( 'Ready to get started?' ) &&
@@ -3081,9 +3081,10 @@ const insertInto = ( input ) =>
 	run( `${ ns }/insert`, { post_id: rulesPage.data.id, ...input } );
 const beforeRules = await rulesContent();
 
-// The fitness check: the hero's Heading allows 60 characters.
+// The fitness check: the hero's Heading allows 60 characters. It makes no
+// claim, so too_long is the only reason it is refused.
 const longHeading =
-	'Same-day plumbing repairs for every home and business in town';
+	'Plumbing repairs and new pipework for homes across the county';
 const tooLong = await insertInto( {
 	item: 'voyager-open/hero',
 	copy: { Heading: longHeading },
@@ -3802,7 +3803,7 @@ step(
 
 	const heroCopy = {
 		Heading: 'Plumbing repairs in Springfield, done today',
-		Body: 'Tell us what is leaking, and a plumber comes the same day.',
+		Body: 'Tell us what is leaking, and a plumber comes out to fix it.',
 		'Primary button': 'Book a repair',
 	};
 	const servicesCopy = {
@@ -7870,7 +7871,10 @@ await api( recorder, { method: 'DELETE' } );
 					f.message.includes(
 						'"Heading" at 1 holds "Say what you do and who it is for"'
 					) &&
-					f.message.includes( 'If not, it was left in place' )
+					f.message.includes( 'If not, it was left in place' ) &&
+					f.message.includes(
+						'adding no claim the business has not given'
+					)
 			) &&
 			plantedFindings.some(
 				( f ) =>

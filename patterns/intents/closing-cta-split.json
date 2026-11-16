@@ -8,14 +8,14 @@
 	"viewportWidth": 1280,
 	"copy_rules": {
 		"Heading": {
-			"purpose": "The page's last h2: one short sentence that invites the reader to get in touch.",
+			"purpose": "The page's last h2: one short sentence that invites the reader to get in touch. No price, rating, licence or promise unless the owner gave it.",
 			"min": 10,
 			"max": 60,
 			"required": true,
 			"claim": false
 		},
 		"Body": {
-			"purpose": "One line on how to reach the business and what happens next.",
+			"purpose": "One line on how to reach the business and what happens next. No price, rating, licence or promise unless the owner gave it.",
 			"min": 20,
 			"max": 120,
 			"required": true,

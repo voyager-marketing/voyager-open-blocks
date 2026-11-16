@@ -561,7 +561,7 @@ function default_copy_findings( array $blocks, array $index ): array {
 			'code'    => 'default_copy',
 			'block'   => $row['block'],
 			'path'    => $row['path'],
-			'message' => sprintf( '%1$s "%2$s" at %3$s holds "%4$s", the text the pack ships there. If you gave that text as copy for "%2$s", it is your choice and can stay. If not, it was left in place: replace it in the editor with the site\'s own words, or remove the block.', $row['block'], $row['label'], $row['path'], $row['text'] ),
+			'message' => sprintf( '%1$s "%2$s" at %3$s holds "%4$s", the text the pack ships there. If you gave that text as copy for "%2$s", it is your choice and can stay. If not, it was left in place: replace it in the editor with the site\'s own words, adding no claim the business has not given, such as a free estimate it never offered, or remove the block.', $row['block'], $row['label'], $row['path'], $row['text'] ),
 		];
 	}
 

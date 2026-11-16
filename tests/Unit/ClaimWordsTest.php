@@ -31,6 +31,22 @@ final class ClaimWordsTest extends TestCase {
 	private const BRIEFS  = __DIR__ . '/../../bench/briefs-v2.json';
 
 	/**
+	 * Copy that makes no claim, though a looser list would call it one: years,
+	 * a range, a date, a ZIP+4, a licence number and prices hold a digit, and
+	 * "operating" and "preview" hold "rating" and "review" inside a word.
+	 */
+	private const FALSE_POSITIVES = [
+		'We have re-roofed homes on this street in 2019, 2021 and 2024.',
+		'Most repairs take 2-3 days, and a new roof 3 to 5.',
+		'Book by June 30, 2027 for a start in July.',
+		'We work across 43968-1234 and the towns nearby.',
+		'Our contractor number, OH-123456, is on every invoice.',
+		'Repairs from $350, and new roofs from $9,500.',
+		'Operating hours are Monday to Friday, 7am to 5pm.',
+		'Preview your new shingle colour before we start.',
+	];
+
+	/**
 	 * kestovar-roofing's Site Data, as SiteData\values() resolves it: each
 	 * list one item per line.
 	 *
@@ -165,6 +181,8 @@ final class ClaimWordsTest extends TestCase {
 			[ 'services', 'Service 1 text', 'New roofs fitted by installers the manufacturer certified, with a 10-year workmanship warranty.' ],
 			[ 'hero', 'Body', 'Roofing for Kestovar homes since 1999, rated 4.8 from 276 reviews.' ],
 			[ 'hero', 'Body', 'Highly rated by Kestovar homeowners, and fully licensed.' ],
+			[ 'hero', 'Body', 'Highly rated, with 276 reviews from Kestovar homeowners.' ],
+			[ 'stats', 'Rating label', 'Rating from 276 reviews' ],
 		] as [ $slug, $slot, $text ] ) {
 			$out[ "{$slug} {$slot}: {$text}" ] = [ $slug, $slot, $text ];
 		}
@@ -225,16 +243,9 @@ final class ClaimWordsTest extends TestCase {
 		foreach ( [
 			// No claim word at all.
 			[ 'cta-band', 'Body', 'Tell us about the job and we will reply within two days.' ],
-			// Years, ranges, dates, ZIP+4, licence numbers and prices.
-			[ 'hero', 'Body', 'We have re-roofed homes on this street in 2019, 2021 and 2024.' ],
-			[ 'hero', 'Body', 'Most repairs take 2-3 days, and a new roof 3 to 5.' ],
-			[ 'hero', 'Body', 'Book by June 30, 2027 for a start in July.' ],
-			[ 'hero', 'Body', 'We work across 43968-1234 and the towns around it.' ],
-			[ 'hero', 'Body', 'Our contractor number, OH-123456, is on every invoice.' ],
-			[ 'hero', 'Body', 'Repairs from $350, and new roofs from $9,500.' ],
-			// Words that only hold a claim word.
-			[ 'cta-band', 'Body', 'Operating hours are Monday to Friday, 7am to 5pm.' ],
-			[ 'cta-band', 'Body', 'Preview your new shingle colour before we start.' ],
+			// Years, ranges, dates, ZIP+4, licence numbers, prices, and
+			// words that only hold a claim word.
+			...array_map( static fn ( string $text ): array => [ 'cta-band', 'Body', $text ], self::FALSE_POSITIVES ),
 			[ 'cta-band', 'Body', 'Feel free to call with any roofing question.' ],
 			// A word that names a figure, with no number: a stats label, and a year that is no claim.
 			[ 'stats', 'Founded label', 'In business since' ],
@@ -256,5 +267,68 @@ final class ClaimWordsTest extends TestCase {
 	#[DataProvider( 'plain' )]
 	public function test_copy_that_makes_no_claim_is_not_refused( string $slug, string $slot, string $text, ?array $site_data ): void {
 		$this->assertSame( [], self::reasons( self::check( $slug, [ $slot => $text ], $site_data ) ) );
+	}
+
+	public function test_each_false_positive_holds_what_the_list_leaves_out(): void {
+		// The list default copy is held to (a digit, #, and "rating" and
+		// "review" anywhere in a word) catches every line above, so each passes
+		// only because the check leaves those out, and putting one back turns
+		// its test red.
+		$looser = '/' . str_replace( [ '\brating', '\breview' ], [ 'rating', 'review' ], Abilities\CLAIM_WORDS ) . '|#|\d/i';
+
+		foreach ( self::FALSE_POSITIVES as $text ) {
+			$this->assertMatchesRegularExpression( $looser, $text, $text );
+		}
+	}
+
+	public function test_the_claim_words_are_one_list_that_every_part_of_the_check_reads(): void {
+		$alternatives = Abilities\claim_alternatives();
+
+		$this->assertSame( Abilities\CLAIM_WORDS, implode( '|', $alternatives ), 'no alternative holds a |, so the list splits into its words' );
+		$this->assertCount( 20, $alternatives );
+
+		foreach ( $alternatives as $alternative ) {
+			$this->assertSame( 0, preg_match( '/' . $alternative . '/i', '' ), "{$alternative} compiles" );
+		}
+
+		foreach ( array_keys( Abilities\CLAIM_FIGURES ) as $alternative ) {
+			$this->assertContains( $alternative, $alternatives, 'a figure is keyed by a claim word' );
+		}
+
+		foreach ( Abilities\FIGURE_NAMES as $alternative ) {
+			$this->assertArrayHasKey( $alternative, Abilities\CLAIM_FIGURES, 'a word that names a figure has one' );
+		}
+	}
+
+	public function test_the_hero_and_both_ctas_say_no_promise_in_every_layout(): void {
+		$sentence = 'No price, rating, licence or promise unless the owner gave it.';
+
+		foreach ( [
+			'hero'              => [ 'Body' ],
+			'hero-cover'        => [ 'Body' ],
+			'cta-band'          => [ 'Eyebrow', 'Heading', 'Body' ],
+			'cta-band-cover'    => [ 'Eyebrow', 'Heading', 'Body' ],
+			'closing-cta'       => [ 'Heading', 'Body' ],
+			'closing-cta-split' => [ 'Heading', 'Body' ],
+			'services'          => [ 'Service 1 text', 'Service 2 text', 'Service 3 text' ],
+		] as $slug => $slots ) {
+			$rules = Patterns\intent_meta( 'voyager-open/' . $slug, self::INTENTS )['copy_rules'];
+
+			foreach ( $slots as $slot ) {
+				$this->assertStringEndsWith( $sentence, (string) ( $rules[ $slot ]['purpose'] ?? '' ), "{$slug} {$slot}" );
+				$this->assertFalse( $rules[ $slot ]['claim'] ?? false, "{$slug} {$slot} stays a slot for the agent's own words" );
+			}
+		}
+	}
+
+	public function test_a_reworded_credential_keeps_its_own_words_in_any_form(): void {
+		$this->assertSame( 'install', Abilities\claim_stem( 'installers' ) );
+		$this->assertSame( 'install', Abilities\claim_stem( 'installation' ) );
+		$this->assertSame( 'inspect', Abilities\claim_stem( 'inspections' ) );
+		$this->assertSame( Abilities\claim_stem( 'damage' ), Abilities\claim_stem( 'damages' ) );
+		$this->assertSame( Abilities\claim_stem( 'estimate' ), Abilities\claim_stem( 'estimates' ) );
+		$this->assertSame( Abilities\claim_stem( 'business' ), Abilities\claim_stem( 'businesses' ) );
+		$this->assertSame( 'day', Abilities\claim_stem( 'days' ) );
+		$this->assertSame( [ '10', 'year', 'storm', 'damage' ], Abilities\claim_text_words( '10-year storm-damage' ) );
 	}
 }

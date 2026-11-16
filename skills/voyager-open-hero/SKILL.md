@@ -76,11 +76,11 @@ Each intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` 
 |---|---|---|---|---|
 | `Eyebrow` | What the business does or where it works, in a few words. Leave it out when the heading says it already. | 2 | 40 | no |
 | `Heading` | The page's one `h1`: what the business offers, and for whom or where. | 10 | 60 | yes |
-| `Body` | One line on what the visitor gets or what happens next. | 20 | 120 | yes |
+| `Body` | One line on what the visitor gets or what happens next. No price, rating, licence or promise unless the owner gave it. | 20 | 120 | yes |
 | `Primary button` | The page's main action, as what happens when it is pressed, such as "Get a quote". Leave it out with `omit` on the page it would link to: the contact page's recipe does. | 2 | 24 | no |
 | `Click to call` | Shows the Site Data phone number and dials it when tapped. It takes no copy: `get-catalog` lists its rule as `copy: false`, bound to `phone`. Its own text shows only while the number is empty. | 2 | 24 | yes |
 
-No slot is a claim slot, and the shipped copy makes no claim. Do not put a licence, insurance, years in business, a rating or an award in the hero unless the site owner gave it to you. Those belong in the proof strip, from Site Data.
+No slot is a claim slot, and the shipped copy makes no claim. Do not put a licence, insurance, years in business, a rating or an award in the hero unless the site owner gave it to you. Those belong in the proof strip, from Site Data. `insert` and `compose` refuse a claim word no Site Data credential, service or figure gives, such as a free estimate the business never offered (`unsourced_claim`).
 
 ## The image slot
 

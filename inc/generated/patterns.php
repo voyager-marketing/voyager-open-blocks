@@ -63,14 +63,14 @@ return [
 		'layout' => 'split',
 		'copy_rules' => [
 			'Heading' => [
-				'purpose' => 'The page\'s last h2: one short sentence that invites the reader to get in touch.',
+				'purpose' => 'The page\'s last h2: one short sentence that invites the reader to get in touch. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 10,
 				'max' => 60,
 				'required' => true,
 				'claim' => false,
 			],
 			'Body' => [
-				'purpose' => 'One line on how to reach the business and what happens next.',
+				'purpose' => 'One line on how to reach the business and what happens next. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 20,
 				'max' => 120,
 				'required' => true,
@@ -128,14 +128,14 @@ return [
 		'layout' => 'centered',
 		'copy_rules' => [
 			'Heading' => [
-				'purpose' => 'The page\'s last h2: one short sentence that invites the reader to get in touch.',
+				'purpose' => 'The page\'s last h2: one short sentence that invites the reader to get in touch. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 10,
 				'max' => 60,
 				'required' => true,
 				'claim' => false,
 			],
 			'Body' => [
-				'purpose' => 'One line on how to reach the business and what happens next.',
+				'purpose' => 'One line on how to reach the business and what happens next. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 20,
 				'max' => 120,
 				'required' => true,
@@ -433,21 +433,21 @@ return [
 		'layout' => 'cover',
 		'copy_rules' => [
 			'Eyebrow' => [
-				'purpose' => 'A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already.',
+				'purpose' => 'A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 2,
 				'max' => 40,
 				'required' => false,
 				'claim' => false,
 			],
 			'Heading' => [
-				'purpose' => 'The band\'s h2: one short question or invitation that asks the reader to act.',
+				'purpose' => 'The band\'s h2: one short question or invitation that asks the reader to act. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 10,
 				'max' => 60,
 				'required' => true,
 				'claim' => false,
 			],
 			'Body' => [
-				'purpose' => 'One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short.',
+				'purpose' => 'One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 20,
 				'max' => 100,
 				'required' => true,
@@ -513,21 +513,21 @@ return [
 		'layout' => 'row',
 		'copy_rules' => [
 			'Eyebrow' => [
-				'purpose' => 'A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already.',
+				'purpose' => 'A few words that lead into the heading, such as what the reader does next. Leave it out when the heading says it already. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 2,
 				'max' => 40,
 				'required' => false,
 				'claim' => false,
 			],
 			'Heading' => [
-				'purpose' => 'The band\'s h2: one short question or invitation that asks the reader to act.',
+				'purpose' => 'The band\'s h2: one short question or invitation that asks the reader to act. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 10,
 				'max' => 60,
 				'required' => true,
 				'claim' => false,
 			],
 			'Body' => [
-				'purpose' => 'One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short.',
+				'purpose' => 'One line on what happens when the reader acts. It shares a wide row with the buttons, so keep it short. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 20,
 				'max' => 100,
 				'required' => true,
@@ -826,7 +826,7 @@ return [
 				'claim' => false,
 			],
 			'Body' => [
-				'purpose' => 'One line on what the visitor gets or what happens next.',
+				'purpose' => 'One line on what the visitor gets or what happens next. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 20,
 				'max' => 120,
 				'required' => true,
@@ -914,7 +914,7 @@ return [
 				'claim' => false,
 			],
 			'Body' => [
-				'purpose' => 'One line on what the visitor gets or what happens next.',
+				'purpose' => 'One line on what the visitor gets or what happens next. No price, rating, licence or promise unless the owner gave it.',
 				'min' => 20,
 				'max' => 120,
 				'required' => true,

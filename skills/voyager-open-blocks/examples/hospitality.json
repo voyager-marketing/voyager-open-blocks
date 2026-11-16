@@ -10,7 +10,7 @@
 				"copy": {
 					"Eyebrow": "Seaside inn in Wrenmouth",
 					"Heading": "A quiet stay by the harbor in Wrenmouth",
-					"Body": "Tell us the dates you want, and we will tell you which rooms are free.",
+					"Body": "Tell us the dates you want, and we will tell you which rooms are available.",
 					"Primary button": "Check availability"
 				}
 			},
@@ -59,7 +59,7 @@
 				"copy": {
 					"Eyebrow": "Planning a trip?",
 					"Heading": "Find a room for your dates",
-					"Body": "Send us your dates, and we will reply with the rooms that are free.",
+					"Body": "Send us your dates, and we will reply with the rooms that are available.",
 					"Primary button": "Check availability"
 				}
 			},
@@ -145,7 +145,7 @@
 				"style": "inverted",
 				"copy": {
 					"Heading": "Come and stay by the harbor",
-					"Body": "Call or email us with your dates, and we will reply with what is free.",
+					"Body": "Call or email us with your dates, and we will reply with what is available.",
 					"Primary button": "Check availability",
 					"Email button": "Email us"
 				}

@@ -169,20 +169,16 @@ function score( runs, briefs ) {
 }
 
 // ---------------------------------------------------------------------------
-// The claim words are tests/Unit/PatternLayoutsTest.php's, with the changes
-// score.mjs names: no bare digit and no #, and rating and review start a word.
+// The claim words are the pack's one list, CLAIM_WORDS in
+// inc/abilities/claims.php: the words insert and compose check copy with, and
+// the unit tests hold default copy to (with a digit and # added).
 
 check( () => {
-	const php = readFileSync( join( here, '..', 'tests', 'Unit', 'PatternLayoutsTest.php' ), 'utf8' );
-	const source = /private const CLAIMS = '\/(.+)\/i';/.exec( php )?.[ 1 ];
-	assert.ok( source, 'PatternLayoutsTest.php holds the CLAIMS list' );
-	const expected = source
-		.split( '|' )
-		.filter( ( part ) => ! [ '#', '\\d' ].includes( part ) )
-		.map( ( part ) => ( [ 'rating', 'review' ].includes( part ) ? `\\b${ part }` : part ) )
-		.join( '|' );
+	const php = readFileSync( join( here, '..', 'inc', 'abilities', 'claims.php' ), 'utf8' );
+	const source = /^const CLAIM_WORDS = '(.+)';$/m.exec( php )?.[ 1 ];
+	assert.ok( source, 'inc/abilities/claims.php holds CLAIM_WORDS' );
 	const scorer = /const CLAIM_WORDS = \/(.+)\/i;/.exec( readFileSync( join( here, 'score.mjs' ), 'utf8' ) )?.[ 1 ];
-	assert.equal( scorer, expected, 'score.mjs CLAIM_WORDS follows PatternLayoutsTest.php CLAIMS' );
+	assert.equal( scorer, source, 'score.mjs CLAIM_WORDS is inc/abilities/claims.php CLAIM_WORDS' );
 } );
 
 console.log( `ok   bench/score.mjs known-answer fixtures (${ checks }/${ checks })` );

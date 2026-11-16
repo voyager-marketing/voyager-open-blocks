@@ -81,7 +81,7 @@ Each intent carries `copy_rules`, keyed by the same labels as `insert`'s `copy` 
 
 An item added with `repeat` takes the same rules as the one it copies: `Service 4 heading` is a service name, `Service 4 text` one plain line.
 
-No slot is a claim slot, and the shipped copy makes no claim: "Repairs", "Installation" and "Maintenance", each with one plain line about the work. Do not put a price, a rating, a licence, a guarantee or a number of years in a card unless the site owner gave it to you. Those belong in the proof strip, from Site Data. Keep each line short: in a card it wraps at about 25 to 35 characters, and two or three lines is plenty.
+No slot is a claim slot, and the shipped copy makes no claim: "Repairs", "Installation" and "Maintenance", each with one plain line about the work. Do not put a price, a rating, a licence, a guarantee or a number of years in a card unless the site owner gave it to you. Those belong in the proof strip, from Site Data. `insert` and `compose` refuse a claim word no Site Data credential, service or figure gives, such as "manufacturer-certified materials" when only the installers are certified (`unsourced_claim`). Keep each line short: in a card it wraps at about 25 to 35 characters, and two or three lines is plenty.
 
 ## Choosing icons
 
