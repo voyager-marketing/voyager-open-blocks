@@ -140,6 +140,19 @@
 				}
 			},
 			{
+				"pattern": "voyager-open/contact-section",
+				"layout": "split",
+				"style": "panel",
+				"copy": {
+					"Heading": "Ways to reach the firm",
+					"Body": "Call to talk it through, or write to us and a lawyer will read it and call you back.",
+					"Click to call": "Call the firm",
+					"Form heading": "Send us a few lines",
+					"Form body": "Say what happened at work, when it happened, and when we can call you back.",
+					"Email button": "Email the firm"
+				}
+			},
+			{
 				"pattern": "voyager-open/closing-cta",
 				"layout": null,
 				"style": "inverted",

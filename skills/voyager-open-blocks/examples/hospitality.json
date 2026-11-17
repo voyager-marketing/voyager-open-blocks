@@ -140,6 +140,19 @@
 				}
 			},
 			{
+				"pattern": "voyager-open/contact-section",
+				"layout": "split",
+				"style": "panel",
+				"copy": {
+					"Heading": "Get in touch with Mira and Joe",
+					"Body": "Call with a quick question, or write to us to plan a stay or a family gathering.",
+					"Click to call": "Call the inn",
+					"Form heading": "Plan your stay",
+					"Form body": "Tell us your dates, how many of you are coming, and whether you are bringing a dog.",
+					"Email button": "Email the inn"
+				}
+			},
+			{
 				"pattern": "voyager-open/closing-cta",
 				"layout": null,
 				"style": "inverted",

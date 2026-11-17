@@ -140,6 +140,19 @@
 				}
 			},
 			{
+				"pattern": "voyager-open/contact-section",
+				"layout": "split",
+				"style": "panel",
+				"copy": {
+					"Heading": "Call ahead or come on in",
+					"Body": "Call to order ahead for pickup, or write to us about a group order for the office or a party.",
+					"Click to call": "Call to order",
+					"Form heading": "Plan a group order",
+					"Form body": "Tell us how many people, which day and time, and where the order is going.",
+					"Email button": "Email us"
+				}
+			},
+			{
 				"pattern": "voyager-open/closing-cta",
 				"layout": null,
 				"style": "inverted",

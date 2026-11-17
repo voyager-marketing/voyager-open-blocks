@@ -305,7 +305,7 @@ final class GetCatalogTest extends TestCase {
 		$home = self::detail( 'home' );
 		$this->assertNotNull( $home );
 		$this->assertSame(
-			[ 'hero split', 'proof-strip list', 'services grid', 'cta-band row', 'reviews grid', 'stats row', 'service-area list', 'closing-cta centered' ],
+			[ 'hero split', 'proof-strip list', 'services grid', 'cta-band row', 'reviews grid', 'stats row', 'service-area list', 'contact-section split', 'closing-cta centered' ],
 			array_map( static fn ( array $section ): string => substr( (string) $section['pattern'], strlen( 'voyager-open/' ) ) . ' ' . $section['layout'], $home['sections'] ),
 			'the home recipe names every section\'s pattern and layout, no layout null'
 		);

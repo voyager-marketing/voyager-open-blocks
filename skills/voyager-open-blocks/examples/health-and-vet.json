@@ -140,6 +140,19 @@
 				}
 			},
 			{
+				"pattern": "voyager-open/contact-section",
+				"layout": "split",
+				"style": "panel",
+				"copy": {
+					"Heading": "Get in touch with the clinic",
+					"Body": "Call if your pet seems unwell. Write to us to book a check-up or to ask a question.",
+					"Click to call": "Call the clinic",
+					"Form heading": "Book a visit or ask a question",
+					"Form body": "Tell us your pet's name and age, what you have noticed, and a time that suits you.",
+					"Email button": "Email the clinic"
+				}
+			},
+			{
 				"pattern": "voyager-open/closing-cta",
 				"layout": null,
 				"style": "inverted",
