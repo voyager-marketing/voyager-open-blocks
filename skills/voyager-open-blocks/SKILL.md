@@ -3,7 +3,7 @@ name: voyager-open-blocks
 description: Entry point for the Voyager Open Blocks WordPress pack. Use to build a page, or to place, configure or bind its voyager-open/* blocks and patterns or its voyager/site-data and voyager/post-meta-text sources.
 license: GPL-2.0-or-later
 metadata:
-  pack-version: "0.9.0" # x-release-please-version
+  pack-version: "1.0.0" # x-release-please-version
   requires: "WordPress 6.9+, PHP 8.1+, wesper 0.5.0, block-runner 1.0.0"
 ---
 
