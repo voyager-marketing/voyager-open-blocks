@@ -270,7 +270,8 @@
  *      time unchanged, while a REST save of the page changes both. A home
  *      page compose builds from the home recipe, every copy slot get-catalog
  *      lists given text and every field it binds filled, with its hero image
- *      swapped for the site's own, gets no finding. "Call us" given as copy
+ *      swapped for the site's own and a form plugin's block in its contact
+ *      section's form slot, gets no finding. "Call us" given as copy
  *      for the contact section's call button saves what the section with no
  *      copy saves, and audit finds default_copy on both, its message saying
  *      copy given for that label can stay. Then it deletes the pages and puts
@@ -7959,8 +7960,8 @@ await api( recorder, { method: 'DELETE' } );
 // modified time, which a REST save of the same page is then shown to change.
 // A home page compose builds from the home recipe, every copy slot given
 // text and every field it binds filled, holds nothing to fix once its hero
-// shows the site's own image. Then it deletes the pages and puts Site Data
-// back.
+// shows the site's own image and a form block fills its form slot. Then it
+// deletes the pages and puts Site Data back.
 {
 	const auditAbility = `${ ns }/audit`;
 	const auditCodes = [
@@ -8307,13 +8308,21 @@ await api( recorder, { method: 'DELETE' } );
 	// editor.
 	const heroImage = /src="[^"]*\/placeholders\/image-4x3\.svg"( alt="")?/g;
 	const placeholders = ( homeContent || '' ).match( heroImage ) || [];
+	// The contact section's form slot ships a stand-in for a form, the group
+	// named "Form", which holds no group of its own; a form plugin's block
+	// takes its place, as a person would put one in.
+	const formStandIn =
+		/<!-- wp:group \{"metadata":\{"name":"Form"\}[\s\S]*?<!-- \/wp:group -->/g;
+	const standIns = ( homeContent || '' ).match( formStandIn ) || [];
 	const ownImage = await api( `/wp/v2/pages/${ homeId }`, {
 		method: 'POST',
 		body: {
-			content: ( homeContent || '' ).replace(
-				heroImage,
-				'src="https://example.com/wp-content/uploads/our-team.jpg" alt="Our team at work"'
-			),
+			content: ( homeContent || '' )
+				.replace(
+					heroImage,
+					'src="https://example.com/wp-content/uploads/our-team.jpg" alt="Our team at work"'
+				)
+				.replace( formStandIn, '<!-- wp:example/contact-form /-->' ),
 		},
 	} );
 	const homeAudit = await run( auditAbility, { post_id: homeId }, true );
@@ -8323,7 +8332,7 @@ await api( recorder, { method: 'DELETE' } );
 		);
 	}
 	step(
-		"audit on a home page compose builds from the home recipe, every copy slot given text and Site Data filled, with its hero image the site's own, finds nothing to fix",
+		"audit on a home page compose builds from the home recipe, every copy slot given text and Site Data filled, with its hero image the site's own and a form block in its form slot, finds nothing to fix",
 		homeSet.status === 200 &&
 			unfilled.length === 0 &&
 			home.status === 200 &&
@@ -8332,6 +8341,7 @@ await api( recorder, { method: 'DELETE' } );
 			Array.isArray( home.data.empty ) &&
 			home.data.empty.length === 0 &&
 			placeholders.length === 1 &&
+			standIns.length === 1 &&
 			ownImage.status === 200 &&
 			homeAudit.status === 200 &&
 			Array.isArray( homeAudit.data.findings ) &&
@@ -8345,9 +8355,9 @@ await api( recorder, { method: 'DELETE' } );
 				.join( '; ' ) || 'none'
 		}, empty [${ ( home.data.empty || [] ).join(
 			', '
-		) }], ${ placeholders.length } hero placeholder; audit ${ auditSummary(
-			homeAudit
-		) }`
+		) }], ${ placeholders.length } hero placeholder, ${
+			standIns.length
+		} form stand-in; audit ${ auditSummary( homeAudit ) }`
 	);
 
 	for ( const id of auditPages.filter( Boolean ) ) {
