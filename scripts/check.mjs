@@ -350,8 +350,8 @@ if ( windowsPathBug ) {
 	);
 }
 
-// WordPress.org serves the version the readme's Stable tag names, so a tag
-// left behind after a Version bump ships the old release.
+// The readme's Stable tag names the release a site owner installs, so a tag
+// left behind after a Version bump names the old release.
 function header( file, pattern ) {
 	const match = readFileSync( join( root, file ), 'utf8' ).match( pattern );
 	return match ? match[ 1 ] : '';
