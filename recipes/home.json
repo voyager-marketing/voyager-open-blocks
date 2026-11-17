@@ -1,6 +1,6 @@
 {
 	"title": "Home page",
-	"description": "The front page: what the business does and where, the credentials a visitor checks, its main services, what customers say, its figures from Site Data, and one way to get in touch.",
+	"description": "The front page: what the business does and where, the credentials a visitor checks, its main services, what customers say, its figures and contact details from Site Data, and one way to get in touch.",
 	"page_type": "home",
 	"sections": [
 		{
@@ -68,6 +68,17 @@
 			"copy_guidance": {
 				"Heading": "Where the business works, in a few words.",
 				"Intro": "One line on the region the places sit in, or how to ask about a town the list leaves out."
+			}
+		},
+		{
+			"pattern": "voyager-open/contact-section",
+			"layout": "split",
+			"style": "panel",
+			"copy_guidance": {
+				"Heading": "An invitation to get in touch, in a few words, such as Ways to reach us. The closing CTA below asks again, so word it differently.",
+				"Body": "One line on when to call and when to write.",
+				"Form heading": "What the visitor can send, in a few words, such as Ask for a quote.",
+				"Form body": "One line on what to put in the message, so the business can answer it well."
 			}
 		},
 		{

@@ -140,6 +140,19 @@
 				}
 			},
 			{
+				"pattern": "voyager-open/contact-section",
+				"layout": "split",
+				"style": "panel",
+				"copy": {
+					"Heading": "Call or write to the office",
+					"Body": "Call about a breaker that keeps tripping, or email us about a new panel or a charger.",
+					"Click to call": "Call the office",
+					"Form heading": "Ask for a written quote",
+					"Form body": "Say what needs doing, where in the house, and when someone can be home to let us in.",
+					"Email button": "Email the office"
+				}
+			},
+			{
 				"pattern": "voyager-open/closing-cta",
 				"layout": null,
 				"style": "inverted",
