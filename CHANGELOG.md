@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.0.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.9.0...v1.0.0) (2026-11-17)
+
+
+### Features
+
+* a second layout for the CTA band and the closing CTA ([#96](https://github.com/voyager-marketing/voyager-open-blocks/issues/96)) ([b96df3b](https://github.com/voyager-marketing/voyager-open-blocks/commit/b96df3b2a28c12ce1528cd44950675e30047e9a7))
+* a second layout for the logo marquee and the contact section ([#105](https://github.com/voyager-marketing/voyager-open-blocks/issues/105)) ([a871a5e](https://github.com/voyager-marketing/voyager-open-blocks/commit/a871a5ed2b00b9183ff746a89939db7b571ba20d))
+* audit lists what to fix on a saved page before it goes live ([#101](https://github.com/voyager-marketing/voyager-open-blocks/issues/101)) ([6ffdff2](https://github.com/voyager-marketing/voyager-open-blocks/commit/6ffdff2675df1d8e308282f108ed9042c2ea59f6))
+* **bench:** benchmark v2 harness, three groups behind a page cache ([#99](https://github.com/voyager-marketing/voyager-open-blocks/issues/99)) ([aa385a8](https://github.com/voyager-marketing/voyager-open-blocks/commit/aa385a87c7e703aecb16c04deed182b0a541d085))
+* get-catalog answers in brief, with detail on request ([#103](https://github.com/voyager-marketing/voyager-open-blocks/issues/103)) ([3d256cc](https://github.com/voyager-marketing/voyager-open-blocks/commit/3d256cca203ccea8f56db45613177c6b51a5a60a))
+* LocalBusiness JSON-LD on the front page from Site Data ([#100](https://github.com/voyager-marketing/voyager-open-blocks/issues/100)) ([a65f554](https://github.com/voyager-marketing/voyager-open-blocks/commit/a65f55471c0efbdaef158aa2a0c8c310419e588c))
+* the home recipe holds the contact section ([#114](https://github.com/voyager-marketing/voyager-open-blocks/issues/114)) ([13ce1cc](https://github.com/voyager-marketing/voyager-open-blocks/commit/13ce1cca126952bd349c20b12ede5fdcf8b9428d))
+
+
+### Bug Fixes
+
+* compose takes a layout's own name, and post_id with its title ([#107](https://github.com/voyager-marketing/voyager-open-blocks/issues/107)) ([5095626](https://github.com/voyager-marketing/voyager-open-blocks/commit/5095626a93a5a5c6020ebb81bcff05c780e14da5))
+* copy with a claim word is refused unless the business gave it ([#110](https://github.com/voyager-marketing/voyager-open-blocks/issues/110)) ([052c63d](https://github.com/voyager-marketing/voyager-open-blocks/commit/052c63d3dccb577be7f06780354f95a2d88ffb31))
+* get-catalog marks bound slots and lists a recipe's Site Data ([#108](https://github.com/voyager-marketing/voyager-open-blocks/issues/108)) ([86574e9](https://github.com/voyager-marketing/voyager-open-blocks/commit/86574e9984b711bda7c4be0d9c3bf16edc0b8336))
+* get-catalog names recipe layouts and says where a block sits ([#111](https://github.com/voyager-marketing/voyager-open-blocks/issues/111)) ([d2df27a](https://github.com/voyager-marketing/voyager-open-blocks/commit/d2df27ad18da8988720b40764b2c266137094932))
+* the bench scorer traces each claim word and the edit's own cost ([#109](https://github.com/voyager-marketing/voyager-open-blocks/issues/109)) ([b7893a1](https://github.com/voyager-marketing/voyager-open-blocks/commit/b7893a1cfdb92b6f2d49dfbc2330acdcad3a6b78))
+* the claim check reads decades, idioms and trade nouns ([#112](https://github.com/voyager-marketing/voyager-open-blocks/issues/112)) ([758621d](https://github.com/voyager-marketing/voyager-open-blocks/commit/758621da382f6f3a975cdf0a9786bc135b189a7b))
+* typed call links, live pages via insert, and the wave's lows ([#113](https://github.com/voyager-marketing/voyager-open-blocks/issues/113)) ([c80abab](https://github.com/voyager-marketing/voyager-open-blocks/commit/c80abab0009a047676d0ffb942bb1a6d3672212d))
+* validate warns when a bound list shows its pattern's stand-ins ([#95](https://github.com/voyager-marketing/voyager-open-blocks/issues/95)) ([fdbbd7f](https://github.com/voyager-marketing/voyager-open-blocks/commit/fdbbd7f8805c4a14cc9205c715313e168535b12a))
+
+
+### Maintenance
+
+* e2e step limit 15 minutes, and the generated arrays check ([#102](https://github.com/voyager-marketing/voyager-open-blocks/issues/102)) ([5e416ed](https://github.com/voyager-marketing/voyager-open-blocks/commit/5e416ed1efcd17753a9590d140d77e912776755d))
+* the Stable tag check names no WordPress.org listing ([#115](https://github.com/voyager-marketing/voyager-open-blocks/issues/115)) ([d7ae176](https://github.com/voyager-marketing/voyager-open-blocks/commit/d7ae1766f863688424fa0316bb24580f177255f4))
+
+
+### Documentation
+
+* what 1.x promises, three read helpers, a shorter quick card ([#104](https://github.com/voyager-marketing/voyager-open-blocks/issues/104)) ([7531d79](https://github.com/voyager-marketing/voyager-open-blocks/commit/7531d79a312e5141a569c44ab441cba08a8c9237))
+
+
+### Performance
+
+* get-catalog keeps its answer until something it reads changes ([#106](https://github.com/voyager-marketing/voyager-open-blocks/issues/106)) ([0b5758a](https://github.com/voyager-marketing/voyager-open-blocks/commit/0b5758a477465d8e17dca6948f63ac7b8a0e6d61))
+* ship patterns, intents and icons as generated PHP arrays ([#97](https://github.com/voyager-marketing/voyager-open-blocks/issues/97)) ([ebdc3e3](https://github.com/voyager-marketing/voyager-open-blocks/commit/ebdc3e3883d74c9c77d31e4168b0fb50a43474ef))
+
 ## [0.9.0](https://github.com/voyager-marketing/voyager-open-blocks/compare/v0.8.0...v0.9.0) (2026-11-13)
 
 
